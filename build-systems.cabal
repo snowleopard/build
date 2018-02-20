@@ -15,6 +15,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Development.Build,
+                       Development.Build.Compute,
                        Development.Build.NonDeterministic,
                        Development.Build.Plan,
                        Development.Build.Store,

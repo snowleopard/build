@@ -1,5 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, ScopedTypeVariables #-}
-module Development.Build.Plan where
+{-# LANGUAGE OverloadedStrings #-}
+module Development.Build.Plan (Plan, acyclic, inputs) where
 
 import Data.String
 import System.FilePath

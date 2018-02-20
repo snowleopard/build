@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings #-}
 module Development.Build.Store (Key, Value, Hash, hash, Store (..)) where
 
 import Data.String
