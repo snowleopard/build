@@ -1,0 +1,24 @@
+name:                build-systems
+version:             0.0.1
+synopsis:            Experimenting with build systems
+homepage:            https://github.com/snowleopard/build-systems
+license:             MIT
+license-file:        LICENSE
+author:              Andrey Mokhov <andrey.mokhov@gmail.com>, github: @snowleopard
+maintainer:          Andrey Mokhov <andrey.mokhov@gmail.com>, github: @snowleopard
+copyright:           Andrey Mokhov, 2018
+category:            Development
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Development.Build
+  build-depends:       base     >= 4.7 && < 5,
+                       filepath >= 1.4.1.0
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/snowleopard/build-systems
