@@ -15,7 +15,9 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Development.Build,
-                       Development.Build.NonDeterministic
+                       Development.Build.NonDeterministic,
+                       Development.Build.Store,
+                       Development.Build.Utilities
   build-depends:       base     >= 4.7 && < 5,
                        filepath >= 1.4.1.0
   default-language:    Haskell2010

@@ -5,28 +5,8 @@ import Data.String
 import System.FilePath
 
 import Development.Build.NonDeterministic
-
--- | A 'Key' is a name of a file or, more generally, a variable. We use 'FilePath'
--- for prototyping.
-type Key = FilePath
-
--- | A 'Value' is the contents of a file or, more generally, a variable. We use
--- @newtype Value = Value String@ for prototyping.
-newtype Value = Value String deriving (Eq, IsString, Show)
-
--- | A 'Hash' is used for efficient tracking and sharing of build results. We
--- use @newtype Hash = Hash Value@ for prototyping.
-newtype Hash = Hash Value deriving (Eq, Show)
-
--- | Compute the 'Hash' of a given 'Value'. We typically assume cryptographic
--- hashing, e.g. SHA256. We use @hash v = Hash v@ for prototyping.
-hash :: Value -> Hash
-hash = Hash
-
--- | A key-value mapping. For example, a file system. Note that if a file does
--- not exist, the corresponding 'file not found' value (suitably encoded) is
--- still useful and can be tracked by a build system.
-type Store = Key -> Value
+import Development.Build.Store
+import Development.Build.Utilities
 
 -- | A dependency comprises a 'Key' and the 'Hash' of its 'Value'.
 type Dependency = (Key, Hash)
@@ -82,7 +62,7 @@ type Compute = Store -> Key -> NonDeterministic (Value, [Key])
 -- | The default computation that assumes that all files are inputs, including
 -- the files that do not exist.
 defaultCompute :: Compute
-defaultCompute store key = return (store key, [])
+defaultCompute store key = return (getValue store key, [])
 
 -- | Compute an object file from the corresponding C source by running @gcc@.
 gccCompute :: Compute
@@ -91,7 +71,7 @@ gccCompute store key | takeExtension key /= "o" = defaultCompute store key
     let source   = key -<.> "c"     -- Compute source filename, e.g. f.o -> f.c
         includes = undefined source -- The result of running @gcc -M source@
         depKeys  = gccKey : source : includes
-    result <- gcc (store source)
+    result <- gcc (getValue store source)
     return (result, depKeys)
   where
     gcc :: Value -> NonDeterministic Value
@@ -120,8 +100,8 @@ wellDefined compute = forall $ \store -> forall $ \key ->
 consistent :: Compute -> Plan -> Store -> Key -> Bool
 consistent compute plan store key = acyclic plan && case plan key of
     Nothing        -> False -- The plan is incomplete
-    Just (h, deps) -> hash (store key) == h
-                   && (store key, map fst deps) `member` compute store key
+    Just (h, deps) -> getHash store key == h
+                   && (getValue store key, map fst deps) `member` compute store key
                    && and [ consistent compute plan store k | (k, _) <- deps ]
 
 -- | A list of keys that need to be built.
@@ -150,11 +130,12 @@ correct build = forall $ \(compute, outputs, state, oldPlan, oldStore) ->
     wellDefined compute ==> exists $ \magicStore ->
         let (_, newPlan, newStore) = build compute outputs (state, oldPlan, oldStore) in
         -- The oldStore, newStore and the magicStore agree on the inputs
-        all (\k -> oldStore k == magicStore k && newStore k == oldStore k)
+        all (\k -> getHash oldStore k == getHash newStore k
+                && getHash oldStore k == getHash magicStore k)
             (concatMap (inputs newPlan) outputs)
         &&
         -- The newStore and the magicStore agree on the outputs
-        all (\k -> newStore k == magicStore k) outputs
+        all (\k -> getHash newStore k == getHash magicStore k) outputs
         &&
         -- The magicStore is consistent w.r.t. the compute function and the plan
         -- TODO: Check that the plan is acyclic here
@@ -166,27 +147,15 @@ idempotent :: Build -> Bool
 idempotent build = forall $ \(compute, keys, state, plan, store) ->
     let (state', plan' , store' ) = build compute keys (state , plan , store )
         (_     , plan'', store'') = build compute keys (state', plan', store')
-    in forall $ \key -> plan'' key == plan' key && store'' key == store' key
+    in forall $ \key ->          plan'' key == plan' key
+                     && getHash store'' key == getHash store' key
 
 zeroBuild :: Build -> Bool
 zeroBuild build = forall $ \(compute, keys, state, plan, store) ->
     let (state', plan' , store' ) = build compute    keys (state , plan , store )
         (_     , plan'', store'') = build badCompute keys (state', plan', store')
-    in forall $ \key -> plan'' key == plan' key && store'' key == store' key
+    in forall $ \key ->          plan'' key == plan' key
+                     && getHash store'' key == getHash store' key
 
 badCompute :: Compute
 badCompute store key = undefined
-
--- | Check that a predicate holds for all values of @a@.
-forall :: (a -> Bool) -> Bool
-forall = undefined
-
--- | Check that a predicate holds for some value of @a@.
-exists :: (a -> Bool) -> Bool
-exists = undefined
-
--- | Logical implication.
-(==>) :: Bool -> Bool -> Bool
-x ==> y = if x then y else True
-
-infixr 0 ==>
