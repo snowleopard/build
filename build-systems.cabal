@@ -16,6 +16,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Development.Build,
                        Development.Build.NonDeterministic,
+                       Development.Build.Plan,
                        Development.Build.Store,
                        Development.Build.Utilities
   build-depends:       base     >= 4.7 && < 5,
