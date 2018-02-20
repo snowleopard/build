@@ -56,12 +56,13 @@ examplePlan key = case key of
 emptyPlan :: Plan
 emptyPlan = const Nothing
 
--- | Check that a given 'Plan' is acyclic with respect to a given 'Key', i.e.
--- that there are no cyclic dependencies in its dependency graph.
-acyclic :: Plan -> Key -> Bool
-acyclic plan key = case plan key of
-    Nothing        -> True
-    Just (_, deps) -> and [ key /= k && acyclic plan k | (k, _) <- deps ]
+-- | Check that a given 'Plan' has no cyclic dependencies.
+acyclic :: Plan -> Bool
+acyclic plan = forall $ \key -> key `notElem` dependencies key
+  where
+    dependencies k = case plan k of
+        Nothing        -> []
+        Just (_, deps) -> concatMap (dependencies . fst) deps
 
 -- | Determine the input files of a given 'Key' according to a given 'Plan'.
 inputs :: Plan -> Key -> [Key]
@@ -95,13 +96,26 @@ gccCompute store key | takeExtension key /= "o" = defaultCompute store key
     gccKey :: Key
     gccKey = "path/to/gcc"
 
+-- | Check that a 'Compute' function never produces cyclic dependencies and
+-- always has at least one valid outcome.
+wellDefined :: Compute -> Bool
+wellDefined compute = forall $ \store -> forall $ \key ->
+    let allDeps = dependencies store key in
+       forall (\deps -> deps `member` allDeps ==> key `notElem` deps)
+    && exists (\deps -> deps `member` allDeps)
+  where
+    dependencies :: Store -> Key -> NonDeterministic [Key]
+    dependencies s k = do
+        (_, deps) <- compute s k
+        concat <$> mapM (dependencies s . fst) deps
+
 -- | Check a three-way consistency between a 'Compute' function, a 'Plan' and
 -- a 'Store' with respect to a given 'Key'. This involves checking the following:
 -- * The plan is acyclic and complete, i.e. all dependencies of the key are known.
 -- * The plan is consistent with the store.
 -- * The ('Plan', 'Store') pair agrees with the 'Compute' function.
 consistent :: Compute -> Plan -> Store -> Key -> Bool
-consistent compute plan store key = acyclic plan key && case plan key of
+consistent compute plan store key = acyclic plan && case plan key of
     Nothing        -> False -- The plan is incomplete
     Just (h, deps) -> hash (store key) == h
                    && (store key, deps) `member` compute store key
@@ -120,24 +134,42 @@ data State
 type Build = Compute -> Target -> (State, Plan, Store) -> (State, Plan, Store)
 
 -- | Check that a build system is correct, i.e. for all possible combinations of
--- input parameters ('Compute', 'Target', 'State', 'Plan', 'Store'), the build
--- system produces a correct output pair (@newPlan@, @newStore@). Specifically,
--- there exists a @magicStore@, such that:
+-- input parameters ('Compute', 'Target', 'State', 'Plan', 'Store'), where
+-- 'Compute' is 'wellDefined', the build system produces a correct output pair
+-- (@newPlan@, @newStore@). Specifically, there exists a @magicStore@, such that:
 -- * The @store@ and the @magicStore@ agree on the input keys.
 -- * The @newStore@ and the @magicStore@ agree on the target keys.
 -- * The @magicStore@ is consistent w.r.t. the @compute@ function and the @plan@.
 -- There are no correctness requirements on the resulting 'State'.
 correct :: Build -> Bool
-correct build = forall $ \(compute, keys, state, plan, store) -> exists $ \magicStore ->
-    let (_, newPlan, newStore) = build compute keys (state, plan, store) in
-    -- The store and the magicStore agree on the inputs
-    all (\k -> store k == magicStore k) (concatMap (inputs newPlan) keys)
-    &&
-    -- The newStore and the magicStore agree on the target keys
-    all (\k -> newStore k == magicStore k) keys
-    &&
-    -- The magicStore is consistent w.r.t. the compute function and the plan
-    all (consistent compute newPlan magicStore) keys
+correct build = forall $ \(compute, keys, state, plan, store) ->
+    wellDefined compute ==> exists $ \magicStore ->
+        let (_, newPlan, newStore) = build compute keys (state, plan, store) in
+        -- The store and the magicStore agree on the inputs
+        all (\k -> store k == magicStore k) (concatMap (inputs newPlan) keys)
+        &&
+        -- The newStore and the magicStore agree on the target keys
+        all (\k -> newStore k == magicStore k) keys
+        &&
+        -- The magicStore is consistent w.r.t. the compute function and the plan
+        all (consistent compute newPlan magicStore) keys
+
+-- | Check that a build system is /idempotent/, i.e. running it once or twice in
+-- a row leads to the same 'Plan' and 'Store'.
+idempotent :: Build -> Bool
+idempotent build = forall $ \(compute, keys, state, plan, store) ->
+    let (state', plan' , store' ) = build compute keys (state , plan , store )
+        (_     , plan'', store'') = build compute keys (state', plan', store')
+    in forall $ \key -> plan'' key == plan' key && store'' key == store' key
+
+zeroBuild :: Build -> Bool
+zeroBuild build = forall $ \(compute, keys, state, plan, store) ->
+    let (state', plan' , store' ) = build compute    keys (state , plan , store )
+        (_     , plan'', store'') = build badCompute keys (state', plan', store')
+    in forall $ \key -> plan'' key == plan' key && store'' key == store' key
+
+badCompute :: Compute
+badCompute store key = undefined
 
 -- | Check that a predicate holds for all values of @a@.
 forall :: (a -> Bool) -> Bool
@@ -151,4 +183,4 @@ exists = undefined
 (==>) :: Bool -> Bool -> Bool
 x ==> y = if x then y else True
 
-infixl 1 ==>
+infixr 0 ==>
