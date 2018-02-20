@@ -1,6 +1,7 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, ScopedTypeVariables #-}
 module Development.Build where
 
+import Data.String
 import System.FilePath
 
 -- | A 'Key' is a name of a file or, more generally, a variable. We use 'FilePath'
@@ -8,8 +9,8 @@ import System.FilePath
 type Key = FilePath
 
 -- | A 'Value' is the contents of a file or, more generally, a variable. We use
--- 'String' for prototyping.
-type Value = String
+-- @newtype Value = Value String@ for prototyping.
+newtype Value = Value String deriving (Eq, IsString, Show)
 
 -- | A 'Hash' is used for efficient tracking and sharing of build results. We
 -- use @newtype Hash = Hash Value@ for prototyping.
@@ -25,13 +26,13 @@ hash = Hash
 -- already a 'Monad'.
 type NonDeterministic a = [a]
 
--- | Check if a value is a possible result of a non-deterministic computation.
+-- | Check if a value is a valid result of a non-deterministic computation.
 member :: Eq a => a -> NonDeterministic a -> Bool
 member = elem
 
 -- | A key-value mapping. For example, a file system. Note that if a file does
--- not exist, the corresponding @FileNotFound@ value (suitable encoded) is still
--- useful and can be tracked by a build system.
+-- not exist, the corresponding 'file not found' value (suitably encoded) is
+-- still useful and can be tracked by a build system.
 type Store = Key -> Value
 
 -- | A dependency comprises a 'Key' and the 'Hash' of its 'Value'.
@@ -45,10 +46,10 @@ type Dependency = (Key, Hash)
 type Plan = Key -> Maybe (Hash, [Dependency])
 
 -- | Example build plan containing information only for a single file:
--- @"f.o" -> Just (hash "f.o", [("f.c", hash "f.c"), ("gcc.exe", hash "gcc.exe")])@.
+-- @"f.o" -> Just (hash "1", [("f.c", hash "2"), ("gcc.exe", hash "3")])@.
 examplePlan :: Plan
 examplePlan key = case key of
-    "f.o" -> Just (hash "f.o", [("f.c", hash "f.c"), ("gcc.exe", hash "gcc.exe")])
+    "f.o" -> Just (hash "1", [("f.c", hash "2"), ("gcc.exe", hash "3")])
     _     -> Nothing
 
 -- | Sometimes you have no plan at all, i.e. @emptyPlan = const Nothing@.
@@ -65,7 +66,7 @@ acyclic plan key = case plan key of
 -- | Determine the input files of a given 'Key' according to a given 'Plan'.
 inputs :: Plan -> Key -> [Key]
 inputs plan key = case plan key of
-    Nothing -> [] -- If the plan is incomplete, we cannot determine all the inputs
+    Nothing -> [] -- If the plan is incomplete, we return an underapproximation
     Just (_, []  ) -> [key] -- This key has no dependencies, so it is an input
     Just (_, deps) -> concat [ inputs plan k | (k, _) <- deps ]
 
@@ -81,7 +82,8 @@ defaultCompute store key = return (store key, [])
 
 -- | Compute an object file from the corresponding C source by running @gcc@.
 gccCompute :: Compute
-gccCompute store key = do
+gccCompute store key | takeExtension key /= "o" = defaultCompute store key
+                     | otherwise = do
     let source   = key -<.> "c"     -- Compute source filename, e.g. f.o -> f.c
         includes = undefined source -- The result of running @gcc -M source@
         deps     = gccKey : source : includes
@@ -97,7 +99,7 @@ gccCompute store key = do
 -- a 'Store' with respect to a given 'Key'. This involves checking the following:
 -- * The plan is acyclic and complete, i.e. all dependencies of the key are known.
 -- * The plan is consistent with the store.
--- * The ('Plan', 'Store') pair agrees with the compute function.
+-- * The ('Plan', 'Store') pair agrees with the 'Compute' function.
 consistent :: Compute -> Plan -> Store -> Key -> Bool
 consistent compute plan store key = acyclic plan key && case plan key of
     Nothing        -> False -- The plan is incomplete
@@ -113,25 +115,26 @@ type Target = [Key]
 -- build results across builds.
 data State
 
--- | A 'Build' function takes a 'Compute', a 'Target' and returns the transformer
+-- | A build system takes a 'Compute' and a 'Target' and returns the transformer
 -- of the triple ('State', 'Plan', 'Store').
 type Build = Compute -> Target -> (State, Plan, Store) -> (State, Plan, Store)
 
--- | Chech that a build system is correct, i.e. for all possible combinations of
+-- | Check that a build system is correct, i.e. for all possible combinations of
 -- input parameters ('Compute', 'Target', 'State', 'Plan', 'Store'), the build
 -- system produces a correct output pair (@newPlan@, @newStore@). Specifically,
--- there exist a @magicStore@, such that:
--- * The @newStore@ and the @magicStore@ agree on the target keys.
+-- there exists a @magicStore@, such that:
 -- * The @store@ and the @magicStore@ agree on the input keys.
--- * The @magicStore@ is consistent w.r.t. the compute function and the plan.
+-- * The @newStore@ and the @magicStore@ agree on the target keys.
+-- * The @magicStore@ is consistent w.r.t. the @compute@ function and the @plan@.
+-- There are no correctness requirements on the resulting 'State'.
 correct :: Build -> Bool
 correct build = forall $ \(compute, keys, state, plan, store) -> exists $ \magicStore ->
     let (_, newPlan, newStore) = build compute keys (state, plan, store) in
-    -- The newStore and the magicStore agree on the target keys
-    all (\k -> newStore k == magicStore k) keys
-    &&
     -- The store and the magicStore agree on the inputs
     all (\k -> store k == magicStore k) (concatMap (inputs newPlan) keys)
+    &&
+    -- The newStore and the magicStore agree on the target keys
+    all (\k -> newStore k == magicStore k) keys
     &&
     -- The magicStore is consistent w.r.t. the compute function and the plan
     all (consistent compute newPlan magicStore) keys
