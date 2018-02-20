@@ -1,6 +1,14 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings #-}
-module Development.Build.Store (Key, Value, Hash, hash, Store (..)) where
+{-# LANGUAGE ExistentialQuantification, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
+module Development.Build.Store (
+    -- * Basic types
+    Key, Value, Hash, hash,
 
+    -- * Store manipulation
+    Store, getValue, setValue, getHash
+    ) where
+
+import Data.Map
 import Data.String
 import System.FilePath
 
@@ -31,10 +39,24 @@ hash = Hash
 -- the corresponding 'file not found' value (suitably encoded) is still useful
 -- and can be tracked by a build system. See 'consistent' for the list of
 -- invariants that must be satisfied by a 'Store'.
-data Store = Store
-    { getValue :: Key -> Value
-    , setValue :: Key -> Value -> Store
-    , getHash  :: Key -> Hash }
+data Store = forall s. Store s (s -> Key -> Value) (Key -> Value -> s -> s) (s -> Key -> Hash)
+
+-- | Lookup the 'Value' of a 'Key' in a 'Store'.
+getValue :: Store -> Key -> Value
+getValue (Store s f _ _) = f s
+
+-- | Modify a 'Store'.
+setValue :: Store -> Key -> Value -> Store
+setValue (Store s f g h) key value = Store (g key value s) f g h
+
+-- | Lookup the 'Hash' of a 'Key' in a 'Store'.
+getHash :: Store -> Key -> Hash
+getHash (Store s _ _ h) = h s
+
+-- | Example 'Store' implemented using a @Map Key Value@. For simplicity, the
+-- the current implementation throws an error when accessing non-existent 'Key'.
+mapStore :: Store
+mapStore = Store empty (!) insert ((hash .) . (!))
 
 instance Eq Store where
     s1 == s2 = forall $ \key -> getValue s1 key == getValue s2 key
