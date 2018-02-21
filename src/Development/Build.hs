@@ -16,7 +16,7 @@ import Development.Build.Utilities
 -- * The plan is consistent with the store.
 -- * The ('Plan', 'Store') pair agrees with the 'Compute' function.
 consistent :: (Eq k, Eq v) => Compute k v -> Plan k v -> Store k v -> k -> Bool
-consistent compute plan store key = acyclic plan && case plan key of
+consistent compute plan store key = case plan key of
     Nothing        -> False -- The plan is incomplete
     Just (h, deps) -> getHash store key == h
                    && (getValue store key, map fst deps) `member` compute store key
@@ -39,6 +39,7 @@ type Build k v = Compute k v -> Outputs k -> (State k v, Plan k v, Store k v)
 -- input parameters ('Compute', 'Outputs', 'State', 'Plan', 'Store'), where
 -- 'Compute' is 'wellDefined', the build system produces a correct output pair
 -- (@newPlan@, @newStore@). Specifically, there exists a @magicStore@, such that:
+-- * The @newPlan@ is acyclic.
 -- * The @oldstore@, the @newStore@ and the @magicStore@ agree on the input keys.
 -- * The @newStore@ and the @magicStore@ agree on the output keys.
 -- * The @magicStore@ is consistent w.r.t. the @compute@ function and the @plan@.
@@ -48,6 +49,9 @@ correct :: (Eq k, Eq v) => Build k v -> Bool
 correct build = forall $ \(compute, outputs, state, oldPlan, oldStore) ->
     wellDefined compute ==> exists $ \magicStore ->
         let (_, newPlan, newStore) = build compute outputs (state, oldPlan, oldStore) in
+        -- The new plan is acyclic
+        acyclic newPlan
+        &&
         -- The oldStore, newStore and the magicStore agree on the inputs
         all (\k -> getHash oldStore k == getHash newStore k
                 && getHash oldStore k == getHash magicStore k)
@@ -57,7 +61,6 @@ correct build = forall $ \(compute, outputs, state, oldPlan, oldStore) ->
         all (\k -> getHash newStore k == getHash magicStore k) outputs
         &&
         -- The magicStore is consistent w.r.t. the compute function and the plan
-        -- TODO: Check that the plan is acyclic here
         all (consistent compute newPlan magicStore) outputs
 
 -- | Check that a build system is /idempotent/, i.e. running it once or twice in
