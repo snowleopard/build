@@ -22,14 +22,15 @@ filenames, e.g. `src/file.c`, whereas values are file contents (a C program sour
 code in this case). In spreadsheets keys are cell names, e.g. `A1`, and values
 are numbers, text, etc. that are typically displayed inside cells.
 
-It is convenient to asssume that the value *store* is total, i.e. it contains a
+It is convenient to assume that the value *store* is total, i.e. it contains a
 value for every possible key. We therefore assume that the type of values is
 capable of encoding values corresponding to non-existent files and empty cells.
 
-We use a cryptographic *hash function* to for efficient tracking of value changes.
+We use a cryptographic *hash function* to for efficient tracking and sharing of
+build results.
 
-Our current implementation uses type variables `k` and `v` for the types of keys
-and values -- see
+In our current implementation type variables `k` and `v` stand for the types of
+keys and values -- see
 [Store](https://github.com/snowleopard/build-systems/blob/master/src/Development/Build/Store.hs).
 
 ### Input, intermediate and output values

@@ -11,11 +11,11 @@ import Development.Build.Store
 import Development.Build.Utilities
 
 -- | Check a three-way consistency between a 'Compute' function, a 'Plan' and
--- a 'Store' with respect to a given 'Key'. This involves checking the following:
+-- a 'Store' with respect to a given key. This involves checking the following:
 -- * The plan is acyclic and complete, i.e. all dependencies of the key are known.
 -- * The plan is consistent with the store.
 -- * The ('Plan', 'Store') pair agrees with the 'Compute' function.
-consistent :: Compute -> Plan -> Store -> Key -> Bool
+consistent :: (Eq k, Eq v) => Compute k v -> Plan k v -> Store k v -> k -> Bool
 consistent compute plan store key = acyclic plan && case plan key of
     Nothing        -> False -- The plan is incomplete
     Just (h, deps) -> getHash store key == h
@@ -23,16 +23,17 @@ consistent compute plan store key = acyclic plan && case plan key of
                    && and [ consistent compute plan store k | (k, _) <- deps ]
 
 -- | A list of keys that need to be built.
-type Outputs = [Key]
+type Outputs k = [k]
 
 -- | Some build systems maintain a persistent state between builds for the
 -- purposes of optimisation and profiling. This can include a cache for sharing
 -- build results across builds.
-data State
+data State k v
 
 -- | A build system takes a 'Compute' and 'Outputs' and returns the transformer
 -- of the triple ('State', 'Plan', 'Store').
-type Build = Compute -> Outputs -> (State, Plan, Store) -> (State, Plan, Store)
+type Build k v = Compute k v -> Outputs k -> (State k v, Plan k v, Store k v)
+                                          -> (State k v, Plan k v, Store k v)
 
 -- | Check that a build system is correct, i.e. for all possible combinations of
 -- input parameters ('Compute', 'Outputs', 'State', 'Plan', 'Store'), where
@@ -43,7 +44,7 @@ type Build = Compute -> Outputs -> (State, Plan, Store) -> (State, Plan, Store)
 -- * The @magicStore@ is consistent w.r.t. the @compute@ function and the @plan@.
 -- There are no correctness requirements on the resulting 'State'.
 -- TODO: We also assume the input plan is consistent.
-correct :: Build -> Bool
+correct :: (Eq k, Eq v) => Build k v -> Bool
 correct build = forall $ \(compute, outputs, state, oldPlan, oldStore) ->
     wellDefined compute ==> exists $ \magicStore ->
         let (_, newPlan, newStore) = build compute outputs (state, oldPlan, oldStore) in
@@ -61,7 +62,7 @@ correct build = forall $ \(compute, outputs, state, oldPlan, oldStore) ->
 
 -- | Check that a build system is /idempotent/, i.e. running it once or twice in
 -- a row leads to the same 'Plan' and 'Store'.
-idempotent :: Build -> Bool
+idempotent :: (Eq k, Eq v) => Build k v -> Bool
 idempotent build = forall $ \(compute, keys, state, plan, store) ->
     let (state', plan' , store' ) = build compute keys (state , plan , store )
         (_     , plan'', store'') = build compute keys (state', plan', store')
