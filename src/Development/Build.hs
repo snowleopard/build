@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, ScopedTypeVariables #-}
 module Development.Build (
     -- * Build
-    Build,
+    Build, dumbBuild, State (..),
 
     -- * Properties
     consistent, correct, idempotent
@@ -32,12 +32,19 @@ type Outputs k = [k]
 -- | Some build systems maintain a persistent state between builds for the
 -- purposes of optimisation and profiling. This can include a cache for sharing
 -- build results across builds.
-data State k v
+data State k v = State
 
 -- | A build system takes a 'Compute' and 'Outputs' and returns the transformer
 -- of the triple ('State', 'Plan', 'Store').
 type Build k v = Compute k v -> Outputs k -> (State k v, Plan k v, Store k v)
                                           -> (State k v, Plan k v, Store k v)
+
+dumbBuild :: Build k v
+dumbBuild _ []     (state, plan, store) = (state, plan, store)
+dumbBuild c (k:ks) (state, plan, store) = dumbBuild c ks (state, plan, newStore)
+  where
+    (v, _)   = pick (c store k)
+    newStore = setValue k v store
 
 -- | Check that a build system is correct, i.e. for all possible combinations of
 -- input parameters ('Compute', 'Outputs', 'State', 'Plan', 'Store'), where
