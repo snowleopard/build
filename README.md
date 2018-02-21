@@ -47,3 +47,17 @@ are not interesting for the user but are produced in the process of turning
 inputs into outputs. For example, the user might only be interested in the
 executable `bin/file.exe` obtained by linking `obj/file.o` with standard
 libraries, in which case `obj/file.o` can be considered an intermediate value.
+
+### Non-deterministic computations
+
+Build systems and spreadsheets compute output values from input and intermediate
+values. In the most typical case, these *computations* are simple *functions*,
+such as `C1 = A1 + B1`, i.e. their result is uniquely determined by the input
+values. However, in general they can be *relations*, i.e. have multiple valid
+results. An example in Excel: `A2 = A1 + RANDBETWEEN(1,3)`. This computation has
+three valid output values for each input value `A1`. In build systems, the
+executable `bin/file.exe` is often not uniquely determined by the source
+`src/file.c` -- different compiler runs may produce different valid results. 
+
+We model non-determinism using monads, see
+[this file](https://github.com/snowleopard/build-systems/blob/master/src/Development/Build/NonDeterministic.hs). 
