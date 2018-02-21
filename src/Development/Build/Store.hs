@@ -5,7 +5,7 @@ module Development.Build.Store (
     Hash, hash,
 
     -- * Store manipulation
-    Store, getValue, setValue, getHash, mapStore
+    Store, getValue, setValue, getHash, mapStore, consistent
     ) where
 
 import Data.Map

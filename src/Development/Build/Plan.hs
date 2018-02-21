@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Development.Build.Plan (Plan, acyclic, inputs) where
+module Development.Build.Plan (Plan, acyclic, inputs, consistent) where
 
 import Data.String
 import System.FilePath
 
-import Development.Build.Store
+import Development.Build.Store hiding (consistent)
 import Development.Build.Utilities
 
 -- | A /build plan/ is a partial map from a key to the hash of its value, plus a
@@ -37,6 +37,17 @@ acyclic plan = forall $ \key -> key `notElem` dependencies key
     dependencies k = case plan k of
         Nothing        -> []
         Just (_, deps) -> concatMap (dependencies . fst) deps
+
+-- | Check that a 'Plan' is consistent with respect to a given 'Store'.
+-- * An empty plan (@plan key == Nothing@) is consistent.
+-- * Otherwise @plan key == Just (h, deps)@ and we require that:
+--   1. @getHash store key == h@
+--   2. @getHash store key' == h'@ for each @(key', h')@ in @deps@.
+consistent :: Eq v => Plan k v -> Store k v -> Bool
+consistent plan store = forall $ \key -> case plan key of
+    Nothing -> True -- Incomplete plan is consistent
+    Just (h, deps) -> getHash store key == h
+                   && and [ getHash store key' == h' | (key', h') <- deps ]
 
 -- | Find the inputs of a key that are listed in a given 'Plan'. Note that
 -- since the plan can be incomplete, the result may be a subset of the actual

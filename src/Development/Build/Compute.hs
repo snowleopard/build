@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module Development.Build.Compute (Compute, wellDefined) where
+module Development.Build.Compute (Compute, consistent) where
 
 import Data.String
 import System.FilePath
 
 import Development.Build.NonDeterministic
-import Development.Build.Store
+import Development.Build.Store hiding (consistent)
 import Development.Build.Utilities
 
 -- | Compute a value corresponding to a given key, by performing necessary
@@ -43,8 +43,8 @@ gccCompute store key | takeExtension key /= "o" = defaultCompute store key
 -- | Check that a 'Compute' function never produces cyclic dependencies. Ideally
 -- we also want to check that the reported list of dependencies is accurate, but
 -- at the moment it is unclear how to achieve that.
-wellDefined :: forall k v. Eq k => Compute k v -> Bool
-wellDefined compute = forall $ \store -> forall $ \(key :: k) ->
+consistent :: forall k v. Eq k => Compute k v -> Bool
+consistent compute = forall $ \store -> forall $ \(key :: k) ->
     let allDeps :: NonDeterministic [k]
         allDeps = dependencies store key in
         forall (\deps -> deps `member` allDeps ==> key `notElem` deps)

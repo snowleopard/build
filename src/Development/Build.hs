@@ -4,22 +4,24 @@ module Development.Build where
 import Data.String
 import System.FilePath
 
-import Development.Build.Compute
+import Development.Build.Compute hiding (consistent)
 import Development.Build.NonDeterministic
-import Development.Build.Plan
-import Development.Build.Store
+import Development.Build.Plan hiding (consistent)
+import Development.Build.Store hiding (consistent)
 import Development.Build.Utilities
+
+import qualified Development.Build.Compute as C
+import qualified Development.Build.Plan    as P
+import qualified Development.Build.Store   as S
 
 -- | Check a three-way consistency between a 'Compute' function, a 'Plan' and
 -- a 'Store' with respect to a given key. This involves checking the following:
--- * The plan is acyclic and complete, i.e. all dependencies of the key are known.
--- * The plan is consistent with the store.
+-- * The plan is complete, i.e. all dependencies of the key are known.
 -- * The ('Plan', 'Store') pair agrees with the 'Compute' function.
 consistent :: (Eq k, Eq v) => Compute k v -> Plan k v -> Store k v -> k -> Bool
 consistent compute plan store key = case plan key of
     Nothing        -> False -- The plan is incomplete
-    Just (h, deps) -> getHash store key == h
-                   && (getValue store key, map fst deps) `member` compute store key
+    Just (_, deps) -> (getValue store key, map fst deps) `member` compute store key
                    && and [ consistent compute plan store k | (k, _) <- deps ]
 
 -- | A list of keys that need to be built.
@@ -44,13 +46,12 @@ type Build k v = Compute k v -> Outputs k -> (State k v, Plan k v, Store k v)
 -- * The @newStore@ and the @magicStore@ agree on the output keys.
 -- * The @magicStore@ is consistent w.r.t. the @compute@ function and the @plan@.
 -- There are no correctness requirements on the resulting 'State'.
--- TODO: We also assume the input plan is consistent.
 correct :: (Eq k, Eq v) => Build k v -> Bool
 correct build = forall $ \(compute, outputs, state, oldPlan, oldStore) ->
-    wellDefined compute ==> exists $ \magicStore ->
+    C.consistent compute && P.consistent oldPlan oldStore ==> exists $ \magicStore ->
         let (_, newPlan, newStore) = build compute outputs (state, oldPlan, oldStore) in
-        -- The new plan is acyclic
-        acyclic newPlan
+        -- The new plan is acyclic and consistent
+        acyclic newPlan && P.consistent newPlan newStore
         &&
         -- The oldStore, newStore and the magicStore agree on the inputs
         all (\k -> getHash oldStore k == getHash newStore k
