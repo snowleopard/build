@@ -23,10 +23,10 @@ code in this case). In spreadsheets keys are cell names, e.g. `A1`, and values
 are numbers, text, etc. that are typically displayed inside cells.
 
 It is convenient to assume that the value *store* is total, i.e. it contains a
-value for every possible key. We therefore assume that the type of values is
-capable of encoding values corresponding to non-existent files and empty cells.
+value for every possible key. We therefore also assume that the type of values is
+capable of encoding values corresponding to non-existent files (or empty cells).
 
-We use a cryptographic *hash function* to for efficient tracking and sharing of
+We use a cryptographic *hash function* for efficient tracking and sharing of
 build results.
 
 In our current implementation type variables `k` and `v` stand for the types of
@@ -55,9 +55,9 @@ values. In the most typical case, these *computations* are simple *functions*,
 such as `C1 = A1 + B1`, i.e. their result is uniquely determined by the input
 values. However, in general they can be *relations*, i.e. have multiple valid
 results. An example in Excel: `A2 = A1 + RANDBETWEEN(1,3)`. This computation has
-three valid output values for each input value `A1`. In build systems, the
-executable `bin/file.exe` is often not uniquely determined by the source
-`src/file.c` -- different compiler runs may produce different valid results. 
+three valid results for each input value `A1`. In build systems, the executable
+`bin/file.exe` is sometimes not uniquely determined by the source `src/file.c` --
+different compiler runs may produce different valid results.
 
 We model non-determinism using monads, see
 [this file](https://github.com/snowleopard/build-systems/blob/master/src/Development/Build/NonDeterministic.hs). 
