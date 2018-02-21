@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
-module Development.Build.NonDeterministic (NonDeterministic, member) where
+module Development.Build.NonDeterministic (NonDeterministic, member, pick) where
 
 import Control.Monad
 import Data.List.NonEmpty
@@ -20,3 +20,7 @@ instance Monad NonDeterministic where
 -- | Check if a value is a valid result of a non-deterministic computation.
 member :: Eq a => a -> NonDeterministic a -> Bool
 member x = elem x . validResults
+
+-- | Choose a valid result.
+pick :: NonDeterministic a -> a
+pick (NonDeterministic (first :| _)) = first

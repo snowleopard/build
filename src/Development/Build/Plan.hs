@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Development.Build.Plan (
     -- * Plan
-    Plan, examplePlan, emptyPlan,
+    Plan, examplePlan, noPlan,
 
     -- * Properties
     acyclic, upToDate, inputs, consistent
@@ -29,9 +29,9 @@ examplePlan key = case key of
     "f.o" -> Just (hash "1", [("f.c", hash "2"), ("gcc.exe", hash "3")])
     _     -> Nothing
 
--- | Sometimes you have no plan at all, i.e. @emptyPlan = const Nothing@.
-emptyPlan :: Plan k v
-emptyPlan = const Nothing
+-- | Sometimes you have no plan at all, i.e. @noPlan = const Nothing@.
+noPlan :: Plan k v
+noPlan = const Nothing
 
 -- | Check that a given 'Plan' has no cyclic dependencies.
 acyclic :: Eq k => Plan k v -> Bool

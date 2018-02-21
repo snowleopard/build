@@ -5,7 +5,7 @@ module Development.Build.Store (
     Hash, hash,
 
     -- * Store manipulation
-    Store, getValue, setValue, getHash, mapStore,
+    Store, getValue, setValue, setValues, getHash, mapStore,
 
     -- * Properties
     consistent
@@ -41,6 +41,11 @@ getValue (Store s f _ _) = f s
 -- | Modify a 'Store' by updating a key-value entry.
 setValue :: k -> v -> Store k v -> Store k v
 setValue key value (Store s f g h) = Store (g key value s) f g h
+
+-- | Modify a 'Store' by updating a list of key-value entries.
+setValues :: [(k, v)] -> Store k v -> Store k v
+setValues []             = id
+setValues ((k, v) : kvs) = setValues kvs . setValue k v
 
 -- | Lookup the hash of a key in a 'Store'.
 getHash :: Store k v -> k -> Hash v
