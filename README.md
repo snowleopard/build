@@ -61,3 +61,8 @@ different compiler runs may produce different valid results.
 
 We model non-determinism using monads, see
 [this file](https://github.com/snowleopard/build-systems/blob/master/src/Development/Build/NonDeterministic.hs). 
+
+## Example
+
+A simple example of a build system for arithmetic expressions can be found
+[here](https://github.com/snowleopard/build-systems/blob/master/test/Main.hs).
