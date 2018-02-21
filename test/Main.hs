@@ -4,10 +4,9 @@ import Development.Build.Store
 
 import Development.Build.Example.Expression
 
-inputs :: [(Key, Value)]
-inputs = [ (Variable "a"      , 3   )
-         , (Variable "b"      , 5   )
-         , (AckermannNegative1, -100) ]
+inputs :: [(Key, Value Integer)]
+inputs = [ (Variable "a", Value 3)
+         , (Variable "b", Value 5) ]
 
 initialStore :: ExpressionStore
 initialStore = setValues inputs expressionStore
@@ -30,4 +29,4 @@ main :: IO ()
 main = do
     putStrLn $ show key1 ++ " = " ++ show (getValue finalStore key1)
     putStrLn $ show key2 ++ " = " ++ show (getValue finalStore key2)
-    -- putStrLn $ show key3 ++ " = " ++ show (getValue finalStore key3)
+    putStrLn $ show key3 ++ " = " ++ show (getValue finalStore key3)

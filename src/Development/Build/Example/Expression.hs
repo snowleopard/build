@@ -1,4 +1,7 @@
+{-# LANGUAGE DeriveFunctor #-}
 module Development.Build.Example.Expression where
+
+import Control.Monad
 
 import Development.Build.Compute
 import Development.Build.Store
@@ -16,33 +19,43 @@ data Key = Variable String
          | AckermannNegative2
          deriving (Eq, Ord, Show)
 
--- | We only consider integer values.
-type Value = Integer
+-- | Values
+data Value a = Value a
+             | KeyNotFound Key
+             | ComputeError String
+             deriving (Eq, Functor, Ord, Show)
+
+instance Applicative Value where
+    pure  = Value
+    (<*>) = ap
+
+instance Monad Value where
+    return  = pure
+    v >>= f = case v of Value a          -> f a
+                        KeyNotFound  key -> KeyNotFound key
+                        ComputeError msg -> ComputeError msg
 
 -- | Expression store.
-type ExpressionStore = Store Key Value
+type ExpressionStore = Store Key (Value Integer)
 
 -- | We use 'mapStore' defined in "Development.Build.Store".
 expressionStore :: ExpressionStore
-expressionStore = mapStore
+expressionStore = mapStore KeyNotFound
 
 -- | Computation of expressions.
-compute :: Compute Key Value
+compute :: Compute Key (Value Integer)
 compute store key = case key of
-    Add k1 k2 -> return (getValue store k1 + getValue store k2, [k1, k2])
+    Add k1 k2 -> return (liftM2 (+) (getValue store k1) (getValue store k2), [k1, k2])
 
-    Ackermann 0 n -> return (n + 1, [])
-    Ackermann m 0 -> do
-        let dep | m < 0     = AckermannNegative1
-                | otherwise = Ackermann (m - 1) 0
-        return (getValue store dep, [dep])
-    Ackermann m n -> do
-        let deps | m < 0     = [AckermannNegative1]
-                 | n < 0     = [AckermannNegative2]
-                 | otherwise = let k1 = Ackermann m (n - 1)
-                                   k2 = Ackermann (m - 1) (getValue store k1)
-                               in [k2, k1] -- We lookup the value of the head key
-        return (getValue store (head deps), deps)
+    Ackermann m n -> return result
+      where
+        result | m < 0 || n < 0 = (ComputeError (show key ++ " is not defined"), [])
+               | m == 0         = (Value (n + 1), [])
+               | n == 0         = let x = Ackermann (m - 1) 0 in (getValue store x, [x])
+               | otherwise      = let x = Ackermann m (n - 1) in case getValue store x of
+                   Value index -> let y = Ackermann (m - 1) index
+                                  in (getValue store y, [x, y])
+                   failure     -> (failure, [])
 
     -- All other keys correspond to inputs
     _ -> defaultCompute store key

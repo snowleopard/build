@@ -5,7 +5,7 @@ module Development.Build.Store (
     Hash, hash,
 
     -- * Store manipulation
-    Store, getValue, setValue, setValues, getHash, mapStore,
+    Store, getValue, setValue, setValues, getHash, unsafeMapStore, mapStore,
 
     -- * Properties
     consistent
@@ -51,10 +51,17 @@ setValues ((k, v) : kvs) = setValues kvs . setValue k v
 getHash :: Store k v -> k -> Hash v
 getHash (Store s _ _ h) = h s
 
--- | Example 'Store' implemented using a @Map k v@. For simplicity, the current
--- implementation throws an error when accessing non-existent 'Key'.
-mapStore :: Ord k => Store k v
-mapStore = Store empty (!) insert ((hash .) . (!))
+-- | A 'Store' implemented using a @Map k v@. Throws an error when accessing a
+-- non-existent key.
+unsafeMapStore :: Ord k => Store k v
+unsafeMapStore = Store empty (!) insert ((hash .) . (!))
+
+-- | A 'Store' implemented using a @Map k v@. Falls back to the @defaultValue key@
+-- when accessing a non-existent key.
+mapStore :: Ord k => (k -> v) -> Store k v
+mapStore defaultValue = Store empty (!!) insert ((hash .) . (!!))
+  where
+    s !! k = findWithDefault (defaultValue k) k s
 
 instance Eq v => Eq (Store k v) where
     s1 == s2 = forall $ \key -> getValue s1 key == getValue s2 key
