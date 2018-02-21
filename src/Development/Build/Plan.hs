@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Development.Build.Plan (Plan, acyclic, inputs, consistent) where
+module Development.Build.Plan (Plan, acyclic, upToDate, inputs, consistent) where
 
 import Data.String
 import System.FilePath
@@ -37,6 +37,22 @@ acyclic plan = forall $ \key -> key `notElem` dependencies key
     dependencies k = case plan k of
         Nothing        -> []
         Just (_, deps) -> concatMap (dependencies . fst) deps
+
+-- | Check that according to a provided build 'Plan', a 'Store' contains an
+-- /up-to-date/ value for a key.
+--
+-- * If there is no plan (@plan key == Nothing@) we conservatively assume that
+--   the value is not up-to-date.
+-- * Otherwise (@plan key == Just (h, deps)@) we require that:
+--
+--     1. The value has expected hash: @getHash store key == h@.
+--     2. All dependencies have expected hashes: @getHash store key' == h'@ for
+--        each @(key', h')@ in @deps@.
+upToDate :: Eq v => Store k v -> Plan k v -> k -> Bool
+upToDate store plan key = case plan key of
+    Nothing        -> False -- We don't know and conservatively return False
+    Just (h, deps) -> getHash store key == h
+                   && and [ getHash store key' == h' | (key', h') <- deps ]
 
 -- | Check that a 'Plan' is consistent with respect to a given 'Store'.
 -- * An empty plan (@plan key == Nothing@) is consistent.
