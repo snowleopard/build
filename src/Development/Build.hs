@@ -1,8 +1,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, ScopedTypeVariables #-}
-module Development.Build where
+module Development.Build (
+    -- * Build
+    Build,
 
-import Data.String
-import System.FilePath
+    -- * Properties
+    consistent, correct, idempotent
+    ) where
 
 import Development.Build.Compute hiding (consistent)
 import Development.Build.NonDeterministic
@@ -12,7 +15,6 @@ import Development.Build.Utilities
 
 import qualified Development.Build.Compute as C
 import qualified Development.Build.Plan    as P
-import qualified Development.Build.Store   as S
 
 -- | Check a three-way consistency between a 'Compute' function, a 'Plan' and
 -- a 'Store' with respect to a given key. This involves checking the following:

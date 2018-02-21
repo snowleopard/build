@@ -5,12 +5,13 @@ module Development.Build.Store (
     Hash, hash,
 
     -- * Store manipulation
-    Store, getValue, setValue, getHash, mapStore, consistent
+    Store, getValue, setValue, getHash, mapStore,
+
+    -- * Properties
+    consistent
     ) where
 
 import Data.Map
-import Data.String
-import System.FilePath
 
 import Development.Build.Utilities
 
@@ -59,7 +60,7 @@ instance Eq v => Eq (Store k v) where
 -- * Set after set: @setValue k v (setValue k v' s) s == setValue k v s@.
 -- * Hash is consitent: @hash (getValue s k) == getHash s k@.
 consistent :: forall k v. Eq v => Store k v -> Bool
-consistent store = forall $ \(store, key, value, value' :: v) ->
+consistent store = forall $ \(key, value, value' :: v) ->
     -- Get after set
     getValue (setValue key value store) key == value
     &&

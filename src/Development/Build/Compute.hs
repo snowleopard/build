@@ -1,7 +1,12 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module Development.Build.Compute (Compute, consistent) where
+module Development.Build.Compute (
+    -- * Compute
+    Compute, defaultCompute, gccCompute,
 
-import Data.String
+    -- * Properties
+    consistent
+    ) where
+
 import System.FilePath
 
 import Development.Build.NonDeterministic

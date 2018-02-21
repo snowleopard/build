@@ -1,8 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Development.Build.Plan (Plan, acyclic, upToDate, inputs, consistent) where
+module Development.Build.Plan (
+    -- * Plan
+    Plan, examplePlan, emptyPlan,
 
-import Data.String
-import System.FilePath
+    -- * Properties
+    acyclic, upToDate, inputs, consistent
+    ) where
 
 import Development.Build.Store hiding (consistent)
 import Development.Build.Utilities
