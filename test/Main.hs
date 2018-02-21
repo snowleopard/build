@@ -7,7 +7,7 @@ import Development.Build.Example.Expression
 inputs :: [(Key, Value)]
 inputs = [ (Variable "a"      , 3   )
          , (Variable "b"      , 5   )
-         , (AckermannNegativeM, -100) ]
+         , (AckermannNegative1, -100) ]
 
 initialStore :: ExpressionStore
 initialStore = setValues inputs expressionStore
