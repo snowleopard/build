@@ -10,16 +10,12 @@ import Development.Build.Store
 -- * Variables with 'String' names.
 -- * Simple functions with statically known dependencies, such as 'Add'.
 -- * Functions that require dynamic dependencies, such as 'Ackermann'.
--- * Configuration parameters, such as 'AckermannNegative1', which determines the
---   behaviour of the 'Ackermann' function when the first argument is negative.
 data Key = Variable String
          | Add Key Key
          | Ackermann Integer Integer
-         | AckermannNegative1
-         | AckermannNegative2
          deriving (Eq, Ord, Show)
 
--- | Values
+-- | Teh 'Value' datatype includes information about possible failures.
 data Value a = Value a
              | KeyNotFound Key
              | ComputeError String
@@ -35,10 +31,11 @@ instance Monad Value where
                         KeyNotFound  key -> KeyNotFound key
                         ComputeError msg -> ComputeError msg
 
--- | Expression store.
+-- | A key-value store for expressions.
 type ExpressionStore = Store Key (Value Integer)
 
--- | We use 'mapStore' defined in "Development.Build.Store".
+-- | We use 'mapStore' defined in "Development.Build.Store", using 'KeyNotFound'
+-- as a default 'Value' constructor in case a key is missing.
 expressionStore :: ExpressionStore
 expressionStore = mapStore KeyNotFound
 
