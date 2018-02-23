@@ -1,11 +1,13 @@
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor, FlexibleContexts #-}
 module Development.Build.Example.Expression where
 
 import Control.Monad
 
 import Development.Build.Compute
+import Development.Build.NonDeterministic
 import Development.Build.Store
 
+-- TODO: Add separate type for input keys.
 -- | Expression keys include:
 -- * Variables with 'String' names.
 -- * Simple functions with statically known dependencies, such as 'Add'.
@@ -15,7 +17,7 @@ data Key = Variable String
          | Ackermann Integer Integer
          deriving (Eq, Ord, Show)
 
--- | Teh 'Value' datatype includes information about possible failures.
+-- | The 'Value' datatype includes information about possible failures.
 data Value a = Value a
              | KeyNotFound Key
              | ComputeError String
@@ -32,27 +34,32 @@ instance Monad Value where
                         ComputeError msg -> ComputeError msg
 
 -- | A key-value store for expressions.
-type ExpressionStore = Store Key (Value Integer)
+type ExpressionStore = MapStore Key (Value Integer)
 
 -- | We use 'mapStore' defined in "Development.Build.Store", using 'KeyNotFound'
 -- as a default 'Value' constructor in case a key is missing.
-expressionStore :: ExpressionStore
-expressionStore = mapStore KeyNotFound
+-- expressionStore :: ExpressionStore m => m ()
+-- expressionStore = mapStore KeyNotFound
+
+-- runExpressionStore :: ExpressionStore a -> [(Key, Value Integer)] -> (a, )
 
 -- | Computation of expressions.
-compute :: Compute Key (Value Integer)
-compute store key = case key of
-    Add k1 k2 -> return (liftM2 (+) (getValue store k1) (getValue store k2), [k1, k2])
+compute :: Store m Key (Value Integer) => Compute m Key (Value Integer)
+compute key = case key of
+    Add k1 k2 -> do
+        v1 <- getValue k1
+        v2 <- getValue k2
+        return $ deterministic (liftM2 (+) v1 v2)
 
-    Ackermann m n -> return result
+    Ackermann m n -> result
       where
-        result | m < 0 || n < 0 = (ComputeError (show key ++ " is not defined"), [])
-               | m == 0         = (Value (n + 1), [])
-               | n == 0         = let x = Ackermann (m - 1) 0 in (getValue store x, [x])
-               | otherwise      = let x = Ackermann m (n - 1) in case getValue store x of
-                   Value index -> let y = Ackermann (m - 1) index
-                                  in (getValue store y, [x, y])
-                   failure     -> (failure, [])
+        result | m < 0 || n < 0 = return $ deterministic (ComputeError (show key ++ " is not defined"))
+               | m == 0         = return $ deterministic (Value (n + 1))
+               | n == 0         = deterministic <$> getValue (Ackermann (m - 1) 0)
+               | otherwise      = do v <- getValue (Ackermann m (n - 1))
+                                     case v of
+                                        Value i -> deterministic <$> getValue (Ackermann (m - 1) i)
+                                        failure -> return (deterministic failure)
 
     -- All other keys correspond to inputs
-    _ -> defaultCompute store key
+    Variable _ -> computeInput key

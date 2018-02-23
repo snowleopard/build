@@ -7,7 +7,7 @@ module Development.Build.Plan (
     acyclic, upToDate, inputs, consistent
     ) where
 
-import Development.Build.Store hiding (consistent)
+import Development.Build.Store
 import Development.Build.Utilities
 
 -- | A /build plan/ is a partial map from a key to the hash of its value, plus a
@@ -33,6 +33,7 @@ examplePlan key = case key of
 noPlan :: Plan k v
 noPlan = const Nothing
 
+-- TODO: Fix infinite loop.
 -- | Check that a given 'Plan' has no cyclic dependencies.
 acyclic :: Eq k => Plan k v -> Bool
 acyclic plan = forall $ \key -> key `notElem` dependencies key
@@ -46,27 +47,28 @@ acyclic plan = forall $ \key -> key `notElem` dependencies key
 --
 -- * If there is no plan (@plan key == Nothing@) we conservatively assume that
 --   the value is not up-to-date.
--- * Otherwise (@plan key == Just (h, deps)@) we require that:
+-- * Otherwise @plan key == Just (keyHash, deps)@, and we require that:
 --
---     1. The value has expected hash: @getHash store key == h@.
---     2. All dependencies have expected hashes: @getHash store key' == h'@ for
---        each @(key', h')@ in @deps@.
-upToDate :: Eq v => Store k v -> Plan k v -> k -> Bool
-upToDate store plan key = case plan key of
-    Nothing        -> False -- We don't know and conservatively return False
-    Just (h, deps) -> getHash store key == h
-                   && and [ getHash store key' == h' | (key', h') <- deps ]
+--     1. The value has expected hash, i.e. @getHash key@ returns @keyHash@.
+--     2. All dependencies have expected hashes: i.e. @getHash k@ returns @h@
+--        for each @(k, h)@ in @deps@.
+upToDate :: (Eq v, Store m k v) => Plan k v -> k -> m Bool
+upToDate plan key = case plan key of
+    Nothing -> return False -- We don't know and conservatively return False
+    Just (keyHash, deps) -> checkHashes ((key, keyHash) : deps)
 
+-- TODO: Add completeness check?
 -- | Check that a 'Plan' is consistent with respect to a given 'Store'.
 -- * An empty plan (@plan key == Nothing@) is consistent.
--- * Otherwise @plan key == Just (h, deps)@ and we require that:
---   1. @getHash store key == h@
---   2. @getHash store key' == h'@ for each @(key', h')@ in @deps@.
-consistent :: Eq v => Plan k v -> Store k v -> Bool
-consistent plan store = forall $ \key -> case plan key of
-    Nothing -> True -- Incomplete plan is consistent
-    Just (h, deps) -> getHash store key == h
-                   && and [ getHash store key' == h' | (key', h') <- deps ]
+-- * Otherwise @plan key == Just (keyHash, deps)@, and we require that:
+--
+--     1. The value has expected hash, i.e. @getHash key@ returns @keyHash@.
+--     2. All dependencies have expected hashes: i.e. @getHash k@ returns @h@
+--        for each @(k, h)@ in @deps@.
+consistent :: (Eq v, Store m k v) => Plan k v -> m Bool
+consistent plan = forallM $ \key -> case plan key of
+    Nothing -> return True -- Incomplete plan is consistent
+    Just (keyHash, deps) -> checkHashes ((key, keyHash) : deps)
 
 -- | Find the inputs of a key that are listed in a given 'Plan'. Note that
 -- since the plan can be incomplete, the result may be a subset of the actual

@@ -17,33 +17,37 @@ source-repository head
   location: https://github.com/snowleopard/build-systems
 
 library
-  hs-source-dirs:      src
-  exposed-modules:     Development.Build,
-                       Development.Build.Compute,
-                       Development.Build.Example.Expression,
-                       Development.Build.NonDeterministic,
-                       Development.Build.Plan,
-                       Development.Build.Store,
-                       Development.Build.Utilities
-  build-depends:       base       >= 4.7 && < 5,
-                       containers >= 0.5.7.1,
-                       filepath   >= 1.4.1.0
-  default-language:    Haskell2010
-  GHC-options:         -O2
-                       -Wall
-                       -fno-warn-name-shadowing
-                       -Wcompat
-                       -Wincomplete-record-updates
-                       -Wincomplete-uni-patterns
-                       -Wredundant-constraints
+  hs-source-dirs:       src
+  exposed-modules:      Development.Build,
+                        Development.Build.Compute,
+                        Development.Build.Example.Expression,
+                        Development.Build.NonDeterministic,
+                        Development.Build.Plan,
+                        Development.Build.Store,
+                        Development.Build.Utilities
+  build-depends:        base         >= 4.7 && < 5,
+                        containers   >= 0.5.7.1,
+                        filepath     >= 1.4.1.0,
+                        mtl          >= 2.2.1,
+                        transformers >= 0.5.2.0
+  default-language:     Haskell2010
+  GHC-options:          -O2
+                        -Wall
+                        -fno-warn-name-shadowing
+                        -Wcompat
+                        -Wincomplete-record-updates
+                        -Wincomplete-uni-patterns
+                        -Wredundant-constraints
 
 test-suite test-expression
     hs-source-dirs:     test
     type:               exitcode-stdio-1.0
     main-is:            Main.hs
     build-depends:      build-systems,
-                        base       >= 4.7     && < 5,
-                        containers >= 0.5.7.1
+                        base         >= 4.7     && < 5,
+                        containers   >= 0.5.7.1,
+                        mtl          >= 2.2.1,
+                        transformers >= 0.5.2.0
     default-language:   Haskell2010
     GHC-options:        -O2
                         -Wall

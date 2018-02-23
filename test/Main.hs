@@ -1,32 +1,26 @@
+import Control.Monad
+import Data.Map
+
 import Development.Build
 import Development.Build.Plan hiding (inputs)
 import Development.Build.Store
 
 import Development.Build.Example.Expression
 
-inputs :: [(Key, Value Integer)]
-inputs = [ (Variable "a", Value 3)
-         , (Variable "b", Value 5) ]
+inputs :: Map Key (Value Integer)
+inputs = fromList [ (Variable "a", Value 3)
+                  , (Variable "b", Value 5) ]
 
-initialStore :: ExpressionStore
-initialStore = setValues inputs expressionStore
+outputs :: Outputs Key
+outputs = [ Ackermann (-10) 1
+          , Add (Variable "a") (Variable "b")
+          , Ackermann 3 3 ]
 
-key1 :: Key
-key1 = Ackermann (-10) 1
+result :: Map Key (Value Integer)
+result = snd $ runMapStore (dumbBuild compute outputs (State, noPlan)) KeyNotFound inputs
 
-key2 :: Key
-key2 = Add (Variable "a") (Variable "b")
-
-key3 :: Key
-key3 = Ackermann 3 3
-
-finalStore :: ExpressionStore
-finalStore = res
-  where
-    (_, _, res) = dumbBuild compute [key1, key2, key3] (State, noPlan, initialStore)
+evalutate :: Key -> Value Integer
+evalutate key = findWithDefault (KeyNotFound key) key result
 
 main :: IO ()
-main = do
-    putStrLn $ show key1 ++ " = " ++ show (getValue finalStore key1)
-    putStrLn $ show key2 ++ " = " ++ show (getValue finalStore key2)
-    putStrLn $ show key3 ++ " = " ++ show (getValue finalStore key3)
+main = forM_ outputs $ \key -> putStrLn(show key ++ " = " ++ show (evalutate key))
