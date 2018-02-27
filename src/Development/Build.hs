@@ -1,14 +1,16 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds, GeneralizedNewtypeDeriving, FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 module Development.Build (
     -- * Build
-    Build, dumbBuild, State (..), Outputs,
+    Build, dumbBuild, dumbTracingBuild, State (..), Outputs,
 
     -- * Properties
-    consistent, correct, idempotent
+    consistent --, correct, idempotent
     ) where
 
+import Control.Monad.IO.Class
+import Data.Functor
+
 import Development.Build.Compute
-import Development.Build.NonDeterministic
 import Development.Build.Plan hiding (consistent)
 import Development.Build.Store
 import Development.Build.Utilities
@@ -17,15 +19,15 @@ import Development.Build.Utilities
 -- a 'Store' with respect to a given key. This involves checking the following:
 -- * The plan is complete, i.e. all dependencies of the key are known.
 -- * The ('Plan', 'Store') pair agrees with the 'Compute' function.
-consistent :: Eq v => Store m k v => Compute m k v -> Plan k v -> k -> m Bool
+consistent :: (Eq v, Monad m, GetHash m k v) => Compute (Monad m) m k v -> Plan k v -> k -> m Bool
 consistent compute plan key = case plan key of
     Nothing -> return False -- The plan is incomplete
     Just (h, deps) -> do
         h' <- getHash key
-        vs <- compute key
-        v' <- getValue key
+        vc <- compute key
+        vs <- getValue key
         cs <- mapM (consistent compute plan . fst) deps
-        return $ h' == h && v' `member` vs && and cs
+        return $ h' == h && vc == vs && and cs
 
 -- | A list of keys that need to be built.
 type Outputs k = [k]
@@ -38,15 +40,30 @@ data State k v = State
 
 -- | A build system takes a 'Compute' and 'Outputs' and returns the transformer
 -- of the triple ('State', 'Plan', 'Store').
-type Build m k v = Compute m k v -> Outputs k ->   (State k v, Plan k v)
-                                              -> m (State k v, Plan k v)
+type Build c f k v = Compute c f k v -> Outputs k
+                  -> (State k v, Plan k v) -> f (State k v, Plan k v)
 
-dumbBuild :: Store m k v => Build m k v
-dumbBuild _       []     (state, plan) = return (state, plan)
-dumbBuild compute (k:ks) (state, plan) = do
-    v <- pick <$> compute k
-    setValue k v
-    dumbBuild compute ks (state, plan)
+dumbBuild :: (Monad m, Get m k v, Put m k v)
+    => (forall n. Compute (Monad n, Get n k v) n k v)
+    -> Outputs k
+    -> (State k v, Plan k v)
+    -> m (State k v, Plan k v)
+dumbBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
+  where
+    build k = compute k >>= putValue k
+
+dumbTracingBuild :: (MonadIO m, Get m k v, Put m k v, Show k, Show v)
+    => (forall n. Compute (Monad n, Get n k v) n k v)
+    -> Outputs k
+    -> (State k v, Plan k v)
+    -> m (State k v, Plan k v)
+dumbTracingBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
+  where
+    build k = do
+        liftIO $ putStrLn ("Computing key: " ++ show k)
+        (v, ts) <- runTrace $ compute k
+        liftIO $ putStrLn ("Computation lookups: " ++ show ts)
+        putValue k v
 
 -- | Check that a build system is correct, i.e. for all possible combinations of
 -- input parameters ('Compute', 'Outputs', 'State', 'Plan', 'Store'), where
@@ -57,8 +74,8 @@ dumbBuild compute (k:ks) (state, plan) = do
 -- * The @newStore@ and the @magicStore@ agree on the output keys.
 -- * The @magicStore@ is consistent w.r.t. the @compute@ function and the @plan@.
 -- There are no correctness requirements on the resulting 'State'.
-correct :: Eq v => Store m k v => Build m k v -> m Bool
-correct = undefined
+-- correct :: (Eq v, Get m k v, GetHash m k v) => Build (Monad m) m k v -> m Bool
+-- correct build = undefined
     -- forallM $ \(compute, outputs, state, oldPlan, oldStore) ->
     -- existsM $ \magicStore -> do
     --     (_, newPlan, newStore) <- build compute outputs (state, oldPlan, oldStore)
@@ -76,8 +93,8 @@ correct = undefined
 
 -- | Check that a build system is /idempotent/, i.e. running it once or twice in
 -- a row leads to the same 'Plan' and 'Store'.
-idempotent :: (Eq k, Eq v) => Store m k v => Build m k v -> m Bool
-idempotent build = forallM $ \(compute, outputs, state, plan) -> do
-    (state', plan' ) <- build compute outputs (state , plan )
-    (_     , plan'') <- build compute outputs (state', plan')
-    return $ forall $ \key -> plan' key == plan'' key
+-- idempotent :: (Eq k, Eq v) => Store m k v => Build m k v -> m Bool
+-- idempotent build = forallM $ \(compute, outputs, state, plan) -> do
+--     (state', plan' ) <- build compute outputs (state , plan )
+--     (_     , plan'') <- build compute outputs (state', plan')
+--     return $ forall $ \key -> plan' key == plan'' key

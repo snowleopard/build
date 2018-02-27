@@ -1,17 +1,20 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances, DefaultSignatures, FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses, TupleSections #-}
 module Development.Build.Store (
     -- * Hashing
     Hash, hash,
 
     -- * The store monad
-    Store (..), need, checkHashes, UnsafeMapStore, runUnsafeMapStore, MapStore,
-    runMapStore, Traced, trace
+    Get (..), GetHash (..), Put (..), checkHashes, need,
+    UnsafeMapStore, runUnsafeMapStore, MapStore, runMapStore
     ) where
 
 import Data.Map
 import Control.Monad.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Writer
+
+import Development.Build.Utilities
 
 -- | A 'Hash' is used for efficient tracking and sharing of build results. We
 -- use @newtype Hash v = Hash v@ for prototyping.
@@ -22,27 +25,35 @@ newtype Hash v = Hash v deriving (Eq, Show)
 hash :: v -> Hash v
 hash = Hash
 
--- | A key-value store monad that in addition to usual 'getValue' and 'setValue'
+class Get f k v | f -> k v where
+    getValue :: k -> f v
+
+class Get f k v => GetHash f k v | f -> k v where
+    getHash :: k -> f (Hash v)
+    default getHash :: Functor f => k -> f (Hash v)
+    getHash = fmap hash . getValue
+
+class Put f k v | f -> k v where
+    putValue :: k -> v -> f ()
+
+-- class Monad m => Store m k v | m k -> v where
+
+instance (Functor f, Get f k v) => Get (WriterT [(k, v)] f) k v where
+    getValue = trace getValue
+
+-- | A key-value store monad that in addition to usual 'getValue' and 'putValue'
 -- queries supports 'getHash', which can in some cases be implemented more
 -- efficiently than by hashing the result of 'getValue'. For example, GVFS (Git
 -- Virtual File System) downloads actual values (file contents) only on demand.
 -- Note that if a file does not exist, the corresponding 'file not found' value
 -- (suitably encoded) is still useful and can be tracked by a build system.
-class Monad m => Store m k v | m -> k v where
-    -- | Lookup the value of a key in a 'Store'.
-    getValue :: k -> m v
-    -- | Modify a 'Store' by updating a key-value entry.
-    setValue :: k -> v -> m ()
-    -- | Lookup the hash of a key in a 'Store'.
-    getHash  :: k -> m (Hash v)
-    getHash k = hash <$> getValue k
 
 -- | Depend on a given key. Convenient for registering dependencies of external
 -- build tools that are not passed as explicit values.
-need :: Store m k v => [k] -> m ()
-need = mapM_ getHash
+need :: (Monad m, Get m k v) => [k] -> m ()
+need = mapM_ getValue
 
-checkHashes :: (Eq v, Store m k v) => [(k, Hash v)] -> m Bool
+checkHashes :: (Eq v, Monad m, GetHash m k v) => [(k, Hash v)] -> m Bool
 checkHashes khs = do
     let (ks, hs) = unzip khs
     storedHashes <- mapM getHash ks
@@ -50,50 +61,34 @@ checkHashes khs = do
 
 -- | A 'Store' implemented using a @Map k v@. Throws an error when accessing a
 -- non-existent key. See 'MapStore' for a safe alternative.
-type UnsafeMapStore k v = State (Map k v)
+type UnsafeMapStore m k v = StateT (Map k v) m
 
 -- | Run an 'UnsafeMapStore' computation on a given initial state of the store,
 -- Throws an error when accessing a non-existent key. See 'runMapStore' for a
 -- safe alternative.
-runUnsafeMapStore :: UnsafeMapStore k v a -> Map k v -> (a, Map k v)
-runUnsafeMapStore = runState
+runUnsafeMapStore :: UnsafeMapStore m k v a -> Map k v -> m (a, Map k v)
+runUnsafeMapStore = runStateT
 
-instance Ord k => Store (UnsafeMapStore k v) k v where
-    getValue k   = (!k) <$> get
-    setValue k v = modify (insert k v)
+instance (Monad m, Ord k) => Get (UnsafeMapStore m k v) k v where
+    getValue k = (!k) <$> get
+
+instance (Monad m, Ord k) => Put (UnsafeMapStore m k v) k v where
+    putValue k v = modify (insert k v)
 
 -- | A 'Store' implemented using a @Map k v@. Falls back to the default value
 -- computed by an enclosed @k -> v@ function when accessing a non-existent key.
-type MapStore k v = ReaderT (k -> v) (UnsafeMapStore k v)
+type MapStore m k v = ReaderT (k -> v) (UnsafeMapStore m k v)
 
 -- | Run a 'MapStore' computation on a given initial state of the store.
 -- Falls back to the default value computed by the provided @k -> v@ function
 -- when accessing a non-existent key.
-runMapStore :: MapStore k v a -> (k -> v) -> Map k v -> (a, Map k v)
-runMapStore store = runState . runReaderT store
+runMapStore :: MapStore m k v a -> (k -> v) -> Map k v -> m (a, Map k v)
+runMapStore store = runStateT . runReaderT store
 
-instance Ord k => Store (MapStore k v) k v where
+instance (Monad m, Ord k) => Get (MapStore m k v) k v where
     getValue k = do
         f <- ask
         findWithDefault (f k) k <$> lift get
-    setValue k = lift . setValue k
 
-data TraceItem k v = GetValue k v | SetValue k v | GetHash k (Hash v)
-
-type Traced m k v = WriterT [TraceItem k v] m
-
-trace :: Store m k v => Traced m k v a -> m [TraceItem k v]
-trace = execWriterT
-
-instance Store m k v => Store (Traced m k v) k v where
-    getValue k = do
-        v <- lift (getValue k)
-        tell [GetValue k v]
-        return v
-    setValue k v = do
-        lift (setValue k v)
-        tell [SetValue k v]
-    getHash k = do
-        h <- lift (getHash k)
-        tell [GetHash k h]
-        return h
+instance (Monad m, Ord k) => Put (MapStore m k v) k v where
+    putValue k = lift . putValue k
