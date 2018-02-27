@@ -42,7 +42,6 @@ data State k v = State
 -- of the triple ('State', 'Plan', 'Store').
 type Build c f k v = Compute c f k v -> Outputs k
                   -> (State k v, Plan k v) -> f (State k v, Plan k v)
-
 dumbBuild :: (Monad m, Get m k v, Put m k v)
     => (forall n. Compute (Monad n, Get n k v) n k v)
     -> Outputs k

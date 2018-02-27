@@ -20,6 +20,7 @@ library
   hs-source-dirs:       src
   exposed-modules:      Development.Build,
                         Development.Build.Compute,
+                        Development.Build.Compute.Functor,
                         Development.Build.Example.Expression,
                         Development.Build.NonDeterministic,
                         Development.Build.Plan,
