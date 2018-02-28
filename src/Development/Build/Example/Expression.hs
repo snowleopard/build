@@ -69,7 +69,7 @@ monadicComputeExample key = case key of
       where
         result | m < 0 || n < 0 = return $ ComputeError (show key ++ " is not defined")
                | m == 0         = return $ Value (n + 1)
-               | n == 0         = getValue (Ackermann (m - 1) 0)
+               | n == 0         = getValue (Ackermann (m - 1) 1)
                | otherwise      = do v <- getValue (Ackermann m (n - 1))
                                      case v of
                                         Value i -> getValue (Ackermann (m - 1) i)
