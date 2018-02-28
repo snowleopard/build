@@ -29,6 +29,7 @@ instance Applicative (Script k v) where
 
 instance Monad (Script k v) where
     return = Pure
+    (>>)   = (*>)
     (>>=)  = Bind
 
 getScript :: MonadicCompute k v -> k -> Script k v v
