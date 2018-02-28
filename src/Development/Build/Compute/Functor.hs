@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Functor (
-    Script (..), normalForm, getScript, runScript
+    Script (..), getScript, runScript, dependencies
     ) where
 
 import Development.Build.Store
@@ -13,12 +13,6 @@ data Script k v a where
     GetValue :: k -> Script k v v
     FMap     :: (a -> b) -> Script k v a -> Script k v b
 
-normalForm :: Script k v a -> (k, v -> a)
-normalForm (GetValue key ) = (key, id)
-normalForm (FMap f script) = (key, f . g)
-  where
-    (key, g) = normalForm script
-
 instance Get (Script k v) k v where
     getValue = GetValue
 
@@ -28,7 +22,12 @@ instance Functor (Script k v) where
 getScript :: (forall f. (Functor f, Get f k v) => k -> f v) -> k -> Script k v v
 getScript = id
 
-runScript :: (Functor f, Get f k v) => (k -> Script k v v) -> k -> f v
-runScript script key = fmap f (getValue k)
-  where
-    (k, f) = normalForm (script key)
+runScript :: (Functor f, Get f k v) => Script k v a -> f a
+runScript script = case script of
+    GetValue k -> getValue k
+    FMap f s   -> f <$> runScript s
+
+dependencies :: Script k v a -> [k]
+dependencies script = case script of
+    GetValue k -> [k]
+    FMap _ s   -> dependencies s
