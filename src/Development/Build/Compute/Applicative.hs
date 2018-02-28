@@ -1,8 +1,9 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Applicative (
-    Script (..), getScript, runScript, dependencies
+    Script (..), getScript, run, runWith, dependencies
     ) where
 
+import Data.Functor.Const
 import Development.Build.Store
 
 data Script k v a where
@@ -23,14 +24,14 @@ instance Applicative (Script k v) where
 getScript :: (forall f. (Applicative f, Get f k v) => k -> f v) -> k -> Script k v v
 getScript = id
 
-runScript :: (Applicative f, Get f k v) => Script k v a -> f a
-runScript script = case script of
-    GetValue k -> getValue k
+run :: (Applicative f, Get f k v) => Script k v a -> f a
+run = runWith getValue
+
+runWith :: Applicative f => (k -> f v) -> Script k v a -> f a
+runWith get script = case script of
+    GetValue k -> get k
     Pure v     -> pure v
-    Ap s1 s2   -> runScript s1 <*> runScript s2
+    Ap s1 s2   -> runWith get s1 <*> runWith get s2
 
 dependencies :: Script k v a -> [k]
-dependencies script = case script of
-    GetValue k -> [k]
-    Pure _     -> []
-    Ap s1 s2   -> dependencies s1 ++ dependencies s2
+dependencies = getConst . runWith (Const . return)

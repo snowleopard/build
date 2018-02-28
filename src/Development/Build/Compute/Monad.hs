@@ -1,8 +1,9 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    Script (..), getScript, runScript, staticDependencies
+    Script (..), getScript, run, runWith, staticDependencies
     ) where
 
+import Data.Monoid
 import Development.Build.Store
 
 data Script k v a where
@@ -28,16 +29,28 @@ instance Monad (Script k v) where
 getScript :: (forall m. (Monad m, Get m k v) => k -> m v) -> k -> Script k v v
 getScript = id
 
-runScript :: (Monad m, Get m k v) => Script k v a -> m a
-runScript script = case script of
-    GetValue k -> getValue k
+run :: (Monad m, Get m k v) => Script k v a -> m a
+run = runWith getValue
+
+runWith :: Monad m => (k -> m v) -> Script k v a -> m a
+runWith get script = case script of
+    GetValue k -> get k
     Pure v     -> pure v
-    Ap s1 s2   -> runScript s1 <*> runScript s2
-    Bind s f   -> runScript (runScript s >>= f)
+    Ap s1 s2   -> runWith get s1 <*> runWith get s2
+    Bind s f   -> runWith get s >>= fmap (runWith get) f
+
+newtype StaticConst c a = StaticConst { getStaticConst :: c }
+
+instance Functor (StaticConst c) where
+    fmap _ (StaticConst c) = StaticConst c
+
+instance Monoid c => Applicative (StaticConst c) where
+    pure _                = StaticConst mempty
+    StaticConst x <*> StaticConst y = StaticConst (x <> y)
+
+instance Monoid c => Monad (StaticConst c) where
+    return              = pure
+    StaticConst x >>= _ = StaticConst x
 
 staticDependencies :: Script k v a -> [k]
-staticDependencies script = case script of
-    GetValue k -> [k]
-    Pure _     -> []
-    Ap s1 s2   -> staticDependencies s1 ++ staticDependencies s2
-    Bind s _   -> staticDependencies s
+staticDependencies = getStaticConst . runWith (StaticConst . return)

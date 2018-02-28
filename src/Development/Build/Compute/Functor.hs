@@ -1,8 +1,9 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Functor (
-    Script (..), getScript, runScript, dependencies
+    Script (..), getScript, run, runWith, dependency
     ) where
 
+import Data.Functor.Const
 import Development.Build.Store
 
 -- TODO: One possible example is configuration files where we keep building
@@ -22,12 +23,13 @@ instance Functor (Script k v) where
 getScript :: (forall f. (Functor f, Get f k v) => k -> f v) -> k -> Script k v v
 getScript = id
 
-runScript :: (Functor f, Get f k v) => Script k v a -> f a
-runScript script = case script of
-    GetValue k -> getValue k
-    FMap f s   -> f <$> runScript s
+run :: (Functor f, Get f k v) => Script k v a -> f a
+run = runWith getValue
 
-dependencies :: Script k v a -> [k]
-dependencies script = case script of
-    GetValue k -> [k]
-    FMap _ s   -> dependencies s
+runWith :: Functor f => (k -> f v) -> Script k v a -> f a
+runWith get script = case script of
+    GetValue k -> get k
+    FMap f s   -> f <$> runWith get s
+
+dependency :: Script k v a -> k
+dependency = getConst . runWith Const
