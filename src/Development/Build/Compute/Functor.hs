@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Functor (
-    Script (..), getScript, run, runWith, dependency
+    Script (..), getScript, run, runWith, dependency, isInput
     ) where
 
 import Data.Functor.Const
@@ -33,3 +33,6 @@ runWith get script = case script of
 
 dependency :: Script k v a -> k
 dependency = getConst . runWith Const
+
+isInput :: Eq k => (forall f. (Functor f, Get f k v) => k -> f v) -> k -> Bool
+isInput compute key = dependency (getScript compute key) == key

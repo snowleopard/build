@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    Script (..), getScript, run, runWith, staticDependencies
+    Script (..), getScript, run, runWith, staticDependencies, isStatic, isInput
     ) where
 
 import Data.Monoid
@@ -54,3 +54,18 @@ instance Monoid c => Monad (StaticConst c) where
 
 staticDependencies :: Script k v a -> [k]
 staticDependencies = getStaticConst . runWith (StaticConst . return)
+
+isStatic :: Script k v a -> Bool
+isStatic script = case script of
+    GetValue _ -> True
+    Pure _     -> True
+    Ap s1 s2   -> isStatic s1 && isStatic s2
+    Bind _ _   -> False
+
+isInput :: Eq k => (forall m. (Monad m, Get m k v) => k -> m v) -> k -> Bool
+isInput compute key = isStatic script && case staticDependencies script of
+    []    -> True
+    [dep] -> dep == key
+    _     -> False
+  where
+    script = getScript compute key
