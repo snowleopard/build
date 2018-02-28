@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes #-}
 module Development.Build (
     -- * Build
-    Build, dumbBuild, dumbTracingBuild, State (..), Outputs,
+    Build, dumbBuild, dumbTracingBuild, slowBuild, State (..), Outputs,
 
     -- * Properties
     consistent --, correct, idempotent
@@ -42,6 +42,7 @@ data State k v = State
 -- of the triple ('State', 'Plan', 'Store').
 type Build c f k v = Compute c f k v -> Outputs k
                   -> (State k v, Plan k v) -> f (State k v, Plan k v)
+
 dumbBuild :: (Monad m, Get m k v, Put m k v)
     => (forall n. Compute (Monad n, Get n k v) n k v)
     -> Outputs k
@@ -59,14 +60,28 @@ dumbTracingBuild :: (MonadIO m, Get m k v, Put m k v, Show k, Show v)
 dumbTracingBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
   where
     build k = do
-        let script       = getScript compute k
-            myGetValue k = do
+        let myGetValue k = do
                 v <- getValue k
                 liftIO $ putStrLn $ "Looked up key: " ++ show k ++ " => " ++ show v
                 return v
         liftIO $ putStrLn ("Computing key: " ++ show k)
-        v <- runWith myGetValue script
+        v <- runWith myGetValue (getScript compute k)
         putValue k v
+
+slowBuild :: (Eq k, Monad m, Get m k v, Put m k v)
+    => (forall n. Compute (Monad n, Get n k v) n k v)
+    -> Outputs k
+    -> (State k v, Plan k v)
+    -> m (State k v, Plan k v)
+slowBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
+  where
+    script = getScript compute
+    build k = do
+        let result = if isInput compute k then compute k
+                                          else runWith build (script k)
+        v <- result
+        putValue k v
+        return v
 
 -- | Check that a build system is correct, i.e. for all possible combinations of
 -- input parameters ('Compute', 'Outputs', 'State', 'Plan', 'Store'), where

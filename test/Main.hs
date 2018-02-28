@@ -20,19 +20,26 @@ outputs = [ Ackermann (-10) 1
           , Add (Variable "a") (Increment (Variable "b"))
           , Ackermann 3 3 ]
 
-build :: (Monad m, Get m Key (Value Integer), Put m Key (Value Integer))
+goDumb :: (Monad m, Get m Key (Value Integer), Put m Key (Value Integer))
       => m (State Key (Value Integer), Plan Key (Value Integer))
-build = dumbBuild compute outputs (State, noPlan)
+goDumb = dumbBuild compute outputs (State, noPlan)
 
-tracingBuild :: (MonadIO m, Get m Key (Value Integer), Put m Key (Value Integer))
+goSlow :: (Monad m, Get m Key (Value Integer), Put m Key (Value Integer))
       => m (State Key (Value Integer), Plan Key (Value Integer))
-tracingBuild = dumbTracingBuild compute outputs (State, noPlan)
+goSlow = slowBuild compute outputs (State, noPlan)
+
+goTracingDumb :: (MonadIO m, Get m Key (Value Integer), Put m Key (Value Integer))
+      => m (State Key (Value Integer), Plan Key (Value Integer))
+goTracingDumb = dumbTracingBuild compute outputs (State, noPlan)
 
 result :: Map Key (Value Integer)
-result = snd $ runIdentity $ runMapStore build KeyNotFound inputs
+result = snd $ runIdentity $ runMapStore goDumb KeyNotFound inputs
 
 tracingResult :: IO (Map Key (Value Integer))
-tracingResult = snd <$> runMapStore tracingBuild KeyNotFound inputs
+tracingResult = snd <$> runMapStore goTracingDumb KeyNotFound inputs
+
+slowResult :: Map Key (Value Integer)
+slowResult = snd $ runIdentity $ runMapStore goSlow KeyNotFound inputs
 
 evalutate :: Map Key (Value Integer) -> Key -> Value Integer
 evalutate store key = findWithDefault (KeyNotFound key) key store
@@ -47,3 +54,5 @@ main = do
     printOutputs result
     putStrLn "======== dumbTracingBuild ========"
     printOutputs =<< tracingResult
+    putStrLn "======== slowBuild ========"
+    printOutputs slowResult
