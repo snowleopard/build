@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstraintKinds, GeneralizedNewtypeDeriving, FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes #-}
 module Development.Build (
     -- * Build
     Build, dumbBuild, dumbTracingBuild, State (..), Outputs,
@@ -11,9 +11,9 @@ import Control.Monad.IO.Class
 import Data.Functor
 
 import Development.Build.Compute
+import Development.Build.Compute.Monad
 import Development.Build.Plan hiding (consistent)
 import Development.Build.Store
-import Development.Build.Utilities
 
 -- | Check a three-way consistency between a 'Compute' function, a 'Plan' and
 -- a 'Store' with respect to a given key. This involves checking the following:
@@ -59,9 +59,13 @@ dumbTracingBuild :: (MonadIO m, Get m k v, Put m k v, Show k, Show v)
 dumbTracingBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
   where
     build k = do
+        let script       = getScript compute k
+            myGetValue k = do
+                v <- getValue k
+                liftIO $ putStrLn $ "Looked up key: " ++ show k ++ " => " ++ show v
+                return v
         liftIO $ putStrLn ("Computing key: " ++ show k)
-        (v, ts) <- runTrace $ compute k
-        liftIO $ putStrLn ("Computation lookups: " ++ show ts)
+        v <- runWith myGetValue script
         putValue k v
 
 -- | Check that a build system is correct, i.e. for all possible combinations of

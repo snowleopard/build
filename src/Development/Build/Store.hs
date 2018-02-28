@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleInstances, DefaultSignatures, FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses, TupleSections #-}
 module Development.Build.Store (
     -- * Hashing
     Hash, hash,
@@ -12,9 +11,6 @@ module Development.Build.Store (
 import Data.Map
 import Control.Monad.State
 import Control.Monad.Trans.Reader
-import Control.Monad.Trans.Writer
-
-import Development.Build.Utilities
 
 -- | A 'Hash' is used for efficient tracking and sharing of build results. We
 -- use @newtype Hash v = Hash v@ for prototyping.
@@ -35,11 +31,6 @@ class Get f k v => GetHash f k v | f -> k v where
 
 class Put f k v | f -> k v where
     putValue :: k -> v -> f ()
-
--- class Monad m => Store m k v | m k -> v where
-
-instance (Functor f, Get f k v) => Get (WriterT [(k, v)] f) k v where
-    getValue = trace getValue
 
 -- | A key-value store monad that in addition to usual 'getValue' and 'putValue'
 -- queries supports 'getHash', which can in some cases be implemented more
