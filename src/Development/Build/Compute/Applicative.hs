@@ -1,12 +1,16 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Applicative (
-    ApplicativeCompute, Script (..), dependencies, isInput, getScript, runScript
+    ApplicativeCompute, pureCompute, dependencies, isInput,
+    Script (..), getScript, runScript
     ) where
 
 import Control.Applicative
 import Development.Build.Store
 
 type ApplicativeCompute k v = forall f. Applicative f => (k -> f v) -> k -> f v
+
+pureCompute :: (k -> v) -> ApplicativeCompute k v
+pureCompute f _ = pure . f
 
 dependencies :: ApplicativeCompute k v -> k -> [k]
 dependencies compute = getConst . compute (Const . return)

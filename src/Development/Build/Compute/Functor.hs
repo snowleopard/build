@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Functor (
-    FunctorialCompute, dependency, isInput, getScript, runScript
+    FunctorialCompute, constCompute, dependency, isInput,
+    Script (..), getScript, runScript
     ) where
 
 import Data.Functor.Const
@@ -11,6 +12,9 @@ import Development.Build.Store
 -- in a lens-like manner.
 
 type FunctorialCompute k v = forall f. Functor f => (k -> f v) -> k -> f v
+
+constCompute :: v -> FunctorialCompute k v
+constCompute value get = fmap (const value) . get
 
 dependency :: FunctorialCompute k v -> k -> k
 dependency compute = getConst . compute Const

@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    MonadicCompute, Script (..), getScript, runScript, staticDependencies, isStatic, isInput
+    MonadicCompute, staticDependencies,
+    Script (..), getScript, runScript, isStatic, isInput
     ) where
 
 import Development.Build.Store
