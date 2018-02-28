@@ -1,10 +1,14 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    Script (..), getScript, run, runWith, staticDependencies, isStatic, isInput
+    MonadicCompute, Script (..), getScript, runScript, staticDependencies, isStatic, isInput
     ) where
 
-import Data.Monoid
 import Development.Build.Store
+
+type MonadicCompute k v = forall m. Monad m => (k -> m v) -> k -> m v
+
+staticDependencies :: MonadicCompute k v -> k -> [k]
+staticDependencies compute = staticScriptDependencies . getScript compute
 
 data Script k v a where
     GetValue :: k -> Script k v v
@@ -26,34 +30,22 @@ instance Monad (Script k v) where
     return = Pure
     (>>=)  = Bind
 
-getScript :: (forall m. (Monad m, Get m k v) => k -> m v) -> k -> Script k v v
-getScript = id
+getScript :: MonadicCompute k v -> k -> Script k v v
+getScript compute = compute GetValue
 
-run :: (Monad m, Get m k v) => Script k v a -> m a
-run = runWith getValue
-
-runWith :: Monad m => (k -> m v) -> Script k v a -> m a
-runWith get script = case script of
+runScript :: Monad m => (k -> m v) -> Script k v a -> m a
+runScript get script = case script of
     GetValue k -> get k
     Pure v     -> pure v
-    Ap s1 s2   -> runWith get s1 <*> runWith get s2
-    Bind s f   -> runWith get s >>= fmap (runWith get) f
+    Ap s1 s2   -> runScript get s1 <*> runScript get s2
+    Bind s f   -> runScript get s >>= fmap (runScript get) f
 
-newtype StaticConst c a = StaticConst { getStaticConst :: c }
-
-instance Functor (StaticConst c) where
-    fmap _ (StaticConst c) = StaticConst c
-
-instance Monoid c => Applicative (StaticConst c) where
-    pure _                = StaticConst mempty
-    StaticConst x <*> StaticConst y = StaticConst (x <> y)
-
-instance Monoid c => Monad (StaticConst c) where
-    return              = pure
-    StaticConst x >>= _ = StaticConst x
-
-staticDependencies :: Script k v a -> [k]
-staticDependencies = getStaticConst . runWith (StaticConst . return)
+staticScriptDependencies :: Script k v a -> [k]
+staticScriptDependencies script = case script of
+    GetValue k -> [k]
+    Pure _     -> []
+    Ap s1 s2   -> staticScriptDependencies s1 ++ staticScriptDependencies s2
+    Bind s _   -> staticScriptDependencies s
 
 isStatic :: Script k v a -> Bool
 isStatic script = case script of
@@ -62,10 +54,9 @@ isStatic script = case script of
     Ap s1 s2   -> isStatic s1 && isStatic s2
     Bind _ _   -> False
 
-isInput :: Eq k => (forall m. (Monad m, Get m k v) => k -> m v) -> k -> Bool
-isInput compute key = isStatic script && case staticDependencies script of
-    []    -> True
-    [dep] -> dep == key
-    _     -> False
-  where
-    script = getScript compute key
+isInput :: Eq k => Script k v a -> k -> Bool
+isInput script key = case script of
+    GetValue k -> k == key
+    Pure _     -> True
+    Ap s1 s2   -> isInput s1 key && isInput s2 key
+    Bind _ _   -> False

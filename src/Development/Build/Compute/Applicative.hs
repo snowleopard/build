@@ -1,10 +1,21 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Applicative (
-    Script (..), getScript, run, runWith, dependencies, isInput
+    ApplicativeCompute, Script (..), dependencies, isInput, getScript, runScript
     ) where
 
-import Data.Functor.Const
+import Control.Applicative
 import Development.Build.Store
+
+type ApplicativeCompute k v = forall f. Applicative f => (k -> f v) -> k -> f v
+
+dependencies :: ApplicativeCompute k v -> k -> [k]
+dependencies compute = getConst . compute (Const . return)
+
+isInput :: Eq k => ApplicativeCompute k v -> k -> Bool
+isInput compute key = case dependencies compute key of
+    []    -> True
+    [dep] -> dep == key
+    _     -> False
 
 data Script k v a where
     GetValue :: k -> Script k v v
@@ -21,23 +32,11 @@ instance Applicative (Script k v) where
     pure  = Pure
     (<*>) = Ap
 
-getScript :: (forall f. (Applicative f, Get f k v) => k -> f v) -> k -> Script k v v
-getScript = id
+getScript :: ApplicativeCompute k v -> k -> Script k v v
+getScript compute = compute GetValue
 
-run :: (Applicative f, Get f k v) => Script k v a -> f a
-run = runWith getValue
-
-runWith :: Applicative f => (k -> f v) -> Script k v a -> f a
-runWith get script = case script of
+runScript :: Applicative f => (k -> f v) -> Script k v a -> f a
+runScript get script = case script of
     GetValue k -> get k
     Pure v     -> pure v
-    Ap s1 s2   -> runWith get s1 <*> runWith get s2
-
-dependencies :: Script k v a -> [k]
-dependencies = getConst . runWith (Const . return)
-
-isInput :: Eq k => (forall f. (Applicative f, Get f k v) => k -> f v) -> k -> Bool
-isInput compute key = case dependencies (getScript compute key) of
-    []    -> True
-    [dep] -> dep == key
-    _     -> False
+    Ap s1 s2   -> runScript get s1 <*> runScript get s2

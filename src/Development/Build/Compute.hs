@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses, RankNTypes, ConstraintKinds #-}
 module Development.Build.Compute (
     -- * Compute
-    Compute, computeInput, computeCObject,
+    computeCObject,
     ) where
 
 import System.FilePath
@@ -13,7 +13,7 @@ import Development.Build.Store
 -- simplest case, @f@ could be just a functor, e.g. see 'computeInput', but more
 -- interesting computations involve applicative functors (for static dependencies)
 -- or monads (for dynamic dependencies). The result is non-deterministic.
-type Compute c f k v = c => k -> f v
+-- type Compute c f k v = c => k -> f v
 
 -- TODO: Separate input keys from others.
 -- | The default computation that assumes that all files are inputs, including

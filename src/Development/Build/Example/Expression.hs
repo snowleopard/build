@@ -1,10 +1,12 @@
-{-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleContexts #-}
+{-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleContexts, Rank2Types #-}
 module Development.Build.Example.Expression where
 
 import Control.Monad
 
-import Development.Build.Compute
-import Development.Build.Store
+import Development.Build.Compute.Applicative
+import Development.Build.Compute.Functor
+import Development.Build.Compute.Identity
+import Development.Build.Compute.Monad
 
 -- TODO: Good example is cyclic dependencies.
 -- TODO: Add separate type for input keys.
@@ -53,18 +55,18 @@ instance Monad Value where
 
 -- runExpressionStore :: ExpressionStore a -> [(Key, Value Integer)] -> (a, )
 
-functorialComputeExample :: Compute (Functor f, Get f Key (Value Integer)) f Key (Value Integer)
-functorialComputeExample key = case key of
+functorialComputeExample :: FunctorialCompute Key (Value Integer)
+functorialComputeExample getValue key = case key of
     Increment k -> increment <$> getValue k
-    _ -> computeInput key
+    _ -> identityCompute getValue key
 
-applicativeComputeExample :: Compute (Applicative f, Get f Key (Value Integer)) f Key (Value Integer)
-applicativeComputeExample key = case key of
+applicativeComputeExample :: ApplicativeCompute Key (Value Integer)
+applicativeComputeExample getValue key = case key of
     Add k1 k2 -> add <$> getValue k1 <*> getValue k2
-    _ -> computeInput key
+    _ -> identityCompute getValue key
 
-monadicComputeExample :: Compute (Monad f, Get f Key (Value Integer)) f Key (Value Integer)
-monadicComputeExample key = case key of
+monadicComputeExample :: MonadicCompute Key (Value Integer)
+monadicComputeExample getValue key = case key of
     Ackermann m n -> result
       where
         result | m < 0 || n < 0 = return $ ComputeError (show key ++ " is not defined")
@@ -74,14 +76,14 @@ monadicComputeExample key = case key of
                                      case v of
                                         Value i -> getValue (Ackermann (m - 1) i)
                                         failure -> return failure
-    _ -> computeInput key
+    _ -> identityCompute getValue key
 
 -- | Computation of expressions.
-compute :: Compute (Monad f, Get f Key (Value Integer)) f Key (Value Integer)
-compute key = case key of
-    Increment _   -> functorialComputeExample  key
-    Add _ _       -> applicativeComputeExample key
-    Ackermann _ _ -> monadicComputeExample     key
+compute :: MonadicCompute Key (Value Integer)
+compute getValue key = case key of
+    Increment _   -> functorialComputeExample  getValue key
+    Add _ _       -> applicativeComputeExample getValue key
+    Ackermann _ _ -> monadicComputeExample     getValue key
 
     -- All other keys correspond to inputs
-    Variable _ -> computeInput key
+    Variable _ -> identityCompute getValue key
