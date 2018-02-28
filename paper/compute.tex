@@ -1,0 +1,16 @@
+\section{Compute}\label{sec-compute}
+
+\begin{figure}
+\begin{minted}{haskell}
+type IdentityCompute    k v = forall f.                  (k -> f v) -> k -> f v
+type FunctorialCompute  k v = forall f. Functor     f => (k -> f v) -> k -> f v
+type ApplicativeCompute k v = forall f. Applicative f => (k -> f v) -> k -> f v
+type AlternativeCompute k v = forall f. Alternative f => (k -> f v) -> k -> f v
+type MonadicCompute     k v = forall m. Monad       m => (k -> m v) -> k -> m v
+type MonadPlusedCompute k v = forall m. MonadPlus   m => (k -> m v) -> k -> m v
+\end{minted}
+\caption{Compute abstractions}\label{fig-compute}
+\end{figure}
+
+Consider abstractions in Fig.~\ref{fig-compute}.
+
