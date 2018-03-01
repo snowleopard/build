@@ -39,13 +39,17 @@ data State k v = State
 
 -- | A build system takes a 'Compute' and 'Outputs' and returns the transformer
 -- of the triple ('State', 'Plan', 'Store').
-type MonadicBuild m k v = MonadicCompute k v k v -> Outputs k
+type MonadicBuild m k v = MonadicCompute k v -> Outputs k
                       -> (State k v, Plan k v) -> m (State k v, Plan k v)
 
 dumbBuild :: (Monad m, Get m k v, Put m k v) => MonadicBuild m k v
 dumbBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
   where
-    build k = compute getValue k >>= putValue k
+    build k = do
+        maybeValue <- compute getValue k
+        case maybeValue of
+            Just value -> putValue k value
+            Nothing    -> return ()
 
 dumbTracingBuild :: (MonadIO m, Get m k v, Put m k v, Show k, Show v) => MonadicBuild m k v
 dumbTracingBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
@@ -56,8 +60,10 @@ dumbTracingBuild compute outputs (state, plan) = mapM build outputs $> (state, p
                 liftIO $ putStrLn $ "Looked up key: " ++ show k ++ " => " ++ show v
                 return v
         liftIO $ putStrLn ("Computing key: " ++ show k)
-        v <- compute myGetValue k
-        putValue k v
+        maybeValue <- compute myGetValue k
+        case maybeValue of
+            Just value -> putValue k value
+            Nothing    -> return ()
 
 slowBuild :: (Monad m, Get m k v, Put m k v, Eq k) => MonadicBuild m k v
 slowBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
@@ -65,9 +71,10 @@ slowBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
     build k = do
         let result = if isInput (getScript compute k) k then compute getValue k
                                                         else compute build k
-        v <- result
-        putValue k v
-        return v
+        maybeValue <- result
+        case maybeValue of
+            Just value -> putValue k value >> return value
+            Nothing    -> getValue k
 
 -- | Check that a build system is correct, i.e. for all possible combinations of
 -- input parameters ('Compute', 'Outputs', 'State', 'Plan', 'Store'), where

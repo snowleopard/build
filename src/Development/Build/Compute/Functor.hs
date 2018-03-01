@@ -12,7 +12,7 @@ import Development.Build.Store
 -- projections from a large collection of settings to smaller and smaller items
 -- in a lens-like manner.
 
-dependency :: FunctorialCompute k v i o -> i -> k
+dependency :: FunctorialCompute k v -> k -> k
 dependency compute = getConst . compute Const
 
 data Script k v a where
@@ -25,7 +25,7 @@ instance Get (Script k v) k v where
 instance Functor (Script k v) where
     fmap = FMap
 
-getScript :: FunctorialCompute k v i o -> i -> Script k v o
+getScript :: FunctorialCompute k v -> k -> Script k v (Maybe v)
 getScript compute = compute GetValue
 
 runScript :: Monad f => (k -> f v) -> Script k v a -> f a

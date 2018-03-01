@@ -7,7 +7,7 @@ module Development.Build.Compute.Monad (
 import Development.Build.Compute
 import Development.Build.Store
 
-staticDependencies :: MonadicCompute k v i o -> i -> [k]
+staticDependencies :: MonadicCompute k v -> k -> [k]
 staticDependencies compute = staticScriptDependencies . getScript compute
 
 data Script k v a where
@@ -31,7 +31,7 @@ instance Monad (Script k v) where
     (>>)   = (*>)
     (>>=)  = Bind
 
-getScript :: MonadicCompute k v i o -> i -> Script k v o
+getScript :: MonadicCompute k v -> k -> Script k v (Maybe v)
 getScript compute = compute GetValue
 
 runScript :: Monad m => (k -> m v) -> Script k v a -> m a
