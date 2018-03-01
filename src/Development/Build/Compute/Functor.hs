@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Functor (
-    FunctorialCompute, constCompute, Script (..), getScript, runScript, dependency
+    FunctorialCompute, Script (..), getScript, runScript, dependency
     ) where
 
 import Data.Functor.Const
@@ -12,10 +12,7 @@ import Development.Build.Store
 -- projections from a large collection of settings to smaller and smaller items
 -- in a lens-like manner.
 
-constCompute :: v -> FunctorialCompute k v
-constCompute value get = fmap (const value) . get
-
-dependency :: FunctorialCompute k v -> k -> k
+dependency :: FunctorialCompute k v i o -> i -> k
 dependency compute = getConst . compute Const
 
 data Script k v a where
@@ -28,7 +25,7 @@ instance Get (Script k v) k v where
 instance Functor (Script k v) where
     fmap = FMap
 
-getScript :: FunctorialCompute k v -> k -> Script k v v
+getScript :: FunctorialCompute k v i o -> i -> Script k v o
 getScript compute = compute GetValue
 
 runScript :: Monad f => (k -> f v) -> Script k v a -> f a

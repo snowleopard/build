@@ -54,17 +54,17 @@ instance MonadPlus Value where
     mzero = empty
     mplus = (<|>)
 
-functorialComputeExample :: FunctorialCompute Key (Value Integer)
+functorialComputeExample :: FunctorialCompute Key (Value Integer) Key (Value Integer)
 functorialComputeExample getValue key = case key of
     Increment k -> increment <$> getValue k
     _ -> identityCompute getValue key
 
-applicativeComputeExample :: ApplicativeCompute Key (Value Integer)
+applicativeComputeExample :: ApplicativeCompute Key (Value Integer) Key (Value Integer)
 applicativeComputeExample getValue key = case key of
     Add k1 k2 -> add <$> getValue k1 <*> getValue k2
     _ -> identityCompute getValue key
 
-monadicComputeExample :: MonadicCompute Key (Value Integer)
+monadicComputeExample :: MonadicCompute Key (Value Integer) Key (Value Integer)
 monadicComputeExample getValue key = case key of
     Ackermann m n -> result
       where
@@ -78,7 +78,7 @@ monadicComputeExample getValue key = case key of
     _ -> identityCompute getValue key
 
 -- | Computation of expressions.
-compute :: MonadicCompute Key (Value Integer)
+compute :: MonadicCompute Key (Value Integer) Key (Value Integer)
 compute getValue key = case key of
     Increment _   -> functorialComputeExample  getValue key
     Add _ _       -> applicativeComputeExample getValue key

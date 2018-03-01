@@ -8,10 +8,10 @@ import Control.Applicative
 import Development.Build.Compute
 import Development.Build.Store
 
-pureCompute :: (k -> v) -> ApplicativeCompute k v
+pureCompute :: (i -> o) -> ApplicativeCompute k v i o
 pureCompute f _ = pure . f
 
-dependencies :: ApplicativeCompute k v -> k -> [k]
+dependencies :: ApplicativeCompute k v i o -> i -> [k]
 dependencies compute = getConst . compute (Const . return)
 
 data Script k v a where
@@ -29,7 +29,7 @@ instance Applicative (Script k v) where
     pure  = Pure
     (<*>) = Ap
 
-getScript :: ApplicativeCompute k v -> k -> Script k v v
+getScript :: ApplicativeCompute k v i o -> i -> Script k v o
 getScript compute = compute GetValue
 
 runScript :: Applicative f => (k -> f v) -> Script k v a -> f a
