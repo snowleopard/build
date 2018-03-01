@@ -9,11 +9,13 @@ import Control.Monad.Writer
 import Development.Build.Compute
 import Development.Build.Store
 
+-- TODO: Does this always terminate? It's not obvious!
 dynamicDependencies :: Monad m => MonadicCompute k v -> (k -> m v) -> k -> m [k]
 dynamicDependencies compute get = execWriterT . compute tracingGet
   where
     tracingGet k = tell [k] >> lift (get k)
 
+-- TODO: Does this always terminate? It's not obvious!
 staticDependencies :: MonadicCompute k v -> k -> [k]
 staticDependencies compute = staticScriptDependencies . getScript compute
 

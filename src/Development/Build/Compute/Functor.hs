@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Functor (
-    FunctorialCompute, dependency, inputs, acyclic,
+    FunctorialCompute, dependency, transitiveDependencies, acyclic,
     Script (..), getScript, runScript
     ) where
 
@@ -9,19 +9,20 @@ import Data.Functor.Const
 import Development.Build.Compute
 import Development.Build.Store
 
--- TODO: One possible example is configuration files where we keep building
--- projections from a large collection of settings to smaller and smaller items
--- in a lens-like manner.
-
 dependency :: FunctorialCompute k v -> k -> k
 dependency compute = getConst . compute Const
 
--- FunctorialCompute is always cyclic!
-inputs :: FunctorialCompute k v -> k -> Maybe [k]
-inputs _ _ = Nothing
+-- FunctorialCompute is always cyclic! They can't declare any keys as input
+-- as they have no way to lift Nothing into the functor. They can do
+--
+-- compute get k = fmap (const Nothing) (get k)
+--
+-- But this still registers as a dependency on k even though the result is discarded.
+transitiveDependencies :: FunctorialCompute k v -> k -> Maybe [k]
+transitiveDependencies _ _ = Nothing
 
 acyclic :: FunctorialCompute k v -> k -> Bool
-acyclic _ _ = True
+acyclic _ _ = False
 
 data Script k v a where
     GetValue :: k -> Script k v v
