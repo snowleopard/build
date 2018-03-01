@@ -3,10 +3,8 @@ module Development.Build.Example.Expression where
 
 import Control.Monad
 
-import Development.Build.Compute.Applicative
-import Development.Build.Compute.Functor
+import Development.Build.Compute
 import Development.Build.Compute.Identity
-import Development.Build.Compute.Monad
 
 -- TODO: Good example is cyclic dependencies.
 -- TODO: Add separate type for input keys.

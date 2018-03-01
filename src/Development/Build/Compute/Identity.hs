@@ -1,16 +1,9 @@
-{-# LANGUAGE RankNTypes #-}
-module Development.Build.Compute.Identity (
-    IdentityCompute, identityCompute, dependency, isInput
-    ) where
+module Development.Build.Compute.Identity (IdentityCompute, identityCompute) where
 
-type IdentityCompute k v = forall f. (k -> f v) -> k -> f v
+import Development.Build.Compute
 
--- The only possible implementation
+-- | The identity computation that considers all keys as inputs. Note: there is
+-- only one possible implementation, namely the 'id' function, since there is no
+-- other way to produce a value of type @f v@.
 identityCompute :: IdentityCompute k v
 identityCompute = id
-
-dependency :: IdentityCompute k v -> k -> k
-dependency _ = id
-
-isInput :: IdentityCompute k v -> k -> Bool
-isInput _ _ = True

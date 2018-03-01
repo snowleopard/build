@@ -1,12 +1,11 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    MonadicCompute, staticDependencies,
-    Script (..), getScript, runScript, isStatic, isInput
+    MonadicCompute, staticDependencies, Script (..), getScript, runScript,
+    isStatic, isInput
     ) where
 
+import Development.Build.Compute
 import Development.Build.Store
-
-type MonadicCompute k v = forall m. Monad m => (k -> m v) -> k -> m v
 
 staticDependencies :: MonadicCompute k v -> k -> [k]
 staticDependencies compute = staticScriptDependencies . getScript compute
