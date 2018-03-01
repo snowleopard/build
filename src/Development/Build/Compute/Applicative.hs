@@ -1,9 +1,11 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Applicative (
-    ApplicativeCompute, pureCompute, dependencies, Script (..), getScript, runScript
+    ApplicativeCompute, pureCompute, dependencies, inputs, acyclic,
+    Script (..), getScript, runScript
     ) where
 
 import Control.Applicative
+import Data.Maybe
 
 import Development.Build.Compute
 import Development.Build.Store
@@ -13,6 +15,16 @@ pureCompute f _ = pure . Just . f
 
 dependencies :: ApplicativeCompute k v -> k -> [k]
 dependencies compute = getConst . compute (Const . return)
+
+inputs :: Eq k => ApplicativeCompute k v -> k -> Maybe [k]
+inputs compute = go []
+  where
+    go seen key
+        | key `elem` seen = Nothing
+        | otherwise = concat <$> traverse (go $ key:seen) (dependencies compute key)
+
+acyclic :: Eq k => ApplicativeCompute k v -> k -> Bool
+acyclic compute = isJust . inputs compute
 
 data Script k v a where
     GetValue :: k -> Script k v v

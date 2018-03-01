@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Functor (
-    FunctorialCompute, Script (..), getScript, runScript, dependency
+    FunctorialCompute, dependency, inputs, acyclic,
+    Script (..), getScript, runScript
     ) where
 
 import Data.Functor.Const
@@ -14,6 +15,13 @@ import Development.Build.Store
 
 dependency :: FunctorialCompute k v -> k -> k
 dependency compute = getConst . compute Const
+
+-- FunctorialCompute is always cyclic!
+inputs :: FunctorialCompute k v -> k -> Maybe [k]
+inputs _ _ = Nothing
+
+acyclic :: FunctorialCompute k v -> k -> Bool
+acyclic _ _ = True
 
 data Script k v a where
     GetValue :: k -> Script k v v
