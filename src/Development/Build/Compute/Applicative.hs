@@ -1,18 +1,28 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Applicative (
-    ApplicativeCompute, pureCompute, dependencies, Script (..), getScript, runScript
+    ApplicativeCompute, pureCompute, dependencies, transitiveDependencies,
+    acyclic, Script (..), getScript, runScript
     ) where
 
 import Control.Applicative
+import Data.Maybe
 
 import Development.Build.Compute
 import Development.Build.Store
+import Development.Build.Utilities
 
 pureCompute :: (k -> v) -> ApplicativeCompute k v
-pureCompute f _ = pure . f
+pureCompute f _ = pure . Just . f
 
+-- TODO: Does this always terminate? It's not obvious!
 dependencies :: ApplicativeCompute k v -> k -> [k]
 dependencies compute = getConst . compute (Const . return)
+
+transitiveDependencies :: Eq k => ApplicativeCompute k v -> k -> Maybe [k]
+transitiveDependencies compute = reach (dependencies compute)
+
+acyclic :: Eq k => ApplicativeCompute k v -> k -> Bool
+acyclic compute = isJust . transitiveDependencies compute
 
 data Script k v a where
     GetValue :: k -> Script k v v
@@ -29,7 +39,7 @@ instance Applicative (Script k v) where
     pure  = Pure
     (<*>) = Ap
 
-getScript :: ApplicativeCompute k v -> k -> Script k v v
+getScript :: ApplicativeCompute k v -> k -> Script k v (Maybe v)
 getScript compute = compute GetValue
 
 runScript :: Applicative f => (k -> f v) -> Script k v a -> f a

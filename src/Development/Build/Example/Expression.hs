@@ -5,7 +5,6 @@ import Control.Applicative
 import Control.Monad
 
 import Development.Build.Compute
-import Development.Build.Compute.Identity
 
 -- TODO: Good example is cyclic dependencies.
 -- TODO: Add separate type for input keys.
@@ -56,17 +55,17 @@ instance MonadPlus Value where
 
 functorialComputeExample :: FunctorialCompute Key (Value Integer)
 functorialComputeExample getValue key = case key of
-    Increment k -> increment <$> getValue k
-    _ -> identityCompute getValue key
+    Increment k -> Just . increment <$> getValue k
+    _ -> undefined
 
 applicativeComputeExample :: ApplicativeCompute Key (Value Integer)
 applicativeComputeExample getValue key = case key of
-    Add k1 k2 -> add <$> getValue k1 <*> getValue k2
-    _ -> identityCompute getValue key
+    Add k1 k2 -> Just <$> (add <$> getValue k1 <*> getValue k2)
+    _ -> pure Nothing
 
 monadicComputeExample :: MonadicCompute Key (Value Integer)
 monadicComputeExample getValue key = case key of
-    Ackermann m n -> result
+    Ackermann m n -> Just <$> result
       where
         result | m < 0 || n < 0 = return $ ComputeError (show key ++ " is not defined")
                | m == 0         = return $ Value (n + 1)
@@ -75,7 +74,7 @@ monadicComputeExample getValue key = case key of
                                      case v of
                                         Value i -> getValue (Ackermann (m - 1) i)
                                         failure -> return failure
-    _ -> identityCompute getValue key
+    _ -> return Nothing
 
 -- | Computation of expressions.
 compute :: MonadicCompute Key (Value Integer)
@@ -85,4 +84,4 @@ compute getValue key = case key of
     Ackermann _ _ -> monadicComputeExample     getValue key
 
     -- All other keys correspond to inputs
-    Variable _ -> identityCompute getValue key
+    Variable _ -> inputCompute getValue key

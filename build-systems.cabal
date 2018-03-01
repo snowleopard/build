@@ -23,7 +23,6 @@ library
                         Development.Build.Compute.Alternative,
                         Development.Build.Compute.Applicative,
                         Development.Build.Compute.Functor,
-                        Development.Build.Compute.Identity,
                         Development.Build.Compute.Monad,
                         Development.Build.Example.Expression,
                         Development.Build.NonDeterministic,

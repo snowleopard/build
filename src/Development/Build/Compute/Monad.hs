@@ -1,12 +1,29 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    MonadicCompute, staticDependencies, Script (..), getScript, runScript,
-    isStatic, isInput
+    MonadicCompute, dependencies, transitiveDependencies, acyclic,
+    staticDependencies, Script (..), getScript, runScript, isStatic, isInput
     ) where
+
+import Control.Monad.Writer
+import Data.Maybe
 
 import Development.Build.Compute
 import Development.Build.Store
+import Development.Build.Utilities
 
+-- TODO: Does this always terminate? It's not obvious!
+dependencies :: Monad m => MonadicCompute k v -> (k -> m v) -> k -> m [k]
+dependencies compute get = execWriterT . compute tracingGet
+  where
+    tracingGet k = tell [k] >> lift (get k)
+
+transitiveDependencies :: (Eq k, Monad m) => MonadicCompute k v -> (k -> m v) -> k -> m (Maybe [k])
+transitiveDependencies compute get = reachM (dependencies compute get)
+
+acyclic :: (Eq k, Monad m) => MonadicCompute k v -> (k -> m v) -> k -> m Bool
+acyclic compute get = fmap isJust . transitiveDependencies compute get
+
+-- TODO: Does this always terminate? It's not obvious!
 staticDependencies :: MonadicCompute k v -> k -> [k]
 staticDependencies compute = staticScriptDependencies . getScript compute
 
@@ -31,7 +48,7 @@ instance Monad (Script k v) where
     (>>)   = (*>)
     (>>=)  = Bind
 
-getScript :: MonadicCompute k v -> k -> Script k v v
+getScript :: MonadicCompute k v -> k -> Script k v (Maybe v)
 getScript compute = compute GetValue
 
 runScript :: Monad m => (k -> m v) -> Script k v a -> m a
@@ -41,6 +58,7 @@ runScript get script = case script of
     Ap s1 s2   -> runScript get s1 <*> runScript get s2
     Bind s f   -> runScript get s >>= fmap (runScript get) f
 
+-- TODO: Fix inifinite loop
 staticScriptDependencies :: Script k v a -> [k]
 staticScriptDependencies script = case script of
     GetValue k -> [k]
