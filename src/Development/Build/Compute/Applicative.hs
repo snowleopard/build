@@ -9,6 +9,7 @@ import Data.Maybe
 
 import Development.Build.Compute
 import Development.Build.Store
+import Development.Build.Utilities
 
 pureCompute :: (k -> v) -> ApplicativeCompute k v
 pureCompute f _ = pure . Just . f
@@ -18,11 +19,7 @@ dependencies :: ApplicativeCompute k v -> k -> [k]
 dependencies compute = getConst . compute (Const . return)
 
 transitiveDependencies :: Eq k => ApplicativeCompute k v -> k -> Maybe [k]
-transitiveDependencies compute = go []
-  where
-    go seen key
-        | key `elem` seen = Nothing
-        | otherwise = concat <$> traverse (go $ key:seen) (dependencies compute key)
+transitiveDependencies compute = reach (dependencies compute)
 
 acyclic :: Eq k => ApplicativeCompute k v -> k -> Bool
 acyclic compute = isJust . transitiveDependencies compute

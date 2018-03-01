@@ -1,19 +1,27 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    MonadicCompute, dynamicDependencies, staticDependencies,
-    Script (..), getScript, runScript, isStatic, isInput
+    MonadicCompute, dependencies, transitiveDependencies, acyclic,
+    staticDependencies, Script (..), getScript, runScript, isStatic, isInput
     ) where
 
 import Control.Monad.Writer
+import Data.Maybe
 
 import Development.Build.Compute
 import Development.Build.Store
+import Development.Build.Utilities
 
 -- TODO: Does this always terminate? It's not obvious!
-dynamicDependencies :: Monad m => MonadicCompute k v -> (k -> m v) -> k -> m [k]
-dynamicDependencies compute get = execWriterT . compute tracingGet
+dependencies :: Monad m => MonadicCompute k v -> (k -> m v) -> k -> m [k]
+dependencies compute get = execWriterT . compute tracingGet
   where
     tracingGet k = tell [k] >> lift (get k)
+
+transitiveDependencies :: (Eq k, Monad m) => MonadicCompute k v -> (k -> m v) -> k -> m (Maybe [k])
+transitiveDependencies compute get = reachM (dependencies compute get)
+
+acyclic :: (Eq k, Monad m) => MonadicCompute k v -> (k -> m v) -> k -> m Bool
+acyclic compute get = fmap isJust . transitiveDependencies compute get
 
 -- TODO: Does this always terminate? It's not obvious!
 staticDependencies :: MonadicCompute k v -> k -> [k]

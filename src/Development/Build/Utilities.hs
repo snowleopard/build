@@ -1,7 +1,32 @@
 module Development.Build.Utilities (
+    -- * Graph operations
+    reach, reachM,
+
     -- * Logic combinators
     forall, forallM, exists, existsM, (==>)
     ) where
+
+import Data.Functor.Identity
+
+-- | Given a function to compute successors of a vertex, apply it recursively
+-- starting from a given vertex. Returns @Nothing@ if this process does not
+-- terminate because of cycles. Note that the current implementation is very
+-- inefficient: it trades efficiency for simplicity. The resulting list is
+-- likely to contain an exponential number of duplicates.
+reach :: Eq a => (a -> [a]) -> a -> Maybe [a]
+reach successors = runIdentity . reachM (return . successors)
+
+-- | Given a monadic function to compute successors of a vertex, apply it
+-- recursively starting from a given vertex. Returns @Nothing@ if this process
+-- does not terminate because of cycles. Note that the current implementation is
+-- very inefficient: it trades efficiency for simplicity. The resulting list is
+-- likely to contain an exponential number of duplicates.
+reachM :: (Eq a, Monad m) => (a -> m [a]) -> a -> m (Maybe [a])
+reachM successors = go []
+  where
+    go xs x | x `elem` xs = return Nothing -- A cycle is detected
+            | otherwise   = do res <- traverse (go $ x:xs) =<< successors x
+                               return $ concat <$> sequence res
 
 -- | Check that a predicate holds for all values of @a@.
 forall :: (a -> Bool) -> Bool
