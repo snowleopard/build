@@ -15,20 +15,20 @@ import qualified Data.Map as Map
 
 
 -- | Dumbest build system possible, always compute everything from scratch multiple times
-dumb :: Compute Monad k v -> [k] -> Disk i k v -> Disk i k v
+dumb :: (Show k, Eq k) => Compute Monad k v -> [k] -> Disk i k v -> Disk i k v
 dumb comp = runM_ . mapM_ f
     where f k = maybe (getFile k) (putFile k) =<< comp f k
 
 
 -- | Refinement of dumb, compute everything but at most once per execution
-dumbOnce :: Ord k => Compute Monad k v -> [k] -> Disk i k v -> Disk i k v
+dumbOnce :: (Show k, Ord k) => Compute Monad k v -> [k] -> Disk i k v -> Disk i k v
 dumbOnce comp = runM Set.empty . mapM_ f
     where
         f k = once k $
             maybe (getFile k) (putFile k) =<< comp f k
 
 
-make :: (Ord k, HasTime v) => Compute Applicative k v -> [k] -> Disk i k v -> Disk i k v
+make :: (Show k, Ord k, HasTime v) => Compute Applicative k v -> [k] -> Disk i k v -> Disk i k v
 make comp ks = runM_ (mapM_ f $ topSort graph)
     where
         graph = unroll (getDependencies comp) ks
@@ -59,12 +59,13 @@ topSort mp
 -- During the last execution, these were the traces I saw
 type Shake k v = Map.Map k (Hash v, [(k, Hash v)])
 
-shake :: (Ord k, HasHash v) => Compute Monad k v -> [k] -> Disk (Shake k v) k v -> Disk (Shake k v) k v
+shake :: (Show k, Ord k, HasHash v) => Compute Monad k v -> [k] -> Disk (Shake k v) k v -> Disk (Shake k v) k v
 shake comp = runM Set.empty . mapM_ f
     where
         f k = once k $ do
             info <- getInfo
             valid <- case Map.lookup k info of
+                Nothing -> return False
                 Just (me, deps) ->
                     (maybe False ((==) me . getHash) <$> getFileMaybe k) &&^
                     allM (\(d,h) -> (== h) . getHash <$> f d) deps
