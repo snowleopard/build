@@ -1,11 +1,18 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    MonadicCompute, staticDependencies, Script (..), getScript, runScript,
-    isStatic, isInput
+    MonadicCompute, dynamicDependencies, staticDependencies,
+    Script (..), getScript, runScript, isStatic, isInput
     ) where
+
+import Control.Monad.Writer
 
 import Development.Build.Compute
 import Development.Build.Store
+
+dynamicDependencies :: Monad m => MonadicCompute k v -> (k -> m v) -> k -> m [k]
+dynamicDependencies compute get = execWriterT . compute tracingGet
+  where
+    tracingGet k = tell [k] >> lift (get k)
 
 staticDependencies :: MonadicCompute k v -> k -> [k]
 staticDependencies compute = staticScriptDependencies . getScript compute
@@ -41,6 +48,7 @@ runScript get script = case script of
     Ap s1 s2   -> runScript get s1 <*> runScript get s2
     Bind s f   -> runScript get s >>= fmap (runScript get) f
 
+-- TODO: Fix inifinite loop
 staticScriptDependencies :: Script k v a -> [k]
 staticScriptDependencies script = case script of
     GetValue k -> [k]
