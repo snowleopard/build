@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    MonadicCompute, dependencies, transitiveDependencies, acyclic,
+    dependencies, transitiveDependencies, acyclic,
     staticDependencies, Script (..), getScript, runScript, isStatic, isInput
     ) where
 
@@ -12,19 +12,19 @@ import Development.Build.Store
 import Development.Build.Utilities
 
 -- TODO: Does this always terminate? It's not obvious!
-dependencies :: Monad m => MonadicCompute k v -> (k -> m v) -> k -> m [k]
+dependencies :: Monad m => Compute Monad k v -> (k -> m v) -> k -> m [k]
 dependencies compute get = execWriterT . compute tracingGet
   where
     tracingGet k = tell [k] >> lift (get k)
 
-transitiveDependencies :: (Eq k, Monad m) => MonadicCompute k v -> (k -> m v) -> k -> m (Maybe [k])
+transitiveDependencies :: (Eq k, Monad m) => Compute Monad k v -> (k -> m v) -> k -> m (Maybe [k])
 transitiveDependencies compute get = reachM (dependencies compute get)
 
-acyclic :: (Eq k, Monad m) => MonadicCompute k v -> (k -> m v) -> k -> m Bool
+acyclic :: (Eq k, Monad m) => Compute Monad k v -> (k -> m v) -> k -> m Bool
 acyclic compute get = fmap isJust . transitiveDependencies compute get
 
 -- TODO: Does this always terminate? It's not obvious!
-staticDependencies :: MonadicCompute k v -> k -> [k]
+staticDependencies :: Compute Monad k v -> k -> [k]
 staticDependencies compute = staticScriptDependencies . getScript compute
 
 data Script k v a where
@@ -48,7 +48,7 @@ instance Monad (Script k v) where
     (>>)   = (*>)
     (>>=)  = Bind
 
-getScript :: MonadicCompute k v -> k -> Script k v (Maybe v)
+getScript :: Compute Monad k v -> k -> Script k v (Maybe v)
 getScript compute = compute GetValue
 
 runScript :: Monad m => (k -> m v) -> Script k v a -> m a

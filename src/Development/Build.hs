@@ -10,6 +10,7 @@ module Development.Build (
 import Control.Monad.IO.Class
 import Data.Functor
 
+import Development.Build.Compute
 import Development.Build.Compute.Monad
 import Development.Build.Plan hiding (consistent)
 import Development.Build.Store
@@ -18,7 +19,7 @@ import Development.Build.Store
 -- a 'Store' with respect to a given key. This involves checking the following:
 -- * The plan is complete, i.e. all dependencies of the key are known.
 -- * The ('Plan', 'Store') pair agrees with the 'Compute' function.
--- consistent :: (Eq v, Monad m, GetHash m k v) => MonadicCompute k v -> Plan k v -> k -> m Bool
+-- consistent :: (Eq v, Monad m, GetHash m k v) => Compute Monad k v -> Plan k v -> k -> m Bool
 -- consistent compute plan key = case plan key of
 --     Nothing -> return False -- The plan is incomplete
 --     Just (h, deps) -> do
@@ -39,7 +40,7 @@ data State k v = State
 
 -- | A build system takes a 'Compute' and 'Outputs' and returns the transformer
 -- of the triple ('State', 'Plan', 'Store').
-type MonadicBuild m k v = MonadicCompute k v -> Outputs k
+type MonadicBuild m k v = Compute Monad k v -> Outputs k
                       -> (State k v, Plan k v) -> m (State k v, Plan k v)
 
 dumbBuild :: (Monad m, Get m k v, Put m k v) => MonadicBuild m k v
