@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Functor (
-    FunctorialCompute, dependency, transitiveDependencies, acyclic,
-    Script (..), getScript, runScript
+    dependency, transitiveDependencies, acyclic, Script (..), getScript, runScript
     ) where
 
 import Data.Functor.Const
@@ -9,19 +8,19 @@ import Data.Functor.Const
 import Development.Build.Compute
 import Development.Build.Store
 
-dependency :: FunctorialCompute k v -> k -> k
+dependency :: Compute Functor k v -> k -> k
 dependency compute = getConst . compute Const
 
--- FunctorialCompute is always cyclic! They can't declare any keys as input
+-- Compute Functor is always cyclic! They can't declare any keys as input
 -- as they have no way to lift Nothing into the functor. They can do
 --
 -- compute get k = fmap (const Nothing) (get k)
 --
 -- But this still registers as a dependency on k even though the result is discarded.
-transitiveDependencies :: FunctorialCompute k v -> k -> Maybe [k]
+transitiveDependencies :: Compute Functor k v -> k -> Maybe [k]
 transitiveDependencies _ _ = Nothing
 
-acyclic :: FunctorialCompute k v -> k -> Bool
+acyclic :: Compute Functor k v -> k -> Bool
 acyclic _ _ = False
 
 data Script k v a where
@@ -34,7 +33,7 @@ instance Get (Script k v) k v where
 instance Functor (Script k v) where
     fmap = FMap
 
-getScript :: FunctorialCompute k v -> k -> Script k v (Maybe v)
+getScript :: Compute Functor k v -> k -> Script k v (Maybe v)
 getScript compute = compute GetValue
 
 runScript :: Monad f => (k -> f v) -> Script k v a -> f a
