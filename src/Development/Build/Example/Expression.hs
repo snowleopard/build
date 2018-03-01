@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleContexts, Rank2Types #-}
 module Development.Build.Example.Expression where
 
+import Control.Applicative
 import Control.Monad
 
 import Development.Build.Compute
@@ -43,15 +44,15 @@ instance Monad Value where
                         KeyNotFound  key -> KeyNotFound key
                         ComputeError msg -> ComputeError msg
 
--- | A key-value store for expressions.
--- type ExpressionStore = MapStore Key (Value Integer)
+instance Alternative Value where
+    empty   = ComputeError "Computation failure"
+    x <|> y = case x of
+        ComputeError _ -> y
+        _              -> x
 
--- | We use 'mapStore' defined in "Development.Build.Store", using 'KeyNotFound'
--- as a default 'Value' constructor in case a key is missing.
--- expressionStore :: ExpressionStore m => m ()
--- expressionStore = mapStore KeyNotFound
-
--- runExpressionStore :: ExpressionStore a -> [(Key, Value Integer)] -> (a, )
+instance MonadPlus Value where
+    mzero = empty
+    mplus = (<|>)
 
 functorialComputeExample :: FunctorialCompute Key (Value Integer)
 functorialComputeExample getValue key = case key of
