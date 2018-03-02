@@ -1,12 +1,17 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Functor (
-    dependency, transitiveDependencies, acyclic, Script (..), getScript, runScript
+    run, dependency, transitiveDependencies, acyclic,
+    Script (..), getScript, runScript
     ) where
 
 import Data.Functor.Const
+import Data.Functor.Identity
 
 import Development.Build.Compute
 import Development.Build.Store
+
+run :: Compute Functor k v -> (k -> v) -> k -> Maybe v
+run compute f = runIdentity . compute (pure . f)
 
 dependency :: Compute Functor k v -> k -> k
 dependency compute = getConst . compute Const
