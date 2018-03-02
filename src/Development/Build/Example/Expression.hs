@@ -1,87 +1,64 @@
 {-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleContexts, Rank2Types #-}
 module Development.Build.Example.Expression where
 
-import Control.Applicative
-import Control.Monad
-
 import Development.Build.Compute
 
--- TODO: Good example is cyclic dependencies.
--- TODO: Add separate type for input keys.
--- TODO: Separate keys from formulas.
--- | Expression keys include:
--- * Variables with 'String' names.
--- * Simple functions with statically known dependencies, such as 'Add'.
--- * Functions that require dynamic dependencies, such as 'Ackermann'.
-data Key = Variable String           -- No dependencies
-         | Increment Key             -- Functorial dependencies
-         | Add Key Key               -- Applicative dependencies
-         | Ackermann Integer Integer -- Monadic dependencies
-         deriving (Eq, Ord, Show)
+-- | A 'Cell' is described by a pair integers: 'row' and 'column'.
+data Cell = Cell { row :: Int, column :: Int } deriving (Eq, Ord, Show)
 
--- | The 'Value' datatype includes information about possible failures.
-data Value a = Value a
-             | KeyNotFound Key
-             | ComputeError String
-             deriving (Eq, Functor, Ord, Show)
+-- | Some cells contain formulas for computing values from other cells. Formulas
+-- include:
+-- * 'Constant' integer values.
+-- * References to cells.
+-- * Simple arithmetic functions, such as 'Unary' negation and 'Binary' addition.
+-- * Conditional expressions 'IfZero' @x y z@ that evaluate to @y@ if @x@ is zero
+--   and to @z@ otherwise. Conditionals require dynamic dependencies to be handled
+--   correctly, because their static dependencies may form cycles. Example:
+--
+--   A1 = IfZero B1 A2 C1
+--   A2 = IfZero B1 C2 A1
+--
+--   Statically there is a mutual dependency between A1 and A2, but dynamically
+--   there is either A1 -> A2 or A2 -> A1.
+-- * Finally, there is a 'Random' formula that returns a random value in a
+--   specified range @[low..high]@. This introduces non-determinism, including
+--   failures when the range is empty.
+data Formula = Constant Int
+             | Reference Cell
+             | Unary (Int -> Int) Formula
+             | Binary (Int -> Int -> Int) Formula Formula
+             | IfZero Formula Formula Formula
+             | Random Int Int
 
-increment :: Value Integer -> Value Integer
-increment value = fmap (+1) value
+-- | A simple combinator to create a referene to a cell of given coordinates.
+cell :: Int -> Int -> Formula
+cell row column = Reference (Cell row column)
 
-add :: Value Integer -> Value Integer -> Value Integer
-add valueX valueY = do x <- valueX
-                       y <- valueY
-                       return (x + y)
+instance Num Formula where
+    fromInteger = Constant . fromInteger
+    (+)    = Binary (+)
+    (-)    = Binary (-)
+    (*)    = Binary (*)
+    abs    = Unary abs
+    signum = Unary signum
 
-instance Applicative Value where
-    pure  = Value
-    (<*>) = ap
+-- | A spreadsheet is a partial mapping of cells to formulas. Cells for which
+-- the mapping returns @Nothing@ are inputs.
+type Spreadsheet = Cell -> Maybe Formula
 
-instance Monad Value where
-    return  = pure
-    v >>= f = case v of Value a          -> f a
-                        KeyNotFound  key -> KeyNotFound key
-                        ComputeError msg -> ComputeError msg
-
-instance Alternative Value where
-    empty   = ComputeError "Computation failure"
-    x <|> y = case x of
-        ComputeError _ -> y
-        _              -> x
-
-instance MonadPlus Value where
-    mzero = empty
-    mplus = (<|>)
-
-functorialComputeExample :: Compute Functor Key (Value Integer)
-functorialComputeExample getValue key = case key of
-    Increment k -> Just . increment <$> getValue k
-    _ -> undefined
-
-applicativeComputeExample :: Compute Applicative Key (Value Integer)
-applicativeComputeExample getValue key = case key of
-    Add k1 k2 -> Just <$> (add <$> getValue k1 <*> getValue k2)
-    _ -> pure Nothing
-
-monadicComputeExample :: Compute Monad Key (Value Integer)
-monadicComputeExample getValue key = case key of
-    Ackermann m n -> Just <$> result
-      where
-        result | m < 0 || n < 0 = return $ ComputeError (show key ++ " is not defined")
-               | m == 0         = return $ Value (n + 1)
-               | n == 0         = getValue (Ackermann (m - 1) 1)
-               | otherwise      = do v <- getValue (Ackermann m (n - 1))
-                                     case v of
-                                        Value i -> getValue (Ackermann (m - 1) i)
-                                        failure -> return failure
-    _ -> return Nothing
-
--- | Computation of expressions.
-compute :: Compute Monad Key (Value Integer)
-compute getValue key = case key of
-    Increment _   -> functorialComputeExample  getValue key
-    Add _ _       -> applicativeComputeExample getValue key
-    Ackermann _ _ -> monadicComputeExample     getValue key
-
-    -- All other keys correspond to inputs
-    Variable _ -> inputCompute getValue key
+-- TODO: Implement 'Random'.
+-- | Spreadsheet computation.
+compute :: Spreadsheet -> Compute Monad Cell Int
+compute spreadsheet get cell = case spreadsheet cell of
+    Nothing      -> return Nothing -- This is an input
+    Just formula -> Just <$> evaluate formula
+  where
+    evaluate formula = case formula of
+        Constant x      -> return x
+        Reference cell  -> get cell
+        Unary  op fx    -> op <$> evaluate fx
+        Binary op fx fy -> op <$> evaluate fx <*> evaluate fy
+        IfZero fx fy fz -> do
+            x <- evaluate fx
+            if x == 0 then evaluate fy else evaluate fz
+        Random _ _      -> error "Random not implemented"

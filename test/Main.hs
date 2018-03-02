@@ -10,41 +10,53 @@ import Development.Build.Store
 
 import Development.Build.Example.Expression
 
-inputs :: Map Key (Value Integer)
-inputs = fromList [ (Variable "a", Value 3)
-                  , (Variable "b", Value 4) ]
+inputs :: Map Cell Int
+inputs = fromList [ (Cell 0 0, 0)
+                  , (Cell 0 1, 1)
+                  , (Cell 0 2, 2) ]
 
-outputs :: Outputs Key
-outputs = [ Ackermann (-10) 1
-          , Increment (Variable "b")
-          , Add (Variable "a") (Increment (Variable "b"))
-          , Ackermann 3 3 ]
+cellNotFound :: Cell -> Int
+cellNotFound cell = error $ "Cell not found: " ++ show cell
 
-goDumb :: (Monad m, Get m Key (Value Integer), Put m Key (Value Integer))
-      => m (State Key (Value Integer), Plan Key (Value Integer))
-goDumb = dumbBuild compute outputs (State, noPlan)
+spreadsheet :: Spreadsheet
+spreadsheet (Cell x y) = case (x, y) of
+    (1, 1) -> Just $ 1                                       --          1
+    (1, 2) -> Just $ cell 1 1 + 1                            -- 1 + 1 == 2
+    (1, 3) -> Just $ cell 0 2 * abs (cell 1 2)               -- 2 * 2 == 4
+    (2, 0) -> Just $ IfZero (cell 1 3) (cell 2 1) (cell 0 0) --          0
+    (2, 1) -> Just $ IfZero (cell 1 3) (cell 0 1) (cell 2 0) --          0
+    (2, 2) -> Just $ Random 1 6                              --          1..6
+    _      -> Nothing
 
-goSlow :: (Monad m, Get m Key (Value Integer), Put m Key (Value Integer))
-      => m (State Key (Value Integer), Plan Key (Value Integer))
-goSlow = slowBuild compute outputs (State, noPlan)
+outputs :: Outputs Cell
+outputs = [ Cell 1 1
+          , Cell 1 2
+          , Cell 1 3
+          , Cell 2 0
+          , Cell 2 1 ]
 
-goTracingDumb :: (MonadIO m, Get m Key (Value Integer), Put m Key (Value Integer))
-      => m (State Key (Value Integer), Plan Key (Value Integer))
-goTracingDumb = dumbTracingBuild compute outputs (State, noPlan)
+goDumb :: (Monad m, Get m Cell Int, Put m Cell Int) => m (State Cell Int, Plan Cell Int)
+goDumb = dumbBuild (compute spreadsheet) outputs (State, noPlan)
 
-result :: Map Key (Value Integer)
-result = snd $ runIdentity $ runMapStore goDumb KeyNotFound inputs
+goSlow :: (Monad m, Get m Cell Int, Put m Cell Int) => m (State Cell Int, Plan Cell Int)
+goSlow = slowBuild (compute spreadsheet) outputs (State, noPlan)
 
-tracingResult :: IO (Map Key (Value Integer))
-tracingResult = snd <$> runMapStore goTracingDumb KeyNotFound inputs
+goTracingDumb :: (MonadIO m, Get m Cell Int, Put m Cell Int) => m (State Cell Int, Plan Cell Int)
+goTracingDumb = dumbTracingBuild (compute spreadsheet) outputs (State, noPlan)
 
-slowResult :: Map Key (Value Integer)
-slowResult = snd $ runIdentity $ runMapStore goSlow KeyNotFound inputs
+result :: Map Cell Int
+result = snd $ runIdentity $ runMapStore goDumb cellNotFound inputs
 
-evalutate :: Map Key (Value Integer) -> Key -> Value Integer
-evalutate store key = findWithDefault (KeyNotFound key) key store
+tracingResult :: IO (Map Cell Int)
+tracingResult = snd <$> runMapStore goTracingDumb cellNotFound inputs
 
-printOutputs :: Map Key (Value Integer) -> IO ()
+slowResult :: Map Cell Int
+slowResult = snd $ runIdentity $ runMapStore goSlow cellNotFound inputs
+
+evalutate :: Map Cell Int -> Cell -> Int
+evalutate store key = findWithDefault (cellNotFound key) key store
+
+printOutputs :: Map Cell Int -> IO ()
 printOutputs store = forM_ outputs $
     \key -> putStrLn (show key ++ " = " ++ show (evalutate store key))
 
