@@ -1,10 +1,11 @@
-{-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleContexts, Rank2Types #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Development.Build.Example.Expression where
 
+import Data.String
 import Development.Build.Compute
 
--- | A 'Cell' is described by a pair integers: 'row' and 'column'.
-data Cell = Cell { row :: Int, column :: Int } deriving (Eq, Ord, Show)
+-- | A 'Cell' is identified by a string, such as @"A1"@ or @"Sheet1!Y18"@.
+newtype Cell = Cell String deriving (Eq, Ord, IsString, Show)
 
 -- | Some cells contain formulas for computing values from other cells. Formulas
 -- include:
@@ -30,10 +31,6 @@ data Formula = Constant Int
              | IfZero Formula Formula Formula
              | Random Int Int
 
--- | A simple combinator to create a referene to a cell of given coordinates.
-cell :: Int -> Int -> Formula
-cell row column = Reference (Cell row column)
-
 instance Num Formula where
     fromInteger = Constant . fromInteger
     (+)    = Binary (+)
@@ -41,6 +38,9 @@ instance Num Formula where
     (*)    = Binary (*)
     abs    = Unary abs
     signum = Unary signum
+
+instance IsString Formula where
+    fromString = Reference . fromString
 
 -- | A spreadsheet is a partial mapping of cells to formulas. Cells for which
 -- the mapping returns @Nothing@ are inputs.

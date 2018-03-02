@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Map
@@ -11,29 +11,26 @@ import Development.Build.Store
 import Development.Build.Example.Expression
 
 inputs :: Map Cell Int
-inputs = fromList [ (Cell 0 0, 0)
-                  , (Cell 0 1, 1)
-                  , (Cell 0 2, 2) ]
+inputs = fromList [ ("A1", 1)
+                  , ("A2", 2)
+                  , ("A3", 3) ]
 
+-- TODO: Handle lookup errors nicer
 cellNotFound :: Cell -> Int
 cellNotFound cell = error $ "Cell not found: " ++ show cell
 
 spreadsheet :: Spreadsheet
-spreadsheet (Cell x y) = case (x, y) of
-    (1, 1) -> Just $ 1                                       --          1
-    (1, 2) -> Just $ cell 1 1 + 1                            -- 1 + 1 == 2
-    (1, 3) -> Just $ cell 0 2 * abs (cell 1 2)               -- 2 * 2 == 4
-    (2, 0) -> Just $ IfZero (cell 1 3) (cell 2 1) (cell 0 0) --          0
-    (2, 1) -> Just $ IfZero (cell 1 3) (cell 0 1) (cell 2 0) --          0
-    (2, 2) -> Just $ Random 1 6                              --          1..6
-    _      -> Nothing
+spreadsheet (Cell id) = case id of
+    "B1" -> Just $ 1                     --          1
+    "B2" -> Just $ "B1" + 1              -- 1 + 1 == 2
+    "B3" -> Just $ "A3" * abs "B2"       -- 3 * 2 == 6
+    "C1" -> Just $ IfZero "B3" "C2" 1000 --          1000
+    "C2" -> Just $ IfZero "B3" 2000 "C1" --          1000
+    "C3" -> Just $ Random 1 6            --          1..6
+    _    -> Nothing
 
 outputs :: Outputs Cell
-outputs = [ Cell 1 1
-          , Cell 1 2
-          , Cell 1 3
-          , Cell 2 0
-          , Cell 2 1 ]
+outputs = [ "B1", "B2", "B3", "C1", "C2" ]
 
 goDumb :: (Monad m, Get m Cell Int, Put m Cell Int) => m (State Cell Int, Plan Cell Int)
 goDumb = dumbBuild (compute spreadsheet) outputs (State, noPlan)
