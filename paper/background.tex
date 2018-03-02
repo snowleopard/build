@@ -1,0 +1,64 @@
+\section{Background}\label{sec-background}
+
+Below we define basic notions used in build systems and other similar domains,
+for example, spreadsheets.
+
+\subsection{Keys, values, hashes and store}
+
+\emph{Keys} are used to distinguish \emph{values}. In build systems keys are
+typically filenames, e.g. \textsf{src/file.c}, whereas values are file contents
+(a C program source code in this case). In spreadsheets keys are cell names,
+e.g. \textsf{A1}, and values are numbers, text, etc. that are typically displayed
+inside cells. We will use type variables \hs{k} and \hs{v} to denote keys and
+values, respectively.
+
+A \emph{store} associates keys to values. It is convenient to assume that a store
+is total, i.e. it contains a value for every possible key. We therefore also
+assume that the type of values is capable of encoding values corresponding to
+non-existent keys (missing files or empty cells).
+
+We use a cryptographic \emph{hash function} \hs{hash :: v -> Hash v} for
+efficient tracking and sharing of build results.
+
+\subsection{Input, intermediate and output values}
+
+Some values must be provided by the user as \emph{input}. For example,
+\textsf{src/file.c} can be edited by the user who relies on the build system to
+compile it into \textsf{obj/file.o}. Similarly, the user can input \textsf{A1 = 5}
+and \textsf{B1 = 9} expecting the spreadsheet to compute their sum in \textsf{C1},
+i.e. \textsf{C1 = 14}.
+
+In the above examples, \textsf{obj/file.o} and \textsf{C1} are \emph{output} values.
+
+In some situations we might also need the notion of \emph{intermediate} values,
+which are not interesting for the user but are produced in the process of turning
+inputs into outputs. For example, the user might only be interested in the
+executable \textsf{bin/file.exe} obtained by linking \textsf{obj/file.o} with
+standard libraries, in which case \textsf{obj/file.o} can be considered an
+intermediate value.
+
+\subsection{Non-deterministic computations}
+
+Build systems and spreadsheets compute output values from input and intermediate
+values. In the most typical case, these \emph{computations} are \emph{functions},
+such as \textsf{C1 = A1 + B1}, i.e. their result is uniquely determined by the
+input values. However, in general they can be \emph{relations}, i.e. have
+multiple valid results. A spreadsheet example: \textsf{A2 = A1 + RANDOM(1,6)}.
+This computation has six valid results for each input value \textsf{A1}. In
+build systems, the object file \textsf{obj/file.o} is sometimes not uniquely
+determined by the source \textsf{src/file.c} -- different compiler runs may
+produce different valid results.
+
+\subsection{Applicative build systems}
+
+Make ...
+
+Excel ...
+
+\subsection{Monadic build systems}
+
+Shake ...
+
+\subsection{Caching build results}
+
+XXX ...
