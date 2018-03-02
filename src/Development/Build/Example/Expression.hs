@@ -48,7 +48,7 @@ type Spreadsheet = Cell -> Maybe Formula
 
 -- TODO: Implement 'Random'.
 -- | Spreadsheet computation.
-compute :: Spreadsheet -> Compute Monad Cell Int
+compute :: Monad m => Spreadsheet -> Compute m Cell Int
 compute spreadsheet get cell = case spreadsheet cell of
     Nothing      -> return Nothing -- This is an input
     Just formula -> Just <$> evaluate formula

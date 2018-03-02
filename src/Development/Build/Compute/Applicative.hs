@@ -11,17 +11,17 @@ import Development.Build.Compute
 import Development.Build.Store
 import Development.Build.Utilities
 
-pureCompute :: (k -> v) -> Compute Applicative k v
+pureCompute :: Applicative f => (k -> v) -> Compute f k v
 pureCompute f _ = pure . Just . f
 
 -- TODO: Does this always terminate? It's not obvious!
-dependencies :: Compute Applicative k v -> k -> [k]
+dependencies :: (forall f. Applicative f => Compute f k v) -> k -> [k]
 dependencies compute = getConst . compute (Const . return)
 
-transitiveDependencies :: Eq k => Compute Applicative k v -> k -> Maybe [k]
+transitiveDependencies :: Eq k => (forall f. Applicative f => Compute f k v) -> k -> Maybe [k]
 transitiveDependencies compute = reach (dependencies compute)
 
-acyclic :: Eq k => Compute Applicative k v -> k -> Bool
+acyclic :: Eq k => (forall f. Applicative f => Compute f k v) -> k -> Bool
 acyclic compute = isJust . transitiveDependencies compute
 
 data Script k v a where
@@ -39,7 +39,7 @@ instance Applicative (Script k v) where
     pure  = Pure
     (<*>) = Ap
 
-getScript :: Compute Applicative k v -> k -> Script k v (Maybe v)
+getScript :: (forall f. Applicative f => Compute f k v) -> k -> Script k v (Maybe v)
 getScript compute = compute GetValue
 
 runScript :: Applicative f => (k -> f v) -> Script k v a -> f a

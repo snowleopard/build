@@ -40,7 +40,7 @@ data State k v = State
 
 -- | A build system takes a 'Compute' and 'Outputs' and returns the transformer
 -- of the triple ('State', 'Plan', 'Store').
-type MonadicBuild m k v = Compute Monad k v -> Outputs k
+type MonadicBuild m k v = (forall m. Monad m => Compute m k v) -> Outputs k
                       -> (State k v, Plan k v) -> m (State k v, Plan k v)
 
 dumbBuild :: (Monad m, Get m k v, Put m k v) => MonadicBuild m k v

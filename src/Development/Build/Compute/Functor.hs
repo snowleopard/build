@@ -10,10 +10,10 @@ import Data.Functor.Identity
 import Development.Build.Compute
 import Development.Build.Store
 
-run :: Compute Functor k v -> (k -> v) -> k -> Maybe v
+run :: (forall f. Functor f => Compute f k v) -> (k -> v) -> k -> Maybe v
 run compute f = runIdentity . compute (pure . f)
 
-dependency :: Compute Functor k v -> k -> k
+dependency :: (forall f. Functor f => Compute f k v) -> k -> k
 dependency compute = getConst . compute Const
 
 -- Compute Functor is always cyclic! They can't declare any keys as input
@@ -22,10 +22,10 @@ dependency compute = getConst . compute Const
 -- compute get k = fmap (const Nothing) (get k)
 --
 -- But this still registers as a dependency on k even though the result is discarded.
-transitiveDependencies :: Compute Functor k v -> k -> Maybe [k]
+transitiveDependencies :: Compute f k v -> k -> Maybe [k]
 transitiveDependencies _ _ = Nothing
 
-acyclic :: Compute Functor k v -> k -> Bool
+acyclic :: Compute f k v -> k -> Bool
 acyclic _ _ = False
 
 data Script k v a where
@@ -38,7 +38,7 @@ instance Get (Script k v) k v where
 instance Functor (Script k v) where
     fmap = FMap
 
-getScript :: Compute Functor k v -> k -> Script k v (Maybe v)
+getScript :: (forall f. Functor f => Compute f k v) -> k -> Script k v (Maybe v)
 getScript compute = compute GetValue
 
 runScript :: Monad f => (k -> f v) -> Script k v a -> f a
