@@ -47,6 +47,7 @@
 \usepackage{subcaption}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
+\usepackage{xspace}
 
 % Haskell code snippets and useful shortcuts
 \usepackage{minted}
@@ -58,10 +59,20 @@
 \newcommand{\std}[1]{{\color[rgb]{0,0.3,0} #1}}
 \newcommand{\blk}[1]{{\color[rgb]{0,0,0} #1}}
 
+% Questions and todos
+\newcommand{\q}[2]{~\\~\textbf{\color{blue} Question #1:} #2~\\}
+\newcommand{\todo}[2]{~\\~\textbf{\color{red} #1:} #2~\\}
+
+% Abbreviations for build systems
+\newcommand{\Make}{\textsc{Make}\xspace}
+\newcommand{\Shake}{\textsc{Shake}\xspace}
+\newcommand{\Ninja}{\textsc{Ninja}\xspace}
+\newcommand{\Excel}{\textsc{Excel}\xspace}
+
 \begin{document}
 
-%% Title information
-\title[Build systems]{Build systems \`a la Carte}
+%% [Short title] Title
+\title[Build Systems \`a la Carte]{Build Systems \`a la Carte}
 % \titlenote{with title note}
 % \subtitle{Subtitle}
 % \subtitlenote{with subtitle note}
@@ -152,7 +163,8 @@ Build systems are awesome. Build systems are terrifying. In this paper ...
 
 \input{intro}
 \input{background}
-\input{compute}
+\input{build-abstractions}
+% \input{build-examples}
 
 %% Acknowledgments
 \begin{acks}
@@ -165,7 +177,7 @@ Build systems are awesome. Build systems are terrifying. In this paper ...
   We would like to thank ...
 \end{acks}
 
-% \bibliography{refs}
+\bibliography{refs}
 
 %% Appendix
 % \appendix

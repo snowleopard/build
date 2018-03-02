@@ -1,3 +1,5 @@
+\clearpage
+
 \section{Background}\label{sec-background}
 
 Below we define basic notions used in build systems and other similar domains,
@@ -49,16 +51,21 @@ build systems, the object file \textsf{obj/file.o} is sometimes not uniquely
 determined by the source \textsf{src/file.c} -- different compiler runs may
 produce different valid results.
 
-\subsection{Applicative build systems}
+\subsection{Dynamic dependencies}
 
-Make ...
+Many existing build systems need to know all the dependencies between files or
+cells, i.e. the dependency graph, at the start of the build process. This makes
+it possible to analyse the graph ahead of time, but is fundamentally limited:
+parts of the dependency graph can often be discovered only during the build
+process, i.e. the dependency graph is dynamic, not static. This is illustrated
+by the following example.
+\todo{AM}{Add two examples: include files and cyclic spreadsheet computations.}
 
-Excel ...
+\subsection{Requirements for build systems}
 
-\subsection{Monadic build systems}
-
-Shake ...
-
-\subsection{Caching build results}
-
-XXX ...
+\begin{itemize}
+    \item Correctness
+    \item Minimality
+    \item Support for sharing and skipping intermediate values
+\end{itemize}
+...
