@@ -1,11 +1,31 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Development.Build.Example.Expression where
 
+import Data.Char
+import Data.Maybe
 import Data.String
 import Development.Build.Compute
+import Text.Read
 
--- | A 'Cell' is identified by a string, such as @"A1"@ or @"Sheet1!Y18"@.
-newtype Cell = Cell String deriving (Eq, Ord, IsString, Show)
+-- | A 'Cell' is described by a pair integers: 'row' and 'column'. We provide
+-- @IsString@ instance for convenience, so @"A8"@ corresponds to @Cell 8 0@.
+data Cell = Cell { row :: Int, column :: Int } deriving (Eq, Ord, Show)
+
+-- | Get the name of a 'Cell', e.g. @name (Cell 8 0) == "A8"@.
+name :: Cell -> String
+name (Cell r c) | c >= 0 && c < 26 = chr (c + ord 'A') : show r
+                | otherwise        = show (Cell r c)
+
+instance IsString Cell where
+    fromString string = case string of
+        columnChar : rowIndex -> Cell r c
+            where
+              r = fromMaybe fail (readMaybe rowIndex)
+              c | isAsciiUpper columnChar = ord columnChar - ord 'A'
+                | otherwise               = fail
+        _ -> fail
+      where
+        fail = error $ "Cannot parse cell name " ++ string
 
 -- | Some cells contain formulas for computing values from other cells. Formulas
 -- include:
@@ -26,6 +46,7 @@ newtype Cell = Cell String deriving (Eq, Ord, IsString, Show)
 --   failures when the range is empty.
 data Formula = Constant Int
              | Reference Cell
+             | RelativeReference Int Int
              | Unary (Int -> Int) Formula
              | Binary (Int -> Int -> Int) Formula Formula
              | IfZero Formula Formula Formula
@@ -42,6 +63,10 @@ instance Num Formula where
 instance IsString Formula where
     fromString = Reference . fromString
 
+-- | A short alias for 'RelativeReference'.
+rel :: Int -> Int -> Formula
+rel = RelativeReference
+
 -- | A spreadsheet is a partial mapping of cells to formulas. Cells for which
 -- the mapping returns @Nothing@ are inputs.
 type Spreadsheet = Cell -> Maybe Formula
@@ -49,16 +74,17 @@ type Spreadsheet = Cell -> Maybe Formula
 -- TODO: Implement 'Random'.
 -- | Spreadsheet computation.
 compute :: Monad m => Spreadsheet -> Compute m Cell Int
-compute spreadsheet get cell = case spreadsheet cell of
+compute spreadsheet get cell@(Cell r c) = case spreadsheet cell of
     Nothing      -> return Nothing -- This is an input
     Just formula -> Just <$> evaluate formula
   where
     evaluate formula = case formula of
-        Constant x      -> return x
-        Reference cell  -> get cell
-        Unary  op fx    -> op <$> evaluate fx
-        Binary op fx fy -> op <$> evaluate fx <*> evaluate fy
-        IfZero fx fy fz -> do
+        Constant x              -> return x
+        Reference cell          -> get cell
+        RelativeReference dr dc -> get (Cell (r + dr) (c + dc))
+        Unary  op fx            -> op <$> evaluate fx
+        Binary op fx fy         -> op <$> evaluate fx <*> evaluate fy
+        IfZero fx fy fz         -> do
             x <- evaluate fx
             if x == 0 then evaluate fy else evaluate fz
         Random _ _      -> error "Random not implemented"
