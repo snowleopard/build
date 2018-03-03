@@ -8,7 +8,7 @@ import Development.Build
 import Development.Build.Plan
 import Development.Build.Store
 
-import Development.Build.Example.Expression
+import Development.Build.Example.Spreadsheet
 
 inputs :: Map Cell Int
 inputs = fromList [ ("A1", 1)

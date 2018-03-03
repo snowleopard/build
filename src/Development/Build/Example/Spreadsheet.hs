@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Development.Build.Example.Expression where
+module Development.Build.Example.Spreadsheet where
 
 import Data.Char
 import Data.Maybe

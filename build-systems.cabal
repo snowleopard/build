@@ -24,7 +24,7 @@ library
                         Development.Build.Compute.Applicative,
                         Development.Build.Compute.Functor,
                         Development.Build.Compute.Monad,
-                        Development.Build.Example.Expression,
+                        Development.Build.Example.Spreadsheet,
                         Development.Build.NonDeterministic,
                         Development.Build.Plan,
                         Development.Build.Store,
