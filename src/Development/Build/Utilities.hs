@@ -8,6 +8,7 @@ module Development.Build.Utilities (
 
 import Data.Functor.Identity
 
+-- TODO: Just switch to a proper graph library for reachability analysis.
 -- | Given a function to compute successors of a vertex, apply it recursively
 -- starting from a given vertex. Returns @Nothing@ if this process does not
 -- terminate because of cycles. Note that the current implementation is very

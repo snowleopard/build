@@ -5,7 +5,7 @@ import Data.Map
 import Data.Functor.Identity
 
 import Development.Build
-import Development.Build.Plan hiding (inputs)
+import Development.Build.Plan
 import Development.Build.Store
 
 import Development.Build.Example.Expression

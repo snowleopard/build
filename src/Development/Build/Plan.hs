@@ -1,12 +1,12 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Development.Build.Plan (
     -- * Plan
-    Plan, examplePlan, noPlan,
+    Plan, noPlan,
 
     -- * Properties
-    acyclic, upToDate, inputs, consistent
+    dependencies, acyclic, upToDate, consistent
     ) where
 
+import Data.Maybe
 import Development.Build.Store
 import Development.Build.Utilities
 
@@ -22,25 +22,20 @@ import Development.Build.Utilities
 -- plan is 'acyclic'.
 type Plan k v = k -> Maybe (Hash v, [(k, Hash v)])
 
--- | Example build plan containing information only for a single file:
--- @"f.o" -> Just (hash "1", [("f.c", hash "2"), ("gcc.exe", hash "3")])@.
-examplePlan :: Plan FilePath String
-examplePlan key = case key of
-    "f.o" -> Just (hash "1", [("f.c", hash "2"), ("gcc.exe", hash "3")])
-    _     -> Nothing
-
 -- | Sometimes you have no plan at all, i.e. @noPlan = const Nothing@.
 noPlan :: Plan k v
 noPlan = const Nothing
 
--- TODO: Fix infinite loop.
+-- | Dependencies of a key according to a 'Plan', or @Nothing@ if the plan has
+-- no information about the key.
+dependencies :: Plan k v -> k -> Maybe [k]
+dependencies plan key = map fst . snd <$> plan key
+
 -- | Check that a given 'Plan' has no cyclic dependencies.
 acyclic :: Eq k => Plan k v -> Bool
-acyclic plan = forall $ \key -> key `notElem` dependencies key
+acyclic plan = forall $ \key -> isJust (reach knownDependencies key)
   where
-    dependencies k = case plan k of
-        Nothing        -> []
-        Just (_, deps) -> concatMap (dependencies . fst) deps
+    knownDependencies = concat . maybeToList . dependencies plan
 
 -- | Check that according to a provided build 'Plan', a 'Store' contains an
 -- /up-to-date/ value for a key.
@@ -57,7 +52,6 @@ upToDate plan key = case plan key of
     Nothing -> return False -- We don't know and conservatively return False
     Just (keyHash, deps) -> checkHashes ((key, keyHash) : deps)
 
--- TODO: Add completeness check?
 -- | Check that a 'Plan' is consistent with respect to a given 'Store'.
 -- * An empty plan (@plan key == Nothing@) is consistent.
 -- * Otherwise @plan key == Just (keyHash, deps)@, and we require that:
@@ -69,12 +63,3 @@ consistent :: (Eq v, Monad m, GetHash m k v) => Plan k v -> m Bool
 consistent plan = forallM $ \key -> case plan key of
     Nothing -> return True -- Incomplete plan is consistent
     Just (keyHash, deps) -> checkHashes ((key, keyHash) : deps)
-
--- | Find the inputs of a key that are listed in a given 'Plan'. Note that
--- since the plan can be incomplete, the result may be a subset of the actual
--- set of inputs.
-inputs :: Plan k v -> k -> [k]
-inputs plan key = case plan key of
-    Nothing -> [] -- If the plan is incomplete, we return an underapproximation
-    Just (_, []  ) -> [key] -- This key has no dependencies, so it is an input
-    Just (_, deps) -> concat [ inputs plan k | (k, _) <- deps ]
