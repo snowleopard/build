@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Applicative (
-    pureCompute, dependencies, transitiveDependencies, acyclic,
+    inputCompute, pureCompute, dependencies, transitiveDependencies, acyclic,
     Script (..), getScript, runScript
     ) where
 
@@ -11,6 +11,11 @@ import Development.Build.Compute
 import Development.Build.Store
 import Development.Build.Utilities
 
+-- | The trivial compute that considers all keys as inputs.
+inputCompute :: Applicative f => Compute f k v
+inputCompute _ _ = pure Nothing
+
+-- | Lift a pure function to an applicative compute.
 pureCompute :: Applicative f => (k -> v) -> Compute f k v
 pureCompute f _ = pure . Just . f
 

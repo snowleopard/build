@@ -1,17 +1,13 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Functor (
-    run, dependency, transitiveDependencies, acyclic,
+    dependency, transitiveDependencies, acyclic,
     Script (..), getScript, runScript
     ) where
 
 import Data.Functor.Const
-import Data.Functor.Identity
 
 import Development.Build.Compute
 import Development.Build.Store
-
-run :: (forall f. Functor f => Compute f k v) -> (k -> v) -> k -> Maybe v
-run compute f = runIdentity . compute (pure . f)
 
 dependency :: (forall f. Functor f => Compute f k v) -> k -> k
 dependency compute = getConst . compute Const
@@ -22,10 +18,10 @@ dependency compute = getConst . compute Const
 -- compute get k = fmap (const Nothing) (get k)
 --
 -- But this still registers as a dependency on k even though the result is discarded.
-transitiveDependencies :: Compute f k v -> k -> Maybe [k]
+transitiveDependencies :: (forall f. Functor f => Compute f k v) -> k -> Maybe [k]
 transitiveDependencies _ _ = Nothing
 
-acyclic :: Compute f k v -> k -> Bool
+acyclic :: (forall f. Functor f => Compute f k v) -> k -> Bool
 acyclic _ _ = False
 
 data Script k v a where
