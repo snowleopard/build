@@ -7,7 +7,6 @@ module Development.Build.Compute.Functor (
 import Data.Functor.Const
 
 import Development.Build.Compute
-import Development.Build.Store
 
 dependency :: (forall f. Functor f => Compute f k v) -> k -> k
 dependency compute = getConst . compute Const
@@ -27,9 +26,6 @@ acyclic _ _ = False
 data Script k v a where
     GetValue :: k -> Script k v v
     FMap     :: (a -> b) -> Script k v a -> Script k v b
-
-instance Get (Script k v) k v where
-    getValue = GetValue
 
 instance Functor (Script k v) where
     fmap = FMap

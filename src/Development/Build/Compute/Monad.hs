@@ -11,7 +11,6 @@ import Data.Functor.Identity
 import Data.Maybe
 
 import Development.Build.Compute
-import Development.Build.Store
 import Development.Build.Utilities
 
 -- TODO: Does this always terminate? It's not obvious!
@@ -57,9 +56,6 @@ data Script k v a where
     Pure     :: a -> Script k v a
     Ap       :: Script k v (a -> b) -> Script k v a -> Script k v b
     Bind     :: Script k v a -> (a -> Script k v b) -> Script k v b
-
-instance Get (Script k v) k v where
-    getValue = GetValue
 
 instance Functor (Script k v) where
     fmap = Ap . Pure

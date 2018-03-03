@@ -8,7 +8,6 @@ import Control.Applicative
 import Data.Maybe
 
 import Development.Build.Compute
-import Development.Build.Store
 import Development.Build.Utilities
 
 -- | The trivial compute that considers all keys as inputs.
@@ -33,9 +32,6 @@ data Script k v a where
     GetValue :: k -> Script k v v
     Pure     :: a -> Script k v a
     Ap       :: Script k v (a -> b) -> Script k v a -> Script k v b
-
-instance Get (Script k v) k v where
-    getValue = GetValue
 
 instance Functor (Script k v) where
     fmap = Ap . Pure

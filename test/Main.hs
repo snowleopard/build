@@ -39,13 +39,13 @@ cellNotFoundError cell = error $ "Cell not found: " ++ show cell
 cellNotFoundValue :: Cell -> Int
 cellNotFoundValue _ = 0
 
-goDumb :: (Monad m, Get m Cell Int, Put m Cell Int) => m (State Cell Int, Plan Cell Int)
+goDumb :: Store m Cell Int => m (State Cell Int, Plan Cell Int)
 goDumb = dumbBuild (compute spreadsheet) outputs (State, noPlan)
 
-goSlow :: (Monad m, Get m Cell Int, Put m Cell Int) => m (State Cell Int, Plan Cell Int)
+goSlow :: Store m Cell Int => m (State Cell Int, Plan Cell Int)
 goSlow = slowBuild (compute spreadsheet) outputs (State, noPlan)
 
-goTracingDumb :: (MonadIO m, Get m Cell Int, Put m Cell Int) => m (State Cell Int, Plan Cell Int)
+goTracingDumb :: (MonadIO m, Store m Cell Int) => m (State Cell Int, Plan Cell Int)
 goTracingDumb = dumbTracingBuild (compute spreadsheet) outputs (State, noPlan)
 
 result :: Map Cell Int

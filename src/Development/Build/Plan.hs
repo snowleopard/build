@@ -47,7 +47,7 @@ acyclic plan = forall $ \key -> isJust (reach knownDependencies key)
 --     1. The value has expected hash, i.e. @getHash key@ returns @keyHash@.
 --     2. All dependencies have expected hashes: i.e. @getHash k@ returns @h@
 --        for each @(k, h)@ in @deps@.
-upToDate :: (Eq v, Monad m, GetHash m k v) => Plan k v -> k -> m Bool
+upToDate :: (Eq v, Store m k v) => Plan k v -> k -> m Bool
 upToDate plan key = case plan key of
     Nothing -> return False -- We don't know and conservatively return False
     Just (keyHash, deps) -> checkHashes ((key, keyHash) : deps)
@@ -59,7 +59,7 @@ upToDate plan key = case plan key of
 --     1. The value has expected hash, i.e. @getHash key@ returns @keyHash@.
 --     2. All dependencies have expected hashes: i.e. @getHash k@ returns @h@
 --        for each @(k, h)@ in @deps@.
-consistent :: (Eq v, Monad m, GetHash m k v) => Plan k v -> m Bool
+consistent :: (Eq v, Store m k v) => Plan k v -> m Bool
 consistent plan = forallM $ \key -> case plan key of
     Nothing -> return True -- Incomplete plan is consistent
     Just (keyHash, deps) -> checkHashes ((key, keyHash) : deps)

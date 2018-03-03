@@ -43,7 +43,7 @@ data State k v = State
 type MonadicBuild m k v = (forall m. Monad m => Compute m k v) -> Outputs k
                       -> (State k v, Plan k v) -> m (State k v, Plan k v)
 
-dumbBuild :: (Monad m, Get m k v, Put m k v) => MonadicBuild m k v
+dumbBuild :: Store m k v => MonadicBuild m k v
 dumbBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
   where
     build k = do
@@ -52,7 +52,7 @@ dumbBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
             Just value -> putValue k value
             Nothing    -> return ()
 
-dumbTracingBuild :: (MonadIO m, Get m k v, Put m k v, Show k, Show v) => MonadicBuild m k v
+dumbTracingBuild :: (MonadIO m, Store m k v, Show k, Show v) => MonadicBuild m k v
 dumbTracingBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
   where
     build k = do
@@ -66,7 +66,7 @@ dumbTracingBuild compute outputs (state, plan) = mapM build outputs $> (state, p
             Just value -> putValue k value
             Nothing    -> return ()
 
-slowBuild :: (Monad m, Get m k v, Put m k v, Eq k) => MonadicBuild m k v
+slowBuild :: (Monad m, Store m k v, Eq k) => MonadicBuild m k v
 slowBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
   where
     build k = do
