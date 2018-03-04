@@ -1,7 +1,7 @@
-{-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
+{-# LANGUAGE RankNTypes #-}
 module Development.Build.Compute.Applicative (
     inputCompute, pureCompute, dependencies, transitiveDependencies, acyclic,
-    runPartial, Script (..), getScript, runScript
+    runPartial
     ) where
 
 import Control.Applicative
@@ -37,24 +37,3 @@ runPartial :: Applicative f => (forall g. Applicative g => Compute g k v)
 runPartial compute partialGet = runEitherT . compute get
   where
     get k = EitherT $ maybe (Left k) Right <$> partialGet k
-
-data Script k v a where
-    GetValue :: k -> Script k v v
-    Pure     :: a -> Script k v a
-    Ap       :: Script k v (a -> b) -> Script k v a -> Script k v b
-
-instance Functor (Script k v) where
-    fmap = Ap . Pure
-
-instance Applicative (Script k v) where
-    pure  = Pure
-    (<*>) = Ap
-
-getScript :: (forall f. Applicative f => Compute f k v) -> k -> Script k v (Maybe v)
-getScript compute = compute GetValue
-
-runScript :: Applicative f => (k -> f v) -> Script k v a -> f a
-runScript get script = case script of
-    GetValue k -> get k
-    Pure v     -> pure v
-    Ap s1 s2   -> runScript get s1 <*> runScript get s2

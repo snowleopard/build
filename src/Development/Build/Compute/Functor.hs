@@ -1,7 +1,6 @@
-{-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
+{-# LANGUAGE RankNTypes #-}
 module Development.Build.Compute.Functor (
-    dependency, transitiveDependencies, acyclic,
-    Script (..), getScript, runScript
+    dependency, transitiveDependencies, acyclic
     ) where
 
 import Data.Functor.Const
@@ -22,18 +21,3 @@ transitiveDependencies _ _ = Nothing
 
 acyclic :: (forall f. Functor f => Compute f k v) -> k -> Bool
 acyclic _ _ = False
-
-data Script k v a where
-    GetValue :: k -> Script k v v
-    FMap     :: (a -> b) -> Script k v a -> Script k v b
-
-instance Functor (Script k v) where
-    fmap = FMap
-
-getScript :: (forall f. Functor f => Compute f k v) -> k -> Script k v (Maybe v)
-getScript compute = compute GetValue
-
-runScript :: Monad f => (k -> f v) -> Script k v a -> f a
-runScript get script = case script of
-    GetValue k -> get k
-    FMap f s   -> f <$> runScript get s
