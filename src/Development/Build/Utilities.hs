@@ -5,6 +5,9 @@ module Development.Build.Utilities (
     -- * Transformers
     EitherT (..),
 
+    -- * Helpers
+    agree,
+
     -- * Logic combinators
     forall, forallM, exists, existsM, (==>)
     ) where
@@ -41,6 +44,11 @@ instance Functor f => Functor (EitherT e f) where
 instance Applicative f => Applicative (EitherT e f) where
     pure x                  = EitherT $ pure (Right x)
     EitherT f <*> EitherT x = EitherT $ liftA2 (<*>) f x
+
+agree :: Eq v => [(k -> v)] -> [k] -> Bool
+agree fs = all same
+  where
+    same k = let vs = map ($k) fs in and $ zipWith (==) vs (drop 1 vs)
 
 -- | Check that a predicate holds for all values of @a@.
 forall :: (a -> Bool) -> Bool

@@ -1,7 +1,8 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    dependencies, transitiveDependencies, acyclic, runPure, runPartial,
-    staticDependencies, Script (..), getScript, runScript, isStatic, isInput
+    dependencies, transitiveDependencies, inputs, isInput, acyclic, consistent,
+    correctBuild, runPure, runPartial, staticDependencies,
+    Script (..), getScript, runScript, isStatic
     ) where
 
 import Control.Monad.Trans
@@ -27,6 +28,40 @@ transitiveDependencies compute get = reachM (dependencies compute get)
 acyclic :: (Eq k, Monad m) => (forall f. Monad f => Compute f k v)
                            -> (k -> m v) -> k -> m Bool
 acyclic compute get = fmap isJust . transitiveDependencies compute get
+
+inputs :: (Eq k, Monad m) => (forall f. Monad f => Compute f k v)
+                          -> (k -> m v) -> k -> m (Maybe [k])
+inputs compute get key = do
+    deps <- transitiveDependencies compute get key
+    case deps of
+        Nothing -> return Nothing
+        Just ks -> Just <$> filterM (isInput compute get) ks
+
+isInput :: Monad m => (forall f. Monad f => Compute f k v) -> (k -> m v) -> k -> m Bool
+isInput compute get = fmap isNothing . compute get
+
+-- | Check that a compute is /consistent/ with a pure lookup function @f@, i.e.
+-- if it returns @Just v@ for some key @k@ then @f k == v@.
+consistent :: Eq v => (forall f. Monad f => Compute f k v) -> (k -> v) -> Bool
+consistent compute f = forall $ \k -> maybe True (f k ==) $ runPure compute f k
+
+-- | Given a @compute@, a pair of key-value maps describing the contents of a
+-- store @before@ and @after@ a build system was executed to build a given list
+-- of @outputs@, determine if @after@ is a correct build outcome.
+-- Specifically, there must exist a @magic@ key-value map, such that:
+-- * @before@, @after@ and @magic@ agree on the values of all inputs.
+-- * @after@ and @magic@ agree on the values of all outputs.
+-- * @magic@ is 'consistent' with the @compute@.
+-- We assume that @compute@ is acyclic. If it is not, the function returns @True@.
+correctBuild :: (Eq k, Eq v) => (forall f. Monad f => Compute f k v)
+                             -> (k -> v) -> (k -> v) -> [k] -> Bool
+correctBuild compute before after outputs = case concat <$> maybeInputs of
+    Nothing     -> True -- We assumed that compute is acyclic, but it is not
+    Just inputs -> exists $ \magic -> agree [before, after, magic] inputs
+                                   && agree [        after, magic] outputs
+                                   && consistent compute magic
+  where
+    maybeInputs = traverse (runIdentity . inputs compute (pure . after)) outputs
 
 -- | Run a compute with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
@@ -92,11 +127,4 @@ isStatic script = case script of
     Get _    -> True
     Pure _   -> True
     Ap s1 s2 -> isStatic s1 && isStatic s2
-    Bind _ _ -> False
-
-isInput :: Eq k => Script k v a -> k -> Bool
-isInput script key = case script of
-    Get k    -> k == key
-    Pure _   -> True
-    Ap s1 s2 -> isInput s1 key && isInput s2 key
     Bind _ _ -> False

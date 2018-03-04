@@ -4,7 +4,8 @@ module Development.Build.Store (
     Hash, hash,
 
     -- * The store monad
-    Store (..), checkHashes, UnsafeMapStore, runUnsafeMapStore, MapStore, runMapStore
+    Store (..), Snapshot (..), checkHashes, UnsafeMapStore, runUnsafeMapStore,
+    MapStore, runMapStore
     ) where
 
 import Data.Map
@@ -31,6 +32,10 @@ class Monad m => Store m k v | m -> k v where
     getHash :: k -> m (Hash v)
     getHash = fmap hash . getValue
     putValue :: k -> v -> m ()
+
+class Store m k v => Snapshot m k v where
+    loadSnapshot :: (k -> v) -> m ()
+    saveSnapshot :: m (k -> v)
 
 checkHashes :: (Eq v, Store m k v) => [(k, Hash v)] -> m Bool
 checkHashes khs = do

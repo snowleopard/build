@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstraintKinds, RankNTypes #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables #-}
 module Development.Build (
     -- * Build
     Build, dumbBuild, dumbTracingBuild, slowBuild
@@ -29,10 +29,10 @@ import Development.Build.Store
 --         return $ h' == h && vc == vs && and cs
 
 -- | A build system takes a 'Compute', a list of output keys, an initial state
--- of type @s@, and builds the keys, eventually producing the new state @s@.
-type Build c m k v s = Store m k v => (forall f. c f => Compute f k v) -> [k] -> s -> m s
+-- of type @s@, and builds the outputs, producing the new state.
+type Build c m k v s = (forall f. c f => Compute f k v) -> [k] -> s -> m s
 
-dumbBuild :: Build Monad m k v ()
+dumbBuild :: Store m k v => Build Monad m k v ()
 dumbBuild compute outputs () = mapM build outputs $> ()
   where
     build k = do
@@ -41,7 +41,7 @@ dumbBuild compute outputs () = mapM build outputs $> ()
             Just value -> putValue k value
             Nothing    -> return ()
 
-dumbTracingBuild :: (MonadIO m, Show k, Show v) => Build Monad m k v ()
+dumbTracingBuild :: (MonadIO m, Store m k v, Show k, Show v) => Build Monad m k v ()
 dumbTracingBuild compute outputs () = mapM build outputs $> ()
   where
     build k = do
@@ -55,42 +55,16 @@ dumbTracingBuild compute outputs () = mapM build outputs $> ()
             Just value -> putValue k value
             Nothing    -> return ()
 
-slowBuild :: (Monad m, Eq k) => Build Monad m k v ()
+slowBuild :: Store m k v => Build Monad m k v ()
 slowBuild compute outputs s = mapM build outputs $> s
   where
     build k = do
-        let result = if isInput (getScript compute k) k then compute getValue k
-                                                        else compute build k
-        maybeValue <- result
+        -- This is an incorrect heuristic
+        let ready = null (staticDependencies compute k)
+        maybeValue <- compute (if ready then getValue else build) k
         case maybeValue of
             Just value -> putValue k value >> return value
             Nothing    -> getValue k
-
--- | Check that a build system is correct, i.e. for all possible combinations of
--- input parameters ('Compute', 'Outputs', 'State', 'Plan', 'Store'), where
--- 'Compute' is 'wellDefined', the build system produces a correct output pair
--- (@newPlan@, @newStore@). Specifically, there exists a @magicStore@, such that:
--- * The @newPlan@ is acyclic.
--- * The @oldstore@, the @newStore@ and the @magicStore@ agree on the input keys.
--- * The @newStore@ and the @magicStore@ agree on the output keys.
--- * The @magicStore@ is consistent w.r.t. the @compute@ function and the @plan@.
--- There are no correctness requirements on the resulting 'State'.
--- correct :: (Eq v, Get m k v, GetHash m k v) => Build (Monad m) m k v -> m Bool
--- correct build = undefined
-    -- forallM $ \(compute, outputs, state, oldPlan, oldStore) ->
-    -- existsM $ \magicStore -> do
-    --     (_, newPlan, newStore) <- build compute outputs (state, oldPlan, oldStore)
-    --     -- The new plan is acyclic and consistent
-    --     let pAcyclic = acyclic newPlan
-    --     pConsistent <- P.consistent newPlan newStore
-    --     buildInputs <- concat <$> mapM (inputs newPlan) outputs
-    --     -- The oldStore, newStore and the magicStore agree on the inputs
-    --     agreeInputs <- agree [oldStore, newStore, magicStore] buildInputs
-    --     -- The newStore and the magicStore agree on the outputs
-    --     agreeOutputs <- agree [newStore, magicStore] outputs
-    --     -- The magicStore is consistent w.r.t. the compute function and the plan
-    --     sConsistent <- and <$> mapM (consistent compute newPlan magicStore) outputs
-    --     return $ pAcyclic && pConsistent && agreeInputs && agreeOutputs
 
 -- | Check that a build system is /idempotent/, i.e. running it once or twice in
 -- a row leads to the same 'Plan' and 'Store'.
