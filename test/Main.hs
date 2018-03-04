@@ -5,7 +5,6 @@ import Data.Map
 import Data.Functor.Identity
 
 import Development.Build
-import Development.Build.Plan
 import Development.Build.Store
 
 import Development.Build.Example.Spreadsheet
@@ -28,7 +27,7 @@ spreadsheet cell = case name cell of
     'F':_ -> Just $ rel (-1) 0 + rel (-2) 0 --          Fn = F(n - 1) + F(n - 2)
     _     -> Nothing
 
-outputs :: Outputs Cell
+outputs :: [Cell]
 outputs = [ "B1", "B2", "B3", "C1", "C2", "F30" ]
 
 -- TODO: Handle lookup errors nicer
@@ -39,14 +38,14 @@ cellNotFoundError cell = error $ "Cell not found: " ++ show cell
 cellNotFoundValue :: Cell -> Int
 cellNotFoundValue _ = 0
 
-goDumb :: Store m Cell Int => m (State Cell Int, Plan Cell Int)
-goDumb = dumbBuild (compute spreadsheet) outputs (State, noPlan)
+goDumb :: Store m Cell Int => m ()
+goDumb = dumbBuild (compute spreadsheet) outputs ()
 
-goSlow :: Store m Cell Int => m (State Cell Int, Plan Cell Int)
-goSlow = slowBuild (compute spreadsheet) outputs (State, noPlan)
+goSlow :: Store m Cell Int => m ()
+goSlow = slowBuild (compute spreadsheet) outputs ()
 
-goTracingDumb :: (MonadIO m, Store m Cell Int) => m (State Cell Int, Plan Cell Int)
-goTracingDumb = dumbTracingBuild (compute spreadsheet) outputs (State, noPlan)
+goTracingDumb :: (MonadIO m, Store m Cell Int) => m ()
+goTracingDumb = dumbTracingBuild (compute spreadsheet) outputs ()
 
 result :: Map Cell Int
 result = snd $ runIdentity $ runMapStore goDumb cellNotFoundValue inputs

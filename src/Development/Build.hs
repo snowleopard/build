@@ -1,7 +1,7 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes #-}
 module Development.Build (
     -- * Build
-    MonadicBuild, dumbBuild, dumbTracingBuild, slowBuild, State (..), Outputs,
+    Build, dumbBuild, dumbTracingBuild, slowBuild
 
     -- * Properties
     -- consistent, correct, idempotent
@@ -12,7 +12,6 @@ import Data.Functor
 
 import Development.Build.Compute
 import Development.Build.Compute.Monad
-import Development.Build.Plan hiding (consistent)
 import Development.Build.Store
 
 -- | Check a three-way consistency between a 'Compute' function, a 'Plan' and
@@ -29,22 +28,12 @@ import Development.Build.Store
 --         cs <- mapM (consistent compute plan . fst) deps
 --         return $ h' == h && vc == vs && and cs
 
--- | A list of keys that need to be built.
-type Outputs k = [k]
+-- | A build system takes a 'Compute', a list of output keys, an initial state
+-- of type @s@, and builds the keys, eventually producing the new state @s@.
+type Build c m k v s = Store m k v => (forall f. c f => Compute f k v) -> [k] -> s -> m s
 
--- TODO: Make 'Plan' a part of 'State'.
--- | Some build systems maintain a persistent state between builds for the
--- purposes of optimisation and profiling. This can include a cache for sharing
--- build results across builds.
-data State k v = State
-
--- | A build system takes a 'Compute' and 'Outputs' and returns the transformer
--- of the triple ('State', 'Plan', 'Store').
-type MonadicBuild m k v = (forall m. Monad m => Compute m k v) -> Outputs k
-                      -> (State k v, Plan k v) -> m (State k v, Plan k v)
-
-dumbBuild :: Store m k v => MonadicBuild m k v
-dumbBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
+dumbBuild :: Build Monad m k v ()
+dumbBuild compute outputs () = mapM build outputs $> ()
   where
     build k = do
         maybeValue <- compute getValue k
@@ -52,8 +41,8 @@ dumbBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
             Just value -> putValue k value
             Nothing    -> return ()
 
-dumbTracingBuild :: (MonadIO m, Store m k v, Show k, Show v) => MonadicBuild m k v
-dumbTracingBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
+dumbTracingBuild :: (MonadIO m, Show k, Show v) => Build Monad m k v ()
+dumbTracingBuild compute outputs () = mapM build outputs $> ()
   where
     build k = do
         let myGetValue k = do
@@ -66,8 +55,8 @@ dumbTracingBuild compute outputs (state, plan) = mapM build outputs $> (state, p
             Just value -> putValue k value
             Nothing    -> return ()
 
-slowBuild :: (Monad m, Store m k v, Eq k) => MonadicBuild m k v
-slowBuild compute outputs (state, plan) = mapM build outputs $> (state, plan)
+slowBuild :: (Monad m, Eq k) => Build Monad m k v ()
+slowBuild compute outputs s = mapM build outputs $> s
   where
     build k = do
         let result = if isInput (getScript compute k) k then compute getValue k
