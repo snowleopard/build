@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types, FlexibleContexts #-}
+{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving #-}
 
 module Neil.Build(
     dumb,
@@ -9,6 +9,7 @@ module Neil.Build(
 
 import Neil.Constraints
 import Control.Monad.Extra
+import Data.Default
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
@@ -20,6 +21,7 @@ dumb = mapM_ f
 
 
 newtype Once k = Once (Set.Set k)
+    deriving Default
 
 once :: (Build m k v, Temp m (Once k)) => k -> m v -> m v
 once k build = do
@@ -39,12 +41,11 @@ dumbOnce = mapM_ f
 
 
 -- | The simplified Make approach where we build a dependency graph and topological sort it
-make :: (Build m k v, PreDepends m k, HasTime v) => [k] -> m ()
-make ks = do
-    deps <- depends
-    forM_ (topSort $ unroll deps ks) $ \k -> do
-        kt <- fmap getTime <$> getStoreMaybe k
-        ds <- mapM (fmap getTime . getStore) $ deps k
+make :: (Build m k v, StoreTime m k) => (k -> [k]) -> [k] -> m ()
+make depends ks = do
+    forM_ (topSort $ unroll depends ks) $ \k -> do
+        kt <- getStoreTimeMaybe k
+        ds <- mapM getStoreTime $ depends k
         case kt of
             Just xt | all (< xt) ds -> return ()
             _ -> maybe (return ()) (void . putStore k) =<< run getStore k

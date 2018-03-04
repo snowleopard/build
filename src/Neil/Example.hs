@@ -1,10 +1,14 @@
 {-# LANGUAGE Rank2Types, ConstraintKinds, DeriveFunctor, GADTs, ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 module Neil.Example where
 
+import Data.Default
 import Neil.Build
 import Neil.Compute
+import Neil.Constraints
 import Neil.Execute
+import Control.Monad
 import qualified Data.Map as Map
 
 data Add k v = Add k k
@@ -23,19 +27,21 @@ example "d" = Add "c" "c"
 
 store0 :: Map.Map String Int
 store0 = Map.fromList [("a",1),("b",2)]
-store' = Map.insert "a" 3
 
-disp (Disk a b) = "Disk " ++ show a ++ " " ++ show b
+disp (Disk _ a b) = "Disk " ++ show a ++ " " ++ show b
 
-test :: forall c k v . (k ~ String, v ~ Int) => ([k] -> M Applicative k v ()) -> IO ()
+test :: forall k v . (k ~ String, v ~ Int) => ((k -> [k]) -> [k] -> M k v ()) -> IO ()
 test build = do
-    let d1 = execute (build ["d"]) (runAdd example) (Disk store0 mempty)
-        d2 = execute (build ["d"]) (runAdd example) d1{diskStore = store' $ diskStore d1}
+    let deps = getDependencies $ runAdd example
+        d0 = Disk mempty (Map.map (def,) store0) mempty
+        d1 = execute (build deps ["d"]) (runAdd example) d0
+        d2 = execute (void $ putStore "a" 3) (runAdd example) d1
+        d3 = execute (build deps ["d"]) (runAdd example) d2
     print $ disp d1
-    print $ disp d2    
+    print $ disp d3
 
 main = do
-    test dumb
-    test dumbOnce
-    -- test make
-    test shake
+    test $ const dumb
+    test $ const dumbOnce
+    test make
+    test $ const shake
