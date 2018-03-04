@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables #-}
 module Development.Build (
     -- * Build
-    Build, dumbBuild, dumbTracingBuild, slowBuild
+    Build, PureBuild, purify, dumbBuild, dumbTracingBuild, slowBuild
 
     -- * Properties
     -- consistent, correct, idempotent
@@ -9,6 +9,7 @@ module Development.Build (
 
 import Control.Monad.IO.Class
 import Data.Functor
+import Data.Functor.Identity
 
 import Development.Build.Compute
 import Development.Build.Compute.Monad
@@ -30,9 +31,16 @@ import Development.Build.Store
 
 -- | A build system takes a 'Compute', a list of output keys, an initial state
 -- of type @s@, and builds the outputs, producing the new state.
-type Build c m k v s = (forall f. c f => Compute f k v) -> [k] -> s -> m s
+type Build c m k v s = Store m k v => (forall f. c f => Compute f k v) -> [k] -> s -> m s
 
-dumbBuild :: Store m k v => Build Monad m k v ()
+type PureBuild c k v s = (forall f. c f => Compute f k v) -> [k] -> s -> s
+
+-- How do I express that we can do it for any c, not just c = Monad?
+purify :: Eq k => (forall m. Build Monad m k v s) -> PureBuild Monad k v (s, k -> v)
+purify build compute outputs (s, store) =
+    runIdentity $ runPureStore (build compute outputs s) store
+
+dumbBuild :: Build Monad m k v ()
 dumbBuild compute outputs () = mapM build outputs $> ()
   where
     build k = do
@@ -41,7 +49,7 @@ dumbBuild compute outputs () = mapM build outputs $> ()
             Just value -> putValue k value
             Nothing    -> return ()
 
-dumbTracingBuild :: (MonadIO m, Store m k v, Show k, Show v) => Build Monad m k v ()
+dumbTracingBuild :: (MonadIO m, Show k, Show v) => Build Monad m k v ()
 dumbTracingBuild compute outputs () = mapM build outputs $> ()
   where
     build k = do
@@ -55,7 +63,7 @@ dumbTracingBuild compute outputs () = mapM build outputs $> ()
             Just value -> putValue k value
             Nothing    -> return ()
 
-slowBuild :: Store m k v => Build Monad m k v ()
+slowBuild :: Build Monad m k v ()
 slowBuild compute outputs s = mapM build outputs $> s
   where
     build k = do

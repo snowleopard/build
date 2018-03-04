@@ -4,8 +4,8 @@ module Development.Build.Store (
     Hash, hash,
 
     -- * The store monad
-    Store (..), Snapshot (..), checkHashes, UnsafeMapStore, runUnsafeMapStore,
-    MapStore, runMapStore
+    Store (..), Snapshot (..), checkHashes, PureStore, runPureStore,
+    UnsafeMapStore, runUnsafeMapStore, MapStore, runMapStore
     ) where
 
 import Data.Map
@@ -43,9 +43,26 @@ checkHashes khs = do
     storedHashes <- mapM getHash ks
     return $ hs == storedHashes
 
+-- | A 'Store' implemented using a function @k -> v@.
+type PureStore m k v = StateT (k -> v) m
+
+instance (Eq k, Monad m) => Store (PureStore m k v) k v where
+    getValue k   = ($k) <$> get
+    putValue k v = modify (\lookup key -> if key == k then v else lookup key)
+
+-- | Run an 'UnsafeMapStore' computation on a given initial state of the store,
+-- Throws an error when accessing a non-existent key. See 'runMapStore' for a
+-- safe alternative.
+runPureStore :: PureStore m k v a -> (k -> v) -> m (a, k -> v)
+runPureStore = runStateT
+
 -- | A 'Store' implemented using a @Map k v@. Throws an error when accessing a
 -- non-existent key. See 'MapStore' for a safe alternative.
 type UnsafeMapStore m k v = StateT (Map k v) m
+
+instance (Ord k, Monad m) => Store (UnsafeMapStore m k v) k v where
+    getValue k   = (!k) <$> get
+    putValue k v = modify (insert k v)
 
 -- | Run an 'UnsafeMapStore' computation on a given initial state of the store,
 -- Throws an error when accessing a non-existent key. See 'runMapStore' for a
@@ -53,22 +70,18 @@ type UnsafeMapStore m k v = StateT (Map k v) m
 runUnsafeMapStore :: UnsafeMapStore m k v a -> Map k v -> m (a, Map k v)
 runUnsafeMapStore = runStateT
 
-instance (Ord k, Monad m) => Store (UnsafeMapStore m k v) k v where
-    getValue k   = (!k) <$> get
-    putValue k v = modify (insert k v)
-
 -- | A 'Store' implemented using a @Map k v@. Falls back to the default value
 -- computed by an enclosed @k -> v@ function when accessing a non-existent key.
 type MapStore m k v = ReaderT (k -> v) (UnsafeMapStore m k v)
-
--- | Run a 'MapStore' computation on a given initial state of the store.
--- Falls back to the default value computed by the provided @k -> v@ function
--- when accessing a non-existent key.
-runMapStore :: MapStore m k v a -> (k -> v) -> Map k v -> m (a, Map k v)
-runMapStore store = runStateT . runReaderT store
 
 instance (Ord k, Monad m) => Store (MapStore m k v) k v where
     getValue k = do
         f <- ask
         findWithDefault (f k) k <$> lift get
     putValue k = lift . putValue k
+
+-- | Run a 'MapStore' computation on a given initial state of the store.
+-- Falls back to the default value computed by the provided @k -> v@ function
+-- when accessing a non-existent key.
+runMapStore :: MapStore m k v a -> (k -> v) -> Map k v -> m (a, Map k v)
+runMapStore store = runStateT . runReaderT store
