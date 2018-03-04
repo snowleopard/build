@@ -1,10 +1,11 @@
-{-# LANGUAGE Rank2Types, ConstraintKinds, DeriveFunctor, GADTs #-}
+{-# LANGUAGE Rank2Types, ConstraintKinds, DeriveFunctor, GADTs, ScopedTypeVariables #-}
 
 module Neil.Example where
 
+import Neil.Build
 import Neil.Compute
-import Neil.Types
-import Neil.Implementation
+import Neil.Execute
+import qualified Data.Map as Map
 
 data Add k v = Add k k
              | Source
@@ -20,24 +21,21 @@ example "b" = Source
 example "c" = Add "a" "b"
 example "d" = Add "c" "c"
 
-files0 "a" = Just 1
-files0 "b" = Just 2
-files0 _ = Nothing
+store0 :: Map.Map String Int
+store0 = Map.fromList [("a",1),("b",2)]
+store' = Map.insert "a" 3
 
-files' d "a" = Just 3
-files' d x = d x
+disp (Disk a b) = "Disk " ++ show a ++ " " ++ show b
 
-disp (Disk a b) = "Disk " ++ show a ++ " " ++ show [(a, b [a]) | a <- ['a'..'d']]
-
-test :: (Show i, k ~ String, v ~ Int) => (Compute Monad k v -> [k] -> Disk i k v -> Disk i k v) -> i -> IO ()
-test build start = do
-    let d1 = build (runAdd example) ["d"] $ Disk start files0
-        d2 = build (runAdd example) ["d"] $ d1{diskFiles = files' $ diskFiles d1}
+test :: forall c k v . (k ~ String, v ~ Int) => ([k] -> M Applicative k v ()) -> IO ()
+test build = do
+    let d1 = execute (build ["d"]) (runAdd example) (Disk store0 mempty)
+        d2 = execute (build ["d"]) (runAdd example) d1{diskStore = store' $ diskStore d1}
     print $ disp d1
     print $ disp d2    
 
 main = do
-    test dumb ()
-    test dumbOnce ()
---    test make ()
-    test shake mempty
+    test dumb
+    test dumbOnce
+    -- test make
+    test shake
