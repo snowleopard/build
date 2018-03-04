@@ -2,12 +2,17 @@ module Development.Build.Utilities (
     -- * Graph operations
     reach, reachM,
 
+    -- * Transformers
+    EitherT (..),
+
     -- * Logic combinators
     forall, forallM, exists, existsM, (==>)
     ) where
 
+import Control.Applicative
 import Data.Functor.Identity
 
+-- TODO: Just switch to a proper graph library for reachability analysis.
 -- | Given a function to compute successors of a vertex, apply it recursively
 -- starting from a given vertex. Returns @Nothing@ if this process does not
 -- terminate because of cycles. Note that the current implementation is very
@@ -27,6 +32,15 @@ reachM successors = go []
     go xs x | x `elem` xs = return Nothing -- A cycle is detected
             | otherwise   = do res <- traverse (go $ x:xs) =<< successors x
                                return $ concat <$> sequence res
+
+newtype EitherT e f a = EitherT { runEitherT :: f (Either e a) }
+
+instance Functor f => Functor (EitherT e f) where
+    fmap f (EitherT x) = EitherT (fmap f <$> x)
+
+instance Applicative f => Applicative (EitherT e f) where
+    pure x                  = EitherT $ pure (Right x)
+    EitherT f <*> EitherT x = EitherT $ liftA2 (<*>) f x
 
 -- | Check that a predicate holds for all values of @a@.
 forall :: (a -> Bool) -> Bool

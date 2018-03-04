@@ -1,0 +1,35 @@
+\clearpage
+
+\section{Build systems, abstractly}\label{sec-build-abstractions}
+
+In this section we present the \emph{compute} and \emph{build} abstractions:
+\begin{itemize}
+    \item Compute represents build rules (in build systems) or formulas (in
+    spreadsheets), and is completely isolated from the world of compilers, file
+    systems, memories, caches, and all other complexities of real build systems.
+    \item Build corresponds to the algorithm used for bringing a key-value store
+    to a coherent state by running compute.
+\end{itemize}
+
+\begin{figure}
+\begin{minted}{haskell}
+type Compute f k v = (k -> f v) -> k -> f (Maybe v)
+
+type FunctorialCompute  f k v = Functor     f => Compute f k v
+type ApplicativeCompute f k v = Applicative f => Compute f k v
+type AlternativeCompute f k v = Alternative f => Compute f k v
+type MonadicCompute     f k v = Monad       f => Compute f k v
+type MonadPlusedCompute f k v = MonadPlus   f => Compute f k v
+\end{minted}
+\caption{Compute abstractions}\label{fig-compute}
+\end{figure}
+
+Consider abstractions in Fig.~\ref{fig-compute}.
+
+...
+
+We now describe several types of build systems according to their constraint
+on the functor \hs{f}.
+
+...
+

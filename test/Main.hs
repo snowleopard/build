@@ -1,52 +1,67 @@
-{-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, ScopedTypeVariables #-}
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Map
 import Data.Functor.Identity
 
 import Development.Build
-import Development.Build.Plan hiding (inputs)
 import Development.Build.Store
 
-import Development.Build.Example.Expression
+import Development.Build.Example.Spreadsheet
 
-inputs :: Map Key (Value Integer)
-inputs = fromList [ (Variable "a", Value 3)
-                  , (Variable "b", Value 4) ]
+inputs :: Map Cell Int
+inputs = fromList [ ("A1", 1)
+                  , ("A2", 2)
+                  , ("A3", 3) ]
 
-outputs :: Outputs Key
-outputs = [ Ackermann (-10) 1
-          , Increment (Variable "b")
-          , Add (Variable "a") (Increment (Variable "b"))
-          , Ackermann 3 3 ]
+spreadsheet :: Spreadsheet
+spreadsheet cell = case name cell of
+    "B1"  -> Just $ 1                       --          1
+    "B2"  -> Just $ "B1" + 1                -- 1 + 1 == 2
+    "B3"  -> Just $ "A3" * abs "B2"         -- 3 * 2 == 6
+    "C1"  -> Just $ IfZero "B3" "C2" 1000   --          1000
+    "C2"  -> Just $ IfZero "B3" 2000 "C1"   --          1000
+    "C3"  -> Just $ Random 1 6              --          1..6
+    "F0"  -> Just $ 0                       --          0
+    "F1"  -> Just $ 1                       --          1
+    'F':_ -> Just $ rel (-1) 0 + rel (-2) 0 --          Fn = F(n - 1) + F(n - 2)
+    _     -> Nothing
 
-goDumb :: (Monad m, Get m Key (Value Integer), Put m Key (Value Integer))
-      => m (State Key (Value Integer), Plan Key (Value Integer))
-goDumb = dumbBuild compute outputs (State, noPlan)
+outputs :: [Cell]
+outputs = [ "B1", "B2", "B3", "C1", "C2", "F30" ]
 
-goSlow :: (Monad m, Get m Key (Value Integer), Put m Key (Value Integer))
-      => m (State Key (Value Integer), Plan Key (Value Integer))
-goSlow = slowBuild compute outputs (State, noPlan)
+-- TODO: Handle lookup errors nicer
+cellNotFoundError :: Cell -> Int
+cellNotFoundError cell = error $ "Cell not found: " ++ show cell
 
-goTracingDumb :: (MonadIO m, Get m Key (Value Integer), Put m Key (Value Integer))
-      => m (State Key (Value Integer), Plan Key (Value Integer))
-goTracingDumb = dumbTracingBuild compute outputs (State, noPlan)
+-- TODO: Handle lookup errors nicer
+cellNotFoundValue :: Cell -> Int
+cellNotFoundValue _ = 0
 
-result :: Map Key (Value Integer)
-result = snd $ runIdentity $ runMapStore goDumb KeyNotFound inputs
+goDumb :: Store m Cell Int => m ()
+goDumb = dumbBuild (compute spreadsheet) outputs ()
 
-tracingResult :: IO (Map Key (Value Integer))
-tracingResult = snd <$> runMapStore goTracingDumb KeyNotFound inputs
+goSlow :: Store m Cell Int => m ()
+goSlow = slowBuild (compute spreadsheet) outputs ()
 
-slowResult :: Map Key (Value Integer)
-slowResult = snd $ runIdentity $ runMapStore goSlow KeyNotFound inputs
+goTracingDumb :: (MonadIO m, Store m Cell Int) => m ()
+goTracingDumb = dumbTracingBuild (compute spreadsheet) outputs ()
 
-evalutate :: Map Key (Value Integer) -> Key -> Value Integer
-evalutate store key = findWithDefault (KeyNotFound key) key store
+result :: Map Cell Int
+result = snd $ runIdentity $ runMapStore goDumb cellNotFoundValue inputs
 
-printOutputs :: Map Key (Value Integer) -> IO ()
+tracingResult :: IO (Map Cell Int)
+tracingResult = snd <$> runMapStore goTracingDumb cellNotFoundValue inputs
+
+slowResult :: Map Cell Int
+slowResult = snd $ runIdentity $ runMapStore goSlow cellNotFoundError inputs
+
+evalutate :: Map Cell Int -> Cell -> Int
+evalutate store key = findWithDefault (cellNotFoundError key) key store
+
+printOutputs :: Map Cell Int -> IO ()
 printOutputs store = forM_ outputs $
-    \key -> putStrLn (show key ++ " = " ++ show (evalutate store key))
+    \key -> putStrLn (show (name key) ++ " = " ++ show (evalutate store key))
 
 main :: IO ()
 main = do
