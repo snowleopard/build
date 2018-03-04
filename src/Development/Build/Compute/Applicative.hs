@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Applicative (
     inputCompute, pureCompute, dependencies, transitiveDependencies, acyclic,
-    Script (..), getScript, runScript
+    runPartial, Script (..), getScript, runScript
     ) where
 
 import Control.Applicative
@@ -27,6 +27,16 @@ transitiveDependencies compute = reach (dependencies compute)
 
 acyclic :: Eq k => (forall f. Applicative f => Compute f k v) -> k -> Bool
 acyclic compute = isJust . transitiveDependencies compute
+
+-- | Run a compute with a partial lookup function. The result @Left k@ indicates
+-- that the compute failed due to a missing dependency @k@. Otherwise, the
+-- result @Right (Just v)@ yields the computed value, and @Right Nothing@ is
+-- returned if the given key is an input.
+runPartial :: Applicative f => (forall g. Applicative g => Compute g k v)
+                            -> (k -> f (Maybe v)) -> k -> f (Either k (Maybe v))
+runPartial compute partialGet = runEitherT . compute get
+  where
+    get k = EitherT $ maybe (Left k) Right <$> partialGet k
 
 data Script k v a where
     GetValue :: k -> Script k v v
