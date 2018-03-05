@@ -1,7 +1,8 @@
 {-# LANGUAGE Rank2Types, ConstraintKinds, DeriveFunctor #-}
 
 module Neil.Compute(
-    Compute, getDependencies, getDependenciesMaybe, trackDependencies,
+    Compute,
+    getDependencies, getDependenciesMaybe, trackDependencies, failDependencies,
     Depend(..), runDepend, toDepend,
     Depends(..), runDepends, toDepends,
     ) where
@@ -21,6 +22,15 @@ getDependenciesMaybe comp = getConstMaybe . comp (\x -> ConstMaybe $ Just [x])
 
 trackDependencies :: Monad m => Compute Monad k v -> (k -> m v) -> k -> m ([k], Maybe v)
 trackDependencies comp f k = runDepends f (toDepends comp k)
+
+failDependencies :: Monad m => Compute Monad k v -> (k -> m (Either e v)) -> k -> m (Either e (Maybe v))
+failDependencies comp f k = go (toDepends comp k)
+    where go (Done r) = return $ Right r
+          go (Depends ds next) = do
+                vs <- mapM f ds
+                case sequence vs of
+                    Left e -> return $ Left e
+                    Right xs -> go $ next xs
 
 
 data ConstMaybe a b = ConstMaybe {getConstMaybe :: Maybe a}

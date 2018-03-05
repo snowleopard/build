@@ -1,10 +1,13 @@
-{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving, ScopedTypeVariables, RecordWildCards #-}
 
 module Neil.Builder(
     dumb,
     dumbOnce,
     make,
-    Shake, shake,
+    shake,
+    spreadsheet,
+    bazel,
+    shazel
     ) where
 
 import Neil.Build
@@ -12,6 +15,7 @@ import Neil.Compute
 import Control.Monad.Extra
 import Data.Default
 import Data.Maybe
+import Data.List
 import Data.Typeable
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -30,13 +34,13 @@ once k build = do
         getStore k
     else do
         r <- build
-        updateTemp $ \(Once set) -> Once $ Set.insert k set
+        modifyTemp $ \(Once set) -> Once $ Set.insert k set
         return r
 
 
 -- | Figure out when files change, like a modtime
 newtype StoreTime k v = StoreTime {fromStoreTime :: Map.Map k v}
-    deriving Default
+    deriving (Default, Show)
 
 data Time = LastBuild | AfterLastBuild deriving (Eq,Ord)
 
@@ -49,6 +53,8 @@ getStoreTimeMaybe k = do
 getStoreTime :: (Show k, Ord k, Eq v) => k -> M k v (StoreTime k v) Time
 getStoreTime k = fromMaybe (error $ "no store time available for " ++ show k) <$> getStoreTimeMaybe k
 
+returnStoreTime :: M k v (StoreTime k v) ()
+returnStoreTime = putInfo . StoreTime =<< getStoreMap
 
 -- | Take the transitive closure of a function
 transitiveClosure :: Ord k => (k -> [k]) -> [k] -> [k]
@@ -95,8 +101,8 @@ make compute ks = runM $ do
         ds <- mapM getStoreTime $ depends k
         case kt of
             Just xt | all (<= xt) ds -> return ()
-            _ -> maybe (return ()) (void . putStore k) =<< compute getStore k
-    putInfo . StoreTime =<< getStoreMap
+            _ -> maybe (return ()) (putStore_ k) =<< compute getStore k
+    returnStoreTime
 
 
 -- During the last execution, these were the traces I saw
@@ -111,7 +117,7 @@ shake compute = runM . mapM_ f
             valid <- case Map.lookup k info of
                 Nothing -> return False
                 Just (me, deps) ->
-                    (maybe False ((==) me . getHash) <$> getStoreMaybe k) &&^
+                    (maybe False (== me) <$> getStoreHashMaybe k) &&^
                     allM (\(d,h) -> (== h) . getHash <$> f d) deps
             if valid then
                 getStore k
@@ -119,5 +125,102 @@ shake compute = runM . mapM_ f
                 (ds, v) <- trackDependencies compute f k
                 v <- maybe (getStore k) (putStore k) v
                 dsh <- mapM (fmap getHash . getStore) ds
-                updateInfo $ Map.insert k (getHash v, zip ds dsh)
+                modifyInfo $ Map.insert k (getHash v, zip ds dsh)
                 return v
+
+
+data Spreadsheet k v = Spreadsheet
+    {ssOrder :: [k]
+    ,ssPrevious :: Map.Map k v
+    } deriving Show
+
+instance Default (Spreadsheet k v) where def = Spreadsheet def def
+
+spreadsheet :: Eq v => Build Monad k v (Spreadsheet k v)
+spreadsheet compute ks = runM $ do
+    Spreadsheet{..} <- getInfo
+    -- use explicit cleanliness rather than dirtiness so newly discovered items are dirty
+    let isSame k = (==) (Map.lookup k ssPrevious) <$> getStoreMaybe k
+    clean <- Set.fromList <$> filterM isSame ssOrder
+    order <- f clean Set.empty $ ssOrder ++ (ks \\ ssOrder)
+    putInfo . Spreadsheet order =<< getStoreMap
+    where
+        f clean done [] = return []
+        f clean done (k:ks) = do
+            let deps = getDependenciesMaybe compute k
+            let isClean = k `Set.member` clean &&
+                          maybe False (all (`Set.member` clean)) deps
+            if isClean then do
+                f clean (Set.insert k done) ks
+            else do
+                let f' x = if x `Set.member` done then Right <$> getStore x else return $ Left x
+                res <- failDependencies compute f' k
+                case res of
+                    Left e -> f clean done ([e | e `notElem` ks] ++ ks ++ [k])
+                    Right v -> do
+                        maybe (return ()) (putStore_ k) v
+                        (k :) <$> f (Set.delete k clean) (Set.insert k done) ks
+
+
+data Bazel k v = Bazel
+    {bzKnown :: Map.Map (k, [Hash v]) (Hash v)
+    ,bzContent :: Map.Map (Hash v) v
+    } deriving Show
+
+instance Default (Bazel k v) where def = Bazel def def
+
+bazel :: Hashable v => Build Applicative k v (Bazel k v)
+bazel compute ks = runM $ do
+    let depends = getDependencies compute
+    forM_ (topSort depends $ transitiveClosure depends ks) $ \k -> do
+        ds <- mapM getStoreHash $ depends k
+        res <- Map.lookup (k, ds) . bzKnown <$> getInfo
+        case res of
+            Nothing -> do
+                res <- compute getStore k
+                case res of
+                    Nothing -> return ()
+                    Just res -> do
+                        modifyInfo $ \i -> i
+                            {bzKnown = Map.insert (k, ds) (getHash res) $ bzKnown i
+                            ,bzContent = Map.insert (getHash res) res $ bzContent i}
+                        putStore_ k res
+            Just res -> do
+                now <- getStoreHashMaybe k
+                when (now /= Just res) $
+                    putStore_ k . (Map.! res) . bzContent =<< getInfo
+
+
+data ShazelResult k v = ShazelResult [(k, Hash v)] (Hash v) deriving Show
+
+data Shazel k v = Shazel
+    {szKnown :: Map.Map k [ShazelResult k v]
+    ,szContent :: Map.Map (Hash v) v
+    } deriving Show
+
+instance Default (Shazel k v) where def = Shazel def def
+
+shazel :: Hashable v => Build Monad k v (Shazel k v)
+shazel compute = runM . mapM_ f
+    where
+        f k = once k $ do
+            poss <- Map.findWithDefault [] k . szKnown <$> getInfo
+            res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (==) h . getHash <$> f k) ds
+            case res of
+                [] -> do
+                    (ds, v) <- trackDependencies compute f k
+                    dsv <- mapM getStoreHash ds
+                    case v of
+                        Nothing -> getStore k
+                        Just res -> do
+                            modifyInfo $ \i -> i
+                                {szKnown = Map.insertWith (++) k [ShazelResult (zip ds dsv) (getHash res)] $ szKnown i
+                                ,szContent = Map.insert (getHash res) res $ szContent i}
+                            putStore k res
+                _ -> do
+                    let poss = [v | ShazelResult _ v <- res]
+                    now <- getStoreHashMaybe k
+                    if (now `elem` map Just poss) then
+                        getStore k
+                    else
+                        putStore k . (Map.! head poss) . szContent =<< getInfo

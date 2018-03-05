@@ -3,10 +3,11 @@
 module Neil.Build(
     Build,
     M, runM,
-    getStoreMap, getStoreMaybe, getStore, putStore,
-    getInfo, putInfo, updateInfo,
-    getTemp, putTemp, updateTemp,
-    Hash, getHash, Hashable,
+    getStoreMap,
+    getStoreMaybe, getStore, putStore, putStore_,
+    getInfo, putInfo, modifyInfo,
+    getTemp, putTemp, modifyTemp,
+    Hash, getHash, Hashable, getStoreHash, getStoreHashMaybe,
     ) where
 
 import Neil.Compute
@@ -48,9 +49,10 @@ getStore :: (Ord k, Show k) => k -> M k v i v
 getStore k = fromMaybe (error $ "getStore failed on " ++ show k) <$> getStoreMaybe k
 
 putStore :: Ord k => k -> v -> M k v i v
-putStore k v = do
-    M $ modify $ \x -> x{store = Map.insert k v $ store x}
-    return v
+putStore k v = do putStore_ k v; return v
+
+putStore_ :: Ord k => k -> v -> M k v i ()
+putStore_ k v = M $ modify $ \x -> x{store = Map.insert k v $ store x}
 
 getTemp :: (Typeable t, Default t) => M k v i t
 getTemp = fromMaybe def . DM.lookup . temp <$> M get
@@ -58,8 +60,8 @@ getTemp = fromMaybe def . DM.lookup . temp <$> M get
 putTemp :: Typeable t => t -> M k v i ()
 putTemp t = M $ modify $ \x -> x{temp = DM.insert t $ temp x}
 
-updateTemp :: (Typeable t, Default t) => (t -> t) -> M k v s ()
-updateTemp f = putTemp . f =<< getTemp
+modifyTemp :: (Typeable t, Default t) => (t -> t) -> M k v s ()
+modifyTemp f = putTemp . f =<< getTemp
 
 getInfo :: M k v i i
 getInfo = info <$> M get
@@ -67,12 +69,19 @@ getInfo = info <$> M get
 putInfo :: i -> M k v i ()
 putInfo i = M $ modify $ \x -> x{info = i}
 
-updateInfo :: (i -> i) -> M k v i ()
-updateInfo f = putInfo . f =<< getInfo
+modifyInfo :: (i -> i) -> M k v i ()
+modifyInfo f = putInfo . f =<< getInfo
 
 
 newtype Hash v = Hash Int
-    deriving Eq
+    deriving (Eq,Ord,Show)
 
 getHash :: Hashable v => v -> Hash v
 getHash = Hash . hash
+
+getStoreHashMaybe :: (Ord k, Hashable v) => k -> M k v i (Maybe (Hash v))
+getStoreHashMaybe = fmap (fmap getHash) . getStoreMaybe
+
+getStoreHash :: (Ord k, Show k, Hashable v) => k -> M k v i (Hash v)
+getStoreHash = fmap getHash . getStore
+

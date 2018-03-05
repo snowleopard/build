@@ -28,15 +28,20 @@ example "d" = Add "c" "c"
 store0 = Map.fromList [("a",1),("b",2)]
 store' = Map.insert "a" 3
 
-test :: Build Applicative String Int i -> IO ()
+test :: Show i => Build Applicative String Int i -> IO ()
 test build = do
     let (info1, store1) = build (runAdd example) ["d"] Nothing store0
     let (info2, store2) = build (runAdd example) ["d"] (Just info1) (store' store1)
     print store1
+    --print info1
     print store2
+    --print info2
 
 main = do
     test dumb
     test dumbOnce
     test make
     test shake
+    test spreadsheet
+    test bazel
+    test shazel
