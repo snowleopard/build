@@ -30,11 +30,11 @@ reach successors = runIdentity . reachM (return . successors)
 -- very inefficient: it trades efficiency for simplicity. The resulting list is
 -- likely to contain an exponential number of duplicates.
 reachM :: (Eq a, Monad m) => (a -> m [a]) -> a -> m (Maybe [a])
-reachM successors = go []
+reachM successors a = fmap (filter (/= a)) <$> go [] a
   where
     go xs x | x `elem` xs = return Nothing -- A cycle is detected
-            | otherwise   = do res <- traverse (go $ x:xs) =<< successors x
-                               return $ concat <$> sequence res
+            | otherwise   = do res <- traverse (go (x:xs)) =<< successors x
+                               return $ ((x:xs)++) . concat <$> sequence res
 
 newtype EitherT e f a = EitherT { runEitherT :: f (Either e a) }
 
@@ -50,16 +50,16 @@ agree fs = all same
   where
     same k = let vs = map ($k) fs in and $ zipWith (==) vs (drop 1 vs)
 
-newtype AltConst k v = AltConst { getAltConst :: [[k]] }
+newtype AltConst a b = AltConst { getAltConst :: [[a]] }
 
-instance Functor (AltConst k) where
+instance Functor (AltConst a) where
     fmap _ (AltConst xs) = AltConst xs
 
-instance Applicative (AltConst k) where
+instance Applicative (AltConst a) where
     pure _ = AltConst [[]]
     AltConst xs <*> AltConst ys = AltConst [ x ++ y | x <- xs, y <- ys ]
 
-instance Alternative (AltConst k) where
+instance Alternative (AltConst a) where
     empty = AltConst []
     AltConst xs <|> AltConst ys = AltConst (xs ++ ys)
 
