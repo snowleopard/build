@@ -5,10 +5,11 @@ module Development.Build.Store (
 
     -- * The store monad
     Store (..), Snapshot (..), checkHashes, PureStore, runPureStore,
-    UnsafeMapStore, runUnsafeMapStore, MapStore, runMapStore
+    UnsafeMapStore, runUnsafeMapStore, MapStore, runMapStoreT, runMapStore
     ) where
 
 import Data.Map
+import Data.Functor.Identity
 import Control.Monad.State
 import Control.Monad.Trans.Reader
 
@@ -83,5 +84,8 @@ instance (Ord k, Monad m) => Store (MapStore m k v) k v where
 -- | Run a 'MapStore' computation on a given initial state of the store.
 -- Falls back to the default value computed by the provided @k -> v@ function
 -- when accessing a non-existent key.
-runMapStore :: MapStore m k v a -> (k -> v) -> Map k v -> m (a, Map k v)
-runMapStore store = runStateT . runReaderT store
+runMapStoreT :: MapStore m k v a -> (k -> v) -> Map k v -> m (a, Map k v)
+runMapStoreT store = runStateT . runReaderT store
+
+runMapStore :: MapStore Identity k v a -> (k -> v) -> Map k v -> (a, Map k v)
+runMapStore store defaultValue = runIdentity . runStateT (runReaderT store defaultValue)
