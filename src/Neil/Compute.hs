@@ -1,12 +1,13 @@
 {-# LANGUAGE Rank2Types, ConstraintKinds, DeriveFunctor #-}
 
 module Neil.Compute(
-    Compute, getDependencies, trackDependencies,
+    Compute, getDependencies, getDependenciesMaybe, trackDependencies,
     Depend(..), runDepend, toDepend,
     Depends(..), runDepends, toDepends,
     ) where
 
 import Data.Functor.Const
+import Data.Monoid
 import Data.Tuple.Extra
 
 
@@ -15,8 +16,26 @@ type Compute c k v = forall f . c f => (k -> f v) -> k -> f (Maybe v)
 getDependencies :: Compute Applicative k v -> k -> [k]
 getDependencies comp = getConst . comp (\k -> Const [k])
 
+getDependenciesMaybe :: Compute Monad k v -> k -> Maybe [k]
+getDependenciesMaybe comp = getConstMaybe . comp (\x -> ConstMaybe $ Just [x])
+
 trackDependencies :: Monad m => Compute Monad k v -> (k -> m v) -> k -> m ([k], Maybe v)
 trackDependencies comp f k = runDepends f (toDepends comp k)
+
+
+data ConstMaybe a b = ConstMaybe {getConstMaybe :: Maybe a}
+    deriving Functor
+
+instance Monoid m => Applicative (ConstMaybe m) where
+    pure _ = ConstMaybe $ Just mempty
+    ConstMaybe f <*> ConstMaybe x = ConstMaybe $ case (f,x) of
+        (Just f, Just x) -> Just $ f <> x
+        _ -> Nothing
+
+instance Monoid m => Monad (ConstMaybe m) where
+    return = pure
+    a >> b = a *> b
+    a >>= b = ConstMaybe Nothing
 
 
 data Depend k v r = Depend [k] ([v] -> r)
