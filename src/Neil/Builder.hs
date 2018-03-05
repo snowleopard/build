@@ -5,7 +5,8 @@ module Neil.Builder(
     dumbOnce,
     make,
     shake,
-    spreadsheet
+    spreadsheet,
+    bazel
     ) where
 
 import Neil.Build
@@ -32,7 +33,7 @@ once k build = do
         getStore k
     else do
         r <- build
-        updateTemp $ \(Once set) -> Once $ Set.insert k set
+        modifyTemp $ \(Once set) -> Once $ Set.insert k set
         return r
 
 
@@ -99,7 +100,7 @@ make compute ks = runM $ do
         ds <- mapM getStoreTime $ depends k
         case kt of
             Just xt | all (<= xt) ds -> return ()
-            _ -> maybe (return ()) (void . putStore k) =<< compute getStore k
+            _ -> maybe (return ()) (putStore_ k) =<< compute getStore k
     returnStoreTime
 
 
@@ -115,7 +116,7 @@ shake compute = runM . mapM_ f
             valid <- case Map.lookup k info of
                 Nothing -> return False
                 Just (me, deps) ->
-                    (maybe False ((==) me . getHash) <$> getStoreMaybe k) &&^
+                    (maybe False (== me) <$> getStoreHashMaybe k) &&^
                     allM (\(d,h) -> (== h) . getHash <$> f d) deps
             if valid then
                 getStore k
@@ -123,7 +124,7 @@ shake compute = runM . mapM_ f
                 (ds, v) <- trackDependencies compute f k
                 v <- maybe (getStore k) (putStore k) v
                 dsh <- mapM (fmap getHash . getStore) ds
-                updateInfo $ Map.insert k (getHash v, zip ds dsh)
+                modifyInfo $ Map.insert k (getHash v, zip ds dsh)
                 return v
 
 
@@ -156,5 +157,34 @@ spreadsheet compute ks = runM $ do
                 case res of
                     Left e -> f clean done ([e | e `notElem` ks] ++ ks ++ [k])
                     Right v -> do
-                        maybe (return ()) (void . putStore k) v
+                        maybe (return ()) (putStore_ k) v
                         (k :) <$> f (Set.delete k clean) (Set.insert k done) ks
+
+
+data Bazel k v = Bazel
+    {bzKnown :: Map.Map (k, [Hash v]) (Hash v)
+    ,bzContent :: Map.Map (Hash v) v
+    }
+
+instance Default (Bazel k v) where def = Bazel def def
+
+bazel :: Hashable v => Build Applicative k v (Bazel k v)
+bazel compute ks = runM $ do
+    let depends = getDependencies compute
+    forM_ (topSort depends $ transitiveClosure depends ks) $ \k -> do
+        ds <- mapM getStoreHash $ depends k
+        res <- Map.lookup (k, ds) . bzKnown <$> getInfo
+        case res of
+            Nothing -> do
+                res <- compute getStore k
+                case res of
+                    Nothing -> return ()
+                    Just res -> do
+                        modifyInfo $ \i -> i
+                            {bzKnown = Map.insert (k, ds) (getHash res) $ bzKnown i
+                            ,bzContent = Map.insert (getHash res) res $ bzContent i}
+                        putStore_ k res
+            Just res -> do
+                now <- getStoreHashMaybe k
+                when (now /= Just res) $
+                    putStore_ k . (Map.! res) . bzContent =<< getInfo

@@ -41,3 +41,4 @@ main = do
     test make
     test shake
     test spreadsheet
+    test bazel
