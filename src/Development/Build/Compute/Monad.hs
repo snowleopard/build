@@ -37,6 +37,9 @@ inputs compute get key = do
 isInput :: Monad m => Compute Monad k v -> (k -> m v) -> k -> m Bool
 isInput compute get = fmap isNothing . compute get
 
+pureInputs :: Eq k => Compute Monad k v -> (k -> v) -> k -> Maybe [k]
+pureInputs compute f = runIdentity . inputs compute (pure . f)
+
 -- | Check that a compute is /consistent/ with a pure lookup function @f@, i.e.
 -- if it returns @Just v@ for some key @k@ then @f k == v@.
 consistent :: Eq v => Compute Monad k v -> (k -> v) -> Bool
@@ -51,13 +54,12 @@ consistent compute f = forall $ \k -> maybe True (f k ==) $ runPure compute f k
 -- * @magic@ is 'consistent' with the @compute@.
 -- We assume that @compute@ is acyclic. If it is not, the function returns @True@.
 correctBuild :: (Eq k, Eq v) => Compute Monad k v -> (k -> v) -> (k -> v) -> [k] -> Bool
-correctBuild compute before after outputs = case concat <$> maybeInputs of
-    Nothing     -> True -- We assumed that compute is acyclic, but it is not
-    Just inputs -> exists $ \magic -> agree [before, after, magic] inputs
-                                   && agree [        after, magic] outputs
-                                   && consistent compute magic
-  where
-    maybeInputs = traverse (runIdentity . inputs compute (pure . after)) outputs
+correctBuild compute before after outputs =
+    case concat <$> traverse (pureInputs compute after) outputs of
+        Nothing     -> True -- We assumed that compute is acyclic, but it is not
+        Just inputs -> exists $ \magic -> agree [before, after, magic] inputs
+                                    && agree [        after, magic] outputs
+                                    && consistent compute magic
 
 -- | Run a compute with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.

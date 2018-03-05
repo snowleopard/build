@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleContexts, OverloadedStrings, ScopedTypeVariables #-}
 import Control.Monad
-import Control.Monad.IO.Class
 import Data.Map
-import Data.Functor.Identity
 
 import Development.Build
 import Development.Build.Store
@@ -38,23 +36,16 @@ cellNotFoundError cell = error $ "Cell not found: " ++ show cell
 cellNotFoundValue :: Cell -> Int
 cellNotFoundValue _ = 0
 
-goDumb :: Store m Cell Int => m ()
-goDumb = dumbBuild (compute spreadsheet) outputs ()
-
-goSlow :: Store m Cell Int => m ()
-goSlow = slowBuild (compute spreadsheet) outputs ()
-
-goTracingDumb :: (MonadIO m, Store m Cell Int) => m ()
-goTracingDumb = dumbTracingBuild (compute spreadsheet) outputs ()
-
-result :: Map Cell Int
-result = snd $ runIdentity $ runMapStore goDumb cellNotFoundValue inputs
-
-tracingResult :: IO (Map Cell Int)
-tracingResult = snd <$> runMapStore goTracingDumb cellNotFoundValue inputs
+dumbResult :: Map Cell Int
+dumbResult = snd $ dumb cellNotFoundValue (compute spreadsheet) outputs Nothing inputs
 
 slowResult :: Map Cell Int
-slowResult = snd $ runIdentity $ runMapStore goSlow cellNotFoundError inputs
+slowResult = snd $ slow cellNotFoundValue (compute spreadsheet) outputs Nothing inputs
+
+tracingDumbResult :: IO (Map Cell Int)
+tracingDumbResult = snd <$> runMapStoreT build cellNotFoundValue inputs
+  where
+    build = dumbTracing (compute spreadsheet) outputs
 
 evalutate :: Map Cell Int -> Cell -> Int
 evalutate store key = findWithDefault (cellNotFoundError key) key store
@@ -66,8 +57,8 @@ printOutputs store = forM_ outputs $
 main :: IO ()
 main = do
     putStrLn "======== dumbBuild ========"
-    printOutputs result
+    printOutputs dumbResult
     putStrLn "======== dumbTracingBuild ========"
-    printOutputs =<< tracingResult
+    printOutputs =<< tracingDumbResult
     putStrLn "======== slowBuild ========"
     printOutputs slowResult
