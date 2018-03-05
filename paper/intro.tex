@@ -1,5 +1,67 @@
 \section{Introduction}\label{sec-intro}
 
+Build systems automate the execution of simple repeatable tasks and are used by
+many individuals and organisations. There are software build systems such as
+\Make, \Ninja, \Shake, \Buck, \Bazel and many others, as well as various
+incremental calculation engines, such as \Excel. Existing build systems vary in
+several different ways:
+
+\begin{itemize}
+    \item Many build systems, such as the venerable \Make, need to know the
+    complete \emph{dependency graph} between tasks at the start of the build
+    process. This makes it possible to analyse the graph ahead of time, which
+    helps with efficient task scheduling but is fundamentally limited: parts of
+    the dependency graph can often be discovered only during the build process,
+    i.e. the dependency graph is \emph{dynamic}, not \emph{static}.
+
+    \item When build systems are used by large teams, different team members
+    often end up executing exactly the same tasks on their local machines.
+    A \emph{cloud build system} can speed up builds dramatically by
+    transparently sharing build results among team members. Furthermore, cloud
+    build systems allow one to perform \emph{shallow builds} which materialise
+    only end build products on a local machine, leaving all the intermediates
+    in the cloud. This is a significant optimisation compared to \emph{deep
+    builds} that require all transitive dependencies of an end build product to
+    be locally available.
+
+    \item Some build systems, e.g. \Buck, require all tasks to be
+    \emph{deterministic}, i.e. produce exactly the same output when run on the
+    same inputs. However, not all tasks are deterministic, and there are build
+    systems that support \emph{non-determinism}. A simple example is \Excel's
+    \textsf{RANDBETWEEN(low, high)} that returns a random integer in the
+    interval \textsf{[low, high]}.
+
+    \item If a build system executes a task and the resulting value is unchanged
+    from the previous run, it can skip the execution of all tasks that depend on
+    the value. We call this \emph{early cut-off}. Not all build systems support
+    early cut-off: \Make and \Excel do not, whereas \Shake and \Buck do.
+
+    \item Most build systems are designed to track changes of values and rerun
+    dependent tasks when they change, but some build systems can also track
+    changes in the tasks themselves: if a task is changed, the build system
+    will rerun it. For example, when a cell's formula is changed, \Excel will
+    recompute its value and propagate the changes. This is uncommon in software
+    build systems, where one typically needs to do a full rebuild when changing
+    a task.
+
+    \item Most build systems store auxiliary information between builds for
+    profiling and optimisation purposes: \Make stores file modification times,
+    \Shake stores the discovered dynamic dependency graph, etc.
+
+    % \item Fine-grain dependencies
+\end{itemize}
+
+% Build systems solve a complex
+% problem and have complex implementations. Different build systems take
+
+...
+
+\todo{AM}{The contribution of this paper is...}
+
+...
+
+Some text copied from the fellowship proposal, not sure whether anything is useful:
+
 A build system is a critical component of most software projects, responsible
 for compiling the source code written in various programming languages and
 producing executable programs -- end software products. Build systems sound
