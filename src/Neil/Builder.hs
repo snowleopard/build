@@ -1,10 +1,11 @@
-{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving, ScopedTypeVariables, RecordWildCards #-}
 
 module Neil.Builder(
     dumb,
     dumbOnce,
     make,
-    Shake, shake,
+    shake,
+    spreadsheet
     ) where
 
 import Neil.Build
@@ -12,6 +13,7 @@ import Neil.Compute
 import Control.Monad.Extra
 import Data.Default
 import Data.Maybe
+import Data.List
 import Data.Typeable
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -49,6 +51,8 @@ getStoreTimeMaybe k = do
 getStoreTime :: (Show k, Ord k, Eq v) => k -> M k v (StoreTime k v) Time
 getStoreTime k = fromMaybe (error $ "no store time available for " ++ show k) <$> getStoreTimeMaybe k
 
+returnStoreTime :: M k v (StoreTime k v) ()
+returnStoreTime = putInfo . StoreTime =<< getStoreMap
 
 -- | Take the transitive closure of a function
 transitiveClosure :: Ord k => (k -> [k]) -> [k] -> [k]
@@ -96,7 +100,7 @@ make compute ks = runM $ do
         case kt of
             Just xt | all (<= xt) ds -> return ()
             _ -> maybe (return ()) (void . putStore k) =<< compute getStore k
-    putInfo . StoreTime =<< getStoreMap
+    returnStoreTime
 
 
 -- During the last execution, these were the traces I saw
@@ -121,3 +125,36 @@ shake compute = runM . mapM_ f
                 dsh <- mapM (fmap getHash . getStore) ds
                 updateInfo $ Map.insert k (getHash v, zip ds dsh)
                 return v
+
+
+data Spreadsheet k v = Spreadsheet
+    {ssOrder :: [k]
+    ,ssPrevious :: Map.Map k v
+    }
+
+instance Default (Spreadsheet k v) where def = Spreadsheet def def
+
+spreadsheet :: Eq v => Build Monad k v (Spreadsheet k v)
+spreadsheet compute ks = runM $ do
+    Spreadsheet{..} <- getInfo
+    -- use explicit cleanliness rather than dirtiness so newly discovered items are dirty
+    let isSame k = (==) (Map.lookup k ssPrevious) <$> getStoreMaybe k
+    clean <- Set.fromList <$> filterM isSame ssOrder
+    order <- f clean Set.empty $ ssOrder ++ (ks \\ ssOrder)
+    putInfo . Spreadsheet order =<< getStoreMap
+    where
+        f clean done [] = return []
+        f clean done (k:ks) = do
+            let deps = getDependenciesMaybe compute k
+            let isClean = k `Set.member` clean &&
+                          maybe False (all (`Set.member` clean)) deps
+            if isClean then do
+                f clean (Set.insert k done) ks
+            else do
+                let f' x = if x `Set.member` done then Right <$> getStore x else return $ Left x
+                res <- failDependencies compute f' k
+                case res of
+                    Left e -> f clean done ([e | e `notElem` ks] ++ ks ++ [k])
+                    Right v -> do
+                        maybe (return ()) (void . putStore k) v
+                        (k :) <$> f (Set.delete k clean) (Set.insert k done) ks

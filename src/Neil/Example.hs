@@ -40,3 +40,4 @@ main = do
     test dumbOnce
     test make
     test shake
+    test spreadsheet
