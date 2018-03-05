@@ -1,9 +1,10 @@
 {-# LANGUAGE RankNTypes #-}
 module Development.Build.Compute.Alternative (
-    failingCompute, (|||), dependencies
+    failingCompute, (|||), dependencies, transitiveDependencies, acyclic
     ) where
 
 import Control.Applicative
+import Data.Maybe
 
 import Development.Build.Compute
 import Development.Build.Utilities
@@ -16,8 +17,14 @@ failingCompute _ _ = empty
 (|||) :: Compute Alternative k v -> Compute Alternative k v -> Compute Alternative k v
 (|||) compute1 compute2 get key = compute1 get key <|> compute2 get key
 
-dependencies :: Compute Applicative k v -> k -> [[k]]
+dependencies :: Compute Alternative k v -> k -> [[k]]
 dependencies compute = getAltConst . compute (\k -> AltConst [[k]])
+
+transitiveDependencies :: Eq k => Compute Alternative k v -> k -> [Maybe [k]]
+transitiveDependencies compute = reachM (dependencies compute)
+
+acyclic :: Eq k => Compute Alternative k v -> k -> Bool
+acyclic compute = all isJust . transitiveDependencies compute
 
 -- Probably not needed
 -- data Script k v a where
