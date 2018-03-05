@@ -6,7 +6,8 @@ module Neil.Builder(
     make,
     shake,
     spreadsheet,
-    bazel
+    bazel,
+    shazel
     ) where
 
 import Neil.Build
@@ -39,7 +40,7 @@ once k build = do
 
 -- | Figure out when files change, like a modtime
 newtype StoreTime k v = StoreTime {fromStoreTime :: Map.Map k v}
-    deriving Default
+    deriving (Default, Show)
 
 data Time = LastBuild | AfterLastBuild deriving (Eq,Ord)
 
@@ -131,7 +132,7 @@ shake compute = runM . mapM_ f
 data Spreadsheet k v = Spreadsheet
     {ssOrder :: [k]
     ,ssPrevious :: Map.Map k v
-    }
+    } deriving Show
 
 instance Default (Spreadsheet k v) where def = Spreadsheet def def
 
@@ -164,7 +165,7 @@ spreadsheet compute ks = runM $ do
 data Bazel k v = Bazel
     {bzKnown :: Map.Map (k, [Hash v]) (Hash v)
     ,bzContent :: Map.Map (Hash v) v
-    }
+    } deriving Show
 
 instance Default (Bazel k v) where def = Bazel def def
 
@@ -188,3 +189,38 @@ bazel compute ks = runM $ do
                 now <- getStoreHashMaybe k
                 when (now /= Just res) $
                     putStore_ k . (Map.! res) . bzContent =<< getInfo
+
+
+data ShazelResult k v = ShazelResult [(k, Hash v)] (Hash v) deriving Show
+
+data Shazel k v = Shazel
+    {szKnown :: Map.Map k [ShazelResult k v]
+    ,szContent :: Map.Map (Hash v) v
+    } deriving Show
+
+instance Default (Shazel k v) where def = Shazel def def
+
+shazel :: Hashable v => Build Monad k v (Shazel k v)
+shazel compute = runM . mapM_ f
+    where
+        f k = once k $ do
+            poss <- Map.findWithDefault [] k . szKnown <$> getInfo
+            res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (==) h . getHash <$> f k) ds
+            case res of
+                [] -> do
+                    (ds, v) <- trackDependencies compute f k
+                    dsv <- mapM getStoreHash ds
+                    case v of
+                        Nothing -> getStore k
+                        Just res -> do
+                            modifyInfo $ \i -> i
+                                {szKnown = Map.insertWith (++) k [ShazelResult (zip ds dsv) (getHash res)] $ szKnown i
+                                ,szContent = Map.insert (getHash res) res $ szContent i}
+                            putStore k res
+                _ -> do
+                    let poss = [v | ShazelResult _ v <- res]
+                    now <- getStoreHashMaybe k
+                    if (now `elem` map Just poss) then
+                        getStore k
+                    else
+                        putStore k . (Map.! head poss) . szContent =<< getInfo

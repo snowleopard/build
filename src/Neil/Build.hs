@@ -74,7 +74,7 @@ modifyInfo f = putInfo . f =<< getInfo
 
 
 newtype Hash v = Hash Int
-    deriving (Eq,Ord)
+    deriving (Eq,Ord,Show)
 
 getHash :: Hashable v => v -> Hash v
 getHash = Hash . hash
