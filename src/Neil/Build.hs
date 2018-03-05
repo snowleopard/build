@@ -1,90 +1,78 @@
-{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE Rank2Types, GeneralizedNewtypeDeriving, ConstraintKinds #-}
 
 module Neil.Build(
-    dumb,
-    dumbOnce,
-    make,
-    Shake, shake,
+    Build,
+    M, runM,
+    getStoreMap, getStoreMaybe, getStore, putStore,
+    getInfo, putInfo, updateInfo,
+    getTemp, putTemp, updateTemp,
+    Hash, getHash, Hashable,
     ) where
 
-import Neil.Constraints
+import Neil.Compute
 import Control.Monad.Extra
+import qualified Neil.DynamicMap as DM
+import Data.Typeable
+import Data.Hashable
+import Control.Monad.Trans.State
+import Data.Maybe
 import Data.Default
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
 
--- | Dumbest build system possible, always compute everything from scratch multiple times
-dumb :: (Build m k v) => [k] -> m ()
-dumb = mapM_ f
-    where f k = maybe (getStore k) (putStore k) =<< run f k
+type Build c k v i = (Ord k, Show k, Typeable k) => Compute c k v -> [k] -> Maybe i -> Map.Map k v -> (i, Map.Map k v)
 
 
-newtype Once k = Once (Set.Set k)
-    deriving Default
+runM :: Default i => M k v i () -> Maybe i -> Map.Map k v -> (i, Map.Map k v)
+runM (M m) i s = (info res, store res)
+    where res = execState m $ S s (fromMaybe def i) mempty
 
-once :: (Build m k v, Temp m (Once k)) => k -> m v -> m v
-once k build = do
-    Once done <- getTemp
-    if k `Set.member` done then
-        getStore k
-    else do
-        r <- build
-        updateTemp $ \(Once set) -> Once $ Set.insert k set
-        return r
+data S k v i = S
+    {store :: Map.Map k v
+    ,info :: i
+    ,temp :: DM.DynamicMap
+    }
 
-
--- | Refinement of dumb, compute everything but at most once per execution
-dumbOnce :: (Build m k v, Temp m (Once k)) => [k] -> m ()
-dumbOnce = mapM_ f
-    where f k = once k $ maybe (getStore k) (putStore k) =<< run f k
+newtype M k v i r = M (State (S k v i) r)
+    deriving (Functor, Applicative, Monad)
 
 
--- | The simplified Make approach where we build a dependency graph and topological sort it
-make :: (Build m k v, StoreTime m k) => (k -> [k]) -> [k] -> m ()
-make depends ks = do
-    forM_ (topSort $ unroll depends ks) $ \k -> do
-        kt <- getStoreTimeMaybe k
-        ds <- mapM getStoreTime $ depends k
-        case kt of
-            Just xt | all (< xt) ds -> return ()
-            _ -> maybe (return ()) (void . putStore k) =<< run getStore k
+getStoreMap :: M k v i (Map.Map k v)
+getStoreMap = M $ gets store
 
-unroll :: Ord k => (k -> [k]) -> [k] -> Map.Map k [k]
-unroll deps = f Map.empty
-    where
-        f mp [] = mp
-        f mp (t:odo)
-            | t `Map.member` mp = f mp odo
-            | otherwise = let ds = deps t in f (Map.insert t ds mp) (ds ++ odo)
+getStoreMaybe :: Ord k => k -> M k v i (Maybe v)
+getStoreMaybe k = Map.lookup k <$> getStoreMap
 
-topSort :: Ord k => Map.Map k [k] -> [k]
-topSort mp
-    | Map.null mp = []
-    | Map.null leaf = error "cycles!"
-    | otherwise = Map.keys leaf ++ topSort (Map.map (filter (`Map.notMember` leaf)) rest)
-    where (leaf, rest) = Map.partition null mp
+getStore :: (Ord k, Show k) => k -> M k v i v
+getStore k = fromMaybe (error $ "getStore failed on " ++ show k) <$> getStoreMaybe k
+
+putStore :: Ord k => k -> v -> M k v i v
+putStore k v = do
+    M $ modify $ \x -> x{store = Map.insert k v $ store x}
+    return v
+
+getTemp :: (Typeable t, Default t) => M k v i t
+getTemp = fromMaybe def . DM.lookup . temp <$> M get
+
+putTemp :: Typeable t => t -> M k v i ()
+putTemp t = M $ modify $ \x -> x{temp = DM.insert t $ temp x}
+
+updateTemp :: (Typeable t, Default t) => (t -> t) -> M k v s ()
+updateTemp f = putTemp . f =<< getTemp
+
+getInfo :: M k v i i
+getInfo = info <$> M get
+
+putInfo :: i -> M k v i ()
+putInfo i = M $ modify $ \x -> x{info = i}
+
+updateInfo :: (i -> i) -> M k v i ()
+updateInfo f = putInfo . f =<< getInfo
 
 
--- During the last execution, these were the traces I saw
-type Shake k v = Map.Map k (Hash v, [(k, Hash v)])
+newtype Hash v = Hash Int
+    deriving Eq
 
--- | The simplified Shake approach of recording previous traces
-shake :: (Build m k v, Info m (Shake k v), Temp m (Once k), HasHash v) => [k] -> m ()
-shake = mapM_ f
-    where
-        f k = once k $ do
-            info <- getInfo
-            valid <- case Map.lookup k info of
-                Nothing -> return False
-                Just (me, deps) ->
-                    (maybe False ((==) me . getHash) <$> getStoreMaybe k) &&^
-                    allM (\(d,h) -> (== h) . getHash <$> f d) deps
-            if valid then
-                getStore k
-            else do
-                (ds, v) <- runTrace f k
-                v <- maybe (getStore k) (putStore k) v
-                dsh <- mapM (fmap getHash . getStore) ds
-                updateInfo $ Map.insert k (getHash v, zip ds dsh)
-                return v
+getHash :: Hashable v => v -> Hash v
+getHash = Hash . hash
