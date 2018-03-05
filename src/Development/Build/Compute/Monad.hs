@@ -15,34 +15,31 @@ import Development.Build.Compute
 import Development.Build.Utilities
 
 -- TODO: Does this always terminate? It's not obvious!
-dependencies :: Monad m => (forall f. Monad f => Compute f k v)
-                        -> (k -> m v) -> k -> m [k]
+dependencies :: Monad m => Compute Monad k v -> (k -> m v) -> k -> m [k]
 dependencies compute get = execWriterT . compute tracingGet
   where
     tracingGet k = tell [k] >> lift (get k)
 
-transitiveDependencies :: (Eq k, Monad m) => (forall f. Monad f => Compute f k v)
+transitiveDependencies :: (Eq k, Monad m) => Compute Monad k v
                                           -> (k -> m v) -> k -> m (Maybe [k])
 transitiveDependencies compute get = reachM (dependencies compute get)
 
-acyclic :: (Eq k, Monad m) => (forall f. Monad f => Compute f k v)
-                           -> (k -> m v) -> k -> m Bool
+acyclic :: (Eq k, Monad m) => Compute Monad k v -> (k -> m v) -> k -> m Bool
 acyclic compute get = fmap isJust . transitiveDependencies compute get
 
-inputs :: (Eq k, Monad m) => (forall f. Monad f => Compute f k v)
-                          -> (k -> m v) -> k -> m (Maybe [k])
+inputs :: (Eq k, Monad m) => Compute Monad k v -> (k -> m v) -> k -> m (Maybe [k])
 inputs compute get key = do
     deps <- transitiveDependencies compute get key
     case deps of
         Nothing -> return Nothing
         Just ks -> Just <$> filterM (isInput compute get) ks
 
-isInput :: Monad m => (forall f. Monad f => Compute f k v) -> (k -> m v) -> k -> m Bool
+isInput :: Monad m => Compute Monad k v -> (k -> m v) -> k -> m Bool
 isInput compute get = fmap isNothing . compute get
 
 -- | Check that a compute is /consistent/ with a pure lookup function @f@, i.e.
 -- if it returns @Just v@ for some key @k@ then @f k == v@.
-consistent :: Eq v => (forall f. Monad f => Compute f k v) -> (k -> v) -> Bool
+consistent :: Eq v => Compute Monad k v -> (k -> v) -> Bool
 consistent compute f = forall $ \k -> maybe True (f k ==) $ runPure compute f k
 
 -- | Given a @compute@, a pair of key-value maps describing the contents of a
@@ -53,8 +50,7 @@ consistent compute f = forall $ \k -> maybe True (f k ==) $ runPure compute f k
 -- * @after@ and @magic@ agree on the values of all outputs.
 -- * @magic@ is 'consistent' with the @compute@.
 -- We assume that @compute@ is acyclic. If it is not, the function returns @True@.
-correctBuild :: (Eq k, Eq v) => (forall f. Monad f => Compute f k v)
-                             -> (k -> v) -> (k -> v) -> [k] -> Bool
+correctBuild :: (Eq k, Eq v) => Compute Monad k v -> (k -> v) -> (k -> v) -> [k] -> Bool
 correctBuild compute before after outputs = case concat <$> maybeInputs of
     Nothing     -> True -- We assumed that compute is acyclic, but it is not
     Just inputs -> exists $ \magic -> agree [before, after, magic] inputs
@@ -65,14 +61,14 @@ correctBuild compute before after outputs = case concat <$> maybeInputs of
 
 -- | Run a compute with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
-runPure :: (forall f. Monad f => Compute f k v) -> (k -> v) -> k -> Maybe v
+runPure :: Compute Monad k v -> (k -> v) -> k -> Maybe v
 runPure compute f = runIdentity . compute (pure . f)
 
 -- | Run a compute with a partial lookup function. The result @Left k@ indicates
 -- that the compute failed due to a missing dependency @k@. Otherwise, the
 -- result @Right (Just v)@ yields the computed value, and @Right Nothing@ is
 -- returned if the given key is an input.
-runPartial :: Monad m => (forall f. Monad f => Compute f k v)
+runPartial :: Monad m => Compute Monad k v
                       -> (k -> m (Maybe v)) -> k -> m (Either k (Maybe v))
 runPartial compute partialGet = runExceptT . compute get
   where
@@ -83,7 +79,7 @@ runPartial compute partialGet = runExceptT . compute get
             Just value -> return value
 
 -- TODO: Does this always terminate? It's not obvious!
-staticDependencies :: (forall f. Monad f => Compute f k v) -> k -> [k]
+staticDependencies :: Compute Monad k v -> k -> [k]
 staticDependencies compute = staticScriptDependencies . getScript compute
 
 data Script k v a where
@@ -104,7 +100,7 @@ instance Monad (Script k v) where
     (>>)   = (*>)
     (>>=)  = Bind
 
-getScript :: (forall f. Monad f => Compute f k v) -> k -> Script k v (Maybe v)
+getScript :: Compute Monad k v -> k -> Script k v (Maybe v)
 getScript compute = compute Get
 
 runScript :: Monad m => (k -> m v) -> Script k v a -> m a

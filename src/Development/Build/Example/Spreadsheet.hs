@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, RankNTypes #-}
 module Development.Build.Example.Spreadsheet where
 
 import Data.Char
@@ -73,7 +73,7 @@ type Spreadsheet = Cell -> Maybe Formula
 
 -- TODO: Implement 'Random'.
 -- | Spreadsheet computation.
-compute :: Monad m => Spreadsheet -> Compute m Cell Int
+compute :: Spreadsheet -> Compute Monad Cell Int
 compute spreadsheet get cell@(Cell r c) = case spreadsheet cell of
     Nothing      -> return Nothing -- This is an input
     Just formula -> Just <$> evaluate formula

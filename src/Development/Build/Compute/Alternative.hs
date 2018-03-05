@@ -5,5 +5,5 @@ import Control.Applicative
 import Development.Build.Compute
 
 -- | The compute that fails for any key by returning 'empty'.
-failingCompute :: Alternative f => Compute f k v
+failingCompute :: Compute Alternative k v
 failingCompute _ _ = empty
