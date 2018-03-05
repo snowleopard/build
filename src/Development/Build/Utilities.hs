@@ -3,7 +3,7 @@ module Development.Build.Utilities (
     reach, reachM,
 
     -- * Transformers
-    EitherT (..),
+    EitherT (..), AltConst (..),
 
     -- * Helpers
     agree,
@@ -49,6 +49,19 @@ agree :: Eq v => [(k -> v)] -> [k] -> Bool
 agree fs = all same
   where
     same k = let vs = map ($k) fs in and $ zipWith (==) vs (drop 1 vs)
+
+newtype AltConst k v = AltConst { getAltConst :: [[k]] }
+
+instance Functor (AltConst k) where
+    fmap _ (AltConst xs) = AltConst xs
+
+instance Applicative (AltConst k) where
+    pure _ = AltConst [[]]
+    AltConst xs <*> AltConst ys = AltConst [ x ++ y | x <- xs, y <- ys ]
+
+instance Alternative (AltConst k) where
+    empty = AltConst []
+    AltConst xs <|> AltConst ys = AltConst (xs ++ ys)
 
 -- | Check that a predicate holds for all values of @a@.
 forall :: (a -> Bool) -> Bool
