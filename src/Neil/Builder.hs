@@ -2,7 +2,8 @@
 
 module Neil.Builder(
     dumb,
-    dumbOnce,
+    dumbLinear,
+    dumbRecursive,
     make,
     makeHash,
     shake,
@@ -12,6 +13,7 @@ module Neil.Builder(
     ) where
 
 import Neil.Build
+import Neil.Util
 import Neil.Compute
 import Control.Monad.Extra
 import Data.Default
@@ -31,25 +33,6 @@ linear step compute k = runM $ do
         case compute getStore k of
             Nothing -> return ()
             Just act -> step k (depends k) act
-    where
-        -- | Take the transitive closure of a function
-        transitiveClosure :: Ord k => (k -> [k]) -> k -> [k]
-        transitiveClosure deps k = f Set.empty [k]
-            where
-                f seen [] = Set.toList seen
-                f seen (t:odo)
-                    | t `Set.member` seen = f seen odo
-                    | otherwise = f (Set.insert t seen) (deps t ++ odo)
-
-        -- | Topologically sort a list using the given dependency order
-        topSort :: Ord k => (k -> [k]) -> [k] -> [k]
-        topSort deps ks = f $ Map.fromList [(k, deps k) | k <- ks]
-            where
-                f mp
-                    | Map.null mp = []
-                    | Map.null leaf = error "cycles!"
-                    | otherwise = Map.keys leaf ++ f (Map.map (filter (`Map.notMember` leaf)) rest)
-                    where (leaf, rest) = Map.partition null mp
 
 
 newtype Recursive k = Recursive (Set.Set k)
@@ -98,18 +81,20 @@ dumb compute = runM . f
     where f k = maybe (getStore k) (putStore k =<<) $ compute f k
 
 -- | Refinement of dumb, compute everything but at most once per execution
-dumbOnce :: Build Monad () k v
-dumbOnce = recursive $ \k _ act -> putStore_ k . snd =<< act
+dumbRecursive :: Build Monad () k v
+dumbRecursive = recursive $ \k _ act -> putStore_ k . snd =<< act
 
+dumbLinear :: Build Applicative () k v
+dumbLinear = linear $ \k _ act -> putStore_ k =<< act
 
 -- | The simplified Make approach where we build a dependency graph and topological sort it
 make :: Eq v => Build Applicative (StoreTime k v) k v
 make = returnStoreTime $ linear $ \k ds act -> do
-        kt <- getStoreTimeMaybe k
-        ds <- mapM getStoreTime ds
-        case kt of
-            Just xt | all (<= xt) ds -> return ()
-            _ -> putStore_ k =<< act
+    kt <- getStoreTimeMaybe k
+    ds <- mapM getStoreTime ds
+    case kt of
+        Just xt | all (<= xt) ds -> return ()
+        _ -> putStore_ k =<< act
 
 type MakeHash k v = Map.Map (k, [Hash v]) (Hash v)
 

@@ -38,7 +38,8 @@ test build = do
 
 main = do
     test dumb
-    test dumbOnce
+    test dumbLinear
+    test dumbRecursive
     test make
     test makeHash
     test shake
