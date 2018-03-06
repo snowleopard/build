@@ -13,11 +13,8 @@ import Data.Maybe
 import Development.Build.Compute
 import Development.Build.Utilities
 
--- Can we do something like this instead?
+-- Can we have something like this instead?
 -- dependencies :: c m => Compute c k v -> (k -> m v) -> k -> m [k]
--- dependencies compute get = execWriterT . compute tracingGet
---   where
---     tracingGet k = tell [k] >> lift (get k)
 
 dependencies :: MonadPlus m => Compute MonadPlus k v -> (k -> m v) -> k -> m [k]
 dependencies compute get = execWriterT . compute tracingGet
