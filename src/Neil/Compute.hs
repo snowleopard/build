@@ -2,6 +2,7 @@
 
 module Neil.Compute(
     Compute,
+    isInput,
     getDependencies, getDependenciesMaybe, trackDependencies, failDependencies,
     Depend(..), runDepend, toDepend,
     Depends(..), runDepends, toDepends,
@@ -17,9 +18,7 @@ import Data.Tuple.Extra
 
 type Compute c k v = forall f . c f => (k -> f v) -> k -> Maybe (f v)
 
-type Unconstrained (c :: (* -> *)) = (() :: Constraint)
-
-isInput :: Compute Unconstrained k v -> k -> Bool
+isInput :: Compute Monad k v -> k -> Bool
 isInput comp = isJust . comp (const Proxy)
 
 getDependencies :: Compute Applicative k v -> k -> [k]

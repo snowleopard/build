@@ -224,7 +224,7 @@ instance Default (Shazel k v) where def = Shazel def def
 shazel :: Hashable v => Build Monad (Shazel k v) k v
 shazel compute = runM . f
     where
-        f k = recursive k $ do
+        f k = once k $ do
             poss <- Map.findWithDefault [] k . szKnown <$> getInfo
             res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (==) h . getHash <$> f k) ds
             case res of
