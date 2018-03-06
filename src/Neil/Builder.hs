@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving, ScopedTypeVariables, RecordWildCards #-}
+{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving, ScopedTypeVariables, RecordWildCards, ConstraintKinds #-}
 
 module Neil.Builder(
     dumb,
@@ -22,7 +22,35 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 
 ---------------------------------------------------------------------
--- UTILITIES
+-- DEPENDENCY ORDER SCHEMES
+
+linear :: Default i => (k -> [k] -> M i k v v -> M i k v ()) -> Build Applicative i k v
+linear step compute k = runM $ do
+    let depends = getDependencies compute
+    forM_ (topSort depends $ transitiveClosure depends k) $ \k ->
+        case compute getStore k of
+            Nothing -> return ()
+            Just act -> step k (depends k) act
+    where
+        -- | Take the transitive closure of a function
+        transitiveClosure :: Ord k => (k -> [k]) -> k -> [k]
+        transitiveClosure deps k = f Set.empty [k]
+            where
+                f seen [] = Set.toList seen
+                f seen (t:odo)
+                    | t `Set.member` seen = f seen odo
+                    | otherwise = f (Set.insert t seen) (deps t ++ odo)
+
+        -- | Topologically sort a list using the given dependency order
+        topSort :: Ord k => (k -> [k]) -> [k] -> [k]
+        topSort deps ks = f $ Map.fromList [(k, deps k) | k <- ks]
+            where
+                f mp
+                    | Map.null mp = []
+                    | Map.null leaf = error "cycles!"
+                    | otherwise = Map.keys leaf ++ f (Map.map (filter (`Map.notMember` leaf)) rest)
+                    where (leaf, rest) = Map.partition null mp
+
 
 newtype Recursive k = Recursive (Set.Set k)
     deriving Default
@@ -54,28 +82,9 @@ getStoreTimeMaybe k = do
 getStoreTime :: (Show k, Ord k, Eq v) => k -> M (StoreTime k v) k v Time
 getStoreTime k = fromMaybe (error $ "no store time available for " ++ show k) <$> getStoreTimeMaybe k
 
-returnStoreTime :: M (StoreTime k v) k v ()
-returnStoreTime = putInfo . StoreTime =<< getStoreMap
+returnStoreTime :: Build Applicative (StoreTime k v) k v -> Build Applicative (StoreTime k v) k v
+returnStoreTime op compute k i mp = let (_,mp2) = op compute k i mp in (StoreTime mp, mp)
 
--- | Take the transitive closure of a function
-transitiveClosure :: Ord k => (k -> [k]) -> k -> [k]
-transitiveClosure deps k = f Set.empty [k]
-    where
-        f seen [] = Set.toList seen
-        f seen (t:odo)
-            | t `Set.member` seen = f seen odo
-            | otherwise = f (Set.insert t seen) (deps t ++ odo)
-
-
--- | Topologically sort a list using the given dependency order
-topSort :: Ord k => (k -> [k]) -> [k] -> [k]
-topSort deps ks = f $ Map.fromList [(k, deps k) | k <- ks]
-    where
-        f mp
-            | Map.null mp = []
-            | Map.null leaf = error "cycles!"
-            | otherwise = Map.keys leaf ++ f (Map.map (filter (`Map.notMember` leaf)) rest)
-            where (leaf, rest) = Map.partition null mp
 
 
 ---------------------------------------------------------------------
@@ -95,32 +104,25 @@ dumbOnce compute = runM . f
 
 -- | The simplified Make approach where we build a dependency graph and topological sort it
 make :: Eq v => Build Applicative (StoreTime k v) k v
-make compute ks = runM $ do
-    let depends = getDependencies compute
-    forM_ (topSort depends $ transitiveClosure depends ks) $ \k -> do
+make = returnStoreTime $ linear $ \k ds act -> do
         kt <- getStoreTimeMaybe k
-        ds <- mapM getStoreTime $ depends k
+        ds <- mapM getStoreTime ds
         case kt of
             Just xt | all (<= xt) ds -> return ()
-            _ -> maybe (return ()) (putStore_ k =<<) $ compute getStore k
-    returnStoreTime
+            _ -> putStore_ k =<< act
 
 type MakeHash k v = Map.Map (k, [Hash v]) (Hash v)
 
+
 makeHash :: Hashable v => Build Applicative (MakeHash k v) k v
-makeHash compute ks = runM $ do
-    let depends = getDependencies compute
-    forM_ (topSort depends $ transitiveClosure depends ks) $ \k -> do
-        now <- getStoreHashMaybe k
-        ds <- mapM getStoreHash $ depends k
-        res <- Map.lookup (k, ds) <$> getInfo
-        when (isNothing now || now /= res) $ do
-            case compute getStore k of
-                Nothing -> return ()
-                Just res -> do
-                    res <- res
-                    modifyInfo $ Map.insert (k, ds) (getHash res)
-                    putStore_ k res
+makeHash = linear $ \k ds act -> do
+    now <- getStoreHashMaybe k
+    ds <- mapM getStoreHash ds
+    res <- Map.lookup (k, ds) <$> getInfo
+    when (isNothing now || now /= res) $ do
+        res <- act
+        modifyInfo $ Map.insert (k, ds) (getHash res)
+        putStore_ k res
 
 
 -- During the last execution, these were the traces I saw
@@ -191,25 +193,20 @@ data Bazel k v = Bazel
 instance Default (Bazel k v) where def = Bazel def def
 
 bazel :: Hashable v => Build Applicative (Bazel k v) k v
-bazel compute ks = runM $ do
-    let depends = getDependencies compute
-    forM_ (topSort depends $ transitiveClosure depends ks) $ \k -> do
-        ds <- mapM getStoreHash $ depends k
-        res <- Map.lookup (k, ds) . bzKnown <$> getInfo
-        case res of
-            Nothing -> do
-                case compute getStore k of
-                    Nothing -> return ()
-                    Just res -> do
-                        res <- res
-                        modifyInfo $ \i -> i
-                            {bzKnown = Map.insert (k, ds) (getHash res) $ bzKnown i
-                            ,bzContent = Map.insert (getHash res) res $ bzContent i}
-                        putStore_ k res
-            Just res -> do
-                now <- getStoreHashMaybe k
-                when (now /= Just res) $
-                    putStore_ k . (Map.! res) . bzContent =<< getInfo
+bazel = linear $ \k ds act -> do
+    ds <- mapM getStoreHash ds
+    res <- Map.lookup (k, ds) . bzKnown <$> getInfo
+    case res of
+        Nothing -> do
+            res <- act
+            modifyInfo $ \i -> i
+                {bzKnown = Map.insert (k, ds) (getHash res) $ bzKnown i
+                ,bzContent = Map.insert (getHash res) res $ bzContent i}
+            putStore_ k res
+        Just res -> do
+            now <- getStoreHashMaybe k
+            when (now /= Just res) $
+                putStore_ k . (Map.! res) . bzContent =<< getInfo
 
 
 data ShazelResult k v = ShazelResult [(k, Hash v)] (Hash v) deriving Show
@@ -224,7 +221,7 @@ instance Default (Shazel k v) where def = Shazel def def
 shazel :: Hashable v => Build Monad (Shazel k v) k v
 shazel compute = runM . f
     where
-        f k = once k $ do
+        f k = recursive k $ do
             poss <- Map.findWithDefault [] k . szKnown <$> getInfo
             res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (==) h . getHash <$> f k) ds
             case res of
