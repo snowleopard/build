@@ -24,18 +24,18 @@ import qualified Data.Map as Map
 ---------------------------------------------------------------------
 -- UTILITIES
 
-newtype Once k = Once (Set.Set k)
+newtype Recursive k = Recursive (Set.Set k)
     deriving Default
 
 -- | Build a rule at most once in a single execution
-once :: (Show k, Ord k, Typeable k) => k -> M i k v v -> M i k v v
-once k build = do
-    Once done <- getTemp
+recursive :: (Show k, Ord k, Typeable k) => k -> M i k v v -> M i k v v
+recursive k build = do
+    Recursive done <- getTemp
     if k `Set.member` done then
         getStore k
     else do
         r <- build
-        modifyTemp $ \(Once set) -> Once $ Set.insert k set
+        modifyTemp $ \(Recursive set) -> Recursive $ Set.insert k set
         return r
 
 
@@ -90,7 +90,7 @@ dumb compute = runM . f
 -- | Refinement of dumb, compute everything but at most once per execution
 dumbOnce :: Build Monad () k v
 dumbOnce compute = runM . f
-    where f k = once k $ maybe (getStore k) (putStore k =<<) $ compute f k
+    where f k = recursive k $ maybe (getStore k) (putStore k =<<) $ compute f k
 
 
 -- | The simplified Make approach where we build a dependency graph and topological sort it
@@ -130,7 +130,7 @@ type Shake k v = Map.Map k (Hash v, [(k, Hash v)])
 shake :: Hashable v => Build Monad (Shake k v) k v
 shake compute = runM . f
     where
-        f k = once k $ do
+        f k = recursive k $ do
             info <- getInfo
             valid <- case Map.lookup k info of
                 Nothing -> return False
@@ -224,7 +224,7 @@ instance Default (Shazel k v) where def = Shazel def def
 shazel :: Hashable v => Build Monad (Shazel k v) k v
 shazel compute = runM . f
     where
-        f k = once k $ do
+        f k = recursive k $ do
             poss <- Map.findWithDefault [] k . szKnown <$> getInfo
             res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (==) h . getHash <$> f k) ds
             case res of
