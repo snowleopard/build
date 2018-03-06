@@ -1,7 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 module Development.Build.Compute.Applicative (
-    inputCompute, pureCompute, dependencies, transitiveDependencies, acyclic,
-    runPartial
+    pureCompute, dependencies, transitiveDependencies, acyclic, runPartial
     ) where
 
 import Control.Applicative
@@ -10,17 +9,13 @@ import Data.Maybe
 import Development.Build.Compute
 import Development.Build.Utilities
 
--- | The trivial compute that considers all keys as inputs.
-inputCompute :: Compute Applicative k v
-inputCompute _ _ = pure Nothing
-
 -- | Lift a pure function to an applicative compute.
 pureCompute :: (k -> v) -> Compute Applicative k v
-pureCompute f _ = pure . Just . f
+pureCompute f _ = Just . pure . f
 
 -- TODO: Does this always terminate? It's not obvious!
 dependencies :: Compute Applicative k v -> k -> [k]
-dependencies compute = getConst . compute (Const . return)
+dependencies compute = getConst . sequenceA . compute (Const . return)
 
 transitiveDependencies :: Eq k => Compute Applicative k v -> k -> Maybe [k]
 transitiveDependencies compute = reach (dependencies compute)
@@ -33,7 +28,7 @@ acyclic compute = isJust . transitiveDependencies compute
 -- result @Right (Just v)@ yields the computed value, and @Right Nothing@ is
 -- returned if the given key is an input.
 runPartial :: Applicative f => Compute Applicative k v
-                            -> (k -> f (Maybe v)) -> k -> f (Either k (Maybe v))
-runPartial compute partialGet = runEitherT . compute get
+                            -> (k -> f (Maybe v)) -> k -> Maybe (f (Either k v))
+runPartial compute partialGet = fmap runEitherT . compute get
   where
     get k = EitherT $ maybe (Left k) Right <$> partialGet k

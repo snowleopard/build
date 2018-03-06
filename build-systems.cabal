@@ -24,6 +24,7 @@ library
                         Development.Build.Compute.Applicative,
                         Development.Build.Compute.Functor,
                         Development.Build.Compute.Monad,
+                        Development.Build.Compute.MonadPlus,
                         Development.Build.Example.Spreadsheet,
                         Development.Build.NonDeterministic,
                         Development.Build.Plan,
@@ -33,6 +34,7 @@ library
                         containers   >= 0.5.7.1,
                         filepath     >= 1.4.1.0,
                         mtl          >= 2.2.1,
+                        random       >= 1.1,
                         transformers >= 0.5.2.0
   default-language:     Haskell2010
   GHC-options:          -O2

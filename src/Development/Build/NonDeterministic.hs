@@ -1,32 +1,29 @@
-{-# LANGUAGE DeriveFunctor #-}
-module Development.Build.NonDeterministic (
-    NonDeterministic, deterministic, member, pick
-    ) where
+{-# LANGUAGE DeriveFunctor, RankNTypes #-}
+module Development.Build.NonDeterministic (NonDeterministic (..)) where
 
+import Data.Functor.Identity
 import Control.Monad
-import Data.List.NonEmpty
+import Control.Monad.List
+import System.Random
 
--- | Type for a non-deterministic computation whose result comes from a non-empty
--- set of valid results.
-newtype NonDeterministic a = NonDeterministic { validResults :: NonEmpty a }
-    deriving Functor
+-- | A monad capable of running non-deterministic computations. Given a result
+-- of an 'Alternative' of 'MonadPlus' compute, chooses either to fail or return
+-- a random result. Note the parametericity guarantees that if a @Just value@ is
+-- returned it is indeed a possible result.
+class Monad m => NonDeterministic m where
+    choose :: (forall f. MonadPlus f => f a) -> m (Maybe a)
 
-instance Applicative NonDeterministic where
-    pure x = NonDeterministic (x :| [])
-    (<*>)  = ap
+    retry :: Int -> (forall f. MonadPlus f => f a) -> m (Maybe a)
+    retry 0 _ = return Nothing
+    retry n x = do
+        res <- choose x
+        case res of
+            Nothing    -> retry (n - 1) x
+            Just value -> return (Just value)
 
-instance Monad NonDeterministic where
-    return = pure
-    NonDeterministic xs >>= f = NonDeterministic (xs >>= validResults . f)
-
--- | Check if a value is a valid result of a non-deterministic computation.
-member :: Eq a => a -> NonDeterministic a -> Bool
-member x = elem x . validResults
-
--- | Deterministic value.
-deterministic :: a -> NonDeterministic a
-deterministic = pure
-
--- | Choose a valid result.
-pick :: NonDeterministic a -> a
-pick (NonDeterministic (first :| _)) = first
+instance NonDeterministic IO where
+    choose x = do
+        let possible = runIdentity (runListT x)
+            results  = Nothing : map Just possible
+        index <- randomRIO (1, length results)
+        return $ results !! index

@@ -1,9 +1,10 @@
 {-# LANGUAGE RankNTypes #-}
 module Development.Build.Compute.Alternative (
-    failingCompute, (|||), dependencies, transitiveDependencies, acyclic
+    failingCompute, (|||), random, dependencies, transitiveDependencies, acyclic
     ) where
 
 import Control.Applicative
+import Data.Foldable
 import Data.Maybe
 
 import Development.Build.Compute
@@ -11,14 +12,17 @@ import Development.Build.Utilities
 
 -- | The compute that fails for any key by returning 'empty'.
 failingCompute :: Compute Alternative k v
-failingCompute _ _ = empty
+failingCompute _ _ = Just empty
 
 -- | Run the first compute then the second compute, combining the results.
 (|||) :: Compute Alternative k v -> Compute Alternative k v -> Compute Alternative k v
 (|||) compute1 compute2 get key = compute1 get key <|> compute2 get key
 
+random :: (Int, Int) -> Compute Alternative k Int
+random (low, high) _ _ = asum $ map (Just . pure) [low..high]
+
 dependencies :: Compute Alternative k v -> k -> [[k]]
-dependencies compute = getAltConst . compute (\k -> AltConst [[k]])
+dependencies compute = getAltConst . sequenceA . compute (\k -> AltConst [[k]])
 
 transitiveDependencies :: Eq k => Compute Alternative k v -> k -> [Maybe [k]]
 transitiveDependencies compute = reachM (dependencies compute)
