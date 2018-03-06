@@ -85,8 +85,7 @@ getStoreTime :: (Show k, Ord k, Eq v) => k -> M (StoreTime k v) k v Time
 getStoreTime k = fromMaybe (error $ "no store time available for " ++ show k) <$> getStoreTimeMaybe k
 
 returnStoreTime :: Build Applicative (StoreTime k v) k v -> Build Applicative (StoreTime k v) k v
-returnStoreTime op compute k i mp = let (_,mp2) = op compute k i mp in (StoreTime mp, mp)
-
+returnStoreTime op compute k i mp = let (_,mp2) = op compute k i mp in (StoreTime mp2, mp2)
 
 
 ---------------------------------------------------------------------

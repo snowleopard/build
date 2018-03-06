@@ -19,7 +19,7 @@ import Data.Tuple.Extra
 type Compute c k v = forall f . c f => (k -> f v) -> k -> Maybe (f v)
 
 isInput :: Compute Monad k v -> k -> Bool
-isInput comp = isJust . comp (const Proxy)
+isInput comp = isNothing . comp (const Proxy)
 
 getDependencies :: Compute Applicative k v -> k -> [k]
 getDependencies comp = maybe [] getConst . comp (\k -> Const [k])
