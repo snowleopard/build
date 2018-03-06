@@ -56,15 +56,17 @@ newtype Recursive k = Recursive (Set.Set k)
     deriving Default
 
 -- | Build a rule at most once in a single execution
-recursive :: (Show k, Ord k, Typeable k) => k -> M i k v v -> M i k v v
-recursive k build = do
-    Recursive done <- getTemp
-    if k `Set.member` done then
-        getStore k
-    else do
-        r <- build
-        modifyTemp $ \(Recursive set) -> Recursive $ Set.insert k set
-        return r
+recursive :: Default i => (k -> (k -> M i k v v) -> M i k v ([k], v) -> M i k v ()) -> Build Monad i k v
+recursive step compute = runM . ensure
+    where
+        ensure k = do
+            let ask x = ensure x >> getStore x
+            Recursive done <- getTemp
+            when (k `Set.notMember` done) $ do
+                modifyTemp $ \(Recursive set) -> Recursive $ Set.insert k set
+                case trackDependencies compute ask k of
+                    Nothing -> return ()
+                    Just act -> step k ask act
 
 
 -- | Figure out when files change, like a modtime
@@ -98,8 +100,7 @@ dumb compute = runM . f
 
 -- | Refinement of dumb, compute everything but at most once per execution
 dumbOnce :: Build Monad () k v
-dumbOnce compute = runM . f
-    where f k = recursive k $ maybe (getStore k) (putStore k =<<) $ compute f k
+dumbOnce = recursive $ \k _ act -> putStore_ k . snd =<< act
 
 
 -- | The simplified Make approach where we build a dependency graph and topological sort it
@@ -130,23 +131,18 @@ type Shake k v = Map.Map k (Hash v, [(k, Hash v)])
 
 -- | The simplified Shake approach of recording previous traces
 shake :: Hashable v => Build Monad (Shake k v) k v
-shake compute = runM . f
-    where
-        f k = recursive k $ do
-            info <- getInfo
-            valid <- case Map.lookup k info of
-                Nothing -> return False
-                Just (me, deps) ->
-                    (maybe False (== me) <$> getStoreHashMaybe k) &&^
-                    allM (\(d,h) -> (== h) . getHash <$> f d) deps
-            case trackDependencies compute f k of
-                Just res | not valid -> do
-                    (ds, v) <- res
-                    putStore k v
-                    dsh <- mapM (fmap getHash . getStore) ds
-                    modifyInfo $ Map.insert k (getHash v, zip ds dsh)
-                    return v
-                _ -> getStore k
+shake = recursive $ \k ask act -> do
+    info <- getInfo
+    valid <- case Map.lookup k info of
+        Nothing -> return False
+        Just (me, deps) ->
+            (maybe False (== me) <$> getStoreHashMaybe k) &&^
+            allM (\(d,h) -> (== h) . getHash <$> ask d) deps
+    unless valid $ do
+        (ds, v) <- act
+        putStore k v
+        dsh <- mapM (fmap getHash . getStore) ds
+        modifyInfo $ Map.insert k (getHash v, zip ds dsh)
 
 
 data Spreadsheet k v = Spreadsheet
@@ -219,26 +215,19 @@ data Shazel k v = Shazel
 instance Default (Shazel k v) where def = Shazel def def
 
 shazel :: Hashable v => Build Monad (Shazel k v) k v
-shazel compute = runM . f
-    where
-        f k = recursive k $ do
-            poss <- Map.findWithDefault [] k . szKnown <$> getInfo
-            res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (==) h . getHash <$> f k) ds
-            case res of
-                [] -> do
-                    case trackDependencies compute f k of
-                        Nothing -> getStore k
-                        Just res -> do
-                            (ds, v) <- res
-                            dsv <- mapM getStoreHash ds
-                            modifyInfo $ \i -> i
-                                {szKnown = Map.insertWith (++) k [ShazelResult (zip ds dsv) (getHash v)] $ szKnown i
-                                ,szContent = Map.insert (getHash v) v $ szContent i}
-                            putStore k v
-                _ -> do
-                    let poss = [v | ShazelResult _ v <- res]
-                    now <- getStoreHashMaybe k
-                    if (now `elem` map Just poss) then
-                        getStore k
-                    else
-                        putStore k . (Map.! head poss) . szContent =<< getInfo
+shazel = recursive $ \k ask act -> do
+    poss <- Map.findWithDefault [] k . szKnown <$> getInfo
+    res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (==) h . getHash <$> ask k) ds
+    case res of
+        [] -> do
+            (ds, v) <- act
+            dsv <- mapM getStoreHash ds
+            modifyInfo $ \i -> i
+                {szKnown = Map.insertWith (++) k [ShazelResult (zip ds dsv) (getHash v)] $ szKnown i
+                ,szContent = Map.insert (getHash v) v $ szContent i}
+            putStore_ k v
+        _ -> do
+            let poss = [v | ShazelResult _ v <- res]
+            now <- getStoreHashMaybe k
+            when (now `notElem` map Just poss) $
+                putStore_ k . (Map.! head poss) . szContent =<< getInfo
