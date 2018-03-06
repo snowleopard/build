@@ -13,6 +13,14 @@ import System.Random
 class Monad m => NonDeterministic m where
     choose :: (forall f. MonadPlus f => f a) -> m (Maybe a)
 
+    retry :: Int -> (forall f. MonadPlus f => f a) -> m (Maybe a)
+    retry 0 _ = return Nothing
+    retry n x = do
+        res <- choose x
+        case res of
+            Nothing    -> retry (n - 1) x
+            Just value -> return (Just value)
+
 instance NonDeterministic IO where
     choose x = do
         let possible = runIdentity (runListT x)
