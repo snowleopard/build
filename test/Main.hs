@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts, OverloadedStrings, ScopedTypeVariables #-}
 import Control.Monad
-import Data.Map
+import Data.Map hiding (toList)
+import Data.List.NonEmpty (NonEmpty (..), toList)
 
 import Development.Build
 import Development.Build.Store
@@ -25,8 +26,8 @@ spreadsheet cell = case name cell of
     'F':_ -> Just $ rel (-1) 0 + rel (-2) 0 --          Fn = F(n - 1) + F(n - 2)
     _     -> Nothing
 
-outputs :: [Cell]
-outputs = [ "B1", "B2", "B3", "C1", "C2", "F30" ]
+outputs :: NonEmpty Cell
+outputs = "B1" :| ["B2", "B3", "C1", "C2", "F30" ]
 
 -- TODO: Handle lookup errors nicer
 cellNotFoundError :: Cell -> Int
@@ -37,15 +38,17 @@ cellNotFoundValue :: Cell -> Int
 cellNotFoundValue _ = 0
 
 dumbResult :: Map Cell Int
-dumbResult = snd $ dumb cellNotFoundValue (compute spreadsheet) outputs Nothing inputs
+dumbResult = snd $ sequentialMultiBuild
+    (dumb cellNotFoundValue) (compute spreadsheet) outputs Nothing inputs
 
 slowResult :: Map Cell Int
-slowResult = snd $ slow cellNotFoundValue (compute spreadsheet) outputs Nothing inputs
+slowResult = snd $ sequentialMultiBuild
+    (slow cellNotFoundValue) (compute spreadsheet) outputs Nothing inputs
 
 tracingDumbResult :: IO (Map Cell Int)
 tracingDumbResult = snd <$> runMapStoreT build cellNotFoundValue inputs
   where
-    build = dumbTracing (compute spreadsheet) outputs
+    build = sequentialMultiStoreBuild dumbTracing (compute spreadsheet) (toList outputs)
 
 evalutate :: Map Cell Int -> Cell -> Int
 evalutate store key = findWithDefault (cellNotFoundError key) key store

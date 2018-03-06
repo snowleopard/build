@@ -17,7 +17,7 @@ import Development.Build.Utilities
 -- dependencies :: c m => Compute c k v -> (k -> m v) -> k -> m [k]
 
 dependencies :: MonadPlus m => Compute MonadPlus k v -> (k -> m v) -> k -> m [k]
-dependencies compute get = execWriterT . compute tracingGet
+dependencies compute get = execWriterT . sequenceA . compute tracingGet
   where
     tracingGet k = tell [k] >> lift (get k)
 
@@ -31,12 +31,7 @@ acyclic compute get = fmap isJust . transitiveDependencies compute get
 inputs :: (Eq k, MonadPlus m) => Compute MonadPlus k v -> (k -> m v) -> k -> m (Maybe [k])
 inputs compute get key = do
     deps <- transitiveDependencies compute get key
-    case deps of
-        Nothing -> return Nothing
-        Just ks -> Just <$> filterM (isInput compute get) ks
-
-isInput :: MonadPlus m => Compute MonadPlus k v -> (k -> m v) -> k -> m Bool
-isInput compute get = fmap isNothing . compute get
+    return $ filter (isInput compute) <$> deps
 
 -- | Check that a non-deterministic compute is /consistent/ with a pure lookup
 -- function @f@, i.e. for all keys @k@, if @f k == v@ then @Just v@ is a possible
@@ -47,7 +42,7 @@ consistent compute f = forall $ \k -> any (Just (f k) ==) $ runPure compute f k
 -- | Run a non-deterministic compute with a pure lookup function, listing all
 -- possible results, including @Nothing@ indicating that a given key is an input.
 runPure :: Compute MonadPlus k v -> (k -> v) -> k -> [Maybe v]
-runPure compute f = runIdentity . runListT . compute (ListT . return . pure . f)
+runPure compute f = runIdentity . runListT . sequenceA . compute (ListT . return . pure . f)
 
 -- pureInputs :: Eq k => Compute MonadPlus k v -> (k -> v) -> k -> [Maybe [k]]
 -- pureInputs compute f = runIdentity . runListT . inputs compute (ListT . return . pure . f)

@@ -75,8 +75,8 @@ type Spreadsheet = Cell -> Maybe Formula
 -- | Spreadsheet computation.
 compute :: Spreadsheet -> Compute Monad Cell Int
 compute spreadsheet get cell@(Cell r c) = case spreadsheet cell of
-    Nothing      -> return Nothing -- This is an input
-    Just formula -> Just <$> evaluate formula
+    Nothing      -> Nothing -- This is an input
+    Just formula -> Just $ evaluate formula
   where
     evaluate formula = case formula of
         Constant x              -> return x

@@ -1,8 +1,8 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    dependencies, transitiveDependencies, inputs, isInput, acyclic, consistent,
-    correctBuild, runPure, runPartial, staticDependencies,
-    Script (..), getScript, runScript, isStatic
+    dependencies, transitiveDependencies, inputs, acyclic,
+    consistent, correctBuild, runPure, debugPartial, partial,
+    staticDependencies, Script (..), getScript, runScript, isStatic
     ) where
 
 import Control.Monad.Trans
@@ -16,7 +16,7 @@ import Development.Build.Utilities
 
 -- TODO: Does this always terminate? It's not obvious!
 dependencies :: Monad m => Compute Monad k v -> (k -> m v) -> k -> m [k]
-dependencies compute get = execWriterT . compute tracingGet
+dependencies compute get = execWriterT . sequenceA . compute tracingGet
   where
     tracingGet k = tell [k] >> lift (get k)
 
@@ -30,12 +30,7 @@ acyclic compute get = fmap isJust . transitiveDependencies compute get
 inputs :: (Eq k, Monad m) => Compute Monad k v -> (k -> m v) -> k -> m (Maybe [k])
 inputs compute get key = do
     deps <- transitiveDependencies compute get key
-    case deps of
-        Nothing -> return Nothing
-        Just ks -> Just <$> filterM (isInput compute get) ks
-
-isInput :: Monad m => Compute Monad k v -> (k -> m v) -> k -> m Bool
-isInput compute get = fmap isNothing . compute get
+    return $ filter (isInput compute) <$> deps
 
 pureInputs :: Eq k => Compute Monad k v -> (k -> v) -> k -> Maybe [k]
 pureInputs compute f = runIdentity . inputs compute (pure . f)
@@ -46,33 +41,32 @@ consistent :: Eq v => Compute Monad k v -> (k -> v) -> Bool
 consistent compute f = forall $ \k -> maybe True (f k ==) $ runPure compute f k
 
 -- | Given a @compute@, a pair of key-value maps describing the contents of a
--- store @before@ and @after@ a build system was executed to build a given list
--- of @outputs@, determine if @after@ is a correct build outcome.
+-- store @before@ and @after@ a build system was executed to build a given @key@,
+-- determine if @after@ is a correct build outcome.
 -- Specifically, there must exist a @magic@ key-value map, such that:
 -- * @before@, @after@ and @magic@ agree on the values of all inputs.
--- * @after@ and @magic@ agree on the values of all outputs.
+-- * @after@ and @magic@ agree on the value of the output @key@.
 -- * @magic@ is 'consistent' with the @compute@.
 -- We assume that @compute@ is acyclic. If it is not, the function returns @True@.
-correctBuild :: (Eq k, Eq v) => Compute Monad k v -> (k -> v) -> (k -> v) -> [k] -> Bool
-correctBuild compute before after outputs =
-    case concat <$> traverse (pureInputs compute after) outputs of
+correctBuild :: (Eq k, Eq v) => Compute Monad k v -> (k -> v) -> (k -> v) -> k -> Bool
+correctBuild compute before after key =
+    case pureInputs compute after key of
         Nothing     -> True -- We assumed that compute is acyclic, but it is not
         Just inputs -> exists $ \magic -> agree [before, after, magic] inputs
-                                    && agree [        after, magic] outputs
-                                    && consistent compute magic
+                                       && agree [        after, magic] [key]
+                                       && consistent compute magic
 
 -- | Run a compute with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
 runPure :: Compute Monad k v -> (k -> v) -> k -> Maybe v
-runPure compute f = runIdentity . compute (pure . f)
+runPure compute f = fmap runIdentity . compute (pure . f)
 
 -- | Run a compute with a partial lookup function. The result @Left k@ indicates
 -- that the compute failed due to a missing dependency @k@. Otherwise, the
--- result @Right (Just v)@ yields the computed value, and @Right Nothing@ is
--- returned if the given key is an input.
-runPartial :: Monad m => Compute Monad k v
-                      -> (k -> m (Maybe v)) -> k -> m (Either k (Maybe v))
-runPartial compute partialGet = runExceptT . compute get
+-- result @Right v@ yields the computed value.
+debugPartial :: Monad m => Compute Monad k v
+                      -> (k -> m (Maybe v)) -> k -> Maybe (m (Either k v))
+debugPartial compute partialGet = fmap runExceptT . compute get
   where
     get k = do
         maybeValue <- lift (partialGet k)
@@ -80,9 +74,19 @@ runPartial compute partialGet = runExceptT . compute get
             Nothing    -> throwE k
             Just value -> return value
 
+-- | Convert a compute with a total lookup function @k -> m v@ into a compute
+-- with a partial lookup function @k -> m (Maybe v)@. This essentially lifts the
+-- compute from the type value @v@ to @Maybe v@, where the result @Nothing@
+-- indicates that the compute failed because of a missing dependency.
+-- Use 'debugPartial' if you need to know which dependency was missing.
+partial :: Compute Monad k v -> Compute Monad k (Maybe v)
+partial compute get = (fmap . fmap) (either (const Nothing) Just) . debugPartial compute get
+
 -- TODO: Does this always terminate? It's not obvious!
 staticDependencies :: Compute Monad k v -> k -> [k]
-staticDependencies compute = staticScriptDependencies . getScript compute
+staticDependencies compute key = case getScript compute key of
+    Nothing     -> []
+    Just script -> staticScriptDependencies script
 
 data Script k v a where
     Get  :: k -> Script k v v
@@ -102,7 +106,7 @@ instance Monad (Script k v) where
     (>>)   = (*>)
     (>>=)  = Bind
 
-getScript :: Compute Monad k v -> k -> Script k v (Maybe v)
+getScript :: Compute Monad k v -> k -> Maybe (Script k v v)
 getScript compute = compute Get
 
 runScript :: Monad m => (k -> m v) -> Script k v a -> m a

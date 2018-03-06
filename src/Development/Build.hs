@@ -1,7 +1,8 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes #-}
 module Development.Build (
     -- * Build
-    Build, dumb, purify, slow, dumbTracing,
+    Build, MultiBuild, sequentialMultiBuild, sequentialMultiStoreBuild,
+    dumb, purify, slow, dumbTracing,
 
     -- * Properties
     correct, idempotent
@@ -9,6 +10,7 @@ module Development.Build (
 
 import Control.Monad.IO.Class
 import Data.Functor
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map (Map)
 
 import Development.Build.Compute
@@ -24,26 +26,35 @@ import qualified Data.Map as Map
 -- build and an updated key-value map. Note that we require @Ord k@ since one
 -- cannot do anything with 'Map' without it, but in principle @Eq k@ could be
 -- sufficient if we instead used @k -> Maybe v@ for key-value maps.
-type Build c i k v = Ord k => Compute c k v -> [k] -> Maybe i -> Map k v -> (i, Map k v)
+type Build c i k v = Ord k => Compute c k v -> k -> Maybe i -> Map k v -> (i, Map k v)
 
-type StoreBuild c m k v = Store m k v => Compute c k v -> [k] -> m ()
+type MultiBuild c i k v = Ord k => Compute c k v -> NonEmpty k -> Maybe i -> Map k v -> (i, Map k v)
+
+type StoreBuild c m k v = Store m k v => Compute c k v -> k -> m ()
+
+type MultiStoreBuild c m k v = Store m k v => Compute c k v -> [k] -> m ()
 
 -- How do I express that we can do it for any c, not just c = Monad?
 purify :: (k -> v) -> (forall m. StoreBuild Monad m k v) -> Build Monad () k v
-purify def build compute outputs _ = runMapStore (build compute outputs) def
+purify def build compute key _ = runMapStore (build compute key) def
+
+sequentialMultiBuild :: Build Monad i k v -> MultiBuild Monad i k v
+sequentialMultiBuild build compute (x :| xs) i store =
+    let (i', store') = build compute x i store
+    in case xs of
+          []     -> (i', store')
+          (y:ys) -> sequentialMultiBuild build compute (y :| ys) (Just i') store'
+
+sequentialMultiStoreBuild :: StoreBuild Monad m k v -> MultiStoreBuild Monad m k v
+sequentialMultiStoreBuild build compute = mapM_ (build compute)
 
 dumb :: (k -> v) -> Build Monad () k v
-dumb def = purify def build
-  where
-    build compute outputs = mapM_ buildValue outputs
-      where
-        buildValue key = do maybeValue <- compute getValue key
-                            case maybeValue of
-                                Just value -> putValue key value
-                                Nothing    -> return ()
+dumb def = purify def $ \compute key -> case compute getValue key of
+    Nothing -> return ()
+    Just fv -> putValue key =<< fv
 
 dumbTracing :: (MonadIO m, Show k, Show v) => StoreBuild Monad m k v
-dumbTracing compute outputs = mapM_ build outputs
+dumbTracing compute = build
   where
     build k = do
         let myGetValue k = do
@@ -51,24 +62,21 @@ dumbTracing compute outputs = mapM_ build outputs
                 liftIO $ putStrLn $ "Looked up key: " ++ show k ++ " => " ++ show v
                 return v
         liftIO $ putStrLn ("Computing key: " ++ show k)
-        maybeValue <- compute myGetValue k
-        case maybeValue of
-            Just value -> putValue k value
-            Nothing    -> return ()
+        case compute myGetValue k of
+            Nothing -> return ()
+            Just fv -> putValue k =<< fv
 
 slow :: (k -> v) -> Build Monad () k v
 slow def = purify def build
   where
-    build :: Store m k v => Compute Monad k v -> [k] -> m ()
-    build compute outputs = void $ mapM buildValue outputs
+    build compute = void . buildThenGet
       where
-        buildValue key = do
-            -- This is an incorrect heuristic
-            let ready = null (staticDependencies compute key)
-            maybeValue <- compute (if ready then getValue else buildValue) key
-            case maybeValue of
-                Just value -> putValue key value >> return value
-                Nothing    -> getValue key
+        buildThenGet k = case compute buildThenGet k of
+            Nothing -> getValue k
+            Just fv -> do
+                value <- fv
+                putValue k value
+                return value
 
 -- | Given a @build@ and @compute@, check that for any key-value map describing
 -- the contents of a store @before@ the build system is executed to build a list
@@ -79,14 +87,12 @@ slow def = purify def build
 -- * @magic@ is 'consistent' with the @compute@.
 -- We assume that @compute@ is acyclic. If it is not, the function returns @True@.
 correct :: (Ord k, Eq v) => Build Monad i k v -> Compute Monad k v -> Bool
-correct build compute = forall $ \(outputs, store, i) ->
-    let (_, newStore) = build compute outputs i store
-    in correctBuild (partial compute) (total store) (total newStore) outputs
+correct build compute = forall $ \(key, store, i) ->
+    let (_, newStore) = build compute key i store
+    in correctBuild (partial compute) (lookup store) (lookup newStore) key
   where
-    total :: Ord k => Map k v -> k -> Maybe v
-    total = flip Map.lookup
-    partial :: Monad m => Compute Monad k v -> (k -> m (Maybe v)) -> k -> m (Maybe (Maybe v))
-    partial compute lookup = fmap (either (const Nothing) Just) . runPartial compute lookup
+    lookup :: Ord k => Map k v -> k -> Maybe v
+    lookup = flip Map.lookup
 
 -- | Check that a build system is /idempotent/, i.e. running it once or twice in
 -- a row leads to the same resulting 'Store'.
