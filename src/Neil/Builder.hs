@@ -5,9 +5,10 @@ module Neil.Builder(
     dumbTopological,
     dumbRecursive,
     make,
-    makeHash,
+    makeTrace,
     shake,
     spreadsheet,
+    spreadsheetTrace,
     bazel,
     shazel
     ) where
@@ -16,6 +17,7 @@ import Neil.Build
 import Neil.Util
 import Neil.Compute
 import Control.Monad.Extra
+import Data.Tuple.Extra
 import Data.Default
 import Data.Maybe
 import Data.Either.Extra
@@ -53,11 +55,11 @@ recursive step compute = runM . ensure
                     Just act -> step k (getDependenciesMaybe compute k) ask act
 
 
-dynamic :: Default i => (k -> Maybe [k] -> (k -> M (i, [k]) k v (Maybe v)) -> M (i, [k]) k v (Either k v) -> M (i, [k]) k v (Maybe k)) -> Build Monad (i, [k]) k v
+dynamic :: Default i => (k -> Maybe [k] -> (k -> M (i, [k]) k v (Maybe v)) -> M (i, [k]) k v (Either k ([k], v)) -> M (i, [k]) k v (Maybe k)) -> Build Monad (i, [k]) k v
 dynamic step compute k = runM $ do
     order <- snd <$> getInfo
     order <- f Set.empty $ order ++ [k | k `notElem` order]
-    modifyInfo $ \(i, _) -> (i, order)
+    modifyInfo $ second $ const order
     where
         f done [] = return []
         f done (k:ks) = do
@@ -99,8 +101,8 @@ make = withChangedApplicative $ topological $ \k ds act -> do
 type MakeHash k v = Map.Map (k, [Hash v]) (Hash v)
 
 
-makeHash :: Hashable v => Build Applicative (MakeHash k v) k v
-makeHash = topological $ \k ds act -> do
+makeTrace :: Hashable v => Build Applicative (MakeHash k v) k v
+makeTrace = topological $ \k ds act -> do
     now <- getStoreHashMaybe k
     ds <- mapM getStoreHash ds
     res <- Map.lookup (k, ds) <$> getInfo
@@ -125,14 +127,30 @@ shake = recursive $ \k _ ask act -> do
     unless valid $ do
         (ds, v) <- act
         putStore k v
-        dsh <- mapM (fmap getHash . getStore) ds
+        dsh <- mapM getStoreHash ds
         modifyInfo $ Map.insert k (getHash v, zip ds dsh)
 
 
-data Spreadsheet k v = Spreadsheet
-    {ssOrder :: [k]
-    ,ssPrevious :: Map.Map k v
-    } deriving Show
+spreadsheetTrace :: (Hashable v) => Build Monad (Shake k v, [k]) k v
+spreadsheetTrace = dynamic $ \k ds ask act -> do
+    info <- fst <$> getInfo
+    valid <- case Map.lookup k info of
+        Nothing -> return False
+        Just (me, deps) ->
+            (maybe False (== me) <$> getStoreHashMaybe k) &&^
+            allM (\(d,h) -> (== Just h) . fmap getHash <$> ask d) deps
+    if valid then
+        return Nothing
+    else do
+        res <- act
+        case res of
+            Left e -> return $ Just e
+            Right (ds, v) -> do
+                putStore k v
+                dsh <- mapM getStoreHash ds
+                modifyInfo $ first $ Map.insert k (getHash v, zip ds dsh)
+                return Nothing
+
 
 spreadsheet :: Eq v => Build Monad (Changed k v, [k]) k v
 spreadsheet = withChangedMonad $ dynamic $ \k ds _ act -> do
@@ -143,7 +161,7 @@ spreadsheet = withChangedMonad $ dynamic $ \k ds _ act -> do
         res <- act
         case res of
             Left e -> return $ Just e
-            Right v -> do
+            Right (_, v) -> do
                 putStore k v
                 return Nothing
 

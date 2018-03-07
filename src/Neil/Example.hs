@@ -41,8 +41,9 @@ main = do
     test dumbTopological
     test dumbRecursive
     test make
-    test makeHash
+    test makeTrace
     test shake
     test spreadsheet
+    test spreadsheetTrace
     test bazel
     test shazel
