@@ -5,7 +5,7 @@ the software ecosystem.  Every developer on the planet uses one, but
 they are very much a means to an end, and seldom the focus of
 attention.  But the challenges of scale have driven large software firms
 like Microsoft, Facebook, and Google to develop their own build
-systems, each with its own choices and idiosyncracies.
+systems, each with its own choices and idiosyncrasies.
 
 Seldom do people ask questions like "What does it mean for my build
 system to be correct?" or "What are the trade-offs between different
@@ -13,7 +13,7 @@ approaches?".  Complex build systems use subtle algorithms, but they
 are often hidden away, and not the object of study.
 
 In this paper we offer a general framework in which to discuss these
-questions in a way that is both absract (omitting incidental detail)
+questions in a way that is both abstract (omitting incidental detail)
 and yet precise (implemented as Haskell code).  Specifically we make
 these contributions:
 \begin{itemize}
@@ -21,7 +21,7 @@ these contributions:
 crisply encapsulate what a build system is.
 \item We show that we can instantiate
 these abstractions to describe the essence of a variety of different
-build systems, including make, Shake, Buck, Bazel, and Excel, each in
+build systems, including \Make, \Shake, \Bazel, and \Excel, each in
 a dozen lines of code or so.
 Doing this in a single setting allows
 the differences and similarities between these huge systems to be
@@ -30,7 +30,7 @@ brought out clearly.
 for example: static vs dynamic dependencies; cloud-build, including
 shallow vs deep; deterministic vs non-deterministic build rules;
 early cut-off; self-tracking build systems; and persistent metadata.
-These properties (which we define in Section~\ref{xxx}) are often
+These properties (which we define in Section~\ref{sec-background}) are often
 deeply-built-in assumptions of a particular build system.
 In contrast, our framework allows them to be distinguished,
 reasoned about, and varied.
@@ -51,81 +51,6 @@ executable models of all the build systems we describe.  An unusual
 feature is that we include Excel in our line-up because, looked at
 in the right way, it certainly is a build system.
 
-
-... Old text ...
-
-Build systems automate the execution of simple repeatable tasks for individual
-users, as well as for large organisations. There are software build systems such
-as \Make, \Ninja, \Shake, \Bazel, \Buck and many others, as well as various
-incremental calculation engines, such as \Excel and \Calc. Existing build
-systems vary in several different ways:
-
-\begin{itemize}
-    \item Many build systems, such as the venerable \Make, need to know the
-    complete \emph{dependency graph} between tasks at the start of the build
-    process. This makes it possible to analyse the graph ahead of time, which
-    helps with efficient task scheduling but is fundamentally limited: parts of
-    the dependency graph can often be discovered only during the build process,
-    i.e. the dependency graph is \emph{dynamic}, not \emph{static}.
-
-    \item When build systems are used by large teams, different team members
-    often end up executing exactly the same tasks on their local machines.
-    A \emph{cloud build system} can speed up builds dramatically by
-    transparently sharing build results among team members. Furthermore, cloud
-    build systems allow one to perform \emph{shallow builds} that materialise
-    only end build products on a local machine, leaving all intermediates in the
-    cloud. This is a significant optimisation compared to \emph{deep builds}
-    that require all transitive dependencies of an end build product to be
-    locally available. Non-cloud build systems cannot support shallow builds.
-
-    \item Some build systems, e.g. \Buck, require all tasks to be
-    \emph{deterministic}, i.e. produce exactly the same output when run on the
-    same inputs. However, not all tasks are deterministic, and there are build
-    systems that support \emph{non-determinism}. A simple example is \Excel's
-    \textsf{RANDBETWEEN(low, high)} that returns a random integer in the
-    interval \textsf{[low, high]}.
-
-    \item If a build system executes a task and the result is unchanged from the
-    previous build, it is unnecessary to execute the dependent tasks. We call
-    this optimisation \emph{early cut-off}. Not all build systems support early
-    cut-off: \Make and \Excel do not, whereas \Shake and \Buck do.
-
-    \item Most build systems track changes of inputs and intermediate results,
-    executing dependent tasks whenever they change, but some build systems can
-    also track changes in the tasks themselves: if a task has changed, the build
-    system will execute it. For example, when a cell's formula has changed,
-    \Excel will recompute its value and propagate the changes. We call this
-    \emph{self-tracking}. Self-tracking is uncommon in software build systems,
-    where one often needs to manually initiate a rebuild of all tasks even if
-    just a single task has changed.
-
-    \item Most build systems persistently store auxiliary \emph{build
-    information} for profiling and optimisation purposes: \Make stores file
-    modification times, \Shake stores the discovered dynamic dependency graph,
-    \Bazel and other cloud build systems store information about inputs and
-    outputs of previously executed tasks, etc.
-\end{itemize}
-
-This paper presents a purely functional abstraction for build systems that
-allows us to express all the above intricacies of build systems and design
-complex build systems from simple primitives. The presented abstraction fits in
-just two lines of Haskell code, which are explained
-in~\S\ref{sec-build-abstractions}:
-
-\begin{minted}{haskell}
-type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
-type Build c i k v = Compute c k v -> k -> Maybe i -> Map k v -> (i, Map k v)
-\end{minted}
-
-% It is known that build systems can take up to 27\% of software development
-% effort, and that improvements to build systems rapidly pay off~\cite{build_maintenance}.
-% Despite its importance, this subject is severely under-researched, which prompts
-% major companies, such as Microsoft, Facebook and Google, to invest significant
-% internal resources to make their own bespoke build system frameworks.
-
-% Some build systems do not look like build systems but they are. A good example
-% is spreadsheets, where cells play the role of files, and formulas play the role
-% of build rules.
-
-% We separate build systems into \emph{compute} and \emph{build} components,
-% see~\S\ref{sec-build-abstractions}.
+\todo{AM/NM}{Add a paragraph on the decomposition of build systems into
+\emph{compute} and \emph{build} components, with the latter split into
+\emph{when} and \emph{how} parts.}
