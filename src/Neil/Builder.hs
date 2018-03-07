@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving, ScopedTypeVariables, RecordWildCards, ConstraintKinds #-}
+{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving, ScopedTypeVariables, RecordWildCards, ConstraintKinds, TypeFamilies #-}
 
 module Neil.Builder(
     dumb,
@@ -60,7 +60,9 @@ recursive step compute = runM . ensure
                     Just act -> step k (getDependenciesMaybe compute k) ask act
 
 
-dynamic :: Default i => (k -> Maybe [k] -> (k -> M (i, [k]) k v (Maybe v)) -> M (i, [k]) k v (Either k ([k], v)) -> M (i, [k]) k v (Maybe k)) -> Build Monad (i, [k]) k v
+dynamic
+    :: (m ~ M (i, [k]) k v, Default i)
+    => (k -> Maybe [k] -> (k -> m (Maybe v)) -> m (Either k ([k], v)) -> m (Maybe k)) -> Build Monad (i, [k]) k v
 dynamic step compute k = runM $ do
     order <- snd <$> getInfo
     order <- f Set.empty $ order ++ [k | k `notElem` order]
@@ -84,15 +86,15 @@ dynamic step compute k = runM $ do
 
 -- | Dumbest build system possible, always compute everything from scratch multiple times
 dumb :: Build Monad () k v
-dumb compute = runM . f
-    where f k = maybe (getStore k) (putStore k =<<) $ compute f k
+dumb compute k = runM (f k)
+    where f k = maybe (getStore k) (\act -> do v <- act; putStore k v; return v) $ compute f k
 
 -- | Refinement of dumb, compute everything but at most once per execution
 dumbRecursive :: Build Monad () k v
-dumbRecursive = recursive $ \k _ _ act -> putStore_ k . snd =<< act
+dumbRecursive = recursive $ \k _ _ act -> putStore k . snd =<< act
 
 dumbTopological :: Build Applicative () k v
-dumbTopological = topological $ \k _ act -> putStore_ k =<< act
+dumbTopological = topological $ \k _ act -> putStore k =<< act
 
 dumbDynamic :: Build Monad ((), [k]) k v
 dumbDynamic = dynamic $ \k _ _ act -> do
@@ -111,13 +113,13 @@ make = withChangedApplicative $ topological $ \k ds act -> do
     ds <- mapM getStoreTime ds
     case kt of
         Just xt | all (<= xt) ds -> return ()
-        _ -> putStore_ k =<< act
+        _ -> putStore k =<< act
 
 makeDirtyBit :: Eq v => Build Applicative (Changed k v, ()) k v
 makeDirtyBit = withChangedApplicative $ topological $ \k ds act -> do
     dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ anyM getChanged ds
     when dirty $
-        putStore_ k =<< act
+        putStore k =<< act
 
 
 type MakeHash k v = Map.Map (k, [Hash v]) (Hash v)
@@ -131,14 +133,14 @@ makeTrace = topological $ \k ds act -> do
     when (isNothing now || now /= res) $ do
         res <- act
         modifyInfo $ Map.insert (k, ds) (getHash res)
-        putStore_ k res
+        putStore k res
 
 
 shakeDirtyBit :: Eq v => Build Monad (Changed k v, ()) k v
 shakeDirtyBit = withChangedMonad $ recursive $ \k ds ask act -> do
     dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ maybe (return True) (anyM (\x -> ask x >> getChanged x)) ds
     when dirty $
-        putStore_ k . snd =<< act
+        putStore k . snd =<< act
 
 
 -- During the last execution, these were the traces I saw
@@ -211,11 +213,11 @@ bazel = topological $ \k ds act -> do
             modifyInfo $ \i -> i
                 {bzKnown = Map.insert (k, ds) (getHash res) $ bzKnown i
                 ,bzContent = Map.insert (getHash res) res $ bzContent i}
-            putStore_ k res
+            putStore k res
         Just res -> do
             now <- getStoreHashMaybe k
             when (now /= Just res) $
-                putStore_ k . (Map.! res) . bzContent =<< getInfo
+                putStore k . (Map.! res) . bzContent =<< getInfo
 
 
 data ShazelResult k v = ShazelResult [(k, Hash v)] (Hash v) deriving Show
@@ -238,12 +240,12 @@ shazel = recursive $ \k _ ask act -> do
             modifyInfo $ \i -> i
                 {szKnown = Map.insertWith (++) k [ShazelResult (zip ds dsv) (getHash v)] $ szKnown i
                 ,szContent = Map.insert (getHash v) v $ szContent i}
-            putStore_ k v
+            putStore k v
         _ -> do
             let poss = [v | ShazelResult _ v <- res]
             now <- getStoreHashMaybe k
             when (now `notElem` map Just poss) $
-                putStore_ k . (Map.! head poss) . szContent =<< getInfo
+                putStore k . (Map.! head poss) . szContent =<< getInfo
 
 
 spreadsheetRemote :: Hashable v => Build Monad (Shazel k v, [k]) k v
@@ -260,11 +262,11 @@ spreadsheetRemote = dynamic $ \k _ ask act -> do
                     modifyInfo $ first $ \i -> i
                         {szKnown = Map.insertWith (++) k [ShazelResult (zip ds dsv) (getHash v)] $ szKnown i
                         ,szContent = Map.insert (getHash v) v $ szContent i}
-                    putStore_ k v
+                    putStore k v
                     return Nothing
         _ -> do
             let poss = [v | ShazelResult _ v <- res]
             now <- getStoreHashMaybe k
             when (now `notElem` map Just poss) $
-                putStore_ k . (Map.! head poss) . szContent . fst =<< getInfo
+                putStore k . (Map.! head poss) . szContent . fst =<< getInfo
             return Nothing

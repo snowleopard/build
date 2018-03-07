@@ -3,7 +3,7 @@
 module Neil.Build(
     Build,
     M, runM,
-    getStoreMaybe, getStore, putStore, putStore_,
+    getStoreMaybe, getStore, putStore,
     Changed, getChanged, withChangedApplicative, withChangedMonad,
     Time, getStoreTime, getStoreTimeMaybe,
     getInfo, putInfo, modifyInfo,
@@ -74,11 +74,8 @@ getStoreMaybe k = Map.lookup k . store <$> M get
 getStore :: (Ord k, Show k) => k -> M i k v v
 getStore k = fromMaybe (error $ "getStore failed on " ++ show k) <$> getStoreMaybe k
 
-putStore :: Ord k => k -> v -> M i k v v
-putStore k v = do putStore_ k v; return v
-
-putStore_ :: Ord k => k -> v -> M i k v ()
-putStore_ k v = M $ modify $ \x -> x{store = Map.insert k v $ store x, changed = Set.insert k $ changed x}
+putStore :: Ord k => k -> v -> M i k v ()
+putStore k v = M $ modify $ \x -> x{store = Map.insert k v $ store x, changed = Set.insert k $ changed x}
 
 getTemp :: (Typeable t, Default t) => M i k v t
 getTemp = fromMaybe def . DM.lookup . temp <$> M get
