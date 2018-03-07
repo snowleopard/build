@@ -2,7 +2,7 @@
 
 module Neil.Builder(
     dumb,
-    dumbLinear,
+    dumbTopological,
     dumbRecursive,
     make,
     makeHash,
@@ -18,6 +18,7 @@ import Neil.Compute
 import Control.Monad.Extra
 import Data.Default
 import Data.Maybe
+import Data.Either.Extra
 import Data.List
 import Data.Typeable
 import qualified Data.Set as Set
@@ -26,8 +27,8 @@ import qualified Data.Map as Map
 ---------------------------------------------------------------------
 -- DEPENDENCY ORDER SCHEMES
 
-linear :: Default i => (k -> [k] -> M i k v v -> M i k v ()) -> Build Applicative i k v
-linear step compute k = runM $ do
+topological :: Default i => (k -> [k] -> M i k v v -> M i k v ()) -> Build Applicative i k v
+topological step compute k = runM $ do
     let depends = getDependencies compute
     forM_ (topSort depends $ transitiveClosure depends k) $ \k ->
         case compute getStore k of
@@ -39,7 +40,7 @@ newtype Recursive k = Recursive (Set.Set k)
     deriving Default
 
 -- | Build a rule at most once in a single execution
-recursive :: Default i => (k -> (k -> M i k v v) -> M i k v ([k], v) -> M i k v ()) -> Build Monad i k v
+recursive :: Default i => (k -> Maybe [k] -> (k -> M i k v v) -> M i k v ([k], v) -> M i k v ()) -> Build Monad i k v
 recursive step compute = runM . ensure
     where
         ensure k = do
@@ -49,26 +50,25 @@ recursive step compute = runM . ensure
                 modifyTemp $ \(Recursive set) -> Recursive $ Set.insert k set
                 case trackDependencies compute ask k of
                     Nothing -> return ()
-                    Just act -> step k ask act
+                    Just act -> step k (getDependenciesMaybe compute k) ask act
 
 
--- | Figure out when files change, like a modtime
-newtype StoreTime k v = StoreTime {fromStoreTime :: Map.Map k v}
-    deriving (Default, Show)
-
-data Time = LastBuild | AfterLastBuild deriving (Eq,Ord)
-
-getStoreTimeMaybe :: (Ord k, Eq v) => k -> M (StoreTime k v) k v (Maybe Time)
-getStoreTimeMaybe k = do
-    old <- Map.lookup k . fromStoreTime <$> getInfo
-    new <- getStoreMaybe k
-    return $ if isNothing new then Nothing else Just $ if old == new then LastBuild else AfterLastBuild
-
-getStoreTime :: (Show k, Ord k, Eq v) => k -> M (StoreTime k v) k v Time
-getStoreTime k = fromMaybe (error $ "no store time available for " ++ show k) <$> getStoreTimeMaybe k
-
-returnStoreTime :: Build Applicative (StoreTime k v) k v -> Build Applicative (StoreTime k v) k v
-returnStoreTime op compute k i mp = let (_,mp2) = op compute k i mp in (StoreTime mp2, mp2)
+dynamic :: Default i => (k -> Maybe [k] -> (k -> M (i, [k]) k v (Maybe v)) -> M (i, [k]) k v (Either k v) -> M (i, [k]) k v (Maybe k)) -> Build Monad (i, [k]) k v
+dynamic step compute k = runM $ do
+    order <- snd <$> getInfo
+    order <- f Set.empty $ order ++ [k | k `notElem` order]
+    modifyInfo $ \(i, _) -> (i, order)
+    where
+        f done [] = return []
+        f done (k:ks) = do
+            let f' x = if x `Set.member` done then Right <$> getStore x else return $ Left x
+            case failDependencies compute f' k of
+                Nothing -> (k :) <$> f (Set.insert k done) ks
+                Just act -> do
+                    res <- step k (getDependenciesMaybe compute k) (fmap eitherToMaybe . f') act
+                    case res of
+                        Nothing -> (k :) <$> f (Set.insert k done) ks
+                        Just e -> f done $ [k | e `notElem` ks] ++ ks ++ [k]
 
 
 ---------------------------------------------------------------------
@@ -82,14 +82,14 @@ dumb compute = runM . f
 
 -- | Refinement of dumb, compute everything but at most once per execution
 dumbRecursive :: Build Monad () k v
-dumbRecursive = recursive $ \k _ act -> putStore_ k . snd =<< act
+dumbRecursive = recursive $ \k _ _ act -> putStore_ k . snd =<< act
 
-dumbLinear :: Build Applicative () k v
-dumbLinear = linear $ \k _ act -> putStore_ k =<< act
+dumbTopological :: Build Applicative () k v
+dumbTopological = topological $ \k _ act -> putStore_ k =<< act
 
 -- | The simplified Make approach where we build a dependency graph and topological sort it
-make :: Eq v => Build Applicative (StoreTime k v) k v
-make = returnStoreTime $ linear $ \k ds act -> do
+make :: Eq v => Build Applicative (Changed k v, ()) k v
+make = withChangedApplicative $ topological $ \k ds act -> do
     kt <- getStoreTimeMaybe k
     ds <- mapM getStoreTime ds
     case kt of
@@ -100,7 +100,7 @@ type MakeHash k v = Map.Map (k, [Hash v]) (Hash v)
 
 
 makeHash :: Hashable v => Build Applicative (MakeHash k v) k v
-makeHash = linear $ \k ds act -> do
+makeHash = topological $ \k ds act -> do
     now <- getStoreHashMaybe k
     ds <- mapM getStoreHash ds
     res <- Map.lookup (k, ds) <$> getInfo
@@ -115,7 +115,7 @@ type Shake k v = Map.Map k (Hash v, [(k, Hash v)])
 
 -- | The simplified Shake approach of recording previous traces
 shake :: Hashable v => Build Monad (Shake k v) k v
-shake = recursive $ \k ask act -> do
+shake = recursive $ \k _ ask act -> do
     info <- getInfo
     valid <- case Map.lookup k info of
         Nothing -> return False
@@ -134,36 +134,18 @@ data Spreadsheet k v = Spreadsheet
     ,ssPrevious :: Map.Map k v
     } deriving Show
 
-instance Default (Spreadsheet k v) where def = Spreadsheet def def
-
-spreadsheet :: Eq v => Build Monad (Spreadsheet k v) k v
-spreadsheet compute k = runM $ do
-    Spreadsheet{..} <- getInfo
-    -- use explicit cleanliness rather than dirtiness so newly discovered items are dirty
-    let isSame k = (==) (Map.lookup k ssPrevious) <$> getStoreMaybe k
-    clean <- Set.fromList <$> filterM isSame ssOrder
-    order <- f clean Set.empty $ ssOrder ++ ([k] \\ ssOrder)
-    putInfo . Spreadsheet order =<< getStoreMap
-    where
-        f clean done [] = return []
-        f clean done (k:ks) = do
-            let deps = getDependenciesMaybe compute k
-            let isClean = k `Set.member` clean &&
-                          maybe False (all (`Set.member` clean)) deps
-            if isClean then do
-                f clean (Set.insert k done) ks
-            else do
-                let f' x = if x `Set.member` done then Right <$> getStore x else return $ Left x
-                case failDependencies compute f' k of
-                    Nothing -> (k :) <$> f (Set.delete k clean) (Set.insert k done) ks
-                    Just res -> do
-                        res <- res
-                        case res of
-                            Left e -> f clean done ([e | e `notElem` ks] ++ ks ++ [k])
-                            Right v -> do
-                                putStore_ k v
-                                (k :) <$> f (Set.delete k clean) (Set.insert k done) ks
-
+spreadsheet :: Eq v => Build Monad (Changed k v, [k]) k v
+spreadsheet = withChangedMonad $ dynamic $ \k ds _ act -> do
+    dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ maybe (return True) (anyM getChanged) ds
+    if not dirty then
+        return Nothing
+    else do
+        res <- act
+        case res of
+            Left e -> return $ Just e
+            Right v -> do
+                putStore k v
+                return Nothing
 
 data Bazel k v = Bazel
     {bzKnown :: Map.Map (k, [Hash v]) (Hash v)
@@ -173,7 +155,7 @@ data Bazel k v = Bazel
 instance Default (Bazel k v) where def = Bazel def def
 
 bazel :: Hashable v => Build Applicative (Bazel k v) k v
-bazel = linear $ \k ds act -> do
+bazel = topological $ \k ds act -> do
     ds <- mapM getStoreHash ds
     res <- Map.lookup (k, ds) . bzKnown <$> getInfo
     case res of
@@ -199,7 +181,7 @@ data Shazel k v = Shazel
 instance Default (Shazel k v) where def = Shazel def def
 
 shazel :: Hashable v => Build Monad (Shazel k v) k v
-shazel = recursive $ \k ask act -> do
+shazel = recursive $ \k _ ask act -> do
     poss <- Map.findWithDefault [] k . szKnown <$> getInfo
     res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (==) h . getHash <$> ask k) ds
     case res of

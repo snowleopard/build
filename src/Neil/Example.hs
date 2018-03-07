@@ -38,7 +38,7 @@ test build = do
 
 main = do
     test dumb
-    test dumbLinear
+    test dumbTopological
     test dumbRecursive
     test make
     test makeHash
