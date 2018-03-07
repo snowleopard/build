@@ -1,0 +1,15 @@
+\clearpage
+\section{Engineering aspects}\label{sec-engineering}
+
+\begin{itemize}
+    \item Sandboxing
+    \item Non-determinism, specifically, it's useless form. This doesn't
+          include \Excel's \textsf{RANDBETWEEN} function, which is useful.
+          To define correctness of non-deterministic build systems, one needs to
+          switch from \hs{Applicative} and \hs{Monad} abstractions to
+          \hs{Alternative} and \hs{MonadPlus}, respectively, but this is not
+          required for actual implementations, most of which can happily accept
+          non-deterministic results (with a notable exception of \Buck).
+    \item Concurrency
+    \item Cloud
+\end{itemize}
