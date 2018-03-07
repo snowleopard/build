@@ -15,8 +15,8 @@ type Compute c k v = forall f. c f => (k -> f v) -> k -> Maybe (f v)
 inputCompute :: (k -> f v) -> k -> Maybe (f v)
 inputCompute _ _ = Nothing
 
--- TODO: How do we say it works for any possible constraint?
-isInput :: Compute MonadPlus k v -> k -> Bool
+-- TODO: How do we express this in terms of Compute? Drop forall in Compute?
+isInput :: ((k -> Proxy v) -> k -> Maybe (Proxy v)) -> k -> Bool
 isInput compute = isNothing . compute (const Proxy)
 
 --------------------------- Compute Functor: Collatz ---------------------------

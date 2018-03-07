@@ -1,9 +1,11 @@
 {-# LANGUAGE RankNTypes #-}
 module Development.Build.Compute.Applicative (
-    pureCompute, dependencies, transitiveDependencies, acyclic, runPartial
+    pureCompute, dependencies, transitiveDependencies, acyclic, debugPartial,
+    partial, exceptional
     ) where
 
 import Control.Applicative
+import Data.Functor.Compose
 import Data.Maybe
 
 import Development.Build.Compute
@@ -27,8 +29,24 @@ acyclic compute = isJust . transitiveDependencies compute
 -- that the compute failed due to a missing dependency @k@. Otherwise, the
 -- result @Right (Just v)@ yields the computed value, and @Right Nothing@ is
 -- returned if the given key is an input.
-runPartial :: Applicative f => Compute Applicative k v
+debugPartial :: Applicative f => Compute Applicative k v
                             -> (k -> f (Maybe v)) -> k -> Maybe (f (Either k v))
-runPartial compute partialGet = fmap runEitherT . compute get
+debugPartial compute partialGet = fmap getCompose . compute (Compose . get)
   where
-    get k = EitherT $ maybe (Left k) Right <$> partialGet k
+    get k = maybe (Left k) Right <$> partialGet k
+
+-- | Convert a compute with a total lookup function @k -> m v@ into a compute
+-- with a partial lookup function @k -> m (Maybe v)@. This essentially lifts the
+-- compute from the type of values @v@ to @Maybe v@, where the result @Nothing@
+-- indicates that the compute failed because of a missing dependency.
+-- Use 'debugPartial' if you need to know which dependency was missing.
+partial :: Compute Applicative k v -> Compute Applicative k (Maybe v)
+partial compute get = fmap getCompose . compute (Compose . get)
+
+-- | Convert a compute with a total lookup function @k -> m v@ into a compute
+-- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
+-- essentially lifts the compute from the type of values @v@ to @Either e v@,
+-- where the result @Left e@ indicates that the compute failed because of a
+-- failed dependency lookup, and @Right v@ yeilds the value otherwise.
+exceptional :: Compute Applicative k v -> Compute Applicative k (Either e v)
+exceptional compute get = fmap getCompose . compute (Compose . get)
