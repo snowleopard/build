@@ -3,7 +3,7 @@ module Development.Build.Utilities (
     reach, reachM,
 
     -- * Transformers
-    EitherT (..), AltConst (..),
+    AltConst (..),
 
     -- * Helpers
     agree,
@@ -36,20 +36,12 @@ reachM successors a = fmap (filter (/= a)) <$> go [] a
             | otherwise   = do res <- traverse (go (x:xs)) =<< successors x
                                return $ ((x:xs)++) . concat <$> sequence res
 
-newtype EitherT e f a = EitherT { runEitherT :: f (Either e a) }
-
-instance Functor f => Functor (EitherT e f) where
-    fmap f (EitherT x) = EitherT (fmap f <$> x)
-
-instance Applicative f => Applicative (EitherT e f) where
-    pure x                  = EitherT $ pure (Right x)
-    EitherT f <*> EitherT x = EitherT $ liftA2 (<*>) f x
-
 agree :: Eq v => [k -> v] -> [k] -> Bool
 agree fs = all same
   where
     same k = let vs = map ($k) fs in and $ zipWith (==) vs (drop 1 vs)
 
+-- TODO: We can probably achieve the same effect using Compose [] Const.
 newtype AltConst a b = AltConst { getAltConst :: [[a]] }
 
 instance Functor (AltConst a) where
