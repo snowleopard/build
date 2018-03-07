@@ -30,14 +30,14 @@ getDependenciesMaybe comp = maybe (Just []) getConstMaybe . comp (\x -> ConstMay
 trackDependencies :: Monad m => Compute Monad k v -> (k -> m v) -> k -> Maybe (m ([k], v))
 trackDependencies comp f k = runDepends f <$> toDepends comp k
 
-failDependencies :: Monad m => Compute Monad k v -> (k -> m (Either e v)) -> k -> Maybe (m (Either e v))
+failDependencies :: Monad m => Compute Monad k v -> (k -> m (Either e v)) -> k -> Maybe (m (Either e ([k], v)))
 failDependencies comp f k = go <$> toDepends comp k
-    where go (Done r) = return $ Right r
+    where go (Done r) = return $ Right ([], r)
           go (Depends ds next) = do
                 vs <- mapM f ds
                 case sequence vs of
                     Left e -> return $ Left e
-                    Right xs -> go $ next xs
+                    Right xs -> fmap (fmap (first (ds++))) $ go $ next xs
 
 
 data ConstMaybe a b = ConstMaybe {getConstMaybe :: Maybe a}

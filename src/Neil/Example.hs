@@ -38,11 +38,15 @@ test build = do
 
 main = do
     test dumb
+    test dumbDynamic
     test dumbTopological
     test dumbRecursive
     test make
-    test makeHash
+    test makeTrace
     test shake
+    test shakeDirtyBit
     test spreadsheet
+    test spreadsheetTrace
+    test spreadsheetRemote
     test bazel
     test shazel
