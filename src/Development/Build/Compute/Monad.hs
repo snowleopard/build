@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
     dependencies, transitiveDependencies, inputs, acyclic,
-    consistent, correctBuild, runPure, debugPartial, partial,
+    consistent, correctBuild, runPure, debugPartial, partial, exceptional,
     staticDependencies, Script (..), getScript, runScript, isStatic
     ) where
 
@@ -81,6 +81,16 @@ debugPartial compute partialGet = fmap runExceptT . compute get
 -- Use 'debugPartial' if you need to know which dependency was missing.
 partial :: Compute Monad k v -> Compute Monad k (Maybe v)
 partial compute get = (fmap . fmap) (either (const Nothing) Just) . debugPartial compute get
+
+-- | Convert a compute with a total lookup function @k -> m v@ into a compute
+-- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
+-- essentially lifts the compute from the type value @v@ to @Either e v@, where
+-- the result @Left e@ indicates that the compute failed because of a failed
+-- dependency lookup, and @Right v@ yeilds the value otherwise.
+exceptional :: Compute Monad k v -> Compute Monad k (Either e v)
+exceptional compute exceptionalGet = fmap runExceptT . compute get
+  where
+    get k = either throwE return =<< lift (exceptionalGet k)
 
 -- TODO: Does this always terminate? It's not obvious!
 staticDependencies :: Compute Monad k v -> k -> [k]
