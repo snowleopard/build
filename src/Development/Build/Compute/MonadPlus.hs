@@ -42,7 +42,7 @@ consistent compute f = forall $ \k -> Just (f k) `elem` runPure compute f k
 -- | Run a non-deterministic compute with a pure lookup function, listing all
 -- possible results, including @Nothing@ indicating that a given key is an input.
 runPure :: Compute MonadPlus k v -> (k -> v) -> k -> [Maybe v]
-runPure compute f = runIdentity . runListT . sequenceA . compute (ListT . return . pure . f)
+runPure compute f = runIdentity . runListT . sequenceA . compute (ListT . Identity . pure . f)
 
 -- pureInputs :: Eq k => Compute MonadPlus k v -> (k -> v) -> k -> [Maybe [k]]
 -- pureInputs compute f = runIdentity . runListT . inputs compute (ListT . return . pure . f)

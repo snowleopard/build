@@ -7,6 +7,7 @@ module Development.Build.Compute.Monad (
 
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
+import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
 import Data.Functor.Identity
 import Data.Maybe
@@ -33,7 +34,7 @@ inputs compute get key = do
     return $ filter (isInput compute) <$> deps
 
 pureInputs :: Eq k => Compute Monad k v -> (k -> v) -> k -> Maybe [k]
-pureInputs compute f = runIdentity . inputs compute (pure . f)
+pureInputs compute f = runIdentity . inputs compute (Identity . f)
 
 -- | Check that a compute is /consistent/ with a pure lookup function @f@, i.e.
 -- if it returns @Just v@ for some key @k@ then @f k == v@.
@@ -59,7 +60,7 @@ correctBuild compute before after key =
 -- | Run a compute with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
 runPure :: Compute Monad k v -> (k -> v) -> k -> Maybe v
-runPure compute f = fmap runIdentity . compute (pure . f)
+runPure compute f = fmap runIdentity . compute (Identity . f)
 
 -- | Run a compute with a partial lookup function. The result @Left k@ indicates
 -- that the compute failed due to a missing dependency @k@. Otherwise, the
@@ -68,29 +69,23 @@ debugPartial :: Monad m => Compute Monad k v
                       -> (k -> m (Maybe v)) -> k -> Maybe (m (Either k v))
 debugPartial compute partialGet = fmap runExceptT . compute get
   where
-    get k = do
-        maybeValue <- lift (partialGet k)
-        case maybeValue of
-            Nothing    -> throwE k
-            Just value -> return value
+    get k = maybe (throwE k) return =<< lift (partialGet k)
 
 -- | Convert a compute with a total lookup function @k -> m v@ into a compute
 -- with a partial lookup function @k -> m (Maybe v)@. This essentially lifts the
--- compute from the type value @v@ to @Maybe v@, where the result @Nothing@
+-- compute from the type of values @v@ to @Maybe v@, where the result @Nothing@
 -- indicates that the compute failed because of a missing dependency.
 -- Use 'debugPartial' if you need to know which dependency was missing.
 partial :: Compute Monad k v -> Compute Monad k (Maybe v)
-partial compute get = (fmap . fmap) (either (const Nothing) Just) . debugPartial compute get
+partial compute get = fmap runMaybeT . compute (MaybeT . get)
 
 -- | Convert a compute with a total lookup function @k -> m v@ into a compute
 -- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
--- essentially lifts the compute from the type value @v@ to @Either e v@, where
--- the result @Left e@ indicates that the compute failed because of a failed
--- dependency lookup, and @Right v@ yeilds the value otherwise.
+-- essentially lifts the compute from the type of values @v@ to @Either e v@,
+-- where the result @Left e@ indicates that the compute failed because of a
+-- failed dependency lookup, and @Right v@ yeilds the value otherwise.
 exceptional :: Compute Monad k v -> Compute Monad k (Either e v)
-exceptional compute exceptionalGet = fmap runExceptT . compute get
-  where
-    get k = either throwE return =<< lift (exceptionalGet k)
+exceptional compute get = fmap runExceptT . compute (ExceptT . get)
 
 -- TODO: Does this always terminate? It's not obvious!
 staticDependencies :: Compute Monad k v -> k -> [k]
