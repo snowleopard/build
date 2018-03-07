@@ -19,11 +19,11 @@ inputCompute _ _ = Nothing
 isInput :: Compute MonadPlus k v -> k -> Bool
 isInput compute = isNothing . compute (const Proxy)
 
------------------------------------ Examples -----------------------------------
+--------------------------- Compute Functor: Collatz ---------------------------
 -- Collatz sequence:
 -- c[0] = n
 -- c[k] = f(c[k - 1]) where
--- For example, if n = 12, one gets the sequence 12, 6, 3, 10, 5, 16, 8, 4, 2, 1.
+-- For example, if n = 12, the sequence is 12, 6, 3, 10, 5, 16, 8, 4, 2, 1, ...
 
 data Collatz = Collatz Int
 
@@ -34,12 +34,13 @@ collatz get (Collatz k) | k <= 0    = Nothing
     f n | even n    = n `div` 2
         | otherwise = 3 * n + 1
 
+------------------------ Compute Applicative: Fibonacci ------------------------
 -- Generalised Fibonacci sequence:
 -- f[0] = n
 -- f[1] = m
 -- f[k] = f[k - 1] + f[k - 1]
 -- For example, with (n, m) = (0, 1) we get usual Fibonacci sequence, and if
--- (n, m) = (2, 1) we get Lucas sequence: 2, 1, 3, 4, 7, 11, 18, 29, 47 ...
+-- (n, m) = (2, 1) we get Lucas sequence: 2, 1, 3, 4, 7, 11, 18, 29, 47, ...
 data Fibonacci = Fibonacci Int
 
 fibonacci :: Compute Applicative Fibonacci Int
@@ -47,11 +48,14 @@ fibonacci get (Fibonacci k) | k <= 1    = Nothing
                             | otherwise = Just $ (+) <$> get (Fibonacci (k - 1))
                                                      <*> get (Fibonacci (k - 2))
 
+--------------------------- Compute Monad: Ackermann ---------------------------
 -- Ackermann function:
 -- a[0, n] = n + 1
 -- a[m, 0] = a[m - 1, 1]
 -- a[m, n] = a[m - 1, a[m, n - 1]]
 -- Formally, it has no inputs, but we return Nothing for negative inputs.
+-- For example, a[m, 1] = 2, 3, 5, 13, 65535, ...
+
 data Ackermann = Ackermann Int Int
 
 ackermann :: Compute Monad Ackermann Int
