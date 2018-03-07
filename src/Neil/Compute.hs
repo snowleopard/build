@@ -1,30 +1,37 @@
-{-# LANGUAGE Rank2Types, ConstraintKinds, DeriveFunctor #-}
+{-# LANGUAGE Rank2Types, ConstraintKinds, DeriveFunctor, KindSignatures #-}
 
 module Neil.Compute(
     Compute,
+    isInput,
     getDependencies, getDependenciesMaybe, trackDependencies, failDependencies,
     Depend(..), runDepend, toDepend,
     Depends(..), runDepends, toDepends,
     ) where
 
+import Data.Kind
 import Data.Functor.Const
 import Data.Monoid
+import Data.Maybe
+import Data.Proxy
 import Data.Tuple.Extra
 
 
-type Compute c k v = forall f . c f => (k -> f v) -> k -> f (Maybe v)
+type Compute c k v = forall f . c f => (k -> f v) -> k -> Maybe (f v)
+
+isInput :: Compute Monad k v -> k -> Bool
+isInput comp = isNothing . comp (const Proxy)
 
 getDependencies :: Compute Applicative k v -> k -> [k]
-getDependencies comp = getConst . comp (\k -> Const [k])
+getDependencies comp = maybe [] getConst . comp (\k -> Const [k])
 
 getDependenciesMaybe :: Compute Monad k v -> k -> Maybe [k]
-getDependenciesMaybe comp = getConstMaybe . comp (\x -> ConstMaybe $ Just [x])
+getDependenciesMaybe comp = maybe (Just []) getConstMaybe . comp (\x -> ConstMaybe $ Just [x])
 
-trackDependencies :: Monad m => Compute Monad k v -> (k -> m v) -> k -> m ([k], Maybe v)
-trackDependencies comp f k = runDepends f (toDepends comp k)
+trackDependencies :: Monad m => Compute Monad k v -> (k -> m v) -> k -> Maybe (m ([k], v))
+trackDependencies comp f k = runDepends f <$> toDepends comp k
 
-failDependencies :: Monad m => Compute Monad k v -> (k -> m (Either e v)) -> k -> m (Either e (Maybe v))
-failDependencies comp f k = go (toDepends comp k)
+failDependencies :: Monad m => Compute Monad k v -> (k -> m (Either e v)) -> k -> Maybe (m (Either e v))
+failDependencies comp f k = go <$> toDepends comp k
     where go (Done r) = return $ Right r
           go (Depends ds next) = do
                 vs <- mapM f ds
@@ -101,11 +108,11 @@ instance Applicative f => Applicative (Step f) where
 getDepend :: k -> Depend k v v
 getDepend k = Depend [k] $ \[v] -> v
 
-toDepend :: Compute Applicative k v -> k -> Depend k v (Maybe v)
+toDepend :: Compute Applicative k v -> k -> Maybe (Depend k v v)
 toDepend f = f getDepend
 
 getDepends :: k -> Depends k v v
 getDepends k = Depends [k] $ \[v] -> Done v
 
-toDepends :: Compute Monad k v -> k -> Depends k v (Maybe v)
+toDepends :: Compute Monad k v -> k -> Maybe (Depends k v v)
 toDepends f = f getDepends
