@@ -1,5 +1,59 @@
 \section{Introduction}\label{sec-intro}
 
+Build systems (such as make) are big, complicated, but unloved part of
+the software ecosystem.  Every developer on the planet uses one, but
+they are very much a means to an end, and seldom the focus of
+attention.  But the challenges of scale have driven large software firms
+like Microsoft, Facebook, and Google to develop their own build
+systems, each with its own choices and idiosyncracies.
+
+Seldom do people ask questions like "What does it mean for my build
+system to be correct?" or "What are the trade-offs between different
+approaches?".  Complex build systems use subtle algorithms, but they
+are often hidden away, and not the object of study.
+
+In this paper we offer a general framework in which to discuss these
+questions in a way that is both absract (omitting incidental detail)
+and yet precise (implemented as Haskell code).  Specifically we make
+these contributions:
+\begin{itemize}
+\item We describe some simple but novel abstractions that
+crisply encapsulate what a build system is.
+\item We show that we can instantiate
+these abstractions to describe the essence of a variety of different
+build systems, including make, Shake, Buck, Bazel, and Excel, each in
+a dozen lines of code or so.
+Doing this in a single setting allows
+the differences and similarities between these huge systems to be
+brought out clearly.
+\item Build systems vary on many axes;
+for example: static vs dynamic dependencies; cloud-build, including
+shallow vs deep; deterministic vs non-deterministic build rules;
+early cut-off; self-tracking build systems; and persistent metadata.
+These properties (which we define in Section~\ref{xxx}) are often
+deeply-built-in assumptions of a particular build system.
+In contrast, our framework allows them to be distinguished,
+reasoned about, and varied.
+\item Two particularly desirable properties are dynamic dependencies
+and cloud-build; yet no currently-available build system supports
+both.  Our framework makes it rather easy to do so, for the first
+time.
+\end{itemize}
+Thus equipped, instead of seeing build systems as unrelated
+points in space, we can re-envisage them as locations in a landscape,
+leading to better understanding of what they do and how they compare,
+and suggesting exploration of other (as yet unoccupied points) in the
+landscape.
+
+Papers about "frameworks" are often fuzzy.  This one is not: all our
+abstractions are defined in Haskell, and we have (freely-available)
+executable models of all the build systems we describe.  An unusual
+feature is that we include Excel in our line-up because, looked at
+in the right way, it certainly is a build system.
+
+
+... Old text ...
+
 Build systems automate the execution of simple repeatable tasks for individual
 users, as well as for large organisations. There are software build systems such
 as \Make, \Ninja, \Shake, \Bazel, \Buck and many others, as well as various
