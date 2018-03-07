@@ -26,9 +26,9 @@ import qualified Data.Map as Map
 type Build c i k v = (Ord k, Show k, Typeable k) => Compute c k v -> k -> Maybe i -> Map.Map k v -> (i, Map.Map k v)
 
 
-runM :: (Ord k, Default i) => M i k v a -> Maybe i -> Map.Map k v -> (i, Map.Map k v)
+runM :: (Default i) => M i k v a -> Maybe i -> Map.Map k v -> (i, Map.Map k v)
 runM (M m) i s = (info res, store res)
-    where res = execState m $ S s (fromMaybe def i) mempty mempty
+    where res = execState m $ S s (fromMaybe def i) mempty Set.empty
 
 data S i k v = S
     {store :: Map.Map k v

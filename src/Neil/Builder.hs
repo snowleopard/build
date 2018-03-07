@@ -7,6 +7,7 @@ module Neil.Builder(
     dumbRecursive,
     make,
     makeTrace,
+    makeDirtyBit,
     shake,
     shakeDirtyBit,
     spreadsheet,
@@ -111,6 +112,13 @@ make = withChangedApplicative $ topological $ \k ds act -> do
     case kt of
         Just xt | all (<= xt) ds -> return ()
         _ -> putStore_ k =<< act
+
+makeDirtyBit :: Eq v => Build Applicative (Changed k v, ()) k v
+makeDirtyBit = withChangedApplicative $ topological $ \k ds act -> do
+    dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ anyM getChanged ds
+    when dirty $
+        putStore_ k =<< act
+
 
 type MakeHash k v = Map.Map (k, [Hash v]) (Hash v)
 

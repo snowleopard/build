@@ -43,6 +43,7 @@ main = do
     test dumbRecursive
     test make
     test makeTrace
+    test makeDirtyBit
     test shake
     test shakeDirtyBit
     test spreadsheet
