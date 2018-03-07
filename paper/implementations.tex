@@ -15,8 +15,8 @@ Using the framework we have built we can express the simplest and stupidest buil
 
 \begin{minted}{haskell}
 dumb :: Build Monad () k v
-dumb compute = runM . f
-    where f k = maybe (getStore k) (putStore k =<<) $ compute f k
+dumb compute k = runM (f k)
+    where f k = maybe (getStore k) (\act -> do v <- act; putStore k v; return v) $ compute f k
 \end{minted}
 
 \begin{figure}
@@ -24,154 +24,235 @@ dumb compute = runM . f
 data M i k v r
 runM :: Default i => M i k v a -> Maybe i -> Map.Map k v -> (i, Map.Map k v)
 getStore :: k -> M i k v v
-putStore :: k -> v -> M i k v v
+putStore :: k -> v -> M i k v ()
 \end{minted}
-Note: we have omitted the context on \textt{k}, things like \texttt{Ord} (so the implementation can use a finite map) or \texttt{Show} (so the implementation can produce nice error messages).
+Note: we have omitted the context on \hs{k}, things like \hs{Ord} (so the implementation can use a finite map) or \hs{Show} (so the implementation can produce nice error messages).
 \caption{API with which to implement build systems}
 \label{fig-M-api}
 \end{figure}
   
-The types of important definitions are given in Figure \ref{fig-M-api}
+The types of important definitions are given in Figure \ref{fig-M-api}. In essence we take the pure \hs{Map} to \hs{Map} interface of \hs{Build} and instead provide a Monad \hs{M} which keeps track of the \hs{i} info and \hs{Map k v} as a store. We can then provide functions like \hs{getStore} to load from the store and \hs{putStore} to write to the store.
 
+With that the \hs{dumb} build from above should start to make sense. The function \hs{dumb} takes \hs{compute} and \hs{k}, then calls \hs{runM} on \hs{f x}, where \hs{f x} has type \hs{M () k v v}. The \hs{runM} function takes care of putting the information into a state monad, running the computation, then extracting it afterwards - to match the signature of \hs{build}.
 
+We'll introduce the other functions in in the monad \hs{M} as we need them while exploring the build systems.
 
+\subsection{\Make}
 
-
-but 
-
-
-This section present several concrete examples of build systems, providing
-simple implementations that use the previously introduced abstractions.
-
-\subsection{Applicative build systems}
-
-Applicative build system can only accept an applicative compute, because they
-rely on building the full dependency graph upfront, which is impossible with
-dynamic dependencies.
-
-\vspace{4mm}
-\subsubsection{An incorrect applicative build system}~\\
-
-\todo{AM}{Describe the \hs{dumbBuild} that builds outputs in the given order.}
-
-\vspace{4mm}
-\subsubsection{\Make: a correct but non-minimal applicative build system}~\\
- 
-We start by applicative build systems, such as the classic vanilla
-\Make\footnote{There are numerous implementations of \Make and none comes with a
-formal specification. In this paper we therefore use a simple but reasonable
-approximation to a real \Make that you might find on your machine.} and a more
-recent \Ninja.
-
-Make is correct but non-minimal. It is unusual from other build systems in that
-it relies on \emph{timed values}, i.e. on a map \hs{age :: v -> Time}, as a
-heuristic to decide whether a value is up-to-date.
-
-\todo{NM}{Add a description of \Make.}
-
-\vspace{4mm}
-\subsubsection{\Ninja: a correct and minimal applicative build system}~\\
-
-\Ninja is a modern alternative to \Make ...
-
-\todo{NM}{Add a description of \Ninja.}
-
-\todo{AM}{What about Nix? John Ericson suggested in a blog comment that it may
-be somewhat monadic, see:
-\url{https://blogs.ncl.ac.uk/andreymokhov/cloud-and-dynamic-builds/\#comment-1849}.}
-
-\subsection{Monadic build systems}
-
-...
-\subsubsection{An incorrect monadic build system}~\\
-
-See \hs{dumbBuild}.
-
-\subsubsection{Correct but not minimal monadic build system}~\\
-
-As of writing, XXX is a correct but non-minimal monadic build system. Here is
-an example where it does unnecessary computation:
-
-\begin{minted}[frame=single]{text}
-A1 = 10
-A2 = MIN(A1, 4)
-A3 = SQRT(A2)
-\end{minted}
-
-After performing the build, XXX computes \textsf{A2 = 4} and \textsf{A3 = 2}
-from the input cell \textsf{A1}. Now if the user changes the \textsf{A1} to 5,
-XXX will recompute both \textsf{A2 = 4}, which is necessary, but also
-\textsf{A3 = 2}, which is unnecessary since its only dependency (\textsf{A1})
-has not changed since the previous build.
-
-One possible implementation of a spreadsheet build
-system\footnote{For example, see \url{http://www.decisionmodels.com/calcsecretsc.htm}.}
-is to maintain a
-sequence of cells in which they should be evaluated. The build system takes this
-sequence as input, marks all cells as \emph{unevaluated}, and then attempts to
-evaluate all cells in the order specified by the sequence. If the cell to be
-evaluated depends on an unevaluated cell, this means the provided sequence is
-not a correct topological order and is updated by moving the current cell to the
-back of the sequence. The build then proceeds with the next cell. Otherwise, if
-all dependencies of the current cell have been marked as \emph{evaluated}, the
-build system computes the correct value for the cell by evaluating the formula,
-writes it into the spreadsheet and proceeds to the next cell in the sequence. If
-there are no cyclic dependencies, this process eventually terminates with
-correct results. The resulting sequence, which is guaranteed to respect the
-topological order of dependencies is stored to be reused during the next build.
-
-...
-
-Interesting note: XXX is unusual in that it tracks changes in the compute,
-i.e. if a user edits a formula, XXX will correctly rebuild results. Most build
-systems, including \Shake, do not meet this requirement and a clean rebuild may
-be necessary if the user edits build rules.
-
-...
-
-\subsubsection{Correct and minimal monadic build system}~\\
-
-\Shake is a correct and minimal monadic build system.
-\todo{NM}{Describe \Shake using our abstractions.}
-
-\subsection{Cloud build systems}
-
-Codebase of large software projects comprises millions of lines of code spread
-across thousands of files, each built independently by thousands of developers
-on thousands of machines. A distributed cloud build system speeds up builds
-dramatically (and saves energy) by transparently sharing build products among
-developers.
-
-\todo{AM}{Also mention YYY (developed by ZZZ), Buck (Facebook) and Pants
-(Twitter et al). Buck is essentially the same. Are they essentially the same?}
-
-\Bazel is a cloud build system developed by Google, which supports caching of
-build results. To achieve that, it maintains two partial maps:
+The \Make build system builds files in a linear order based on a topological sort. For each file, it builds it if the output file does not exist or is older than any of the inputs. We can express this in our framework with:
 
 \begin{minted}{haskell}
-type Cache =  Hash  -> Maybe v
-type Known = [Hash] -> Maybe Hash
+make :: Eq v => Build Applicative (Changed k v, ()) k v
+make = withChangedApplicative $ topological $ \k ds act -> do
+    kt <- getStoreTimeMaybe k
+    ds <- mapM getStoreTime ds
+    case kt of
+        Just xt | all (<= xt) ds -> return ()
+        _ -> putStore k =<< act
 \end{minted}
 
-\hs{Cache} is a conventional \emph{content-addressable store}, that can be used
-to fetch a previously computed value given its hash.
+We'll come back to \hs{withChangedApplicative} afterwards, but ignoring that, reading the rest of the implementation you can see the underying essence of \Make. We use the helper function \hs{topological} which gets called with each file in a dependency-respecting order given the file (\hs{k}), the dependencies (\hs{ds}) and an action to generate the result (\hs{act}). With those three things in hand, the implementation first tries to get the timestamp of the target, then all the dependencies (which must have been rebuilt if necessary, thanks to the guarantees on \hs{topological}), and if everything is fine does nothing, otherwise rebuilds and stores the result.
 
-\hs{Known} records a known outcome of a computation that took a list of values
-as input (represented by their hashes) and produced a resulting value (also
-represented by its hash). Now, a build system has the following two options to
-recompute a value:
+The implementation of \hs{topological} encodes the dependency strategy that \Make has chosen to use. The function itself is defined as:
+
+\begin{minted}{haskell}
+topological :: Default i => (k -> [k] -> M i k v v -> M i k v ()) -> Build Applicative i k v
+topological step compute k = runM $ do
+    let depends = getDependencies compute
+    forM_ (topSort depends $ transitiveClosure depends k) $ \k ->
+        case compute getStore k of
+            Nothing -> return ()
+            Just act -> step k (depends k) act
+\end{minted}
+
+It uses a \hs{getDependencies} on the computation function, takes the transitive-closure and topological-sort to provide an order in which to build the keys. For each key, if it is an input it does nothing, otherwise it calls the supplied \hs{step} function. Note that \hs{getDependencies} is only defined for \hs{Applicative} computes, which is what restricts \Make to Applicative build systems. Moreover, anyone following the same topological-sort approach will also have the \hs{Applicative} restriction.
+
+The ``nasty'' element of this implementation is \hs{getStoreTime}, which is supported with a few somewhat abstract functions on \hs{M}:
+
+\begin{minted}{haskell}
+getChanged :: Eq v => k -> M (Changed k v, i) k v Bool
+withChangedApplicative :: Build Applicative (Changed k v, i) k v -> Build Applicative (Changed k v, i) k v
+
+data Time = LastBuild | AfterLastBuild
+getStoreTimeMaybe :: Eq v => k -> M (Changed k v, i) k v (Maybe Time)
+getStoreTime :: Eq v => k -> M (Changed k v, i) k v Time
+\end{minted}
+
+Recall that our \hs{Build} operation only gets a \hs{Map} - not a set of timestamps at which the build was updated. To model a timed store on top the build system implementation needs to store as info (the \hs{i}) field the old file store at the end, and then it can consider anything that has changed to be dirty. With this implementation \hs{getChanged k} will return \hs{True} if either the value associated with \hs{k} changed between the last execution and the start of this execution (tested for using the \hs{Eq} class), \textit{or} if \hs{putStore} has been called on it in this run. That essentially encodes the dirty bit required for Excel. We use \hs{withChangedApplicative} to do the tedious step of capturing the state at the end of the build and storing it as the info.
+
+On top of a dirty bit we can encode a time with a very small domain, concretely if the file was last changed before the last build ended, or afterwards. That domain is sufficient for the \Make system. At first the fact that was sufficient surprised us, but it eventually became clear that \Make is using modification times as a dirty bit! Moreover, that explains why that a \hs{putStore} of an equal value doesn't avoid setting the changed bit - it can't because modification times can't encode that. Now we can give an equivalent but simpler formulation:
+
+\begin{minted}{haskell}
+makeDirtyBit :: Eq v => Build Applicative (Changed k v, ()) k v
+makeDirtyBit = withChangedApplicative $ topological $ \k ds act -> do
+    dirty <- fmap isNothing (getStoreMaybe k) ||^ anyM getChanged ds
+    when dirty $
+        putStore k =<< act
+\end{minted}
+
+Here we directly test for changes, which is simpler.
+
+\subsection{Spreadsheet}
+
+The spreadsheet is actually one of the most challenging to implement, and one of the most challenging to into pieces. The code is:
+
+\begin{minted}{haskell}
+spreadsheet :: Eq v => Build Monad (Changed k v, [k]) k v
+spreadsheet = withChangedMonad $ dynamic $ \k ds _ act -> do
+    dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ maybe (return True) (anyM getChanged) ds
+    if not dirty then
+        return Nothing
+    else do
+        res <- act
+        case res of
+            Left e -> return $ Just e
+            Right (_, v) -> do
+                putStore k v
+                return Nothing
+\end{minted}
+
+We use basically the same change computation to test for dirtiness, but things are complicated because when we run a computation it may fail (indicating we need to try again later), or may succeed. The best way to explain it is with the type of \hs{dynamic}:
+
+\begin{minted}{haskell}
+dynamic
+    :: (m ~ M (i, [k]) k v, Default i)
+    => (k -> Maybe [k] -> (k -> m (Maybe v)) -> m (Either k ([k], v)) -> m (Maybe k))
+    -> Build Monad (i, [k]) k v
+\end{minted}
+
+Dynamic requires a function that takes takes 4 arguments (we use \hs{m} to elide \hs{M (i, [k]) k v} from all the signatures):
+
+\begin{enumerate}
+\item \hs{k} - the key that is being built.
+\item \hs{Maybe [k]} - the list of dependencies, or \hs{Nothing} if the step makes use of monadic dependencies. Note that above if a step is truely monadic it is always rebuilt. In the case of spreadsheets such steps are very rare, so a very conservative approximation can be used.\footnote{In truth, many spreadsheets take the alternative approximation of always assuming monadic steps \textit{did not} change - trading correctness for performance.}
+\item \hs{k -> m (Maybe v)} - a function that looks up a key - it returns \hs{Nothing} if that key has not yet been built (and thus there is a dependency violation).
+\item \hs{m (Either k ([k], v))} - an action to produce either the \hs{k} which is required but not yet computed (the reason you fail your dependency order check), or a list of the keys used and value produced.
+\item It returns \hs{m (Maybe k)}, with a \hs{Nothing} to indicate the the build succeeded, or \hs{Just k} to indicate that the given key \hs{k} has not been built, and thus this key should be moved after \hs{k}.
+\end{enumerate}
+
+The implementation of \hs{dynamic} is 15 lines, but is substantially complicated by the requirement to ensure newly discovered keys are added to the list - something an actual spreadsheet with a fixed universe of cells need not do.
+
+\subsection{Shake}
+
+The Shake approach for dependency tracking is different yet again, with a recursive approach. We can implement Shake with:
+
+\begin{minted}{haskell}
+type Shake k v = Map.Map k (Hash v, [(k, Hash v)])
+
+-- | The simplified Shake approach of recording previous traces
+shake :: Hashable v => Build Monad (Shake k v) k v
+shake = recursive $ \k _ ask act -> do
+    info <- getInfo
+    valid <- case Map.lookup k info of
+        Nothing -> return False
+        Just (me, deps) ->
+            (maybe False (== me) <$> getStoreHashMaybe k) &&^
+            allM (\(d,h) -> (== h) . getHash <$> ask d) deps
+    unless valid $ do
+        (ds, v) <- act
+        putStore k v
+        dsh <- mapM getStoreHash ds
+        modifyInfo $ Map.insert k (getHash v, zip ds dsh)
+\end{minted}
+
+The basic implementation of Shake stores a trace - each target key is associated with a \hs{Hash v} (the value that resulted last time it was built), along with a list of \hs{(k, Hash v)} pairs, being the dependencies and the values it used at that point. The essence of Shake is that it considers a file dirty if the trace is not consistent with what currently exists on disk, and after rebuilding, captures a trace. The \hs{recursive} combinator is defined as:
+
+\begin{minted}{haskell}
+-- | Build a rule at most once in a single execution
+recursive :: Default i => (k -> Maybe [k] -> (k -> M i k v v) -> M i k v ([k], v) -> M i k v ()) -> Build Monad i k v
+recursive step compute = runM . ensure
+    where
+        ensure k = do
+            let ask x = ensure x >> getStore x
+            done <- getTemp
+            when (k `Set.notMember` done) $ do
+                modifyTemp $ Set.insert k set
+                case trackDependencies compute ask k of
+                    Nothing -> return ()
+                    Just act -> step k (getDependenciesMaybe compute k) ask act
+\end{minted}
+
+The required \hs{step} function gets given the \hs{k} to build, the dependencies as \hs{Maybe [k]} (where they are \hs{Nothing} if the rule is truely monadic), a function to demand the result of a dependent key, and a function to compute the current value and return the actual dependencies. To ensure each file is only visited once in a single execution a piece of temporary state is used with \hs{getTemp} and \hs{modifyTemp} to record which files were visited - this state is not persisted to the \hs{i} info parameter.
+
+\subsection{Bazel}
+
+Now we have seen the three dependency schemes, we can directly use \hs{topological} to define Bazel. Furthermore, in many ways Bazel is a tracing build system, so it has a number of similarities to Shake. Concretely we have:
+
+\begin{minted}{haskell}
+data Bazel k v = Bazel
+    {bzKnown :: Map.Map (k, [Hash v]) (Hash v)
+    ,bzContent :: Map.Map (Hash v) v
+    } deriving Show
+
+bazel :: Hashable v => Build Applicative (Bazel k v) k v
+bazel = topological $ \k ds act -> do
+    ds <- mapM getStoreHash ds
+    res <- Map.lookup (k, ds) . bzKnown <$> getInfo
+    case res of
+        Nothing -> do
+            res <- act
+            modifyInfo $ \i -> i
+                {bzKnown = Map.insert (k, ds) (getHash res) $ bzKnown i
+                ,bzContent = Map.insert (getHash res) res $ bzContent i}
+            putStore k res
+        Just res -> do
+            now <- getStoreHashMaybe k
+            when (now /= Just res) $
+                putStore k . (Map.! res) . bzContent =<< getInfo
+\end{minted}
+
+The state matches that described in \S\ref{todo} - we have a map indexed by a target key, and the hashes of the dependencies of that key. Given that, we point at a resultant hash. Separately we have a map giving the contents for a given hash. For simplicity we assume that all hashes have corresponding entries in the content index.
+
+The implementation works by getting the hashes of all dependencies and looking them up in the trace table. There are three possibilities:
+
+\begin{enumerate}
+\item This situation has never been encountered before. Execute the action and record it in the info.
+\item This situation has been encountered before, and the result was the same as we have now, so nothing to do.
+\item This situation has been encountered before but we don't have that result locally (usually we have nothing), so just download the result.
+\end{enumerate}
+
+\subsection{Cloud Shake}
+
+Using the framework above we have implemented the full 3x3 matrix, of dependency scheme and change approach. To us, the interesting point on the design space would be monadic dependencies using the \hs{recursive} strategy combined with cloud builds as per \Bazel, so we focus on that. The implementation is:
+
+\begin{minted}{haskell}
+data ShazelResult k v = ShazelResult [(k, Hash v)] (Hash v) deriving Show
+
+data Shazel k v = Shazel
+    {szKnown :: Map.Map k [ShazelResult k v]
+    ,szContent :: Map.Map (Hash v) v
+    } deriving Show
+
+instance Default (Shazel k v) where def = Shazel def def
+
+shazel :: Hashable v => Build Monad (Shazel k v) k v
+shazel = recursive $ \k _ ask act -> do
+    poss <- Map.findWithDefault [] k . szKnown <$> getInfo
+    res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (==) h . getHash <$> ask k) ds
+    case res of
+        [] -> do
+            (ds, v) <- act
+            dsv <- mapM getStoreHash ds
+            modifyInfo $ \i -> i
+                {szKnown = Map.insertWith (++) k [ShazelResult (zip ds dsv) (getHash v)] $ szKnown i
+                ,szContent = Map.insert (getHash v) v $ szContent i}
+            putStore k v
+        _ -> do
+            let poss = [v | ShazelResult _ v <- res]
+            now <- getStoreHashMaybe k
+            when (now `notElem` map Just poss) $
+                putStore k . (Map.! head poss) . szContent =<< getInfo
+\end{minted}
+
+The difference between the data type from Bazel is worth looking at. In both cases they essentially store traces - a target key, target hash, list of dependency keys and hashes. However:
 
 \begin{itemize}
-    \item Call the compute function on the store containing all up-to-date
-    dependencies and put the computed value to the store.
-    \item Collect hashes of all up-to-date dependencies \hs{hs} and query the
-    \hs{Known} map. If this computation has been performed before, the map will
-    contain the hash \hs{h} of one valid result (recall that the compute function
-    may be non-deterministic). It is now possible to lookup \hs{h} in the
-    \hs{Cache} and if it contains a value \hs{v} it can be downloaded to the
-    local store instead of running the compute.
+\item Bazel doesn't bother to store the dependency keys, as they can be calculated from the target using \hs{getDependencies} due to the \hs{Applicative} nature. It indexes on the target key and dependency hashes, immediately providing the target hash.
+\item Cloud Shake has to store the dependency keys, but can't index the Map by them - the checking must mirror the monadic nature. A more refined/efficient data type would be:
+\begin{minted}{haskell}
+data Choice = Choice k (Map (Hash v) Choice)
+            | Result (Hash v)
+\end{minted}
 \end{itemize}
 
-...
-
-\todo{AM}{Also describe the XYZ algorithm.}
+We also technically allow multiple traces to be in the store at the same time, although that is merely something that falls out for free - we would have to do work to avoid it.
