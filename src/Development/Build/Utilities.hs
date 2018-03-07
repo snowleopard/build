@@ -45,7 +45,7 @@ instance Applicative f => Applicative (EitherT e f) where
     pure x                  = EitherT $ pure (Right x)
     EitherT f <*> EitherT x = EitherT $ liftA2 (<*>) f x
 
-agree :: Eq v => [(k -> v)] -> [k] -> Bool
+agree :: Eq v => [k -> v] -> [k] -> Bool
 agree fs = all same
   where
     same k = let vs = map ($k) fs in and $ zipWith (==) vs (drop 1 vs)
@@ -81,6 +81,6 @@ existsM = undefined
 
 -- | Logical implication.
 (==>) :: Bool -> Bool -> Bool
-x ==> y = if x then y else True
+x ==> y = not x || y
 
 infixr 0 ==>
