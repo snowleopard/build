@@ -47,6 +47,22 @@ fibonacci get (Fibonacci k) | k <= 1    = Nothing
                             | otherwise = Just $ (+) <$> get (Fibonacci (k - 1))
                                                      <*> get (Fibonacci (k - 2))
 
+-- Ackermann function:
+-- a[0, n] = n + 1
+-- a[m, 0] = a[m - 1, 1]
+-- a[m, n] = a[m - 1, a[m, n - 1]]
+-- Formally, it has no inputs, but we return Nothing for negative inputs.
+data Ackermann = Ackermann Int Int
+
+ackermann :: Compute Monad Ackermann Int
+ackermann get (Ackermann m n)
+    | m < 0 || n < 0 = Nothing
+    | m == 0         = Just $ return (n + 1)
+    | n == 0         = Just $ get (Ackermann (m - 1) 1)
+    | otherwise = Just $ do
+        index <- get (Ackermann m (n - 1))
+        get (Ackermann (m - 1) index)
+
 -- These type synonyms are not very useful, but enumerate all interesting cases.
 type FunctorialCompute  k v = forall f. Functor     f => (k -> f v) -> k -> Maybe (f v)
 type ApplicativeCompute k v = forall f. Applicative f => (k -> f v) -> k -> Maybe (f v)
