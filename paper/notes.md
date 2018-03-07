@@ -1,3 +1,17 @@
+# Iterative calculation
+
+https://gsuiteupdates.googleblog.com/2016/12/new-iterative-calculation-settings-and.html
+https://i.stack.imgur.com/fozjd.png
+http://www.k2e.com/tech-update/tips/433-tip-performing-iterative-calculations-in-excel
+
+What about LaTeX build rules?
+
+# Recursion conjecture
+
+Compute Functor = tail recursion
+Compute Applicative = primitive recursion
+Compute Monad = general recursion
+
 # ApplicativeZero and MonadZero
 
 These allow to introduce only failures into build systems.
