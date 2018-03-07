@@ -1,6 +1,45 @@
 \clearpage
 \section{Build systems, concretely}\label{sec-examples}
 
+In the previous sections we've discussed the types of build system in text, but the way we came to our conclusions was by developing a framework to fit the builds in. In this section we explain the framework, some of the abstractions we introduced (which model the properties from \S\ref{todo}), and how we can make a meaningful implementation of the build systems discussed in \S\ref{sec-background}.
+
+\subsection{Framework}
+
+As we saw in the introduction, a build system can be defined as:
+
+\begin{minted}{haskell}
+type Build c i k v = Compute c k v -> k -> Maybe i -> Map.Map k v -> (i, Map.Map k v)
+\end{minted}
+
+Using the framework we have built we can express the simplest and stupidest build system as:
+
+\begin{minted}{haskell}
+dumb :: Build Monad () k v
+dumb compute = runM . f
+    where f k = maybe (getStore k) (putStore k =<<) $ compute f k
+\end{minted}
+
+\begin{figure}
+\begin{minted}{haskell}
+data M i k v r
+runM :: Default i => M i k v a -> Maybe i -> Map.Map k v -> (i, Map.Map k v)
+getStore :: k -> M i k v v
+putStore :: k -> v -> M i k v v
+\end{minted}
+Note: we have omitted the context on \textt{k}, things like \texttt{Ord} (so the implementation can use a finite map) or \texttt{Show} (so the implementation can produce nice error messages).
+\caption{API with which to implement build systems}
+\label{fig-M-api}
+\end{figure}
+  
+The types of important definitions are given in Figure \ref{fig-M-api}
+
+
+
+
+
+but 
+
+
 This section present several concrete examples of build systems, providing
 simple implementations that use the previously introduced abstractions.
 
@@ -17,7 +56,7 @@ dynamic dependencies.
 
 \vspace{4mm}
 \subsubsection{\Make: a correct but non-minimal applicative build system}~\\
-
+ 
 We start by applicative build systems, such as the classic vanilla
 \Make\footnote{There are numerous implementations of \Make and none comes with a
 formal specification. In this paper we therefore use a simple but reasonable
