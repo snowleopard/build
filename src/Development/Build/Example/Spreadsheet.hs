@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, RankNTypes #-}
+{-# LANGUAGE RankNTypes #-}
 module Development.Build.Example.Spreadsheet where
 
 import Data.Char

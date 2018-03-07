@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFunctor, RankNTypes #-}
+{-# LANGUAGE RankNTypes #-}
 module Development.Build.NonDeterministic (NonDeterministic (..)) where
 
 import Data.Functor.Identity

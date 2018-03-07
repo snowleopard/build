@@ -37,7 +37,7 @@ inputs compute get key = do
 -- function @f@, i.e. for all keys @k@, if @f k == v@ then @Just v@ is a possible
 -- result of the compute.
 consistent :: Eq v => Compute MonadPlus k v -> (k -> v) -> Bool
-consistent compute f = forall $ \k -> any (Just (f k) ==) $ runPure compute f k
+consistent compute f = forall $ \k -> Just (f k) `elem` runPure compute f k
 
 -- | Run a non-deterministic compute with a pure lookup function, listing all
 -- possible results, including @Nothing@ indicating that a given key is an input.

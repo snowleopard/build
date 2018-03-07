@@ -49,9 +49,8 @@ sequentialMultiStoreBuild :: StoreBuild Monad m k v -> MultiStoreBuild Monad m k
 sequentialMultiStoreBuild build compute = mapM_ (build compute)
 
 dumb :: (k -> v) -> Build Monad () k v
-dumb def = purify def $ \compute key -> case compute getValue key of
-    Nothing -> return ()
-    Just fv -> putValue key =<< fv
+dumb def = purify def $ \compute key ->
+    mapM_ (putValue key =<<) (compute getValue key)
 
 dumbTracing :: (MonadIO m, Show k, Show v) => StoreBuild Monad m k v
 dumbTracing compute = build
@@ -62,9 +61,7 @@ dumbTracing compute = build
                 liftIO $ putStrLn $ "Looked up key: " ++ show k ++ " => " ++ show v
                 return v
         liftIO $ putStrLn ("Computing key: " ++ show k)
-        case compute myGetValue k of
-            Nothing -> return ()
-            Just fv -> putValue k =<< fv
+        mapM_ (putValue k =<<) (compute myGetValue k)
 
 slow :: (k -> v) -> Build Monad () k v
 slow def = purify def build
