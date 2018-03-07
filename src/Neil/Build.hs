@@ -6,7 +6,7 @@ module Neil.Build(
     getStoreMaybe, getStore, putStore, putStore_,
     Changed, getChanged, withChangedApplicative, withChangedMonad,
     Time, getStoreTime, getStoreTimeMaybe,
-    getInfo, putInfo, modifyInfo, fstInfo, sndInfo,
+    getInfo, putInfo, modifyInfo,
     getTemp, putTemp, modifyTemp,
     Hash, getHash, Hashable, getStoreHash, getStoreHashMaybe,
     ) where
@@ -94,20 +94,6 @@ getInfo = info <$> M get
 
 putInfo :: i -> M i k v ()
 putInfo i = M $ modify $ \x -> x{info = i}
-
-fstInfo :: M i2 k v a -> M (i1,i2) k v a
-fstInfo (M m) = do
-    s <- M get
-    let (a,s2) = runState m s{info = snd $ info s}
-    M $ put s2{info = (fst $ info s, info s2)}
-    return a
-
-sndInfo :: M i1 k v a -> M (i1,i2) k v a
-sndInfo (M m) = do
-    s <- M get
-    let (a,s2) = runState m s{info = fst $ info s}
-    M $ put s2{info = (info s2, snd $ info s)}
-    return a
 
 modifyInfo :: (i -> i) -> M i k v ()
 modifyInfo f = putInfo . f =<< getInfo

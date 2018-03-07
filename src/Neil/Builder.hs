@@ -2,13 +2,16 @@
 
 module Neil.Builder(
     dumb,
+    dumbDynamic,
     dumbTopological,
     dumbRecursive,
     make,
     makeTrace,
     shake,
+    shakeDirtyBit,
     spreadsheet,
     spreadsheetTrace,
+    spreadsheetRemote,
     bazel,
     shazel
     ) where
@@ -21,6 +24,7 @@ import Data.Tuple.Extra
 import Data.Default
 import Data.Maybe
 import Data.Either.Extra
+import Debug.Trace
 import Data.List
 import Data.Typeable
 import qualified Data.Set as Set
@@ -70,7 +74,7 @@ dynamic step compute k = runM $ do
                     res <- step k (getDependenciesMaybe compute k) (fmap eitherToMaybe . f') act
                     case res of
                         Nothing -> (k :) <$> f (Set.insert k done) ks
-                        Just e -> f done $ [k | e `notElem` ks] ++ ks ++ [k]
+                        Just e -> f done $ [e | e `notElem` ks] ++ ks ++ [k]
 
 
 ---------------------------------------------------------------------
@@ -88,6 +92,16 @@ dumbRecursive = recursive $ \k _ _ act -> putStore_ k . snd =<< act
 
 dumbTopological :: Build Applicative () k v
 dumbTopological = topological $ \k _ act -> putStore_ k =<< act
+
+dumbDynamic :: Build Monad ((), [k]) k v
+dumbDynamic = dynamic $ \k _ _ act -> do
+    res <- act
+    case res of
+        Left e -> return $ Just e
+        Right (_, v) -> do
+            putStore k v
+            return Nothing
+
 
 -- | The simplified Make approach where we build a dependency graph and topological sort it
 make :: Eq v => Build Applicative (Changed k v, ()) k v
@@ -110,6 +124,13 @@ makeTrace = topological $ \k ds act -> do
         res <- act
         modifyInfo $ Map.insert (k, ds) (getHash res)
         putStore_ k res
+
+
+shakeDirtyBit :: Eq v => Build Monad (Changed k v, ()) k v
+shakeDirtyBit = withChangedMonad $ recursive $ \k ds ask act -> do
+    dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ maybe (return True) (anyM (\x -> ask x >> getChanged x)) ds
+    when dirty $
+        putStore_ k . snd =<< act
 
 
 -- During the last execution, these were the traces I saw
@@ -215,3 +236,27 @@ shazel = recursive $ \k _ ask act -> do
             now <- getStoreHashMaybe k
             when (now `notElem` map Just poss) $
                 putStore_ k . (Map.! head poss) . szContent =<< getInfo
+
+
+spreadsheetRemote :: Hashable v => Build Monad (Shazel k v, [k]) k v
+spreadsheetRemote = dynamic $ \k _ ask act -> do
+    poss <- Map.findWithDefault [] k . szKnown . fst <$> getInfo
+    res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (== Just h) . fmap getHash <$> ask k) ds
+    case res of
+        [] -> do
+            res <- act
+            case res of
+                Left e -> return $ Just e
+                Right (ds, v) -> do
+                    dsv <- mapM getStoreHash ds
+                    modifyInfo $ first $ \i -> i
+                        {szKnown = Map.insertWith (++) k [ShazelResult (zip ds dsv) (getHash v)] $ szKnown i
+                        ,szContent = Map.insert (getHash v) v $ szContent i}
+                    putStore_ k v
+                    return Nothing
+        _ -> do
+            let poss = [v | ShazelResult _ v <- res]
+            now <- getStoreHashMaybe k
+            when (now `notElem` map Just poss) $
+                putStore_ k . (Map.! head poss) . szContent . fst =<< getInfo
+            return Nothing
