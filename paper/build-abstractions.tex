@@ -13,13 +13,7 @@ In this section we present the \emph{compute} and \emph{build} abstractions:
 
 \begin{figure}
 \begin{minted}{haskell}
-type Compute f k v = (k -> f v) -> k -> f (Maybe v)
-
-type FunctorialCompute  f k v = Functor     f => Compute f k v
-type ApplicativeCompute f k v = Applicative f => Compute f k v
-type AlternativeCompute f k v = Alternative f => Compute f k v
-type MonadicCompute     f k v = Monad       f => Compute f k v
-type MonadPlusedCompute f k v = MonadPlus   f => Compute f k v
+type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
 \end{minted}
 \caption{Compute abstractions}\label{fig-compute}
 \end{figure}

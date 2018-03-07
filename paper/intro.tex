@@ -59,8 +59,8 @@ just two lines of Haskell code, which are explained
 in~\S\ref{sec-build-abstractions}:
 
 \begin{minted}{haskell}
-type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> f (Maybe v)
-type Build c i k v = Compute c k v -> [k] -> Maybe i -> Map k v -> (i, Map k v)
+type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
+type Build c i k v = Compute c k v -> k -> Maybe i -> Map k v -> (i, Map k v)
 \end{minted}
 
 % It is known that build systems can take up to 27\% of software development
