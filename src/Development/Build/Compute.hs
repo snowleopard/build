@@ -23,8 +23,7 @@ isInput compute = isNothing . compute (const Proxy)
 -- Collatz sequence:
 -- c[0] = n
 -- c[k] = f(c[k - 1]) where
--- For example, if n = 12, the sequence is 12, 6, 3, 10, 5, 16, 8, 4, 2, 1, ...
-
+-- For example, if n = 12, the sequence is 3, 10, 5, 16, 8, 4, 2, 1, ...
 data Collatz = Collatz Int
 
 collatz :: Compute Functor Collatz Int
@@ -34,11 +33,15 @@ collatz get (Collatz k) | k <= 0    = Nothing
     f n | even n    = n `div` 2
         | otherwise = 3 * n + 1
 
+-- A good demonstration of early cut-off:
+-- * Compute Collatz sequence from n = 6: 6, 3, 10, 5, 16, 8, 4, 2, 1, ...
+-- * Change n from 6 to 40 and rebuild: 40, 20, 10, 5, 16, 8, 4, 2, 1, ...
+-- * The recomputation should be cut-off after 10.
 ------------------------ Compute Applicative: Fibonacci ------------------------
 -- Generalised Fibonacci sequence:
 -- f[0] = n
 -- f[1] = m
--- f[k] = f[k - 1] + f[k - 1]
+-- f[k] = f[k - 1] + f[k - 2]
 -- For example, with (n, m) = (0, 1) we get usual Fibonacci sequence, and if
 -- (n, m) = (2, 1) we get Lucas sequence: 2, 1, 3, 4, 7, 11, 18, 29, 47, ...
 data Fibonacci = Fibonacci Int
@@ -48,6 +51,10 @@ fibonacci get (Fibonacci k) | k <= 1    = Nothing
                             | otherwise = Just $ (+) <$> get (Fibonacci (k - 1))
                                                      <*> get (Fibonacci (k - 2))
 
+-- Fibonacci numbers are a classic example of memoization: a non-minimal build
+-- system will take ages to compute f[100], doing O(f[100]) recursive calls.
+-- The right approach is to build the dependency graph and execute computations
+-- in the topological order.
 --------------------------- Compute Monad: Ackermann ---------------------------
 -- Ackermann function:
 -- a[0, n] = n + 1
@@ -61,11 +68,15 @@ data Ackermann = Ackermann Int Int
 ackermann :: Compute Monad Ackermann Int
 ackermann get (Ackermann m n)
     | m < 0 || n < 0 = Nothing
-    | m == 0         = Just $ return (n + 1)
-    | n == 0         = Just $ get (Ackermann (m - 1) 1)
+    | m == 0    = Just $ return (n + 1)
+    | n == 0    = Just $ get (Ackermann (m - 1) 1)
     | otherwise = Just $ do
         index <- get (Ackermann m (n - 1))
         get (Ackermann (m - 1) index)
+
+-- Unlike Collatz and Fibonacci computations, the Ackermann computation cannot
+-- be statically analysed for dependencies. We can only find the first dependency
+-- statically (Ackermann m (n - 1)), but not the second one.
 
 -- These type synonyms are not very useful, but enumerate all interesting cases.
 type FunctorialCompute  k v = forall f. Functor     f => (k -> f v) -> k -> Maybe (f v)
