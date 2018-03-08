@@ -153,7 +153,7 @@ detail in~\S\ref{sec-examples}.
 Another distinguishing feature of \Excel is \emph{self-tracking}. Most build
 systems track changes of inputs and intermediate results, executing dependent
 tasks whenever they change, but \Excel can also track changes in the tasks
-themselves: if a formula was modified, \Excel will recompute it and propagate
+themselves: if a formula is modified, \Excel will recompute it and propagate
 the changes. Self-tracking is uncommon in software build systems, where one
 often needs to manually initiate a full rebuild even if just a single task has
 changed.
@@ -179,10 +179,11 @@ in~\S\ref{sec-background-make}.
 
 \noindent
 We first declare the static dependency on \cmd{release.txt}, then read its
-content and depend on it, dynamically. Finally, we specify the command line to
+content and depend on it, dynamically. Finally, we specify the command to
 produce the resulting archive. Crucially, the archive will only be rebuilt if
 one of the dependencies (static or dynamic) has changed.
 
+\todo{AM}{How is \Shake different.}
 
 \begin{figure}[h]
 \centerline{\includegraphics[scale=0.28]{fig/make-example-cutoff.pdf}}
@@ -192,66 +193,30 @@ comment. The rebuild is stopped after detecting that \cmd{main.o} is unchanged,
 which indicates that \cmd{main.exe} does not need to be rebuilt.\label{fig-cutoff}}
 \end{figure}
 
-
+\Shake also supports the following \emph{early cutoff optimisation}. When it
+executes a task and the result is unchanged from the previous build, it is
+unnecessary to execute the dependent tasks, and hence \Shake can stop a build
+earlier, as illustrated in Fig.~\ref{fig-cutoff}. Not all build systems support
+early cutoff: \Make and \Excel do not, whereas \Shake and \Bazel (introduced
+below) do.
 
 ...
 
 \subsection{\Bazel: a cloud build system}
 \label{sec-background-shake}
 
-...
+When build systems are used by large teams, different team members
+often end up executing exactly the same tasks on their local machines.
+A \emph{cloud build system} can speed up builds dramatically by
+transparently sharing build results among team members. Furthermore, cloud
+build systems allow one to perform \emph{shallow builds} that materialise
+only end build products on a local machine, leaving all intermediates in the
+cloud. This is a significant optimisation compared to \emph{deep builds}
+that require all transitive dependencies of an end build product to be
+locally available. Non-cloud build systems cannot support shallow builds.
 
 \subsection{Abstract vocabulary for build systems}
 \label{sec-background-vocabulary}
-
-...
-
-
-\begin{itemize}
-
-    \item When build systems are used by large teams, different team members
-    often end up executing exactly the same tasks on their local machines.
-    A \emph{cloud build system} can speed up builds dramatically by
-    transparently sharing build results among team members. Furthermore, cloud
-    build systems allow one to perform \emph{shallow builds} that materialise
-    only end build products on a local machine, leaving all intermediates in the
-    cloud. This is a significant optimisation compared to \emph{deep builds}
-    that require all transitive dependencies of an end build product to be
-    locally available. Non-cloud build systems cannot support shallow builds.
-
-    \item Some build systems, e.g. \Buck, require all tasks to be
-    \emph{deterministic}, i.e. produce exactly the same output when run on the
-    same inputs. However, not all tasks are deterministic, and there are build
-    systems that support \emph{non-determinism}. A simple example is \Excel's
-    \textsf{RANDBETWEEN(low, high)} that returns a random integer in the
-    interval \textsf{[low, high]}.
-
-    \item If a build system executes a task and the result is unchanged from the
-    previous build, it is unnecessary to execute the dependent tasks. We call
-    this optimisation \emph{early cut-off}. Not all build systems support early
-    cut-off: \Make and \Excel do not, whereas \Shake and \Buck do.
-
-    \item Most build systems persistently store auxiliary \emph{build
-    information} for profiling and optimisation purposes: \Make stores file
-    modification times, \Shake stores the discovered dynamic dependency graph,
-    \Bazel and other cloud build systems store information about inputs and
-    outputs of previously executed tasks, etc.
-\end{itemize}
-
-This paper presents a purely functional abstraction for build systems that
-allows us to express all the above intricacies of build systems and design
-complex build systems from simple primitives. The presented abstraction fits in
-just two lines of Haskell code, which are explained
-in~\S\ref{sec-abstractions}:
-
-\begin{minted}{haskell}
-type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
-type Build c i k v = Compute c k v -> k -> Maybe i -> Map k v -> (i, Map k v)
-\end{minted}
-
-
-Below we define basic notions used in build systems and other similar domains,
-for example, spreadsheets.
 
 \subsection{Keys, values, hashes and store}
 
@@ -301,11 +266,38 @@ build systems, the object file \textsf{obj/file.o} is sometimes not uniquely
 determined by the source \textsf{src/file.c} -- different compiler runs may
 produce different valid results.
 
-\subsection{Dynamic dependencies}
 
-...
+\begin{itemize}
 
-\todo{AM}{Add two examples: include files and cyclic spreadsheet computations.}
+    \item Some build systems, e.g. \Buck, require all tasks to be
+    \emph{deterministic}, i.e. produce exactly the same output when run on the
+    same inputs. However, not all tasks are deterministic, and there are build
+    systems that support \emph{non-determinism}. A simple example is \Excel's
+    \textsf{RANDBETWEEN(low, high)} that returns a random integer in the
+    interval \textsf{[low, high]}.
+
+    \item Most build systems persistently store auxiliary \emph{build
+    information} for profiling and optimisation purposes: \Make stores file
+    modification times, \Shake stores the discovered dynamic dependency graph,
+    \Bazel and other cloud build systems store information about inputs and
+    outputs of previously executed tasks, etc.
+\end{itemize}
+
+This paper presents a purely functional abstraction for build systems that
+allows us to express all the above intricacies of build systems and design
+complex build systems from simple primitives. The presented abstraction fits in
+just two lines of Haskell code, which are explained
+in~\S\ref{sec-abstractions}:
+
+\begin{minted}{haskell}
+type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
+type Build c i k v = Compute c k v -> k -> Maybe i -> Map k v -> (i, Map k v)
+\end{minted}
+
+
+Below we define basic notions used in build systems and other similar domains,
+for example, spreadsheets.
+
 
 \subsection{Requirements for build systems}
 
