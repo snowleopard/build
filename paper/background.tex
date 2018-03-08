@@ -40,23 +40,23 @@ actual binary that is used to compile and link files is also listed as a task
 dependency.} the command \cmd{gcc -c util.c}, (ii) compile the main source file
 \cmd{main.c} into \cmd{main.o}, and (iii) link object files \cmd{util.o} and
 \cmd{main.o} into the executable \cmd{main.exe}. The makefile contains the
-complete information about the task \emph{dependency graph}, which is shown in
+complete information about the \emph{task dependency graph}, which is shown in
 Fig.~\ref{fig-make}(a).
 
 \begin{figure}[h]
 \begin{subfigure}[b]{0.32\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/make-example.pdf}}
-\caption{A dependency graph}
+\caption{Task dependency graph}
 \end{subfigure}
 \begin{subfigure}[b]{0.32\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/make-example-full.pdf}}
-\caption{A full rebuild}
+\caption{Full rebuild}
 \end{subfigure}
 \begin{subfigure}[b]{0.32\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/make-example-partial.pdf}}
-\caption{A partial rebuild}
+\caption{Partial rebuild}
 \end{subfigure}
-\caption{A dependency graph and two build scenarios. Input files are shown as
+\caption{A task dependency graph and two build scenarios. Input files are shown as
 rectangles, intermediate and output files are shown as rounded rectangles. Dirty
 inputs and files that are rebuilt are highlighted.
 \label{fig-make}}
@@ -70,18 +70,34 @@ file \cmd{util.o} does not need to be rebuilt, since its inputs have not
 changed, see Fig.~\ref{fig-make}(c). Files that have changed since the previous
 build are called \emph{dirty}.
 
-The requirement to execute tasks \emph{at most once} and only if they
-\emph{transitively depend on dirty inputs} is essential for build systems,
-their raison d'\^etre. We will call build systems that satisfy this requirement
-\emph{minimal}.
+The requirement to \emph{execute tasks at most once and only if they transitively
+depend on dirty inputs} is essential for build systems, it is their raison
+d'\^etre. We will call build systems that satisfy this requirement \emph{minimal}.
 
-To achieve minimality \Make relies on two key ideas. First, it uses \emph{file
+To achieve minimality \Make relies on two main ideas. First, it uses \emph{file
 modification time} to detect the files that are dirty: a file is marked dirty if
 it was modified after the previous build. Second, it constructs a complete task
 dependency graph from the information contained in the makefile and executes
-tasks in the \emph{topological order}.
+tasks in a \emph{topological order}.
 
-...
+Note that it is not always possible to know the dependencies of a source file
+upfront, or \emph{statically}. To demonstrate this, let us first add another
+task to the above makefile:
+
+\begin{minted}[frame=single]{makefile}
+release.tar: main.exe README
+    tar -cf release.tar main.exe README
+\end{minted}
+
+So far so good: if either \cmd{main.exe} or \cmd{README} is dirty, \Make will
+recreate the release archive. But now imagine that we need to specify the files
+that go into \cmd{release.tar} in a text file \cmd{release.txt}. The dependencies
+of \cmd{release.tar} are no longer known statically: they \emph{depend on the
+contents} of \cmd{release.txt}, which might not even exist before the build
+starts, e.g. if it is produced by concatenating input files \cmd{release-bins.txt}
+and \cmd{release-docs.txt}. Alas, makefiles cannot express such \emph{dynamic
+dependencies}, requiring ad hoc workarounds such as \emph{build phases}, which
+are problematic~\cite{hadrian}.
 
 \subsection{\Excel: a build system in disguise}
 
