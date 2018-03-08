@@ -10,15 +10,14 @@ introduce main domain-specific notions and requirements. Other notable examples
 of build systems and their relation to these four will be discussed
 in~\S\ref{sec-related} and~\S\ref{sec-conclusions}.
 
-\subsection{The venerable \Make}
+\subsection{The venerable \Make: static dependencies and file modification times}
 
 \Make\footnote{There are numerous implementations of \Make and none comes with a
 formal specification. In this paper we therefore use a simple and sensible
 approximation to a real \Make that you might find on your machine.} was developed
 more than 40 years ago to automatically build software libraries and executable
-programs from source code. It uses \emph{makefiles} to describe build tasks,
-typically referred to as \emph{build rules}, and their dependencies in a simple
-text form. For example:
+programs from source code. It uses \emph{makefiles} to describe build tasks and
+their dependencies in a simple text form. For example:
 
 \begin{minted}[frame=single]{makefile}
 util.o: util.h util.c
@@ -76,13 +75,13 @@ d'\^etre. We will call build systems that satisfy this requirement \emph{minimal
 
 To achieve minimality \Make relies on two main ideas. First, it uses \emph{file
 modification time} to detect the files that are dirty: a file is marked dirty if
-it was modified after the previous build. Second, it constructs a complete task
+it was modified since the previous build. Second, it constructs a complete task
 dependency graph from the information contained in the makefile and executes
 tasks in a \emph{topological order}.
 
-Note that it is not always possible to know the dependencies of a source file
-upfront, or \emph{statically}. To demonstrate this, let us first add another
-task to the above makefile:
+Note that it is not always possible to know the dependencies of a task upfront,
+or \emph{statically}. To demonstrate this, let us add another task to the above
+makefile:
 
 \begin{minted}[frame=single]{makefile}
 release.tar: main.exe README
@@ -99,32 +98,77 @@ and \cmd{release-docs.txt}. Alas, makefiles cannot express such \emph{dynamic
 dependencies}, requiring ad hoc workarounds such as \emph{build phases}, which
 are problematic~\cite{hadrian}.
 
-\subsection{\Excel: a build system in disguise}
+\subsection{\Excel: dynamic dependencies at the cost of minimality}
 
-...
+\Excel is a build system that can deal with dynamic dependencies albeit at the
+cost of sacrificing minimality. Consider the following spreadsheet comprising
+four input cells \cmd{A1-A3} and \cmd{B1}, and a single task computing the sum
+of values \cmd{A1} $+\cdots+$ \cmd{An}, where \cmd{n} is specified indirectly in
+\cmd{B1}:
 
-\Shake
+\begin{minted}[frame=single]{bash}
+A1 = 10
+A2 = 20
+A3 = 30
+B1 = 2
+C1 = SUM(A1:INDIRECT("A" & B1))
+\end{minted}
+
+The output \cmd{C1} here is analogous to the \cmd{release.tar} from the previous
+example: one cannot statically determine the dependencies of the associated task.
+To deal with this, \Excel takes a simple conservative approach: it marks all
+cells with dynamic dependencies as dirty and therefore always recomputes them
+during a rebuild. This guarantees that the build result is correct, but clearly
+violates the minimality requirement: if the user modifies \cmd{A3}, \Excel will
+recompute \cmd{C1} even though it does not transitively depend on \cmd{A3}.
+
+Note that \Excel's approach to marking cells as dirty is a relatively minor
+variation of the approach used by \Make: a cell is considered dirty if it was
+modified since the previous build \emph{or if it is volatile}, where the notion
+of volatility includes dynamic dependencies, as well as \emph{non-determinism}
+that will be discussed in~\S\ref{sec-engineering}. We therefore put both \Make
+and \Excel in the same category of build systems that associate a \emph{dirty bit}
+with every file or cell. (To avoid the ``file or cell'' nuisance, we introduce the
+abstract notion of \emph{keys} in~\S\ref{sec-vocabulary}.)
+
+\Excel's recalculation algorithm~\cite{excel_recalc} on the other hand is
+significantly different from \Make. Since it is impossible to construct the full
+dependency graph upfront in the presence of dynamic dependencies, \Excel
+maintains the \emph{calculation chain}, which is an approximation to the correct
+topological order. During recalculation, \Excel processes cells in this order,
+but can \emph{defer recalculation of a cell} by moving it down the chain when newly
+discovered dynamic dependencies dictate that. We discuss this algorithm in more
+detail in~\S\ref{sec-examples}.
+
+Another distinguishing feature of \Excel is \emph{self-tracking}. Most build
+systems track changes of inputs and intermediate results, executing dependent
+tasks whenever they change, but \Excel can also track changes in the tasks
+themselves: if a formula was modified, \Excel will recompute it and propagate
+the changes. Self-tracking is uncommon in software build systems, where one
+often needs to manually initiate a full rebuild even if just a single task has
+changed.
+
+\subsection{\Shake: dynamic dependencies with no remorse}
 
 \begin{figure}[h]
 \centerline{\includegraphics[scale=0.28]{fig/make-example-cutoff.pdf}}
-\caption{An early cut-off example.\label{fig-cutoff}}
+\caption{An early cutoff example.\label{fig-cutoff}}
 \end{figure}
 
 
 
 ...
 
-\Bazel
+\subsection{\Bazel: a cloud build system}
 
 ...
 
+\subsection{Abstract vocabulary for build systems}\label{sec-vocabulary}
+
+...
+
+
 \begin{itemize}
-    \item Many build systems, such as the venerable \Make, need to know the
-    complete \emph{dependency graph} between tasks at the start of the build
-    process. This makes it possible to analyse the graph ahead of time, which
-    helps with efficient task scheduling but is fundamentally limited: parts of
-    the dependency graph can often be discovered only during the build process,
-    i.e. the dependency graph is \emph{dynamic}, not \emph{static}.
 
     \item When build systems are used by large teams, different team members
     often end up executing exactly the same tasks on their local machines.
@@ -147,15 +191,6 @@ are problematic~\cite{hadrian}.
     previous build, it is unnecessary to execute the dependent tasks. We call
     this optimisation \emph{early cut-off}. Not all build systems support early
     cut-off: \Make and \Excel do not, whereas \Shake and \Buck do.
-
-    \item Most build systems track changes of inputs and intermediate results,
-    executing dependent tasks whenever they change, but some build systems can
-    also track changes in the tasks themselves: if a task has changed, the build
-    system will execute it. For example, when a cell's formula has changed,
-    \Excel will recompute its value and propagate the changes. We call this
-    \emph{self-tracking}. Self-tracking is uncommon in software build systems,
-    where one often needs to manually initiate a rebuild of all tasks even if
-    just a single task has changed.
 
     \item Most build systems persistently store auxiliary \emph{build
     information} for profiling and optimisation purposes: \Make stores file
@@ -181,12 +216,14 @@ for example, spreadsheets.
 
 \subsection{Keys, values, hashes and store}
 
-\emph{Keys} are used to distinguish \emph{values}. In build systems keys are
-typically filenames, e.g. \textsf{src/file.c}, whereas values are file contents
-(a C program source code in this case). In spreadsheets keys are cell names,
-e.g. \textsf{A1}, and values are numbers, text, etc. that are typically displayed
-inside cells. We will use type variables \hs{k} and \hs{v} to denote keys and
-values, respectively.
+Keys are
+used to distinguish values. In build systems keys are typically filenames, e.g.
+\cmd{main.c}, whereas values are file contents (a C program source code in this
+case). In spreadsheets keys are cell names, e.g. \cmd{A1}, and values are
+numbers, text, etc. that are typically displayed inside cells. In Haskell code,
+we will use type variables \hs{k} and \hs{v} to denote keys and values,
+respectively.
+
 
 A \emph{store} associates keys to values. It is convenient to assume that a store
 is total, i.e. it contains a value for every possible key. We therefore also
