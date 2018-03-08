@@ -1,15 +1,15 @@
 \section{Introduction}\label{sec-intro}
 
-Build systems (such as make) are big, complicated, but unloved part of
+Build systems (such as \Make) are big, complicated, but unloved part of
 the software ecosystem.  Every developer on the planet uses one, but
 they are very much a means to an end, and seldom the focus of
 attention.  But the challenges of scale have driven large software firms
 like Microsoft, Facebook, and Google to develop their own build
 systems, each with its own choices and idiosyncrasies.
 
-Seldom do people ask questions like "What does it mean for my build
-system to be correct?" or "What are the trade-offs between different
-approaches?".  Complex build systems use subtle algorithms, but they
+Seldom do people ask questions like ``What does it mean for my build
+system to be correct?'' or ``What are the trade-offs between different
+approaches?''.  Complex build systems use subtle algorithms, but they
 are often hidden away, and not the object of study.
 
 In this paper we offer a general framework in which to discuss these
@@ -30,7 +30,7 @@ brought out clearly.
 for example: static vs dynamic dependencies; cloud-build, including
 shallow vs deep; deterministic vs non-deterministic build rules;
 early cut-off; self-tracking build systems; and persistent metadata.
-These properties (which we define in Section~\ref{sec-background}) are often
+These properties (which we define in~\S\ref{sec-background}) are often
 deeply-built-in assumptions of a particular build system.
 In contrast, our framework allows them to be distinguished,
 reasoned about, and varied.
@@ -48,7 +48,7 @@ landscape.
 Papers about "frameworks" are often fuzzy.  This one is not: all our
 abstractions are defined in Haskell, and we have (freely-available)
 executable models of all the build systems we describe.  An unusual
-feature is that we include Excel in our line-up because, looked at
+feature is that we include \Excel in our line-up because, looked at
 in the right way, it certainly is a build system.
 
 \todo{AM/NM}{Add a paragraph on the decomposition of build systems into
