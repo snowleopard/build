@@ -10,6 +10,8 @@ introduce main domain-specific notions and requirements. Other notable examples
 of build systems and their relation to these four will be discussed
 in~\S\ref{sec-related} and~\S\ref{sec-conclusions}.
 
+\subsection{The venerable \Make}
+
 \Make\footnote{There are numerous implementations of \Make and none comes with a
 formal specification. In this paper we therefore use a simple and sensible
 approximation to a real \Make that you might find on your machine.} was developed
@@ -31,11 +33,15 @@ main.exe: util.o main.o
 
 \noindent
 The above makefile lists three tasks: (i) compile a utility library comprising
-files \cmd{util.h} and \cmd{util.c} into \cmd{main.o} by executing the command
-\cmd{gcc -c util.c}, (ii) compile the main source file \cmd{main.c} into
-\cmd{main.o}, and (iii) link object files \cmd{util.o} and \cmd{main.o} into the
-executable \cmd{main.exe}. The makefile contains the complete information about
-the task \emph{dependency graph}, which is shown in Fig.~\ref{fig-make}(a).
+files \cmd{util.h} and \cmd{util.c} into \cmd{main.o} by
+executing\footnote{In this example we treat \cmd{gcc} as a pure function for the
+sake of simplicity. In reality there are multiple versions of \cmd{gcc} and the
+actual binary that is used to compile and link files is also listed as a task
+dependency.} the command \cmd{gcc -c util.c}, (ii) compile the main source file
+\cmd{main.c} into \cmd{main.o}, and (iii) link object files \cmd{util.o} and
+\cmd{main.o} into the executable \cmd{main.exe}. The makefile contains the
+complete information about the task \emph{dependency graph}, which is shown in
+Fig.~\ref{fig-make}(a).
 
 \begin{figure}[h]
 \begin{subfigure}[b]{0.32\linewidth}
@@ -77,7 +83,7 @@ tasks in the \emph{topological order}.
 
 ...
 
-\Excel
+\subsection{\Excel: a build system in disguise}
 
 ...
 

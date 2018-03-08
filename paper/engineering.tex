@@ -5,14 +5,17 @@ Or ``Build systems in the real world'', or ``Crazy things section''...
 
 \begin{itemize}
     \item Sandboxing
-    \item Non-determinism, specifically, it's useless form. This doesn't
+    \item Non-determinism, specifically, its useless form. This doesn't
           include \Excel's \textsf{RANDBETWEEN} function, which is useful.
           To define correctness of non-deterministic build systems, one needs to
           switch from \hs{Applicative} and \hs{Monad} abstractions to
           \hs{Alternative} and \hs{MonadPlus}, respectively, but this is not
           required for actual implementations, most of which can happily accept
           non-deterministic results (with a notable exception of \Buck).
-    \item Concurrency
-    \item Cloud
+    \item Concurrency: nothing fundamentally difficult and fits our theory, but
+          hard to get right in practice.
+    \item Cloud aspects: eviction/garbage collection, `frankenbuilds', etc.
     \item Iterative computations, e.g. LaTeX.
+    \item Polymorphic keys and values: tasks with multiple outputs, e.g. GHC's
+          \cmd{hi} and \cmd{o} files, phony tasks, etc.
 \end{itemize}
