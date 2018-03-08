@@ -2,10 +2,99 @@
 \section{Background}\label{sec-background}
 
 Build systems automate the execution of simple repeatable tasks for individual
-users, as well as for large organisations. There are software build systems such
-as \Make, \Ninja, \Shake, \Bazel, \Buck and many others, as well as various
-incremental calculation engines, such as \Excel and \Calc. Existing build
-systems vary in several different ways:
+users, as well as for large organisations. There are software build systems,
+such as \Make~\cite{feldman1979make}, \Shake~\cite{mitchell2012shake} and
+\Bazel~\cite{bazel}, as well as various incremental calculation engines, such
+as \Excel~\cite{advanced_excel}. In this section we use these four examples to
+introduce main domain-specific notions and requirements. Other notable examples
+of build systems and their relation to these four will be discussed
+in~\S\ref{sec-related} and~\S\ref{sec-conclusions}.
+
+\Make\footnote{There are numerous implementations of \Make and none comes with a
+formal specification. In this paper we therefore use a simple and sensible
+approximation to a real \Make that you might find on your machine.} was developed
+more than 40 years ago to automatically build software libraries and executable
+programs from source code. It uses \emph{makefiles} to describe build tasks,
+typically referred to as \emph{build rules}, and their dependencies in a simple
+text form. For example:
+
+\begin{minted}[frame=single]{makefile}
+util.o: util.h util.c
+    gcc -c util.c
+
+main.o: util.h main.c
+    gcc -c main.c
+
+main.exe: util.o main.o
+    gcc util.o main.o -o main.exe
+\end{minted}
+
+\noindent
+The above makefile lists three tasks: (i) compile a utility library comprising
+files \cmd{util.h} and \cmd{util.c} into \cmd{main.o} by executing the command
+\cmd{gcc -c util.c}, (ii) compile the main source file \cmd{main.c} into
+\cmd{main.o}, and (iii) link object files \cmd{util.o} and \cmd{main.o} into the
+executable \cmd{main.exe}. The makefile contains the complete information about
+the task \emph{dependency graph}, which is shown in Fig.~\ref{fig-make}(a).
+
+\begin{figure}[h]
+\begin{subfigure}[b]{0.32\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/make-example.pdf}}
+\caption{A dependency graph}
+\end{subfigure}
+\begin{subfigure}[b]{0.32\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/make-example-full.pdf}}
+\caption{A full rebuild}
+\end{subfigure}
+\begin{subfigure}[b]{0.32\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/make-example-partial.pdf}}
+\caption{A partial rebuild}
+\end{subfigure}
+\caption{A dependency graph and two build scenarios. Input files are shown as
+rectangles, intermediate and output files are shown as rounded rectangles. Dirty
+inputs and files that are rebuilt are highlighted.
+\label{fig-make}}
+\end{figure}
+
+If the user modifies the sources of the utility library and runs \Make, it will
+perform a full rebuild, because all three tasks transitively depend on the
+library, as illustrated in Fig.~\ref{fig-make}(b). On the other hand, if the
+user modifies \cmd{main.c} then a partial rebuild is sufficient: indeed, the
+file \cmd{util.o} does not need to be rebuilt, since its inputs have not
+changed, see Fig.~\ref{fig-make}(c). Files that have changed since the previous
+build are called \emph{dirty}.
+
+The requirement to execute tasks \emph{at most once} and only if they
+\emph{transitively depend on dirty inputs} is essential for build systems,
+their raison d'\^etre. We will call build systems that satisfy this requirement
+\emph{minimal}.
+
+To achieve minimality \Make relies on two key ideas. First, it uses \emph{file
+modification time} to detect the files that are dirty: a file is marked dirty if
+it was modified after the previous build. Second, it constructs a complete task
+dependency graph from the information contained in the makefile and executes
+tasks in the \emph{topological order}.
+
+...
+
+\Excel
+
+...
+
+\Shake
+
+\begin{figure}[h]
+\centerline{\includegraphics[scale=0.28]{fig/make-example-cutoff.pdf}}
+\caption{An early cut-off example.\label{fig-cutoff}}
+\end{figure}
+
+
+
+...
+
+\Bazel
+
+...
 
 \begin{itemize}
     \item Many build systems, such as the venerable \Make, need to know the
