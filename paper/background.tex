@@ -11,6 +11,7 @@ of build systems and their relation to these four will be discussed
 in~\S\ref{sec-related} and~\S\ref{sec-conclusions}.
 
 \subsection{The venerable \Make: static dependencies and file modification times}
+\label{sec-background-make}
 
 \Make\footnote{There are numerous implementations of \Make and none comes with a
 formal specification. In this paper we therefore use a simple and sensible
@@ -19,7 +20,8 @@ more than 40 years ago to automatically build software libraries and executable
 programs from source code. It uses \emph{makefiles} to describe build tasks and
 their dependencies in a simple text form. For example:
 
-\begin{minted}[frame=single]{makefile}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{makefile}
 util.o: util.h util.c
     gcc -c util.c
 
@@ -29,6 +31,7 @@ main.o: util.h main.c
 main.exe: util.o main.o
     gcc util.o main.o -o main.exe
 \end{minted}
+\vspace{1mm}
 
 \noindent
 The above makefile lists three tasks: (i) compile a utility library comprising
@@ -83,11 +86,14 @@ Note that it is not always possible to know the dependencies of a task upfront,
 or \emph{statically}. To demonstrate this, let us add another task to the above
 makefile:
 
-\begin{minted}[frame=single]{makefile}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{makefile}
 release.tar: main.exe README
     tar -cf release.tar main.exe README
 \end{minted}
+\vspace{1mm}
 
+\noindent
 So far so good: if either \cmd{main.exe} or \cmd{README} is dirty, \Make will
 recreate the release archive. But now imagine that we need to specify the files
 that go into \cmd{release.tar} in a text file \cmd{release.txt}. The dependencies
@@ -99,6 +105,7 @@ dependencies}, requiring ad hoc workarounds such as \emph{build phases}, which
 are problematic~\cite{hadrian}.
 
 \subsection{\Excel: dynamic dependencies at the cost of minimality}
+\label{sec-background-excel}
 
 \Excel is a build system that can deal with dynamic dependencies albeit at the
 cost of sacrificing minimality. Consider the following spreadsheet comprising
@@ -106,14 +113,17 @@ four input cells \cmd{A1-A3} and \cmd{B1}, and a single task computing the sum
 of values \cmd{A1} $+\cdots+$ \cmd{An}, where \cmd{n} is specified indirectly in
 \cmd{B1}:
 
-\begin{minted}[frame=single]{bash}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{bash}
 A1 = 10
 A2 = 20
 A3 = 30
 B1 = 2
 C1 = SUM(A1:INDIRECT("A" & B1))
 \end{minted}
+\vspace{1mm}
 
+\noindent
 The output \cmd{C1} here is analogous to the \cmd{release.tar} from the previous
 example: one cannot statically determine the dependencies of the associated task.
 To deal with this, \Excel takes a simple conservative approach: it marks all
@@ -129,7 +139,7 @@ of volatility includes dynamic dependencies, as well as \emph{non-determinism}
 that will be discussed in~\S\ref{sec-engineering}. We therefore put both \Make
 and \Excel in the same category of build systems that associate a \emph{dirty bit}
 with every file or cell. (To avoid the ``file or cell'' nuisance, we introduce the
-abstract notion of \emph{keys} in~\S\ref{sec-vocabulary}.)
+abstract notion of \emph{keys} in~\S\ref{sec-background-vocabulary}.)
 
 \Excel's recalculation algorithm~\cite{excel_recalc} on the other hand is
 significantly different from \Make. Since it is impossible to construct the full
@@ -149,10 +159,37 @@ often needs to manually initiate a full rebuild even if just a single task has
 changed.
 
 \subsection{\Shake: dynamic dependencies with no remorse}
+\label{sec-background-shake}
+
+\Shake was developed specifically to address the issue of dynamic
+dependencies~\cite{mitchell2012shake} and it excels at handling them without
+sacrificing the minimality requirement. Here is how one can express the task
+for producing \cmd{release.tar} from the example discussed
+in~\S\ref{sec-background-make}.
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+"release.tar" %> \_ -> do
+    need ["release.txt"]
+    contents <- lines <$> readFile "release.txt"
+    need contents
+    system "tar" $ ["-cf", "result.tar"] ++ contents
+\end{minted}
+\vspace{1mm}
+
+\noindent
+We first declare the static dependency on \cmd{release.txt}, then read its
+content and depend on it, dynamically. Finally, we specify the command line to
+produce the resulting archive. Crucially, the archive will only be rebuilt if
+one of the dependencies (static or dynamic) has changed.
+
 
 \begin{figure}[h]
 \centerline{\includegraphics[scale=0.28]{fig/make-example-cutoff.pdf}}
-\caption{An early cutoff example.\label{fig-cutoff}}
+\vspace{-2mm}
+\caption{An early cutoff example: modify the source \cmd{main.c} by adding a
+comment. The rebuild is stopped after detecting that \cmd{main.o} is unchanged,
+which indicates that \cmd{main.exe} does not need to be rebuilt.\label{fig-cutoff}}
 \end{figure}
 
 
@@ -160,10 +197,12 @@ changed.
 ...
 
 \subsection{\Bazel: a cloud build system}
+\label{sec-background-shake}
 
 ...
 
-\subsection{Abstract vocabulary for build systems}\label{sec-vocabulary}
+\subsection{Abstract vocabulary for build systems}
+\label{sec-background-vocabulary}
 
 ...
 
