@@ -60,10 +60,10 @@ recursive step compute = runM . ensure
                     Just act -> step k (getDependenciesMaybe compute k) ask act
 
 
-dynamic
+reordering
     :: (m ~ M (i, [k]) k v, Default i)
     => (k -> Maybe [k] -> (k -> m (Maybe v)) -> m (Either k ([k], v)) -> m (Maybe k)) -> Build Monad (i, [k]) k v
-dynamic step compute k = runM $ do
+reordering step compute k = runM $ do
     order <- snd <$> getInfo
     order <- f Set.empty $ order ++ [k | k `notElem` order]
     modifyInfo $ second $ const order
@@ -97,7 +97,7 @@ dumbTopological :: Build Applicative () k v
 dumbTopological = topological $ \k _ act -> putStore k =<< act
 
 dumbDynamic :: Build Monad ((), [k]) k v
-dumbDynamic = dynamic $ \k _ _ act -> do
+dumbDynamic = reordering $ \k _ _ act -> do
     res <- act
     case res of
         Left e -> return $ Just e
@@ -163,7 +163,7 @@ shake = recursive $ \k _ ask act -> do
 
 
 spreadsheetTrace :: (Hashable v) => Build Monad (Shake k v, [k]) k v
-spreadsheetTrace = dynamic $ \k ds ask act -> do
+spreadsheetTrace = reordering $ \k ds ask act -> do
     info <- fst <$> getInfo
     valid <- case Map.lookup k info of
         Nothing -> return False
@@ -184,7 +184,7 @@ spreadsheetTrace = dynamic $ \k ds ask act -> do
 
 
 spreadsheet :: Eq v => Build Monad (Changed k v, [k]) k v
-spreadsheet = withChangedMonad $ dynamic $ \k ds _ act -> do
+spreadsheet = withChangedMonad $ reordering $ \k ds _ act -> do
     dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ maybe (return True) (anyM getChanged) ds
     if not dirty then
         return Nothing
@@ -249,7 +249,7 @@ shazel = recursive $ \k _ ask act -> do
 
 
 spreadsheetRemote :: Hashable v => Build Monad (Shazel k v, [k]) k v
-spreadsheetRemote = dynamic $ \k _ ask act -> do
+spreadsheetRemote = reordering $ \k _ ask act -> do
     poss <- Map.findWithDefault [] k . szKnown . fst <$> getInfo
     res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (== Just h) . fmap getHash <$> ask k) ds
     case res of
