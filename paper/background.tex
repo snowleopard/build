@@ -98,7 +98,7 @@ So far so good: if either \cmd{main.exe} or \cmd{README} is dirty, \Make will
 recreate the release archive. But now imagine that we need to specify the files
 that go into \cmd{release.tar} in a text file \cmd{release.txt}. The dependencies
 of \cmd{release.tar} are no longer known statically: they \emph{depend on the
-contents} of \cmd{release.txt}, which might not even exist before the build
+content} of \cmd{release.txt}, which might not even exist before the build
 starts, e.g. if it is produced by concatenating input files \cmd{release-bins.txt}
 and \cmd{release-docs.txt}. Alas, makefiles cannot express such \emph{dynamic
 dependencies}, requiring ad hoc workarounds such as \emph{build phases}, which
@@ -171,19 +171,28 @@ in~\S\ref{sec-background-make}.
 \begin{minted}[xleftmargin=10pt]{haskell}
 "release.tar" %> \_ -> do
     need ["release.txt"]
-    contents <- lines <$> readFile "release.txt"
-    need contents
-    system "tar" $ ["-cf", "result.tar"] ++ contents
+    files <- lines <$> readFile "release.txt"
+    need files
+    system "tar" $ ["-cf", "result.tar"] ++ files
 \end{minted}
 \vspace{1mm}
 
 \noindent
 We first declare the static dependency on \cmd{release.txt}, then read its
-content and depend on it, dynamically. Finally, we specify the command to
-produce the resulting archive. Crucially, the archive will only be rebuilt if
-one of the dependencies (static or dynamic) has changed.
+content (a list of files) and depend on it, dynamically. Finally, we specify the
+command to produce the resulting archive. Crucially, the archive will only be
+rebuilt if one of the dependencies (static or dynamic) has changed.
 
-\todo{AM}{How is \Shake different.}
+\Shake's implementation is different from both \Make and \Excel in two aspects.
+First, it uses the dependency graph produced in the previous build to detect
+which files are dirty -- a powerful idea with a long history of use in
+\emph{incremental}~\cite{demers1981incremental},
+\emph{adaptive}~\cite{acar2002adaptive}, and
+\emph{self-adjusting}~\cite{acar2007selfadjusting} computation (see a discussion
+in related work~\S\ref{sec-related}). Second, instead of abandoning and deferring
+the computation of tasks whose rediscovered dependencies are dirty (as \Excel
+does), \Shake \emph{pauses} their computation until the dependencies are
+brought up-to-date.
 
 \begin{figure}[h]
 \centerline{\includegraphics[scale=0.28]{fig/make-example-cutoff.pdf}}
@@ -200,8 +209,6 @@ earlier, as illustrated in Fig.~\ref{fig-cutoff}. Not all build systems support
 early cutoff: \Make and \Excel do not, whereas \Shake and \Bazel (introduced
 below) do.
 
-...
-
 \subsection{\Bazel: a cloud build system}
 \label{sec-background-shake}
 
@@ -213,7 +220,44 @@ build systems allow one to perform \emph{shallow builds} that materialise
 only end build products on a local machine, leaving all intermediates in the
 cloud. This is a significant optimisation compared to \emph{deep builds}
 that require all transitive dependencies of an end build product to be
-locally available. Non-cloud build systems cannot support shallow builds.
+locally available. % Non-cloud build systems cannot support shallow builds.
+
+\Bazel is one of the first examples of openly available cloud build systems.
+Like \Make, it does not support dynamic dependencies and can therefore benefit
+from the simplicity of building tasks in the statically known topological order.
+It is minimal and supports the early cutoff optimisation.
+
+To support cloud builds, \Bazel maintains a conventional \emph{content-addressable
+cache}, which can be used to fetch a previously built file given the hash of its
+content, as well as \emph{dependency graphs from all previous builds}, annotated
+with observed file hashes\footnote{Here we ignore the issue of limited cloud
+storage resources for the sake of simplicity; in practice, old entries are
+regularly evicted from the storage, as further discussed in~\S\ref{sec-engineering}.}.
+The latter allows to bypass the execution of a task, by predicting the hash of
+its result from the hashes of the dependencies, and subsequently fetch the file
+from the cache. A concrete implementation is provided in~\S\ref{sec-examples}.
+
+\subsection{Overview}
+\label{sec-background-overview}
+
+\begin{table}[t]
+\small
+\centering
+\begin{tabular}{l||l|l|l|l||l|l}
+Build system & Dependencies & Minimal & Early cutoff & Cloud & Metadata & Algorithm \\
+\hline
+\Make      & Static  & Yes & No  & No  & Dirty bit        & Topological   \\
+\Excel     & Dynamic & No  & No  & No  & Dirty bit, chain & Chain + defer \\
+\Shake     & Dynamic & Yes & Yes & No  & Graph            & Recursive     \\
+\Bazel     & Static  & Yes & Yes & Yes & Graphs, cache    & Topological   \\
+\hline
+This paper & Dynamic & Yes & Yes & Yes & Graphs, cache    & Recursive     \\
+\end{tabular}
+\vspace{2mm}
+\caption{Overview of build systems.\label{tab-overview}}
+\label{tab:use-cases}
+\end{table}
+
 
 \subsection{Abstract vocabulary for build systems}
 \label{sec-background-vocabulary}
