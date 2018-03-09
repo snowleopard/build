@@ -35,10 +35,10 @@ main.exe: util.o main.o
 
 \noindent
 The above makefile lists three tasks: (i) compile a utility library comprising
-files \cmd{util.h} and \cmd{util.c} into \cmd{main.o} by
+files \cmd{util.h} and \cmd{util.c} into \cmd{util.o} by
 executing\footnote{In this example we treat \cmd{gcc} as a pure function for the
-sake of simplicity. In reality there are multiple versions of \cmd{gcc} and the
-actual binary that is used to compile and link files is also listed as a task
+sake of simplicity. In reality, there are multiple versions of \cmd{gcc} and the
+actual binary that is used to compile and link files is often also listed as a task
 dependency.} the command \cmd{gcc -c util.c}, (ii) compile the main source file
 \cmd{main.c} into \cmd{main.o}, and (iii) link object files \cmd{util.o} and
 \cmd{main.o} into the executable \cmd{main.exe}. The makefile contains the
@@ -145,10 +145,10 @@ abstract notion of \emph{keys} in~\S\ref{sec-background-vocabulary}.)
 significantly different from \Make. Since it is impossible to construct the full
 dependency graph upfront in the presence of dynamic dependencies, \Excel
 maintains the \emph{calculation chain}, which is an approximation to the correct
-topological order. During recalculation, \Excel processes cells in this order,
-but can \emph{defer recalculation of a cell} by moving it down the chain when newly
-discovered dynamic dependencies dictate that. We discuss this algorithm in more
-detail in~\S\ref{sec-examples}.
+topological order produced by the previous build. During recalculation, \Excel
+processes cells in this order, but can \emph{defer recalculation of a cell} by
+moving it down the chain when one of its newly discovered dynamic dependencies
+is dirty. We discuss this algorithm in more detail in~\S\ref{sec-examples}.
 
 Another distinguishing feature of \Excel is \emph{self-tracking}. Most build
 systems track changes of inputs and intermediate results, executing dependent
@@ -188,11 +188,11 @@ First, it uses the dependency graph produced in the previous build to detect
 which files are dirty -- a powerful idea with a long history of use in
 \emph{incremental}~\cite{demers1981incremental},
 \emph{adaptive}~\cite{acar2002adaptive}, and
-\emph{self-adjusting}~\cite{acar2007selfadjusting} computation (see a discussion
-in related work~\S\ref{sec-related}). Second, instead of abandoning and deferring
-the computation of tasks whose rediscovered dependencies are dirty (as \Excel
-does), \Shake \emph{pauses} their computation until the dependencies are
-brought up-to-date.
+\emph{self-adjusting}~\cite{acar2007selfadjusting} \emph{computations} (see a
+discussion in related work~\S\ref{sec-related}). Second, instead of abandoning
+and deferring the computation of tasks whose rediscovered dependencies are dirty
+(as \Excel does), \Shake \emph{pauses} their computation until the dependencies
+are brought up-to-date. We refer to this build algorithm as \emph{recursive}.
 
 \begin{figure}[h]
 \centerline{\includegraphics[scale=0.28]{fig/make-example-cutoff.pdf}}
@@ -234,32 +234,49 @@ with observed file hashes\footnote{Here we ignore the issue of limited cloud
 storage resources for the sake of simplicity; in practice, old entries are
 regularly evicted from the storage, as further discussed in~\S\ref{sec-engineering}.}.
 The latter allows to bypass the execution of a task, by predicting the hash of
-its result from the hashes of the dependencies, and subsequently fetch the file
+its result from the hashes of the dependencies, and subsequently fetch the result
 from the cache. A concrete implementation is provided in~\S\ref{sec-examples}.
 
-\subsection{Overview}
-\label{sec-background-overview}
+\subsection{Summary}
+\label{sec-background-summary}
 
-\begin{table}[t]
-\small
+We summarise differences between four discussed build systems in
+Table~\ref{tab-summary}. The `Metadata' column refers to the \emph{auxiliary
+build information} persistently stored between builds by all build systems:
+\begin{itemize}
+    \item \Make stores file modification times, or rather, it relies on the file
+    system to do that. In principle a single dirty bit is sufficient, as will be
+    demonstrated in~\S\ref{sec-examples}.
+    \item \Excel stores the dirty bit as well as the calculation chain.
+    \item \Shake stores the dependency graph discovered in the previous build,
+    annotated with file content hashes for efficient checking of file changes.
+    \item \Bazel stores all dependency graphs discovered in previous builds
+    annotated with file hashes, and the content-addressable cache.
+\end{itemize}
+
+The last row of the table describes the new build system proposed in this paper,
+which shares the advantages of \Shake and \Bazel.
+
+\begin{table}[h]
+\smaller
 \centering
-\begin{tabular}{l||l|l|l|l||l|l}
-Build system & Dependencies & Minimal & Early cutoff & Cloud & Metadata & Algorithm \\
+\begin{tabular}{l||l|c|c|c|c||l|l}
 \hline
-\Make      & Static  & Yes & No  & No  & Dirty bit        & Topological   \\
-\Excel     & Dynamic & No  & No  & No  & Dirty bit, chain & Chain + defer \\
-\Shake     & Dynamic & Yes & Yes & No  & Graph            & Recursive     \\
-\Bazel     & Static  & Yes & Yes & Yes & Graphs, cache    & Topological   \\
+$\!\!$Build system$\!$&$\!$Dependencies$\!$&$\!$Minimal$\!$&$\!$Self-tracking$\!$&$\!$Cutoff$\!$&$\!$Cloud$\!$&$\!$Metadata$\!$&$\!$Algorithm$\!\!$\\\hline
+$\!\!$\Make       $\!$&$\!$Static  & Yes & No  & No  & No  &$\!$Dirty bit       $\!$&$\!$Topological $\!\!$\\
+$\!\!$\Excel      $\!$&$\!$Dynamic & No  & Yes & No  & No  &$\!$Dirty bit, chain$\!$&$\!$Chain, defer$\!\!$\\
+$\!\!$\Shake      $\!$&$\!$Dynamic & Yes & No  & Yes & No  &$\!$Graph           $\!$&$\!$Recursive   $\!\!$\\
+$\!\!$\Bazel      $\!$&$\!$Static  & Yes & No  & Yes & Yes &$\!$Graphs, cache   $\!$&$\!$Topological $\!\!$\\\hline
+$\!\!$This paper  $\!$&$\!$Dynamic & Yes & No? & Yes & Yes &$\!$Graphs, cache   $\!$&$\!$Recursive   $\!\!$\\
 \hline
-This paper & Dynamic & Yes & Yes & Yes & Graphs, cache    & Recursive     \\
 \end{tabular}
 \vspace{2mm}
-\caption{Overview of build systems.\label{tab-overview}}
+\caption{Summary of build system differences.\label{tab-summary}}
 \label{tab:use-cases}
 \end{table}
 
 
-\subsection{Abstract vocabulary for build systems}
+\subsection{Common vocabulary for build systems}
 \label{sec-background-vocabulary}
 
 \subsection{Keys, values, hashes and store}
@@ -320,11 +337,6 @@ produce different valid results.
     \textsf{RANDBETWEEN(low, high)} that returns a random integer in the
     interval \textsf{[low, high]}.
 
-    \item Most build systems persistently store auxiliary \emph{build
-    information} for profiling and optimisation purposes: \Make stores file
-    modification times, \Shake stores the discovered dynamic dependency graph,
-    \Bazel and other cloud build systems store information about inputs and
-    outputs of previously executed tasks, etc.
 \end{itemize}
 
 This paper presents a purely functional abstraction for build systems that
