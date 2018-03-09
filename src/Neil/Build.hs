@@ -3,12 +3,12 @@
 module Neil.Build(
     Build,
     M, runM,
-    getStoreMaybe, getStore, putStore,
+    getStore, putStore,
     Changed, getChanged, withChangedApplicative, withChangedMonad,
-    Time, getStoreTime, getStoreTimeMaybe,
+    Time, getStoreTime,
     getInfo, putInfo, modifyInfo,
     getTemp, putTemp, modifyTemp,
-    Hash, getHash, Hashable, getStoreHash, getStoreHashMaybe,
+    Hash, getHash, Hashable, getStoreHash,
     ) where
 
 import Neil.Compute
@@ -23,15 +23,15 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 
 
-type Build c i k v = (Ord k, Show k, Typeable k) => Compute c k v -> k -> Maybe i -> Map.Map k v -> (i, Map.Map k v)
+type Build c i k v = (Ord k, Typeable k) => Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
 
 
-runM :: (Default i) => M i k v a -> Maybe i -> Map.Map k v -> (i, Map.Map k v)
+runM :: (Default i) => M i k v a -> Maybe i -> (k -> v) -> (i, k -> v)
 runM (M m) i s = (info res, store res)
     where res = execState m $ S s (fromMaybe def i) mempty Set.empty
 
 data S i k v = S
-    {store :: Map.Map k v
+    {store :: k -> v
     ,info :: i
     ,temp :: DM.DynamicMap
     ,changed :: Set.Set k
@@ -42,40 +42,37 @@ newtype M i k v r = M (State (S i k v) r)
 
 
 -- | Figure out when files change, like a modtime
-newtype Changed k v = Changed {fromChanged :: Map.Map k v}
-    deriving (Default, Show)
+newtype Changed k v = Changed {hasChanged :: k -> v -> Bool}
+
+instance Show (Changed k v) where
+    show _ = "<Changed>"
+
+instance Default (Changed k v) where
+    def = Changed $ \_ _ -> True
 
 getChanged :: (Ord k, Eq v) => k -> M (Changed k v, i) k v Bool
 getChanged k = do
     s <- M get
-    return $ k `Set.member` changed s || Map.lookup k (store s) /= Map.lookup k (fromChanged $ fst $ info s)
+    return $ k `Set.member` changed s || hasChanged (fst $ info s) k (store s k)
 
-withChangedApplicative :: Build Applicative (Changed k v, i) k v -> Build Applicative (Changed k v, i) k v
-withChangedApplicative op compute k i mp = let ((_, i2),mp2) = op compute k i mp in ((Changed mp2, i2), mp2)
+withChangedApplicative :: Eq v => Build Applicative (Changed k v, i) k v -> Build Applicative (Changed k v, i) k v
+withChangedApplicative op compute k i mp = let ((_, i2),mp2) = op compute k i mp in ((Changed $ \k v -> mp2 k /= v, i2), mp2)
 
-withChangedMonad :: Build Monad (Changed k v, i) k v -> Build Monad (Changed k v, i) k v
-withChangedMonad op compute k i mp = let ((_, i2),mp2) = op compute k i mp in ((Changed mp2, i2), mp2)
+withChangedMonad :: Eq v => Build Monad (Changed k v, i) k v -> Build Monad (Changed k v, i) k v
+withChangedMonad op compute k i mp = let ((_, i2),mp2) = op compute k i mp in ((Changed $ \k v -> mp2 k /= v, i2), mp2)
 
 data Time = LastBuild | AfterLastBuild deriving (Eq,Ord)
 
-getStoreTimeMaybe :: (Ord k, Eq v) => k -> M (Changed k v, i) k v (Maybe Time)
-getStoreTimeMaybe k = do
-    now <- getStoreMaybe k
+getStoreTime :: (Ord k, Eq v) => k -> M (Changed k v, i) k v Time
+getStoreTime k = do
     chng <- getChanged k
-    return $ if isNothing now then Nothing else Just $ if chng then AfterLastBuild else LastBuild
+    return $ if chng then AfterLastBuild else LastBuild
 
-getStoreTime :: (Show k, Ord k, Eq v) => k -> M (Changed k v, i) k v Time
-getStoreTime k = fromMaybe (error $ "no store time available for " ++ show k) <$> getStoreTimeMaybe k
-
-
-getStoreMaybe :: Ord k => k -> M i k v (Maybe v)
-getStoreMaybe k = Map.lookup k . store <$> M get
-
-getStore :: (Ord k, Show k) => k -> M i k v v
-getStore k = fromMaybe (error $ "getStore failed on " ++ show k) <$> getStoreMaybe k
+getStore :: k -> M i k v v
+getStore k = ($ k) . store <$> M get
 
 putStore :: Ord k => k -> v -> M i k v ()
-putStore k v = M $ modify $ \x -> x{store = Map.insert k v $ store x, changed = Set.insert k $ changed x}
+putStore k v = M $ modify $ \x -> x{store = \k2 -> if k == k2 then v else store x k2, changed = Set.insert k $ changed x}
 
 getTemp :: (Typeable t, Default t) => M i k v t
 getTemp = fromMaybe def . DM.lookup . temp <$> M get
@@ -102,9 +99,6 @@ newtype Hash v = Hash Int
 getHash :: Hashable v => v -> Hash v
 getHash = Hash . hash
 
-getStoreHashMaybe :: (Ord k, Hashable v) => k -> M i k v (Maybe (Hash v))
-getStoreHashMaybe = fmap (fmap getHash) . getStoreMaybe
-
-getStoreHash :: (Ord k, Show k, Hashable v) => k -> M i k v (Hash v)
+getStoreHash :: (Hashable v) => k -> M i k v (Hash v)
 getStoreHash = fmap getHash . getStore
 

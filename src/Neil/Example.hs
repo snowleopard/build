@@ -8,6 +8,7 @@ import Neil.Builder
 import Neil.Compute
 import Neil.Build
 import Control.Monad
+import Data.Maybe
 import qualified Data.Map as Map
 
 data Add k v = Add k k
@@ -24,17 +25,16 @@ example "b" = Source
 example "c" = Add "a" "b"
 example "d" = Add "c" "c"
 
-store0 = Map.fromList [("a",1),("b",2)]
-store' = Map.insert "a" 3
+store0 k = fromMaybe 0 $ lookup k [("a",1),("b",2)]
+store' store k = if k == "a" then 3 else store k
+
+showStore store = unwords [k ++ "=" ++ show (store k) | k <- ["a","b","c","d"]]
 
 test :: Show i => Build Applicative i String Int -> IO ()
 test build = do
     let (info1, store1) = build (runAdd example) "d" Nothing store0
     let (info2, store2) = build (runAdd example) "d" (Just info1) (store' store1)
-    print store1
-    --print info1
-    print store2
-    --print info2
+    putStrLn $ showStore store0 ++ " ==> " ++ showStore store1 ++ " ==> " ++ showStore store2
 
 main = do
     test dumb

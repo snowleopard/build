@@ -109,15 +109,15 @@ dumbDynamic = reordering $ \k _ _ act -> do
 -- | The simplified Make approach where we build a dependency graph and topological sort it
 make :: Eq v => Build Applicative (Changed k v, ()) k v
 make = withChangedApplicative $ topological $ \k ds act -> do
-    kt <- getStoreTimeMaybe k
+    kt <- getStoreTime k
     ds <- mapM getStoreTime ds
-    case kt of
-        Just xt | all (<= xt) ds -> return ()
-        _ -> putStore k =<< act
+    let clean = all (<= kt) ds
+    when (not clean) $
+        putStore k =<< act
 
 makeDirtyBit :: Eq v => Build Applicative (Changed k v, ()) k v
 makeDirtyBit = withChangedApplicative $ topological $ \k ds act -> do
-    dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ anyM getChanged ds
+    dirty <- getChanged k ||^ anyM getChanged ds
     when dirty $
         putStore k =<< act
 
@@ -127,10 +127,10 @@ type MakeHash k v = Map.Map (k, [Hash v]) (Hash v)
 
 makeTrace :: Hashable v => Build Applicative (MakeHash k v) k v
 makeTrace = topological $ \k ds act -> do
-    now <- getStoreHashMaybe k
+    now <- getStoreHash k
     ds <- mapM getStoreHash ds
     res <- Map.lookup (k, ds) <$> getInfo
-    when (isNothing now || now /= res) $ do
+    when (Just now /= res) $ do
         res <- act
         modifyInfo $ Map.insert (k, ds) (getHash res)
         putStore k res
@@ -138,7 +138,7 @@ makeTrace = topological $ \k ds act -> do
 
 shakeDirtyBit :: Eq v => Build Monad (Changed k v, ()) k v
 shakeDirtyBit = withChangedMonad $ recursive $ \k ds ask act -> do
-    dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ maybe (return True) (anyM (\x -> ask x >> getChanged x)) ds
+    dirty <- getChanged k ||^ maybe (return True) (anyM (\x -> ask x >> getChanged x)) ds
     when dirty $
         putStore k . snd =<< act
 
@@ -153,7 +153,7 @@ shake = recursive $ \k _ ask act -> do
     valid <- case Map.lookup k info of
         Nothing -> return False
         Just (me, deps) ->
-            (maybe False (== me) <$> getStoreHashMaybe k) &&^
+            ((==) me <$> getStoreHash k) &&^
             allM (\(d,h) -> (== h) . getHash <$> ask d) deps
     unless valid $ do
         (ds, v) <- act
@@ -168,7 +168,7 @@ spreadsheetTrace = reordering $ \k ds ask act -> do
     valid <- case Map.lookup k info of
         Nothing -> return False
         Just (me, deps) ->
-            (maybe False (== me) <$> getStoreHashMaybe k) &&^
+            ((==) me <$> getStoreHash k) &&^
             allM (\(d,h) -> (== Just h) . fmap getHash <$> ask d) deps
     if valid then
         return Nothing
@@ -185,7 +185,7 @@ spreadsheetTrace = reordering $ \k ds ask act -> do
 
 spreadsheet :: Eq v => Build Monad (Changed k v, [k]) k v
 spreadsheet = withChangedMonad $ reordering $ \k ds _ act -> do
-    dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ maybe (return True) (anyM getChanged) ds
+    dirty <- getChanged k ||^ maybe (return True) (anyM getChanged) ds
     if not dirty then
         return Nothing
     else do
@@ -215,8 +215,8 @@ bazel = topological $ \k ds act -> do
                 ,bzContent = Map.insert (getHash res) res $ bzContent i}
             putStore k res
         Just res -> do
-            now <- getStoreHashMaybe k
-            when (now /= Just res) $
+            now <- getStoreHash k
+            when (now /= res) $
                 putStore k . (Map.! res) . bzContent =<< getInfo
 
 
@@ -243,8 +243,8 @@ shazel = recursive $ \k _ ask act -> do
             putStore k v
         _ -> do
             let poss = [v | ShazelResult _ v <- res]
-            now <- getStoreHashMaybe k
-            when (now `notElem` map Just poss) $
+            now <- getStoreHash k
+            when (now `notElem` poss) $
                 putStore k . (Map.! head poss) . szContent =<< getInfo
 
 
@@ -266,7 +266,7 @@ spreadsheetRemote = reordering $ \k _ ask act -> do
                     return Nothing
         _ -> do
             let poss = [v | ShazelResult _ v <- res]
-            now <- getStoreHashMaybe k
-            when (now `notElem` map Just poss) $
+            now <- getStoreHash k
+            when (now `notElem` poss) $
                 putStore k . (Map.! head poss) . szContent . fst =<< getInfo
             return Nothing
