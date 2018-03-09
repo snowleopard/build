@@ -3,24 +3,21 @@
 
 Or ``Build systems in the real world'', or ``Crazy things section''...
 
-\begin{itemize}
-    \item Sandboxing
-    \item Non-determinism, specifically, its useless form. This doesn't
-          include \Excel's \textsf{RANDBETWEEN} function, which is useful.
-          To define correctness of non-deterministic build systems, one needs to
-          switch from \hs{Applicative} and \hs{Monad} abstractions to
-          \hs{Alternative} and \hs{MonadPlus}, respectively, but this is not
-          required for actual implementations, most of which can happily accept
-          non-deterministic results (with a notable exception of \Buck).
-    \item Concurrency: nothing fundamentally difficult and fits our theory, but
-          hard to get right in practice.
-    \item Cloud aspects: eviction/garbage collection, `frankenbuilds', etc.
-    \item Iterative computations, e.g. LaTeX.
-    \item Polymorphic keys and values: tasks with multiple outputs, e.g. GHC's
-          \cmd{hi} and \cmd{o} files, phony tasks, etc.
-\end{itemize}
+\subsection{Non-deterministic computations}\label{sec-non-determinism}
 
-\subsection{Non-deterministic computations}
+Sandboxing: guarding against non-determinism due to missing dependencies.
+
+\todo{AM}{Rewrite everything below.}
+
+Non-determinism, specifically, its \emph{useless} form. This doesn't
+include \Excel's \textsf{RANDBETWEEN} function, which is useful.
+To define correctness of non-deterministic build systems, one needs to
+switch from \hs{Applicative} and \hs{Monad} abstractions to
+\hs{Alternative} and \hs{MonadPlus}, respectively, but this is not
+required for actual implementations, most of which can happily accept
+non-deterministic results (with a notable exception of \Buck).
+
+... Some old text:
 
 Build systems and spreadsheets compute output values from input and intermediate
 values. In the most typical case, these \emph{computations} are \emph{functions},
@@ -38,3 +35,41 @@ same inputs. However, not all tasks are deterministic, and there are build
 systems that support \emph{non-determinism}. A simple example is \Excel's
 \textsf{RANDBETWEEN(low, high)} that returns a random integer in the
 interval \textsf{[low, high]}.
+
+\subsection{Concurrency}\label{sec-concurrency}
+
+Nothing fundamentally difficult and fits our theory, but hard to get right in
+practice.
+
+\todo{NM}{Add a paragraph on how to introduce concurrency to implementations
+in~\S\ref{sec-examples}}.
+
+\subsection{Cloud aspects}\label{sec-cloud-aspects}
+
+Cloud aspects: eviction/garbage collection, `frankenbuilds', etc.
+
+\todo{AM}{Descibe frankenbuilds linking to CloudBuild paper.}
+
+\subsection{Tracking and self-tracking}\label{sec-tracking-aspects}
+
+Annotating dependency graphs with hashes, times, etc. is in many cases just an
+engineering trade-off.
+
+\todo{NM}{Clarify, e.g. Shake's \cmd{ChangeModtime}.}
+
+\todo{NM}{Explain how self-tracking can be implemented.}
+
+\subsection{Iterative computations}\label{sec-iterative-compute}
+
+Iterative computations, e.g. LaTeX. \Excel has built-in support for this.
+
+\todo{NM}{Clarify how this fits with the example implementations.}
+
+\subsection{Polymorphism}\label{sec-polymorphism}
+
+Polymorphic keys and values: tasks with multiple outputs, e.g. GHC's \cmd{hi}
+and \cmd{o} files, phony tasks, etc.
+
+\todo{AM}{Give an example.}
+
+\todo{NM}{Describe how to add this feature to \Shake.}

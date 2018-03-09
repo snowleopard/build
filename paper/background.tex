@@ -137,10 +137,11 @@ Note that \Excel's approach to marking cells as dirty is a relatively minor
 variation of the approach used by \Make: a cell is considered dirty if it was
 modified since the previous build \emph{or if it is volatile}, where the notion
 of volatility includes dynamic dependencies, as well as \emph{non-determinism}
-that will be discussed in~\S\ref{sec-engineering}. We therefore put both \Make
-and \Excel in the same category of build systems that associate a \emph{dirty bit}
-with every file or cell. (To avoid the ``file or cell'' nuisance, we introduce the
-abstract notion of \emph{keys} in~\S\ref{sec-background-vocabulary}.)
+that will be discussed in~\S\ref{sec-non-determinism}. We therefore put both
+\Make and \Excel in the same category of build systems that associate a
+\emph{dirty bit} with every file or cell. (To avoid the ``file or cell''
+nuisance, we introduce the abstract notion of \emph{keys}
+in~\S\ref{sec-background-vocabulary}.)
 
 \Excel's recalculation algorithm~\cite{excel_recalc} on the other hand is
 significantly different from \Make. Since it is impossible to construct the full
@@ -233,10 +234,11 @@ cache}, which can be used to fetch a previously built file given the hash of its
 content, as well as \emph{dependency graphs from all previous builds}, annotated
 with observed file hashes\footnote{Here we ignore the issue of limited cloud
 storage resources for the sake of simplicity; in practice, old entries are
-regularly evicted from the storage, as further discussed in~\S\ref{sec-engineering}.}.
-The latter allows to bypass the execution of a task, by predicting the hash of
-its result from the hashes of the dependencies, and subsequently fetch the result
-from the cache. A concrete implementation is provided in~\S\ref{sec-examples}.
+regularly evicted from the storage, as further discussed
+in~\S\ref{sec-sec-cloud-aspects}.}. The latter allows to bypass the execution of
+a task, by predicting the hash of its result from the hashes of the dependencies,
+and subsequently fetch the result from the cache. A concrete implementation is
+provided in~\S\ref{sec-examples}.
 
 \subsection{Summary}
 \label{sec-background-summary}
