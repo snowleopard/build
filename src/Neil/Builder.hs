@@ -60,10 +60,10 @@ recursive step compute = runM . ensure
                     Just act -> step k (getDependenciesMaybe compute k) ask act
 
 
-dynamic
+reordering
     :: (m ~ M (i, [k]) k v, Default i)
     => (k -> Maybe [k] -> (k -> m (Maybe v)) -> m (Either k ([k], v)) -> m (Maybe k)) -> Build Monad (i, [k]) k v
-dynamic step compute k = runM $ do
+reordering step compute k = runM $ do
     order <- snd <$> getInfo
     order <- f Set.empty $ order ++ [k | k `notElem` order]
     modifyInfo $ second $ const order
@@ -97,7 +97,7 @@ dumbTopological :: Build Applicative () k v
 dumbTopological = topological $ \k _ act -> putStore k =<< act
 
 dumbDynamic :: Build Monad ((), [k]) k v
-dumbDynamic = dynamic $ \k _ _ act -> do
+dumbDynamic = reordering $ \k _ _ act -> do
     res <- act
     case res of
         Left e -> return $ Just e
@@ -109,15 +109,15 @@ dumbDynamic = dynamic $ \k _ _ act -> do
 -- | The simplified Make approach where we build a dependency graph and topological sort it
 make :: Eq v => Build Applicative (Changed k v, ()) k v
 make = withChangedApplicative $ topological $ \k ds act -> do
-    kt <- getStoreTimeMaybe k
+    kt <- getStoreTime k
     ds <- mapM getStoreTime ds
-    case kt of
-        Just xt | all (<= xt) ds -> return ()
-        _ -> putStore k =<< act
+    let clean = all (<= kt) ds
+    when (not clean) $
+        putStore k =<< act
 
 makeDirtyBit :: Eq v => Build Applicative (Changed k v, ()) k v
 makeDirtyBit = withChangedApplicative $ topological $ \k ds act -> do
-    dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ anyM getChanged ds
+    dirty <- getChanged k ||^ anyM getChanged ds
     when dirty $
         putStore k =<< act
 
@@ -127,10 +127,10 @@ type MakeHash k v = Map.Map (k, [Hash v]) (Hash v)
 
 makeTrace :: Hashable v => Build Applicative (MakeHash k v) k v
 makeTrace = topological $ \k ds act -> do
-    now <- getStoreHashMaybe k
+    now <- getStoreHash k
     ds <- mapM getStoreHash ds
     res <- Map.lookup (k, ds) <$> getInfo
-    when (isNothing now || now /= res) $ do
+    when (Just now /= res) $ do
         res <- act
         modifyInfo $ Map.insert (k, ds) (getHash res)
         putStore k res
@@ -138,7 +138,7 @@ makeTrace = topological $ \k ds act -> do
 
 shakeDirtyBit :: Eq v => Build Monad (Changed k v, ()) k v
 shakeDirtyBit = withChangedMonad $ recursive $ \k ds ask act -> do
-    dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ maybe (return True) (anyM (\x -> ask x >> getChanged x)) ds
+    dirty <- getChanged k ||^ maybe (return True) (anyM (\x -> ask x >> getChanged x)) ds
     when dirty $
         putStore k . snd =<< act
 
@@ -153,7 +153,7 @@ shake = recursive $ \k _ ask act -> do
     valid <- case Map.lookup k info of
         Nothing -> return False
         Just (me, deps) ->
-            (maybe False (== me) <$> getStoreHashMaybe k) &&^
+            ((==) me <$> getStoreHash k) &&^
             allM (\(d,h) -> (== h) . getHash <$> ask d) deps
     unless valid $ do
         (ds, v) <- act
@@ -163,12 +163,12 @@ shake = recursive $ \k _ ask act -> do
 
 
 spreadsheetTrace :: (Hashable v) => Build Monad (Shake k v, [k]) k v
-spreadsheetTrace = dynamic $ \k ds ask act -> do
+spreadsheetTrace = reordering $ \k ds ask act -> do
     info <- fst <$> getInfo
     valid <- case Map.lookup k info of
         Nothing -> return False
         Just (me, deps) ->
-            (maybe False (== me) <$> getStoreHashMaybe k) &&^
+            ((==) me <$> getStoreHash k) &&^
             allM (\(d,h) -> (== Just h) . fmap getHash <$> ask d) deps
     if valid then
         return Nothing
@@ -184,8 +184,8 @@ spreadsheetTrace = dynamic $ \k ds ask act -> do
 
 
 spreadsheet :: Eq v => Build Monad (Changed k v, [k]) k v
-spreadsheet = withChangedMonad $ dynamic $ \k ds _ act -> do
-    dirty <- fmap isNothing (getStoreMaybe k) ||^ getChanged k ||^ maybe (return True) (anyM getChanged) ds
+spreadsheet = withChangedMonad $ reordering $ \k ds _ act -> do
+    dirty <- getChanged k ||^ maybe (return True) (anyM getChanged) ds
     if not dirty then
         return Nothing
     else do
@@ -215,8 +215,8 @@ bazel = topological $ \k ds act -> do
                 ,bzContent = Map.insert (getHash res) res $ bzContent i}
             putStore k res
         Just res -> do
-            now <- getStoreHashMaybe k
-            when (now /= Just res) $
+            now <- getStoreHash k
+            when (now /= res) $
                 putStore k . (Map.! res) . bzContent =<< getInfo
 
 
@@ -243,13 +243,13 @@ shazel = recursive $ \k _ ask act -> do
             putStore k v
         _ -> do
             let poss = [v | ShazelResult _ v <- res]
-            now <- getStoreHashMaybe k
-            when (now `notElem` map Just poss) $
+            now <- getStoreHash k
+            when (now `notElem` poss) $
                 putStore k . (Map.! head poss) . szContent =<< getInfo
 
 
 spreadsheetRemote :: Hashable v => Build Monad (Shazel k v, [k]) k v
-spreadsheetRemote = dynamic $ \k _ ask act -> do
+spreadsheetRemote = reordering $ \k _ ask act -> do
     poss <- Map.findWithDefault [] k . szKnown . fst <$> getInfo
     res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (== Just h) . fmap getHash <$> ask k) ds
     case res of
@@ -266,7 +266,7 @@ spreadsheetRemote = dynamic $ \k _ ask act -> do
                     return Nothing
         _ -> do
             let poss = [v | ShazelResult _ v <- res]
-            now <- getStoreHashMaybe k
-            when (now `notElem` map Just poss) $
+            now <- getStoreHash k
+            when (now `notElem` poss) $
                 putStore k . (Map.! head poss) . szContent . fst =<< getInfo
             return Nothing
