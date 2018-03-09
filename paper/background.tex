@@ -272,94 +272,41 @@ $\!\!$This paper  $\!$&$\!$Dynamic & Yes & No? & Yes & Yes &$\!$Graphs, cache   
 \end{tabular}
 \vspace{2mm}
 \caption{Summary of build system differences.\label{tab-summary}}
-\label{tab:use-cases}
+\vspace{-7mm}
 \end{table}
-
 
 \subsection{Common vocabulary for build systems}
 \label{sec-background-vocabulary}
 
-\subsection{Keys, values, hashes and store}
+In this section we introduce a common vocabulary for build systems that allows
+us to abstract away from specific application domains, such as software
+development or spreadsheets. We will use this vocabulary throughout the rest of
+the paper.
 
-Keys are
-used to distinguish values. In build systems keys are typically filenames, e.g.
-\cmd{main.c}, whereas values are file contents (a C program source code in this
-case). In spreadsheets keys are cell names, e.g. \cmd{A1}, and values are
-numbers, text, etc. that are typically displayed inside cells. In Haskell code,
-we will use type variables \hs{k} and \hs{v} to denote keys and values,
-respectively.
+\emph{Keys} are used to distinguish \emph{values}. In software build systems
+keys are typically filenames, e.g. \cmd{main.c}, whereas values are file
+contents (a C program source code in this case). In spreadsheets keys are cell
+names, e.g. \cmd{A1}, and values are numbers, text, etc. that are typically
+displayed inside cells. In Haskell code, we will use type variables \hs{k}
+and \hs{v} to denote keys and values, respectively.
 
+We use a cryptographic \emph{hash function} \hs{hash :: v -> Hash} for efficient
+tracking and sharing of build results, where \hs{Hash} is an abstract data type
+equipped with the equality test.
 
 A \emph{store} associates keys to values. It is convenient to assume that a store
 is total, i.e. it contains a value for every possible key. We therefore also
 assume that the type of values is capable of encoding values corresponding to
-non-existent keys (missing files or empty cells).
-
-We use a cryptographic \emph{hash function} \hs{hash :: v -> Hash} for
-efficient tracking and sharing of build results.
-
-\subsection{Input, intermediate and output values}
+non-existent keys (missing files or empty cells). This, in particular, suggests
+that it is possible to \emph{depend on the absence of a value} which is a useful
+feature for build systems. In addition to usual \hs{get} and \hs{put} operations,
+some stores support the \hs{getHash} operation implemented more efficiently than
+by hashing the result of \hs{get}. For example, GVFS (Git Virtual File
+System)~\cite{gvfs} stores file hashes and downloads file contents only on demand.
 
 Some values must be provided by the user as \emph{input}. For example,
-\textsf{src/file.c} can be edited by the user who relies on the build system to
-compile it into \textsf{obj/file.o}. Similarly, the user can input \textsf{A1 = 5}
-and \textsf{B1 = 9} expecting the spreadsheet to compute their sum in \textsf{C1},
-i.e. \textsf{C1 = 14}.
-
-In the above examples, \textsf{obj/file.o} and \textsf{C1} are \emph{output} values.
-
-In some situations we might also need the notion of \emph{intermediate} values,
-which are not interesting for the user but are produced in the process of turning
-inputs into outputs. For example, the user might only be interested in the
-executable \textsf{bin/file.exe} obtained by linking \textsf{obj/file.o} with
-standard libraries, in which case \textsf{obj/file.o} can be considered an
-intermediate value.
-
-\subsection{Non-deterministic computations}
-
-Build systems and spreadsheets compute output values from input and intermediate
-values. In the most typical case, these \emph{computations} are \emph{functions},
-such as \textsf{C1 = A1 + B1}, i.e. their result is uniquely determined by the
-input values. However, in general they can be \emph{relations}, i.e. have
-multiple valid results. A spreadsheet example: \textsf{A2 = A1 + RANDOM(1,6)}.
-This computation has six valid results for each input value \textsf{A1}. In
-build systems, the object file \textsf{obj/file.o} is sometimes not uniquely
-determined by the source \textsf{src/file.c} -- different compiler runs may
-produce different valid results.
-
-
-\begin{itemize}
-
-    \item Some build systems, e.g. \Buck, require all tasks to be
-    \emph{deterministic}, i.e. produce exactly the same output when run on the
-    same inputs. However, not all tasks are deterministic, and there are build
-    systems that support \emph{non-determinism}. A simple example is \Excel's
-    \textsf{RANDBETWEEN(low, high)} that returns a random integer in the
-    interval \textsf{[low, high]}.
-
-\end{itemize}
-
-This paper presents a purely functional abstraction for build systems that
-allows us to express all the above intricacies of build systems and design
-complex build systems from simple primitives. The presented abstraction fits in
-just two lines of Haskell code, which are explained
-in~\S\ref{sec-abstractions}:
-
-\begin{minted}{haskell}
-type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
-type Build c i k v = Compute c k v -> k -> Maybe i -> Map k v -> (i, Map k v)
-\end{minted}
-
-
-Below we define basic notions used in build systems and other similar domains,
-for example, spreadsheets.
-
-
-\subsection{Requirements for build systems}
-
-\begin{itemize}
-    \item Correctness
-    \item Minimality
-    \item Support for sharing and skipping intermediate values
-\end{itemize}
-...
+\cmd{main.c} can be edited by the user who relies on the build system to
+compile it into \cmd{main.o} and subsequently \cmd{main.exe}. End build products,
+such as \cmd{main.exe}, are \emph{output} values. All other values (in this case
+\cmd{main.o}) are \emph{intermediate}; they are not interesting for the user
+but are produced in the process of turning inputs into outputs.

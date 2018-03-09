@@ -1,5 +1,17 @@
 \clearpage
 
+This paper presents a purely functional abstraction for build systems that
+allows us to express all the above intricacies of build systems and design
+complex build systems from simple primitives. The presented abstraction fits in
+just two lines of Haskell code, which are explained
+in~\S\ref{sec-abstractions}:
+
+\begin{minted}{haskell}
+type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
+type Build c i k v = Compute c k v -> k -> Maybe i -> Map k v -> (i, Map k v)
+\end{minted}
+
+
 \section{Build systems, abstractly}\label{sec-abstractions}
 
 In this section we present the \emph{compute} and \emph{build} abstractions:

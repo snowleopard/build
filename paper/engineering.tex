@@ -19,3 +19,22 @@ Or ``Build systems in the real world'', or ``Crazy things section''...
     \item Polymorphic keys and values: tasks with multiple outputs, e.g. GHC's
           \cmd{hi} and \cmd{o} files, phony tasks, etc.
 \end{itemize}
+
+\subsection{Non-deterministic computations}
+
+Build systems and spreadsheets compute output values from input and intermediate
+values. In the most typical case, these \emph{computations} are \emph{functions},
+such as \textsf{C1 = A1 + B1}, i.e. their result is uniquely determined by the
+input values. However, in general they can be \emph{relations}, i.e. have
+multiple valid results. A spreadsheet example: \textsf{A2 = A1 + RANDOM(1,6)}.
+This computation has six valid results for each input value \textsf{A1}. In
+build systems, the object file \textsf{obj/file.o} is sometimes not uniquely
+determined by the source \textsf{src/file.c} -- different compiler runs may
+produce different valid results.
+
+Some build systems, e.g. \Buck, require all tasks to be
+\emph{deterministic}, i.e. produce exactly the same output when run on the
+same inputs. However, not all tasks are deterministic, and there are build
+systems that support \emph{non-determinism}. A simple example is \Excel's
+\textsf{RANDBETWEEN(low, high)} that returns a random integer in the
+interval \textsf{[low, high]}.
