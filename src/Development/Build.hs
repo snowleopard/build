@@ -9,34 +9,30 @@ module Development.Build (
     ) where
 
 import Control.Monad.IO.Class
-import Data.Functor
+import Control.Monad.State
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Map (Map)
 
 import Development.Build.Compute
 import Development.Build.Compute.Monad
 import Development.Build.Store
 import Development.Build.Utilities
 
-import qualified Data.Map as Map
+-- | A build system takes a 'Compute', a key to build, some information from
+-- the previous build @i@ (which can be missing if this is the first build),
+-- and a key-value map @k -> v@, and computes information for the next build and
+-- an updated key-value map. Note that we require @Eq k@ since without it one
+-- has no way of updating the map.
+type Build c i k v = Eq k => Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
 
--- | A build system takes a 'Compute', a list of output keys, some information
--- from the previous build @i@ (which can be missing if this is the first build),
--- and a partial key-value map @Map k v@, and computes information for the next
--- build and an updated key-value map. Note that we require @Ord k@ since one
--- cannot do anything with 'Map' without it, but in principle @Eq k@ could be
--- sufficient if we instead used @k -> Maybe v@ for key-value maps.
-type Build c i k v = Ord k => Compute c k v -> k -> Maybe i -> Map k v -> (i, Map k v)
-
-type MultiBuild c i k v = Ord k => Compute c k v -> NonEmpty k -> Maybe i -> Map k v -> (i, Map k v)
+type MultiBuild c i k v = Eq k => Compute c k v -> NonEmpty k -> Maybe i -> (k -> v) -> (i, k -> v)
 
 type StoreBuild c m k v = Store m k v => Compute c k v -> k -> m ()
 
 type MultiStoreBuild c m k v = Store m k v => Compute c k v -> [k] -> m ()
 
 -- How do I express that we can do it for any c, not just c = Monad?
-purify :: (k -> v) -> (forall m. StoreBuild Monad m k v) -> Build Monad () k v
-purify def build compute key _ = runMapStore (build compute key) def
+purify :: (forall m. StoreBuild Monad m k v) -> Build Monad () k v
+purify build compute key _ = runState (build compute key)
 
 sequentialMultiBuild :: Build Monad i k v -> MultiBuild Monad i k v
 sequentialMultiBuild build compute (x :| xs) i store =
@@ -48,9 +44,8 @@ sequentialMultiBuild build compute (x :| xs) i store =
 sequentialMultiStoreBuild :: StoreBuild Monad m k v -> MultiStoreBuild Monad m k v
 sequentialMultiStoreBuild build compute = mapM_ (build compute)
 
-dumb :: (k -> v) -> Build Monad () k v
-dumb def = purify def $ \compute key ->
-    mapM_ (putValue key =<<) (compute getValue key)
+dumb :: Build Monad () k v
+dumb = purify $ \compute key -> mapM_ (putValue key =<<) (compute getValue key)
 
 dumbTracing :: (MonadIO m, Show k, Show v) => StoreBuild Monad m k v
 dumbTracing compute = build
@@ -63,8 +58,8 @@ dumbTracing compute = build
         liftIO $ putStrLn ("Computing key: " ++ show k)
         mapM_ (putValue k =<<) (compute myGetValue k)
 
-slow :: (k -> v) -> Build Monad () k v
-slow def = purify def build
+slow :: Build Monad () k v
+slow = purify build
   where
     build compute = void . buildThenGet
       where
@@ -86,15 +81,12 @@ slow def = purify def build
 correct :: (Ord k, Eq v) => Build Monad i k v -> Compute Monad k v -> Bool
 correct build compute = forall $ \(key, store, i) ->
     let (_, newStore) = build compute key i store
-    in correctBuild (partial compute) (lookup store) (lookup newStore) key
-  where
-    lookup :: Ord k => Map k v -> k -> Maybe v
-    lookup = flip Map.lookup
+    in correctBuild compute store newStore key
 
 -- | Check that a build system is /idempotent/, i.e. running it once or twice in
 -- a row leads to the same resulting 'Store'.
 idempotent :: (Ord k, Eq v) => Build Monad i k v -> Compute Monad k v -> Bool
-idempotent build compute = forall $ \(outputs, store1, s1) ->
+idempotent build compute = forall $ \(outputs, store1, s1, key) ->
     let (s2, store2) = build compute outputs (Just s1) store1
         (_ , store3) = build compute outputs (Just s2) store2
-    in store2 == store3
+    in store2 key == store3 key

@@ -73,8 +73,8 @@ type Spreadsheet = Cell -> Maybe Formula
 
 -- TODO: Implement 'Random'.
 -- | Spreadsheet computation.
-compute :: Spreadsheet -> Compute Monad Cell Int
-compute spreadsheet get cell@(Cell r c) = case spreadsheet cell of
+spreadsheetCompute :: Spreadsheet -> Compute Monad Cell Int
+spreadsheetCompute spreadsheet get cell@(Cell r c) = case spreadsheet cell of
     Nothing      -> Nothing -- This is an input
     Just formula -> Just $ evaluate formula
   where

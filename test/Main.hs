@@ -1,17 +1,19 @@
 {-# LANGUAGE FlexibleContexts, OverloadedStrings, ScopedTypeVariables #-}
 import Control.Monad
-import Data.Map hiding (toList)
 import Data.List.NonEmpty (NonEmpty (..), toList)
+import Data.Maybe
 
 import Development.Build
+import Development.Build.Compute
 import Development.Build.Store
 
 import Development.Build.Example.Spreadsheet
 
-inputs :: Map Cell Int
-inputs = fromList [ ("A1", 1)
-                  , ("A2", 2)
-                  , ("A3", 3) ]
+inputs :: Cell -> Int
+inputs cell = fromMaybe (cellNotFoundValue cell) $ lookup cell
+    [ ("A1", 1)
+    , ("A2", 2)
+    , ("A3", 3) ]
 
 spreadsheet :: Spreadsheet
 spreadsheet cell = case name cell of
@@ -30,32 +32,30 @@ outputs :: NonEmpty Cell
 outputs = "B1" :| ["B2", "B3", "C1", "C2", "F30" ]
 
 -- TODO: Handle lookup errors nicer
-cellNotFoundError :: Cell -> Int
-cellNotFoundError cell = error $ "Cell not found: " ++ show cell
+-- cellNotFoundError :: Cell -> Int
+-- cellNotFoundError cell = error $ "Cell not found: " ++ show cell
 
 -- TODO: Handle lookup errors nicer
 cellNotFoundValue :: Cell -> Int
 cellNotFoundValue _ = 0
 
-dumbResult :: Map Cell Int
-dumbResult = snd $ sequentialMultiBuild
-    (dumb cellNotFoundValue) (compute spreadsheet) outputs Nothing inputs
+compute :: Compute Monad Cell Int
+compute = spreadsheetCompute spreadsheet
 
-slowResult :: Map Cell Int
-slowResult = snd $ sequentialMultiBuild
-    (slow cellNotFoundValue) (compute spreadsheet) outputs Nothing inputs
+dumbResult :: Cell -> Int
+dumbResult = snd $ sequentialMultiBuild dumb compute outputs Nothing inputs
 
-tracingDumbResult :: IO (Map Cell Int)
-tracingDumbResult = snd <$> runMapStoreT build cellNotFoundValue inputs
+slowResult :: Cell -> Int
+slowResult = snd $ sequentialMultiBuild slow compute outputs Nothing inputs
+
+tracingDumbResult :: IO (Cell -> Int)
+tracingDumbResult = snd <$> runPureStore build inputs
   where
-    build = sequentialMultiStoreBuild dumbTracing (compute spreadsheet) (toList outputs)
+    build = sequentialMultiStoreBuild dumbTracing compute (toList outputs)
 
-evalutate :: Map Cell Int -> Cell -> Int
-evalutate store key = findWithDefault (cellNotFoundError key) key store
-
-printOutputs :: Map Cell Int -> IO ()
+printOutputs :: (Cell -> Int) -> IO ()
 printOutputs store = forM_ outputs $
-    \key -> putStrLn (show (name key) ++ " = " ++ show (evalutate store key))
+    \key -> putStrLn (show (name key) ++ " = " ++ show (store key))
 
 main :: IO ()
 main = do
