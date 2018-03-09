@@ -3,6 +3,14 @@
 
 Or ``Build systems in the real world'', or ``Crazy things section''...
 
+\subsection{Partial stores, exceptions}
+
+Given a \hs{Build c i k v} defined for a total store, one can use it
+with a partial store \hs{k -> Maybe v}, obtaining a special case
+\hs{Build c i k (Maybe v)}, or with a store \hs{k -> Either e v} that can
+throw exceptions of type \hs{e}, obtaining a special case
+\hs{Build c i k (Either e v)}.
+
 \subsection{Non-deterministic computations}\label{sec-non-determinism}
 
 Sandboxing: guarding against non-determinism due to missing dependencies.
