@@ -158,7 +158,7 @@ tasks whenever they change, but \Excel can also track changes in the tasks
 themselves: if a formula is modified, \Excel will recompute it and propagate
 the changes. Self-tracking is uncommon in software build systems, where one
 often needs to manually initiate a full rebuild even if just a single task has
-changed.
+changed. We further discuss self-tracking in~\S\ref{sec-tracking-aspects}.
 
 \subsection{\Shake: dynamic dependencies with no remorse}
 \label{sec-background-shake}
@@ -257,20 +257,22 @@ build information} persistently stored between builds by all build systems:
     annotated with file hashes, and the content-addressable cache.
 \end{itemize}
 
-The last row of the table describes the new build system proposed in this paper,
-which shares the advantages of \Shake and \Bazel.
+In this paper we show which build system properties are consequences of specific
+implementation choices (metadata and algorithm), and how one can obtain new
+build systems with desired properties by recombining parts of existing
+implementations. As a compelling example, we demonstrate how to combine
+advantages of \Shake and \Bazel in a cloud build system with dynamic dependencies.
 
 \begin{table}[h]
 \smaller
 \centering
-\begin{tabular}{l||l|c|c|c|c||l|l}
+\begin{tabular}{l||l|c|c|c||l|l}
 \hline
-$\!\!$Build system$\!$&$\!$Dependencies$\!$&$\!$Minimal$\!$&$\!$Self-tracking$\!$&$\!$Cutoff$\!$&$\!$Cloud$\!$&$\!$Metadata$\!$&$\!$Algorithm$\!\!$\\\hline
-$\!\!$\Make       $\!$&$\!$Static  & Yes & No  & No  & No  &$\!$Dirty bit       $\!$&$\!$Topological $\!\!$\\
-$\!\!$\Excel      $\!$&$\!$Dynamic & No  & Yes & No  & No  &$\!$Dirty bit, chain$\!$&$\!$Chain, defer$\!\!$\\
-$\!\!$\Shake      $\!$&$\!$Dynamic & Yes & No  & Yes & No  &$\!$Graph           $\!$&$\!$Recursive   $\!\!$\\
-$\!\!$\Bazel      $\!$&$\!$Static  & Yes & No  & Yes & Yes &$\!$Graphs, cache   $\!$&$\!$Topological $\!\!$\\\hline
-$\!\!$This paper  $\!$&$\!$Dynamic & Yes & No? & Yes & Yes &$\!$Graphs, cache   $\!$&$\!$Recursive   $\!\!$\\
+$\!\!$Build system & Dependencies & Minimal & Cutoff & Cloud & Metadata                       & Algorithm   $\!\!$\\\hline
+$\!\!$\Make        & Static       & Yes     & No     & No    & File modification times        & Topological $\!\!$\\
+$\!\!$\Excel       & Dynamic      & No      & No     & No    & Dirty cells, calculation chain & Chain, defer$\!\!$\\
+$\!\!$\Shake       & Dynamic      & Yes     & Yes    & No    & Last dependency graph          & Recursive   $\!\!$\\
+$\!\!$\Bazel       & Static       & Yes     & Yes    & Yes   & All dependency graphs, cache   & Topological $\!\!$\\\hline
 \hline
 \end{tabular}
 \vspace{2mm}
