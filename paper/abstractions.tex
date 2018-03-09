@@ -1,41 +1,45 @@
-\clearpage
+\section{Build systems, abstractly}\label{sec-abstractions}
 
-This paper presents a purely functional abstraction for build systems that
-allows us to express all the above intricacies of build systems and design
-complex build systems from simple primitives. The presented abstraction fits in
-just two lines of Haskell code, which are explained
-in~\S\ref{sec-abstractions}:
+This section presents purely functional abstractions for build systems that
+allow us to express all the intricacies of build systems discussed in the
+previous section~\S\ref{sec-background} and design complex build systems from
+simple primitives. Specifically, we present the \emph{compute} and \emph{build}
+abstractions:
 
-\begin{minted}{haskell}
+\begin{minted}[xleftmargin=10pt]{haskell}
 type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
 type Build c i k v = Compute c k v -> k -> Maybe i -> Map k v -> (i, Map k v)
 \end{minted}
 
+\noindent
+Compute represents build rules (in build systems) or formulas (in spreadsheets),
+and is completely isolated from the world of compilers, file systems, memories,
+caches, and all other complexities of real build systems. We explain the compute
+type in~\S\ref{sec-compute}, and then discuss several noteworthy special cases:
+functorial (\S\ref{sec-compute-functor}), applicative
+(\S\ref{sec-compute-applicative}) and monadic (\S\ref{sec-compute-monad}) types
+of compute.
 
-\section{Build systems, abstractly}\label{sec-abstractions}
+Build corresponds to the algorithm used for bringing a key-value store to a
+consistent state by recomputing dirty values in an appropriate order. We explain
+the build type in~\S\ref{sec-build}, and then provide implementations for several
+build systems in~\S\ref{sec-examples}.
 
-In this section we present the \emph{compute} and \emph{build} abstractions:
-\begin{itemize}
-    \item Compute represents build rules (in build systems) or formulas (in
-    spreadsheets), and is completely isolated from the world of compilers, file
-    systems, memories, caches, and all other complexities of real build systems.
-    \item Build corresponds to the algorithm used for bringing a key-value store
-    to a coherent state by running compute.
-\end{itemize}
+\subsection{Compute}\label{sec-compute}
 
-\begin{figure}
-\begin{minted}{haskell}
-type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
-\end{minted}
-\caption{Compute abstractions}\label{fig-compute}
-\end{figure}
+% \begin{figure}
+% \begin{minted}{haskell}
+% type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
+% \end{minted}
+% \caption{Compute abstractions}\label{fig-compute}
+% \end{figure}
+% Consider abstractions in Fig.~\ref{fig-compute}.
 
-Consider abstractions in Fig.~\ref{fig-compute}.
+\subsection{Functorial compute}\label{sec-compute-functor}
+\subsection{Applicative compute}\label{sec-compute-applicative}
+\subsection{Monadic compute}\label{sec-compute-monad}
+
+
+\subsection{Build}\label{sec-build}
 
 ...
-
-We now describe several types of build systems according to their constraint
-on the functor \hs{f}.
-
-...
-
