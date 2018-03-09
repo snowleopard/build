@@ -1,4 +1,4 @@
-\section{Build systems, abstractly}\label{sec-abstractions}
+\section{Build tasks, abstractly}\label{sec-compute}
 
 This section presents purely functional abstractions for build systems that
 allow us to express all the intricacies of build systems discussed in the
@@ -15,7 +15,7 @@ type Build c i k v = Compute c k v -> k -> Maybe i -> Map k v -> (i, Map k v)
 Compute represents build rules (in build systems) or formulas (in spreadsheets),
 and is completely isolated from the world of compilers, file systems, memories,
 caches, and all other complexities of real build systems. We explain the compute
-type in~\S\ref{sec-compute}, and then discuss several noteworthy special cases:
+type in~\S\ref{sec-general-compute}, and then discuss several noteworthy special cases:
 functorial (\S\ref{sec-compute-functor}), applicative
 (\S\ref{sec-compute-applicative}) and monadic (\S\ref{sec-compute-monad}) types
 of compute.
@@ -23,9 +23,9 @@ of compute.
 Build corresponds to the algorithm used for bringing a key-value store to a
 consistent state by recomputing dirty values in an appropriate order. We explain
 the build type in~\S\ref{sec-build}, and then provide implementations for several
-build systems in~\S\ref{sec-examples}.
+build systems in~\S\ref{sec-implementations}.
 
-\subsection{Compute}\label{sec-compute}
+\subsection{Compute}\label{sec-general-compute}
 
 ...
 % \begin{figure}
@@ -121,6 +121,6 @@ ackermann get (Ackermann m n)
 
 ...
 
-\subsection{Build}\label{sec-build}
+\subsection{Build}\label{sec-general-build}
 
 ...

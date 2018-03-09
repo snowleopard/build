@@ -1,7 +1,7 @@
 \clearpage
-\section{Build systems, concretely}\label{sec-examples}
+\section{Build systems, concretely}\label{sec-implementations}
 
-In the previous sections we've discussed the types of build system in text, but the way we came to our conclusions was by developing a framework to fit the builds in. In this section we explain the framework, some of the abstractions we introduced (which model the properties from \S\ref{todo}), and how we can make a meaningful implementation of the build systems discussed in \S\ref{sec-background}.
+In the previous sections we've discussed the types of build system in text, but the way we came to our conclusions was by developing a framework to fit the builds in. In this section we explain the framework, some of the abstractions we introduced (which model the properties from \S\ref{sec-background}), and how we can make a meaningful implementation of the build systems discussed in \S\ref{sec-background}.
 
 \subsection{Framework}
 
@@ -30,14 +30,14 @@ Note: we have omitted the context on \hs{k}, things like \hs{Ord} (so the implem
 \caption{API with which to implement build systems}
 \label{fig-M-api}
 \end{figure}
-  
+
 The types of important definitions are given in Figure \ref{fig-M-api}. In essence we take the pure \hs{Map} to \hs{Map} interface of \hs{Build} and instead provide a Monad \hs{M} which keeps track of the \hs{i} info and \hs{Map k v} as a store. We can then provide functions like \hs{getStore} to load from the store and \hs{putStore} to write to the store.
 
 With that the \hs{dumb} build from above should start to make sense. The function \hs{dumb} takes \hs{compute} and \hs{k}, then calls \hs{runM} on \hs{f x}, where \hs{f x} has type \hs{M () k v v}. The \hs{runM} function takes care of putting the information into a state monad, running the computation, then extracting it afterwards - to match the signature of \hs{build}.
 
 We'll introduce the other functions in in the monad \hs{M} as we need them while exploring the build systems.
 
-\subsection{\Make}
+\subsection{\Make}\label{sec-implementation-make}
 
 The \Make build system builds files in a linear order based on a topological sort. For each file, it builds it if the output file does not exist or is older than any of the inputs. We can express this in our framework with:
 
@@ -92,7 +92,7 @@ makeDirtyBit = withChangedApplicative $ topological $ \k ds act -> do
 
 Here we directly test for changes, which is simpler.
 
-\subsection{Spreadsheet}
+\subsection{\Excel}\label{sec-implementation-excel}
 
 The spreadsheet is actually one of the most challenging to implement, and one of the most challenging to into pieces. The code is:
 
@@ -132,7 +132,7 @@ Dynamic requires a function that takes takes 4 arguments (we use \hs{m} to elide
 
 The implementation of \hs{dynamic} is 15 lines, but is substantially complicated by the requirement to ensure newly discovered keys are added to the list - something an actual spreadsheet with a fixed universe of cells need not do.
 
-\subsection{Shake}
+\subsection{\Shake}\label{sec-implementation-shake}
 
 The Shake approach for dependency tracking is different yet again, with a recursive approach. We can implement Shake with:
 
@@ -174,7 +174,7 @@ recursive step compute = runM . ensure
 
 The required \hs{step} function gets given the \hs{k} to build, the dependencies as \hs{Maybe [k]} (where they are \hs{Nothing} if the rule is truely monadic), a function to demand the result of a dependent key, and a function to compute the current value and return the actual dependencies. To ensure each file is only visited once in a single execution a piece of temporary state is used with \hs{getTemp} and \hs{modifyTemp} to record which files were visited - this state is not persisted to the \hs{i} info parameter.
 
-\subsection{Bazel}
+\subsection{\Bazel}\label{sec-implementation-bazel}
 
 Now we have seen the three dependency schemes, we can directly use \hs{topological} to define Bazel. Furthermore, in many ways Bazel is a tracing build system, so it has a number of similarities to Shake. Concretely we have:
 
@@ -201,7 +201,7 @@ bazel = topological $ \k ds act -> do
                 putStore k . (Map.! res) . bzContent =<< getInfo
 \end{minted}
 
-The state matches that described in \S\ref{todo} - we have a map indexed by a target key, and the hashes of the dependencies of that key. Given that, we point at a resultant hash. Separately we have a map giving the contents for a given hash. For simplicity we assume that all hashes have corresponding entries in the content index.
+The state matches that described in \S\ref{sec-build} - we have a map indexed by a target key, and the hashes of the dependencies of that key. Given that, we point at a resultant hash. Separately we have a map giving the contents for a given hash. For simplicity we assume that all hashes have corresponding entries in the content index.
 
 The implementation works by getting the hashes of all dependencies and looking them up in the trace table. There are three possibilities:
 
@@ -211,7 +211,7 @@ The implementation works by getting the hashes of all dependencies and looking t
 \item This situation has been encountered before but we don't have that result locally (usually we have nothing), so just download the result.
 \end{enumerate}
 
-\subsection{Cloud Shake}
+\subsection{Cloud \Shake}\label{sec-implementation-cloud-shake}
 
 Using the framework above we have implemented the full 3x3 matrix, of dependency scheme and change approach. To us, the interesting point on the design space would be monadic dependencies using the \hs{recursive} strategy combined with cloud builds as per \Bazel, so we focus on that. The implementation is:
 

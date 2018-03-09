@@ -150,7 +150,7 @@ maintains the \emph{calculation chain}, which is an approximation to the correct
 topological order produced by the previous build. During recalculation, \Excel
 processes cells in this order, but can \emph{defer recalculation of a cell} by
 moving it down the chain when one of its newly discovered dynamic dependencies
-is dirty. We discuss this algorithm in more detail in~\S\ref{sec-examples}.
+is dirty. We discuss this algorithm in more detail in~\S\ref{sec-implementations}.
 
 Another distinguishing feature of \Excel is \emph{self-tracking}. Most build
 systems track changes of inputs and intermediate results, executing dependent
@@ -212,7 +212,7 @@ early cutoff: \Make and \Excel do not, whereas \Shake and \Bazel (introduced
 below) do.
 
 \subsection{\Bazel: a cloud build system}
-\label{sec-background-shake}
+\label{sec-background-bazel}
 
 When build systems are used by large teams, different team members
 often end up executing exactly the same tasks on their local machines.
@@ -235,10 +235,10 @@ content, as well as \emph{dependency graphs from all previous builds}, annotated
 with observed file hashes\footnote{Here we ignore the issue of limited cloud
 storage resources for the sake of simplicity; in practice, old entries are
 regularly evicted from the storage, as further discussed
-in~\S\ref{sec-sec-cloud-aspects}.}. The latter allows to bypass the execution of
+in~\S\ref{sec-cloud-aspects}.}. The latter allows to bypass the execution of
 a task, by predicting the hash of its result from the hashes of the dependencies,
 and subsequently fetch the result from the cache. A concrete implementation is
-provided in~\S\ref{sec-examples}.
+provided in~\S\ref{sec-implementations}.
 
 \subsection{Summary}
 \label{sec-background-summary}
@@ -249,7 +249,7 @@ build information} persistently stored between builds by all build systems:
 \begin{itemize}
     \item \Make stores file modification times, or rather, it relies on the file
     system to do that. In principle a single dirty bit is sufficient, as will be
-    demonstrated in~\S\ref{sec-examples}.
+    demonstrated in~\S\ref{sec-implementations}.
     \item \Excel stores the dirty bit as well as the calculation chain.
     \item \Shake stores the dependency graph discovered in the previous build,
     annotated with file content hashes for efficient checking of file changes.
