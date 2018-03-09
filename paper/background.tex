@@ -185,6 +185,23 @@ content (a list of files) and depend on it, dynamically. Finally, we specify the
 command to produce the resulting archive. Crucially, the archive will only be
 rebuilt if one of the dependencies (static or dynamic) has changed.
 
+\begin{figure}[h]
+\begin{subfigure}[b]{0.90\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/shake-example.pdf}}
+\vspace{-1mm}
+\caption{Task dependency graph produced after the previous build.}
+\vspace{3mm}
+\end{subfigure}
+\begin{subfigure}[b]{0.90\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/shake-example-rebuild.pdf}}
+\vspace{-1mm}
+\caption{Since \cmd{docs.txt} is dirty, we rebuild \cmd{release.txt} and
+\cmd{release.tar}, discovering a new dependency.}
+\end{subfigure}
+\caption{Dynamic dependencies example: create \cmd{README} and add it to the
+list of release documents \cmd{docs.txt}.\label{fig-shake}}
+\end{figure}
+
 \Shake's implementation is different from both \Make and \Excel in two aspects.
 First, it uses the dependency graph produced in the previous build to detect
 which files are dirty -- a powerful idea with a long history of use in
