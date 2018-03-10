@@ -6,7 +6,7 @@ In this section we further describe our \hs{Build} abstraction, defined as:
 type Build c i k v = Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
 \end{minted}
 
-The build function takes 4 type arguments: \hs{c} is the constraint used for \hs{Compute} (typically either \hs{Applicative} or \hs{Monad}), \hs{i} is the information stored by the build system and \hs{k}/\hs{v} are the key/value types as described in \S\ref{todo}. Given a build system \hs{build}:
+The build function takes 4 type arguments: \hs{c} is the constraint used for \hs{Compute} (typically either \hs{Applicative} or \hs{Monad}), \hs{i} is the information stored by the build system and \hs{k}/\hs{v} are the key/value types as described in \S\ref{sec-vocabulary}. Given a build system \hs{build}:
 
 \begin{minted}{haskell}
 build compute key info store = (info', store')
@@ -21,16 +21,20 @@ All the \hs{Build} types we define are polymorphic in both \hs{k} and \hs{v} (pe
 A build system must build \underline{out-of-date targets} while \underline{respecting dependency orderings}.
 \end{quote}
 
+\todo{NM}{We haven't used the term `target' before, perhaps change to `keys'?}
+
 We have underlined two different phrases in this sentence, and tackle each aspect separately.
 
 
 \subsection{Respecting dependency orderings}
 
-If the \hs{Compute} function for \hs{k} calls the functional argument of \hs{d} then the build system is responsible for ensuring that \hs{d} is built \textit{before} \hs{k}. Looking at the build systems in \S\ref{todo} we have observed 3 distinct approaches to respecting dependency orderings. In this section of the paper we'll explore what properties are a consequence and how they operate.
+If the \hs{Compute} function for \hs{k} calls the functional argument of \hs{d} then the build system is responsible for ensuring that \hs{d} is built \textit{before} \hs{k}. Looking at the build systems in \S\ref{sec-background} we have observed 3 distinct approaches to respecting dependency orderings. In this section of the paper we'll explore what properties are a consequence and how they operate.
 
 \subsubsection{Topological sort}
 
 The topological approach creates a linear ordering, which when followed, ensures each build is correct. Given a function from a key to its dependencies, and an initial key, you can compute the linear ordering by first taking the transitive closure, then doing a topological sort. However, to go from a \hs{Compute} to the dependencies, it must be the case that it is Applicative.
+
+\todo{NM}{In this case we can give actual code, so let's do that?}
 
 \subsubsection{Reordering}
 
@@ -67,6 +71,10 @@ The recording of a trace requires storing extra information with the execution, 
 
 A predicate trace allows us to mark the key dirty and rebuild it, extending that we can store a \textit{generative} trace which is the trace plus the complete result. Once we are storing the complete result it makes sense to record many generative traces per key, and to share them with other users, providing cloud-build functionality.
 
+\todo{NM}{I found terms `predicate' and `generative' hard to grasp and a bit abstract. Especially `predicate'.}
+
+\todo{NM}{I would also like to see an actual \hs{upToDate} function for predicate, and a \hs{recover}/\hs{fetch} or something like that for generative.}
+
 For \hs{Applicative} computations, the traces need not record the dependency keys (they are implicit given the target key), and can be indexed by the hashes of the keys. Concretely, we could imagine storing:
 
 \begin{minted}{haskell}
@@ -96,3 +104,7 @@ data Trace k v = Trace k (Map (Hash v) (Trace k v))
 \end{minted}
 
 Now the \hs{Trace} requests the value of one specific \hs{k}, and by requesting it we can determine the next dependency. The inherent advantage of an \hs{Applicative} compute is that a single small request can be made to the server, with all the hashes of the dependencies, to get a final answer back. In contrast, a \hs{Monadic} cloud system either has to make multiple requests to the server, or pull down a potentially large \hs{Trace} tree.
+
+\todo{NM}{This sounds very interesting, but I didn't get it after a quick read, and it's late. I think we need examples for all these cases, ideally reusing the examples from the background section.}
+
+\todo{NM}{I'm becoming a bit more optimistic about the term `trace'. It sounds conceptually simpler than a `dependency graph' even though it's isomorphic. So, let's keep it, with a note somewhere, pointing out that traces actually contain enough information to recover dependency graphs.}
