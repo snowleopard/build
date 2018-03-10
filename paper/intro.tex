@@ -34,6 +34,7 @@ These properties (which we define in~\S\ref{sec-background}) are often
 deeply-built-in assumptions of a particular build system.
 In contrast, our framework allows them to be distinguished,
 reasoned about, and varied.
+\item We show that all build system we look at can be broken along two axes - the order in which they build dependencies, and whether they decide to build a particular dependency. Interestingly, these two aspects can be recombined without restriction to produce new build systems.
 \item Two particularly desirable properties are dynamic dependencies
 and cloud-build; yet no currently-available build system supports
 both.  Our framework makes it rather easy to do so, for the first
@@ -50,7 +51,3 @@ abstractions are defined in Haskell, and we have (freely-available)
 executable models of all the build systems we describe.  An unusual
 feature is that we include \Excel in our line-up because, looked at
 in the right way, it certainly is a build system.
-
-\todo{AM/NM}{Add a paragraph on the decomposition of build systems into
-\emph{compute} and \emph{build} components, with the latter split into
-\emph{when} and \emph{how} parts.}
