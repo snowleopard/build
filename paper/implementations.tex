@@ -33,6 +33,12 @@ Note: we have omitted the context on \hs{k}, things like \hs{Ord} (so the implem
 
 The types of important definitions are given in Figure \ref{fig-M-api}. In essence we take the pure \hs{Map} to \hs{Map} interface of \hs{Build} and instead provide a Monad \hs{M} which keeps track of the \hs{i} info and \hs{Map k v} as a store. We can then provide functions like \hs{getStore} to load from the store and \hs{putStore} to write to the store.
 
+\todo{NM}{To me \hs{M} is a bit mysterious. Maybe show its internals?}
+
+\todo{NM}{What about using shorter \hs{get} and \hs{put}? I can introduce it right in the common vocabulary, mentioning the usual get-put laws. I would also remove `get' prefixes from many functions, e.g. \hs{dependencies compute} reads fine. This is a minor issue, happy to do this at the end.}
+
+\todo{NM}{The API still uses \hs{Map k v} and it looks this needs updating throughout the section, so I'll stop here.}
+
 With that the \hs{dumb} build from above should start to make sense. The function \hs{dumb} takes \hs{compute} and \hs{k}, then calls \hs{runM} on \hs{f x}, where \hs{f x} has type \hs{M () k v v}. The \hs{runM} function takes care of putting the information into a state monad, running the computation, then extracting it afterwards - to match the signature of \hs{build}.
 
 We'll introduce the other functions in in the monad \hs{M} as we need them while exploring the build systems.
