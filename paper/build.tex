@@ -1,14 +1,98 @@
 \section{Build systems, abstractly}\label{sec-build}
 
-In this section we further analyse the \hs{Build i c k v} abstraction, in
-particular, we analyse two main aspects of every build system: the metadata
-\hs{i} it persistently stores between builds, and the algorithm it uses to
-compute values in the dependency order.
+In this section we further describe our \hs{Build} abstraction, defined as:
 
-\subsection{Metadata: dirty bit, dependency graph, cache}\label{sec-build-metadata}
+\begin{minted}{haskell}
+type Build c i k v = Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
+\end{minted}
 
-...
+The build function takes 4 type arguments: \hs{c} is the constraint used for \hs{Compute} (typically either \hs{Applicative} or \hs{Monad}), \hs{i} is the information stored by the build system and \hs{k}/\hs{v} are the key/value types as described in \S\ref{todo}. Given a build system \hs{build}:
 
-\subsection{Algorithm: topological, reordering, recursive}\label{sec-build-algorithm}
+\begin{minted}{haskell}
+build compute key info store = (info', store')
+    where ...
+\end{minted}
 
-...
+The function \hs{build} is responsible for ensuring that \hs{key} and its dependencies are up-to-date in \hs{store'} starting from \hs{store}. As part of that work, the \hs{build} function \textit{may} store other information in \hs{info'}, which will be provided as \hs{info} in future calls to \hs{build}. The \hs{info} parameter will be \hs{Nothing} on the very first call to \hs{build}.
+
+All the \hs{Build} types we define are polymorphic in both \hs{k} and \hs{v} (perhaps adding constraints to them), and have specific instantiations of \hs{c} and \hs{i}. How to implement \hs{Build} can be captured by the idea:
+
+\begin{quote}
+A build system must build \underline{out-of-date targets} while \underline{respecting dependency orderings}.
+\end{quote}
+
+We have underlined two different phrases in this sentence, and tackle each aspect separately.
+
+
+\subsection{Respecting dependency orderings}
+
+If the \hs{Compute} function for \hs{k} calls the functional argument of \hs{d} then the build system is responsible for ensuring that \hs{d} is built \textit{before} \hs{k}. Looking at the build systems in \S\ref{todo} we have observed 3 distinct approaches to respecting dependency orderings. In this section of the paper we'll explore what properties are a consequence and how they operate.
+
+\subsubsection{Topological sort}
+
+The topological approach creates a linear ordering, which when followed, ensures each build is correct. Given a function from a key to its dependencies, and an initial key, you can compute the linear ordering by first taking the transitive closure, then doing a topological sort. However, to go from a \hs{Compute} to the dependencies, it must be the case that it is Applicative.
+
+\subsubsection{Reordering}
+
+The topological sort approach has two downside - it is limited to \hs{Applicative} build systems and requires a fresh topological sort each time - while the actions themselves may be incremental the pre-processing is not. An alternative approach is to keep the topological order between runs and assume it to be correct, but if execution determines it is wrong, reorder.
+
+This requires a way to abort computations that have failed. It's also not minimal in the sense that computations start, may do some meaningful work, then abort. However, in the case of an \hs{Applicative} system, that work is zero. It does require the ability to terminate a running computation.
+
+\subsubsection{Recursive}
+
+An alternative way is to simply build dependencies when they are requested. By combining that with a transient store of which keys have been built in this execution, you can describe dependencies in a simple way. You need a way to suspend a running action, which can be done with cheap green-threads and blocking (the original approach of Shake) or with a continuation-passing style (what Shake does now). An alternative approach to suspending a computation is to abort it and restart it again later, at the cost of doing additional work.
+
+
+\subsection{Determining what is out-of-date}
+
+The second part, determining what to rebuild, can be addressed in one of three fundamental ways, with a number of tweaks and variations within them.
+
+\subsubsection{A dirty bit}
+
+The idea of a dirty bit is to have one piece of information, whether a key is dirty or clean. After a run, all bits are set to clean. When a run starts anything that changed between the two states is marked dirty - by marking additional things dirty/clean the build system can track what needs to rebuild. When reaching a key, if it and all its dependencies are clean, the key does not need recomputing.
+
+\Excel models the dirty bit approach most directly, having an actual dirty bit associated with each cell. Since Excel is the only manner by which a cell may be changed by the user, it can dirty the bits as necessary. When rebuilding if a cell only depends on clean cells it is skipped, otherwise it is rebuilt and marked dirty itself. The only wrinkle in this scheme is that \Excel supports monadic build systems, and does not separately record what rebuilt, so it has to approximate in this case.
+
+\Make uses file modification times, and compares files to their dependencies, which can be thought of as a dirty bit which is set when a file is newer than its dependencies. The interesting property of this dirty bit is that it is not under control of \Make, but an existing bit that is repurposed. In particular, updating a file automatically clears its dirty bit, and automatically sets the dirty bit of the nodes depending on it. One thing \Make does require is that file timestamps only go forward in time - something that can be violated by some backup software.
+
+With a dirty bit it is possible to achieve minimality. To achieve cut-off it would be important to not set the dirty bit after a computation that did not change the value. \Excel could model this approach, but does not. In contrast, \Make cannot model cut-off - to do so it would have to mark the node clean (so it didn't rebuild in the next run) and at the same time not mark the things it depends on dirty - an impossible task with only the ability to update to the latest modification time.
+
+\subsubsection{Recording predicate trace}
+
+An alternative way to determine if a key is dirty is to record what state the values/hashes of dependencies were used at last time, and if something has changed, the key is dirty and must be recomputed. For a monadic build system the trace can include what dependencies were used as well, although for an applicative system that information can be inferred. For each key, a single trace is recorded, so it naturally fits that the data is stored in an associative map indexed by target key.
+
+The recording of a trace requires storing extra information with the execution, but otherwise provides a simple approach which is capable of achieving all the properties without imposing restrictions.
+
+\subsubsection{Recording generative traces}
+
+A predicate trace allows us to mark the key dirty and rebuild it, extending that we can store a \textit{generative} trace which is the trace plus the complete result. Once we are storing the complete result it makes sense to record many generative traces per key, and to share them with other users, providing cloud-build functionality.
+
+For \hs{Applicative} computations, the traces need not record the dependency keys (they are implicit given the target key), and can be indexed by the hashes of the keys. Concretely, we could imagine storing:
+
+\begin{minted}{haskell}
+data GenerativeApplicativeTrace k v = GAT
+    { traces :: Map (k, [Hash v]) (Hash v)
+    , contents :: Map (Hash v) v
+    }
+\end{minted}
+
+Given a target key, we can grab the dependencies, grab their hashes and look up the associated result hash. If it doesn't match what we have on disk, we download it from the \hs{contents}. If the entry is not in \hs{traces} we can run it and add it.
+
+For \hs{Monadic} computations the situation is slightly more tricky - instead of being able to determine the dependencies in advance, we effectively have a set of traces for any given key, any of which could apply. While no existing build system actually implements monadic cloud builds, we can describe a plausible structure as:
+
+\begin{minted}{haskell}
+data Trace k v = Trace [(k, Hash v)] (Hash v)
+type GenerativeMonadicTrace k v = GMT
+    { traces :: Map k [Trace k v]
+    , contents :: Map (Hash v) v
+    }
+\end{minted}
+
+Now we can grab the list of traces for a given key, and see which (if any) matches our current state. In practice, to avoid an $O(n)$ scan of the number of traces, we can common up prefixes and use the data structure:
+
+\begin{minted}{haskell}
+data Trace k v = Trace k (Map (Hash v) (Trace k v))
+               | Done (Hash v)
+\end{minted}
+
+Now the \hs{Trace} requests the value of one specific \hs{k}, and by requesting it we can determine the next dependency. The inherent advantage of an \hs{Applicative} compute is that a single small request can be made to the server, with all the hashes of the dependencies, to get a final answer back. In contrast, a \hs{Monadic} cloud system either has to make multiple requests to the server, or pull down a potentially large \hs{Trace} tree.
