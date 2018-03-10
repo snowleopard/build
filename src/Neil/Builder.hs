@@ -196,10 +196,6 @@ data TraceContent k v = TraceContent
     ,tcContent :: Map.Map (Hash v) v
     } deriving Show
 
-{-
-addTrace :: k -> [k] -> M i k v -> M i k v (TracedContent k v -> TracedContent k v)
-addTrace k dk 
--}
 
 instance Default (TraceContent k v) where def = TraceContent def def
 

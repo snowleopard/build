@@ -262,3 +262,49 @@ data Choice = Choice k (Map (Hash v) Choice)
 \end{itemize}
 
 We also technically allow multiple traces to be in the store at the same time, although that is merely something that falls out for free - we would have to do work to avoid it.
+
+\subsection{Smart Trace structures}
+\label{sec-smart-traces}
+
+
+For \hs{Applicative} computations, the traces need not record the dependency keys (they are implicit given the target key), and can be indexed by the hashes of the keys. Concretely, we could imagine storing:
+
+\begin{minted}{haskell}
+data GenerativeApplicativeTrace k v = GAT
+    { traces :: Map (k, [Hash v]) (Hash v)
+    , contents :: Map (Hash v) v
+    }
+\end{minted}
+
+Given a target key, we can grab the dependencies, grab their hashes and look up the associated result hash. If it doesn't match what we have on disk, we download it from the \hs{contents}. If the entry is not in \hs{traces} we can run it and add it.
+
+For \hs{Monadic} computations the situation is slightly more tricky - instead of being able to determine the dependencies in advance, we effectively have a set of traces for any given key, any of which could apply. While no existing build system actually implements monadic cloud builds, we can describe a plausible structure as:
+
+\begin{minted}{haskell}
+data Trace k v = Trace [(k, Hash v)] (Hash v)
+type GenerativeMonadicTrace k v = GMT
+    { traces :: Map k [Trace k v]
+    , contents :: Map (Hash v) v
+    }
+\end{minted}
+
+Now we can grab the list of traces for a given key, and see which (if any) matches our current state. In practice, to avoid an $O(n)$ scan of the number of traces, we can common up prefixes and use the data structure:
+
+\begin{minted}{haskell}
+data Trace k v = Trace k (Map (Hash v) (Trace k v))
+               | Done (Hash v)
+\end{minted}
+
+Now the \hs{Trace} requests the value of one specific \hs{k}, and by requesting it we can determine the next dependency. The inherent advantage of an \hs{Applicative} compute is that a single small request can be made to the server, with all the hashes of the dependencies, to get a final answer back. In contrast, a \hs{Monadic} cloud system either has to make multiple requests to the server, or pull down a potentially large \hs{Trace} tree.
+
+\todo{NM}{This sounds very interesting, but I didn't get it after a quick read, and it's late. I think we need examples for all these cases, ideally reusing the examples from the background section.}
+
+
+
+ For a monadic build system the trace can include what dependencies were used as well, although for an applicative system that information can be inferred. In generality, a trace can be described as:
+
+
+
+For each key, a single trace is recorded, so it naturally fits that the data is stored in an associative map indexed by target key.
+
+The recording of a trace requires storing extra information with the execution, but otherwise provides a simple approach which is capable of achieving all the properties without imposing restrictions.

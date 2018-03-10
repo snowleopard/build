@@ -1,6 +1,6 @@
 \section{Build systems, abstractly}\label{sec-build}
 
-In this section we further describe our \hs{Build} abstraction, defined as:
+In this section we describe our \hs{Build} abstraction, defined as:
 
 \begin{minted}{haskell}
 type Build c i k v = Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
@@ -25,6 +25,7 @@ We have underlined two different phrases in this sentence, and tackle each aspec
 
 
 \subsection{Respecting dependency orderings}
+\label{sec-dependency-orderings}
 
 If the \hs{Compute} function for \hs{k} calls the functional argument of \hs{d} then the build system is responsible for ensuring that \hs{d} is built \textit{before} \hs{k}. Looking at the build systems in \S\ref{sec-background} we have observed 3 distinct approaches to respecting dependency orderings. In this section of the paper we'll explore what properties are a consequence and how they operate.
 
@@ -42,7 +43,6 @@ This requires a way to abort computations that have failed. It's also not minima
 
 An alternative way is to simply build dependencies when they are requested. By combining that with a transient store of which keys have been built in this execution, you can describe dependencies in a simple way. You need a way to suspend a running action, which can be done with cheap green-threads and blocking (the original approach of Shake) or with a continuation-passing style (what Shake does now). An alternative approach to suspending a computation is to abort it and restart it again later, at the cost of doing additional work.
 
-
 \subsection{Determining what is out-of-date}
 
 The second part, determining what to rebuild, can be addressed in one of three fundamental ways, with a number of tweaks and variations within them.
@@ -59,46 +59,31 @@ With a dirty bit it is possible to achieve minimality. To achieve cut-off it wou
 
 \subsubsection{Verifying traces}
 
-An alternative way to determine if a key is dirty is to record what state the values/hashes of dependencies were used at last time, and if something has changed, the key is dirty and must be recomputed - in essence a trace with which we can use to \textit{verify} existing values. For a monadic build system the trace can include what dependencies were used as well, although for an applicative system that information can be inferred. For each key, a single trace is recorded, so it naturally fits that the data is stored in an associative map indexed by target key.
+An alternative way to determine if a key is dirty is to record what state the values/hashes of dependencies were used at last time, and if something has changed, the key is dirty and must be recomputed - in essence a trace with which we can use to \textit{verify} existing values. We can describe a trace as:
 
-The recording of a trace requires storing extra information with the execution, but otherwise provides a simple approach which is capable of achieving all the properties without imposing restrictions.
+\begin{minted}{haskell}
+data Trace k v = Trace
+    {key :: k
+    ,result :: Hash v
+    ,dependencies :: [(k, Hash v)]
+    }
+\end{minted}
+
+We assume that \hs{Hash v} is a small constant size, constructed from hashing the underlying \hs{v} rather than storing it directly. Checking a trace requires ensuring all the dependencies are up to date (using whatever ordering strategy as per \S\ref{sec-dependency-orderings}), then comparing if the dependencies are same as the current value and that the result is the same. After computing a fresh value we add its \hs{Trace} to the list. Therefore the information stored by a build system that verifies traces is \hs{[Trace k v]}.
 
 \subsubsection{Constructive traces}
 
-A verifying trace allows us to mark the key dirty and rebuild it, extending that we can store a \textit{constructive} trace which is the trace plus the complete result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality.
-
-\todo{AM}{AM: I would also like to see an actual \hs{upToDate} function for verifying, and a \hs{recreate} for `recreating'. NM: }
-
-For \hs{Applicative} computations, the traces need not record the dependency keys (they are implicit given the target key), and can be indexed by the hashes of the keys. Concretely, we could imagine storing:
+A verifying trace allows us to mark a key dirty and rebuild it. Extending that information we can store a \textit{constructive} trace which is the trace plus the actual result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality. We can represent that as:
 
 \begin{minted}{haskell}
-data GenerativeApplicativeTrace k v = GAT
-    { traces :: Map (k, [Hash v]) (Hash v)
-    , contents :: Map (Hash v) v
+data Traces k v = Traces
+    {traces :: [Trace k v]
+    ,contents :: Map (Hash v) v
     }
 \end{minted}
 
-Given a target key, we can grab the dependencies, grab their hashes and look up the associated result hash. If it doesn't match what we have on disk, we download it from the \hs{contents}. If the entry is not in \hs{traces} we can run it and add it.
+We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{contents} \textit{without} recomputing it.
 
-For \hs{Monadic} computations the situation is slightly more tricky - instead of being able to determine the dependencies in advance, we effectively have a set of traces for any given key, any of which could apply. While no existing build system actually implements monadic cloud builds, we can describe a plausible structure as:
+For both verifying and constructive choices it is possible to choose smarter data structures than simply a list of \hs{Trace}, which we discuss in \S\ref{sec-smart-traces}.
 
-\begin{minted}{haskell}
-data Trace k v = Trace [(k, Hash v)] (Hash v)
-type GenerativeMonadicTrace k v = GMT
-    { traces :: Map k [Trace k v]
-    , contents :: Map (Hash v) v
-    }
-\end{minted}
-
-Now we can grab the list of traces for a given key, and see which (if any) matches our current state. In practice, to avoid an $O(n)$ scan of the number of traces, we can common up prefixes and use the data structure:
-
-\begin{minted}{haskell}
-data Trace k v = Trace k (Map (Hash v) (Trace k v))
-               | Done (Hash v)
-\end{minted}
-
-Now the \hs{Trace} requests the value of one specific \hs{k}, and by requesting it we can determine the next dependency. The inherent advantage of an \hs{Applicative} compute is that a single small request can be made to the server, with all the hashes of the dependencies, to get a final answer back. In contrast, a \hs{Monadic} cloud system either has to make multiple requests to the server, or pull down a potentially large \hs{Trace} tree.
-
-\todo{NM}{This sounds very interesting, but I didn't get it after a quick read, and it's late. I think we need examples for all these cases, ideally reusing the examples from the background section.}
-
-\todo{NM}{I'm becoming a bit more optimistic about the term `trace'. It sounds conceptually simpler than a `dependency graph' even though it's isomorphic. So, let's keep it, with a note somewhere, pointing out that traces actually contain enough information to recover dependency graphs.}
+\todo{AM}{AM: I would also like to see an actual \hs{upToDate} function for verifying, and a \hs{recreate} for `recreating'. NM: It actually gets a bit more confusing than that - since you end up needing to pass functions to get yourself, your dependencies etc. Unclear there is a win. The functions would occur in the next section anyway.}
