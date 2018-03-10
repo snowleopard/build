@@ -168,21 +168,25 @@ systems only track changes of inputs and intermediate results, but \Excel can
 also track changes in the tasks themselves: if a formula is modified, \Excel
 will recompute it and propagate the changes. Self-tracking is uncommon in
 software build systems, where one often needs to manually initiate a full
-rebuild even if just a single task has changed. We further discuss
+rebuild even if just a single build task has changed. We further discuss
 self-tracking in~\S\ref{sec-tracking-aspects}.
 
 \begin{figure}[h]
-\vspace{-1mm}
+\vspace{1mm}
 \begin{subfigure}[b]{0.90\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/shake-example.pdf}}
+\vspace{-1mm}
 \caption{Dependency graph produced after the previous build.}
+\vspace{1mm}
 \end{subfigure}
+\vspace{1mm}
 \begin{subfigure}[b]{0.90\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/shake-example-rebuild.pdf}}
+\vspace{-1mm}
 \caption{Since \cmd{docs.txt} has changed, we rebuild \cmd{release.txt} and
 \cmd{release.tar}, discovering a new dependency.}
 \end{subfigure}
-\vspace{-1mm}
+\vspace{-2mm}
 \caption{Dynamic dependencies example: create \cmd{README} and add it to the
 list of release documents \cmd{docs.txt}.\label{fig-shake}}
 \vspace{-2mm}
@@ -231,9 +235,9 @@ if we create another documentation file \cmd{README} and add it to
 Fig.~\ref{fig-shake}(b).
 
 \Shake's implementation is different from both \Make and \Excel in two aspects.
-First, it uses the dependency from the previous build to detect which files need
-to be rebuilt. This is a powerful idea with a long history of
-use in \emph{incremental}~\cite{demers1981incremental},
+First, it uses the dependency graph from the previous build to decide which
+files need to be rebuilt. This idea has a long history, going back to
+\emph{incremental}~\cite{demers1981incremental},
 \emph{adaptive}~\cite{acar2002adaptive}, and
 \emph{self-adjusting}~\cite{acar2007selfadjusting} \emph{computations} (see a
 discussion in related work~\S\ref{sec-related}). Second, instead of abandoning
@@ -243,11 +247,12 @@ the dependencies are brought up-to-date. We refer to this build algorithm as
 \emph{recursive}.
 
 \begin{figure}[h]
-\centerline{\includegraphics[scale=0.28]{fig/make-example-cutoff.pdf}}
+\centerline{\includegraphics[scale=0.28]{fig/shake-example-cutoff.pdf}}
 \vspace{-2mm}
-\caption{An early cutoff example: modify the source \cmd{main.c} by adding a
-comment. The rebuild is stopped after detecting that \cmd{main.o} is unchanged,
-which indicates that \cmd{main.exe} does not need to be rebuilt.\label{fig-cutoff}}
+\caption{An early cutoff example: if a comment is added to \cmd{main.c}, the
+rebuild is stopped after detecting that \cmd{main.o} is unchanged, since this
+indicates that \cmd{main.exe} and its dependents do not need to be
+rebuilt.\label{fig-cutoff}}
 \end{figure}
 
 \Shake also supports the following \emph{early cutoff optimisation}. When it
@@ -272,7 +277,7 @@ locally available. % Non-cloud build systems cannot support shallow builds.
 
 \Bazel is one of the first examples of openly available cloud build systems.
 Like \Make, it does not support dynamic dependencies and can therefore benefit
-from the simplicity of building tasks in the statically known topological order.
+from the simplicity of building tasks in a statically known topological order.
 It is minimal and supports the early cutoff optimisation.
 
 To support cloud builds, \Bazel maintains a conventional \emph{content-addressable
@@ -282,8 +287,8 @@ with observed file hashes\footnote{Here we ignore the issue of limited cloud
 storage resources for the sake of simplicity; in practice, old entries are
 regularly evicted from the storage, as further discussed
 in~\S\ref{sec-cloud-aspects}.}. The latter allows to bypass the execution of
-a task, by predicting the hash of its result from the hashes of the dependencies,
-and subsequently fetch the result from the cache. A concrete implementation is
+a task, by predicting the hash of the result from the hashes of its dependencies,
+and subsequently fetching the result from the cache. A concrete implementation is
 provided in~\S\ref{sec-implementations}.
 
 \subsection{Summary}
@@ -296,7 +301,8 @@ build information} persistently stored between builds by all build systems:
     \item \Make stores file modification times, or rather, it relies on the file
     system to do that. In principle a single \emph{dirty bit} per file is
     sufficient, as will be demonstrated in~\S\ref{sec-implementations}.
-    \item \Excel stores a dirty bit per cell as well as the calculation chain.
+    \item \Excel stores one dirty bit per cell and the calculation chain from
+    the previous build.
     \item \Shake stores the dependency graph discovered in the previous build,
     annotated with file content hashes for efficient checking of file changes.
     \item \Bazel stores all dependency graphs discovered in previous builds
@@ -311,7 +317,7 @@ build information} persistently stored between builds by all build systems:
 $\!$Build system$\!$& Metadata                       & Algorithm    & Dependencies & Minimal & Cutoff & Cloud$\!$\\\hline
 $\!$\Make       $\!$& File modification times        & Topological  & Static       & Yes     & No     & No   $\!$\\
 $\!$\Excel      $\!$& Dirty cells, calculation chain & Reordering   & Dynamic      & No      & No     & No   $\!$\\
-$\!$\Shake      $\!$& Last dependency graph          & Recursive    & Dynamic      & Yes     & Yes    & No   $\!$\\
+$\!$\Shake      $\!$& Previous dependency graph      & Recursive    & Dynamic      & Yes     & Yes    & No   $\!$\\
 $\!$\Bazel      $\!$& All dependency graphs, cache   & Topological  & Static       & Yes     & Yes    & Yes  $\!$\\\hline
 \hline
 \end{tabular}
@@ -320,8 +326,9 @@ $\!$\Bazel      $\!$& All dependency graphs, cache   & Topological  & Static    
 \vspace{-7mm}
 \end{table}
 
-In this paper we show which build system properties are consequences of specific
-implementation choices (metadata and algorithm), and how one can obtain new
-build systems with desired properties by recombining parts of existing
+In this paper we elucidate which build system properties are consequences of
+specific implementation choices (metadata and algorithm), and how one can obtain
+new build systems with desired properties by recombining parts of existing
 implementations. As a compelling example, we demonstrate how to combine
-advantages of \Shake and \Bazel in a cloud build system with dynamic dependencies.
+advantages of \Shake and \Bazel in a cloud build system with dynamic
+dependencies, see~\S\ref{sec-implementation-cloud-shake}.
