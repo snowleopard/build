@@ -34,7 +34,9 @@ test :: Show i => Build Applicative i String Int -> IO ()
 test build = do
     let (info1, store1) = build (runAdd example) "d" Nothing store0
     let (info2, store2) = build (runAdd example) "d" (Just info1) (store' store1)
-    putStrLn $ showStore store0 ++ " ==> " ++ showStore store1 ++ " ==> " ++ showStore store2
+    let res = showStore store0 ++ " ==> " ++ showStore store1 ++ " ==> " ++ showStore store2
+    putStrLn res
+    when (res /= "a=1 b=2 c=0 d=0 ==> a=1 b=2 c=3 d=6 ==> a=3 b=2 c=5 d=10") $ fail "did not match!"
 
 main = do
     test dumb

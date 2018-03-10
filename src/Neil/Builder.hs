@@ -111,7 +111,7 @@ make :: Eq v => Build Applicative (Changed k v, ()) k v
 make = withChangedApplicative $ topological $ \k ds act -> do
     kt <- getStoreTime k
     ds <- mapM getStoreTime ds
-    let clean = all (<= kt) ds
+    let clean = all (< kt) ds
     when (not clean) $
         putStore k =<< act
 
