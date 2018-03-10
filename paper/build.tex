@@ -18,10 +18,8 @@ The function \hs{build} is responsible for ensuring that \hs{key} and its depend
 All the \hs{Build} types we define are polymorphic in both \hs{k} and \hs{v} (perhaps adding constraints to them), and have specific instantiations of \hs{c} and \hs{i}. How to implement \hs{Build} can be captured by the idea:
 
 \begin{quote}
-A build system must build \underline{out-of-date targets} while \underline{respecting dependency orderings}.
+A build system must build \underline{out-of-date keys} while \underline{respecting dependency orderings}.
 \end{quote}
-
-\todo{NM}{We haven't used the term `target' before, perhaps change to `keys'?}
 
 \todo{AM}{Turn the above into a formal definition of `correctness' and add a section that provides a mathematical definition of correctness, which does not rely on materialising intermediate values.}
 
