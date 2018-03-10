@@ -81,6 +81,19 @@ reordering step compute k = runM $ do
 
 
 ---------------------------------------------------------------------
+-- DIRTY SCHEMES
+
+data Trace k v = Trace k [(k, Hash v)] (Hash v) deriving Show
+
+-- | Given a way to ask for a dependency, and the key under construction, and the traces, pick the hashes that match
+traces :: (Monad m, Eq k) => (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
+traces check k ts = mapMaybeM f ts
+    where f (Trace k2 ds v) = do
+                b <- return (k == k2) &&^ allM (uncurry check) ds
+                return $ if b then Just v else Nothing
+
+
+---------------------------------------------------------------------
 -- BUILD SYSTEMS
 
 
@@ -143,34 +156,23 @@ shakeDirtyBit = withChangedMonad $ recursive $ \k ds ask act -> do
         putStore k . snd =<< act
 
 
--- During the last execution, these were the traces I saw
-type Shake k v = Map.Map k (Hash v, [(k, Hash v)])
-
 -- | The simplified Shake approach of recording previous traces
-shake :: Hashable v => Build Monad (Shake k v) k v
+shake :: Hashable v => Build Monad [Trace k v] k v
 shake = recursive $ \k _ ask act -> do
-    info <- getInfo
-    valid <- case Map.lookup k info of
-        Nothing -> return False
-        Just (me, deps) ->
-            ((==) me <$> getStoreHash k) &&^
-            allM (\(d,h) -> (== h) . getHash <$> ask d) deps
-    unless valid $ do
+    poss <- traces (\k v -> (==) v . getHash <$> ask k) k =<< getInfo
+    v <- getStoreHash k
+    when (v `notElem` poss) $ do
         (ds, v) <- act
         putStore k v
         dsh <- mapM getStoreHash ds
-        modifyInfo $ Map.insert k (getHash v, zip ds dsh)
+        modifyInfo (Trace k (zip ds dsh) (getHash v) :)
 
 
-spreadsheetTrace :: (Hashable v) => Build Monad (Shake k v, [k]) k v
+spreadsheetTrace :: (Hashable v) => Build Monad ([Trace k v], [k]) k v
 spreadsheetTrace = reordering $ \k ds ask act -> do
-    info <- fst <$> getInfo
-    valid <- case Map.lookup k info of
-        Nothing -> return False
-        Just (me, deps) ->
-            ((==) me <$> getStoreHash k) &&^
-            allM (\(d,h) -> (== Just h) . fmap getHash <$> ask d) deps
-    if valid then
+    poss <- traces (\k v -> (== Just v) . fmap getHash <$> ask k) k . fst =<< getInfo
+    v <- getStoreHash k
+    if v `elem` poss then
         return Nothing
     else do
         res <- act
@@ -179,7 +181,7 @@ spreadsheetTrace = reordering $ \k ds ask act -> do
             Right (ds, v) -> do
                 putStore k v
                 dsh <- mapM getStoreHash ds
-                modifyInfo $ first $ Map.insert k (getHash v, zip ds dsh)
+                modifyInfo $ first (Trace k (zip ds dsh) (getHash v) :)
                 return Nothing
 
 
@@ -196,77 +198,61 @@ spreadsheet = withChangedMonad $ reordering $ \k ds _ act -> do
                 putStore k v
                 return Nothing
 
-data Bazel k v = Bazel
-    {bzKnown :: Map.Map (k, [Hash v]) (Hash v)
-    ,bzContent :: Map.Map (Hash v) v
+data TraceContent k v = TraceContent
+    {tcTraces :: [Trace k v]
+    ,tcContent :: Map.Map (Hash v) v
     } deriving Show
 
-instance Default (Bazel k v) where def = Bazel def def
+instance Default (TraceContent k v) where def = TraceContent def def
 
-bazel :: Hashable v => Build Applicative (Bazel k v) k v
+bazel :: Hashable v => Build Applicative (TraceContent k v) k v
 bazel = topological $ \k ds act -> do
-    ds <- mapM getStoreHash ds
-    res <- Map.lookup (k, ds) . bzKnown <$> getInfo
-    case res of
-        Nothing -> do
-            res <- act
-            modifyInfo $ \i -> i
-                {bzKnown = Map.insert (k, ds) (getHash res) $ bzKnown i
-                ,bzContent = Map.insert (getHash res) res $ bzContent i}
-            putStore k res
-        Just res -> do
-            now <- getStoreHash k
-            when (now /= res) $
-                putStore k . (Map.! res) . bzContent =<< getInfo
+    poss <- traces (\k v -> (== v) <$> getStoreHash k) k . tcTraces =<< getInfo
+    if null poss then do
+        res <- act
+        dsh <- mapM getStoreHash ds
+        modifyInfo $ \i -> i
+            {tcTraces = Trace k (zip ds dsh) (getHash res) : tcTraces i
+            ,tcContent = Map.insert (getHash res) res $ tcContent i}
+        putStore k res
+    else do
+        now <- getStoreHash k
+        when (now `notElem` poss) $
+            putStore k . (Map.! head poss) . tcContent =<< getInfo
 
 
-data ShazelResult k v = ShazelResult [(k, Hash v)] (Hash v) deriving Show
-
-data Shazel k v = Shazel
-    {szKnown :: Map.Map k [ShazelResult k v]
-    ,szContent :: Map.Map (Hash v) v
-    } deriving Show
-
-instance Default (Shazel k v) where def = Shazel def def
-
-shazel :: Hashable v => Build Monad (Shazel k v) k v
+shazel :: Hashable v => Build Monad (TraceContent k v) k v
 shazel = recursive $ \k _ ask act -> do
-    poss <- Map.findWithDefault [] k . szKnown <$> getInfo
-    res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (==) h . getHash <$> ask k) ds
-    case res of
-        [] -> do
-            (ds, v) <- act
-            dsv <- mapM getStoreHash ds
-            modifyInfo $ \i -> i
-                {szKnown = Map.insertWith (++) k [ShazelResult (zip ds dsv) (getHash v)] $ szKnown i
-                ,szContent = Map.insert (getHash v) v $ szContent i}
-            putStore k v
-        _ -> do
-            let poss = [v | ShazelResult _ v <- res]
-            now <- getStoreHash k
-            when (now `notElem` poss) $
-                putStore k . (Map.! head poss) . szContent =<< getInfo
+    poss <- traces (\k v -> (== v) . getHash <$> ask k) k . tcTraces =<< getInfo
+    if null poss then do
+        (ds, v) <- act
+        dsh <- mapM getStoreHash ds
+        modifyInfo $ \i -> i
+            {tcTraces = Trace k (zip ds dsh) (getHash v) : tcTraces i
+            ,tcContent = Map.insert (getHash v) v $ tcContent i}
+        putStore k v
+    else do
+        now <- getStoreHash k
+        when (now `notElem` poss) $
+            putStore k . (Map.! head poss) . tcContent =<< getInfo
 
 
-spreadsheetRemote :: Hashable v => Build Monad (Shazel k v, [k]) k v
+spreadsheetRemote :: Hashable v => Build Monad (TraceContent k v, [k]) k v
 spreadsheetRemote = reordering $ \k _ ask act -> do
-    poss <- Map.findWithDefault [] k . szKnown . fst <$> getInfo
-    res <- flip filterM poss $ \(ShazelResult ds r) -> allM (\(k,h) -> (== Just h) . fmap getHash <$> ask k) ds
-    case res of
-        [] -> do
-            res <- act
-            case res of
-                Left e -> return $ Just e
-                Right (ds, v) -> do
-                    dsv <- mapM getStoreHash ds
-                    modifyInfo $ first $ \i -> i
-                        {szKnown = Map.insertWith (++) k [ShazelResult (zip ds dsv) (getHash v)] $ szKnown i
-                        ,szContent = Map.insert (getHash v) v $ szContent i}
-                    putStore k v
-                    return Nothing
-        _ -> do
-            let poss = [v | ShazelResult _ v <- res]
-            now <- getStoreHash k
-            when (now `notElem` poss) $
-                putStore k . (Map.! head poss) . szContent . fst =<< getInfo
-            return Nothing
+    poss <- traces (\k v -> (== Just v) . fmap getHash <$> ask k) k . tcTraces . fst =<< getInfo
+    if null poss then do
+        res <- act
+        case res of
+            Left e -> return $ Just e
+            Right (ds, v) -> do
+                dsv <- mapM getStoreHash ds
+                modifyInfo $ first $ \i -> i
+                    {tcTraces = Trace k (zip ds dsv) (getHash v) : tcTraces i
+                    ,tcContent = Map.insert (getHash v) v $ tcContent i}
+                putStore k v
+                return Nothing
+    else do
+        now <- getStoreHash k
+        when (now `notElem` poss) $
+            putStore k . (Map.! head poss) . tcContent . fst =<< getInfo
+        return Nothing
