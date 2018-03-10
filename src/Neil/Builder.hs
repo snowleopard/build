@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving, ScopedTypeVariables, RecordWildCards, ConstraintKinds, TypeFamilies #-}
+{-# LANGUAGE Rank2Types, FlexibleContexts, GeneralizedNewtypeDeriving, ScopedTypeVariables, RecordWildCards, ConstraintKinds, TypeFamilies, LambdaCase #-}
 
 module Neil.Builder(
     dumb,
@@ -54,7 +54,7 @@ recursive step compute = runM . ensure
             let ask x = ensure x >> getStore x
             Recursive done <- getTemp
             when (k `Set.notMember` done) $ do
-                modifyTemp $ \(Recursive set) -> Recursive $ Set.insert k set
+                modifyTemp $ \(Recursive done) -> Recursive $ Set.insert k done
                 case trackDependencies compute ask k of
                     Nothing -> return ()
                     Just act -> step k (getDependenciesMaybe compute k) ask act
@@ -74,8 +74,7 @@ reordering step compute k = runM $ do
             case failDependencies compute f' k of
                 Nothing -> (k :) <$> f (Set.insert k done) ks
                 Just act -> do
-                    res <- step k (getDependenciesMaybe compute k) (fmap eitherToMaybe . f') act
-                    case res of
+                    step k (getDependenciesMaybe compute k) (fmap eitherToMaybe . f') act >>= \case
                         Nothing -> (k :) <$> f (Set.insert k done) ks
                         Just e -> f done $ [e | e `notElem` ks] ++ ks ++ [k]
 
@@ -88,8 +87,8 @@ data Trace k v = Trace k [(k, Hash v)] (Hash v) deriving Show
 -- | Given a way to ask for a dependency, and the key under construction, and the traces, pick the hashes that match
 traces :: (Monad m, Eq k) => (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
 traces check k ts = mapMaybeM f ts
-    where f (Trace k2 ds v) = do
-                b <- return (k == k2) &&^ allM (uncurry check) ds
+    where f (Trace k2 dkv v) = do
+                b <- return (k == k2) &&^ allM (uncurry check) dkv
                 return $ if b then Just v else Nothing
 
 
@@ -111,8 +110,7 @@ dumbTopological = topological $ \k _ act -> putStore k =<< act
 
 dumbDynamic :: Build Monad ((), [k]) k v
 dumbDynamic = reordering $ \k _ _ act -> do
-    res <- act
-    case res of
+    act >>= \case
         Left e -> return $ Just e
         Right (_, v) -> do
             putStore k v
@@ -121,37 +119,34 @@ dumbDynamic = reordering $ \k _ _ act -> do
 
 -- | The simplified Make approach where we build a dependency graph and topological sort it
 make :: Eq v => Build Applicative (Changed k v, ()) k v
-make = withChangedApplicative $ topological $ \k ds act -> do
-    kt <- getStoreTime k
-    ds <- mapM getStoreTime ds
-    let clean = all (< kt) ds
-    when (not clean) $
+make = withChangedApplicative $ topological $ \k dk act -> do
+    t <- getStoreTime k
+    dt <- mapM getStoreTime dk
+    let dirty = not $ all (< t) dt
+    when dirty $
         putStore k =<< act
 
 makeDirtyBit :: Eq v => Build Applicative (Changed k v, ()) k v
-makeDirtyBit = withChangedApplicative $ topological $ \k ds act -> do
-    dirty <- getChanged k ||^ anyM getChanged ds
+makeDirtyBit = withChangedApplicative $ topological $ \k dk act -> do
+    dirty <- getChanged k ||^ anyM getChanged dk
     when dirty $
         putStore k =<< act
 
 
-type MakeHash k v = Map.Map (k, [Hash v]) (Hash v)
-
-
-makeTrace :: Hashable v => Build Applicative (MakeHash k v) k v
-makeTrace = topological $ \k ds act -> do
-    now <- getStoreHash k
-    ds <- mapM getStoreHash ds
-    res <- Map.lookup (k, ds) <$> getInfo
-    when (Just now /= res) $ do
-        res <- act
-        modifyInfo $ Map.insert (k, ds) (getHash res)
-        putStore k res
+makeTrace :: Hashable v => Build Applicative [Trace k v] k v
+makeTrace = topological $ \k dk act -> do
+    poss <- traces (\k v -> (==) v <$> getStoreHash k) k =<< getInfo
+    h <- getStoreHash k
+    when (h `notElem` poss) $ do
+        v <- act
+        dh <- mapM getStoreHash dk
+        modifyInfo (Trace k (zip dk dh) (getHash v) :)
+        putStore k v
 
 
 shakeDirtyBit :: Eq v => Build Monad (Changed k v, ()) k v
-shakeDirtyBit = withChangedMonad $ recursive $ \k ds ask act -> do
-    dirty <- getChanged k ||^ maybe (return True) (anyM (\x -> ask x >> getChanged x)) ds
+shakeDirtyBit = withChangedMonad $ recursive $ \k dk ask act -> do
+    dirty <- getChanged k ||^ maybe (return True) (anyM (\k -> ask k >> getChanged k)) dk
     when dirty $
         putStore k . snd =<< act
 
@@ -160,39 +155,37 @@ shakeDirtyBit = withChangedMonad $ recursive $ \k ds ask act -> do
 shake :: Hashable v => Build Monad [Trace k v] k v
 shake = recursive $ \k _ ask act -> do
     poss <- traces (\k v -> (==) v . getHash <$> ask k) k =<< getInfo
-    v <- getStoreHash k
-    when (v `notElem` poss) $ do
-        (ds, v) <- act
+    h <- getStoreHash k
+    when (h `notElem` poss) $ do
+        (dk, v) <- act
         putStore k v
-        dsh <- mapM getStoreHash ds
-        modifyInfo (Trace k (zip ds dsh) (getHash v) :)
+        dh <- mapM getStoreHash dk
+        modifyInfo (Trace k (zip dk dh) (getHash v) :)
 
 
 spreadsheetTrace :: (Hashable v) => Build Monad ([Trace k v], [k]) k v
-spreadsheetTrace = reordering $ \k ds ask act -> do
+spreadsheetTrace = reordering $ \k dk ask act -> do
     poss <- traces (\k v -> (== Just v) . fmap getHash <$> ask k) k . fst =<< getInfo
-    v <- getStoreHash k
-    if v `elem` poss then
+    h <- getStoreHash k
+    if h `elem` poss then
         return Nothing
-    else do
-        res <- act
-        case res of
+    else
+        act >>= \case
             Left e -> return $ Just e
-            Right (ds, v) -> do
+            Right (dk, v) -> do
                 putStore k v
-                dsh <- mapM getStoreHash ds
-                modifyInfo $ first (Trace k (zip ds dsh) (getHash v) :)
+                dh <- mapM getStoreHash dk
+                modifyInfo $ first (Trace k (zip dk dh) (getHash v) :)
                 return Nothing
 
 
 spreadsheet :: Eq v => Build Monad (Changed k v, [k]) k v
-spreadsheet = withChangedMonad $ reordering $ \k ds _ act -> do
-    dirty <- getChanged k ||^ maybe (return True) (anyM getChanged) ds
+spreadsheet = withChangedMonad $ reordering $ \k dk _ act -> do
+    dirty <- getChanged k ||^ maybe (return True) (anyM getChanged) dk
     if not dirty then
         return Nothing
-    else do
-        res <- act
-        case res of
+    else
+        act >>= \case
             Left e -> return $ Just e
             Right (_, v) -> do
                 putStore k v
@@ -203,21 +196,26 @@ data TraceContent k v = TraceContent
     ,tcContent :: Map.Map (Hash v) v
     } deriving Show
 
+{-
+addTrace :: k -> [k] -> M i k v -> M i k v (TracedContent k v -> TracedContent k v)
+addTrace k dk 
+-}
+
 instance Default (TraceContent k v) where def = TraceContent def def
 
 bazel :: Hashable v => Build Applicative (TraceContent k v) k v
-bazel = topological $ \k ds act -> do
+bazel = topological $ \k dk act -> do
     poss <- traces (\k v -> (== v) <$> getStoreHash k) k . tcTraces =<< getInfo
     if null poss then do
-        res <- act
-        dsh <- mapM getStoreHash ds
+        v <- act
+        dh <- mapM getStoreHash dk
         modifyInfo $ \i -> i
-            {tcTraces = Trace k (zip ds dsh) (getHash res) : tcTraces i
-            ,tcContent = Map.insert (getHash res) res $ tcContent i}
-        putStore k res
+            {tcTraces = Trace k (zip dk dh) (getHash v) : tcTraces i
+            ,tcContent = Map.insert (getHash v) v $ tcContent i}
+        putStore k v
     else do
-        now <- getStoreHash k
-        when (now `notElem` poss) $
+        h <- getStoreHash k
+        when (h `notElem` poss) $
             putStore k . (Map.! head poss) . tcContent =<< getInfo
 
 
@@ -225,10 +223,10 @@ shazel :: Hashable v => Build Monad (TraceContent k v) k v
 shazel = recursive $ \k _ ask act -> do
     poss <- traces (\k v -> (== v) . getHash <$> ask k) k . tcTraces =<< getInfo
     if null poss then do
-        (ds, v) <- act
-        dsh <- mapM getStoreHash ds
+        (dk, v) <- act
+        dh <- mapM getStoreHash dk
         modifyInfo $ \i -> i
-            {tcTraces = Trace k (zip ds dsh) (getHash v) : tcTraces i
+            {tcTraces = Trace k (zip dk dh) (getHash v) : tcTraces i
             ,tcContent = Map.insert (getHash v) v $ tcContent i}
         putStore k v
     else do
