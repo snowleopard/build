@@ -131,6 +131,13 @@ fibonacci get (Fibonacci k) | k <= 1    = Nothing
 
 ...
 
+\label{getdependencies} We can define the dependencies for a \hs{Compute Applicative} using the \hs{Const} functor:
+
+\begin{minted}{haskell}
+getDependencies :: Compute Applicative k v -> k -> [k]
+getDependencies comp = maybe [] getConst . comp (\k -> Const [k])
+\end{minted}
+
 \subsection{Monadic compute}\label{sec-compute-monad}
 
 The \emph{Ackermann function} $A(m, n)$ is defined as follows:

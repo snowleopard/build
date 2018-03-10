@@ -21,9 +21,6 @@ All the \hs{Build} types we define are polymorphic in both \hs{k} and \hs{v} (pe
 A build system must build \underline{out-of-date keys} while \underline{respecting dependency orderings}.
 \end{quote}
 
-\todo{AM}{Turn the above into a formal definition of `correctness' and add a section that provides a mathematical definition of correctness, which does not rely on materialising intermediate values.}
-
-
 We have underlined two different phrases in this sentence, and tackle each aspect separately.
 
 
@@ -33,9 +30,7 @@ If the \hs{Compute} function for \hs{k} calls the functional argument of \hs{d} 
 
 \subsubsection{Topological sort}
 
-The topological approach creates a linear ordering, which when followed, ensures each build is correct. Given a function from a key to its dependencies, and an initial key, you can compute the linear ordering by first taking the transitive closure, then doing a topological sort. However, to go from a \hs{Compute} to the dependencies, it must be the case that it is Applicative.
-
-\todo{NM}{In this case we can give actual code, so let's do that?}
+The topological approach creates a linear ordering, which when followed, ensures each build is correct. Given a function from a key to its dependencies, and an initial key, you can compute the linear ordering by first taking the transitive closure, then doing a topological sort. However, to go from a \hs{Compute} to the dependencies, it must be the case that the constraint is \hs{Applicative}, as per \S\ref{getdependencies}.
 
 \subsubsection{Reordering}
 
@@ -62,19 +57,17 @@ The idea of a dirty bit is to have one piece of information, whether a key is di
 
 With a dirty bit it is possible to achieve minimality. To achieve cut-off it would be important to not set the dirty bit after a computation that did not change the value. \Excel could model this approach, but does not. In contrast, \Make cannot model cut-off - to do so it would have to mark the node clean (so it didn't rebuild in the next run) and at the same time not mark the things it depends on dirty - an impossible task with only the ability to update to the latest modification time.
 
-\subsubsection{Recording predicate trace}
+\subsubsection{Verifying traces}
 
-An alternative way to determine if a key is dirty is to record what state the values/hashes of dependencies were used at last time, and if something has changed, the key is dirty and must be recomputed. For a monadic build system the trace can include what dependencies were used as well, although for an applicative system that information can be inferred. For each key, a single trace is recorded, so it naturally fits that the data is stored in an associative map indexed by target key.
+An alternative way to determine if a key is dirty is to record what state the values/hashes of dependencies were used at last time, and if something has changed, the key is dirty and must be recomputed - in essence a trace with which we can use to \textit{verify} existing values. For a monadic build system the trace can include what dependencies were used as well, although for an applicative system that information can be inferred. For each key, a single trace is recorded, so it naturally fits that the data is stored in an associative map indexed by target key.
 
 The recording of a trace requires storing extra information with the execution, but otherwise provides a simple approach which is capable of achieving all the properties without imposing restrictions.
 
-\subsubsection{Recording generative traces}
+\subsubsection{Constructive traces}
 
-A predicate trace allows us to mark the key dirty and rebuild it, extending that we can store a \textit{generative} trace which is the trace plus the complete result. Once we are storing the complete result it makes sense to record many generative traces per key, and to share them with other users, providing cloud-build functionality.
+A verifying trace allows us to mark the key dirty and rebuild it, extending that we can store a \textit{constructive} trace which is the trace plus the complete result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality.
 
-\todo{NM}{I found terms `predicate' and `generative' hard to grasp and a bit abstract. Especially `predicate'. Let's replace it with `verifying'? And maybe `generative' with `recreating' since it allows to recreate values which were previously created by compute?}
-
-\todo{NM}{I would also like to see an actual \hs{upToDate} function for verifying, and a \hs{recreate} for `recreating'.}
+\todo{AM}{AM: I would also like to see an actual \hs{upToDate} function for verifying, and a \hs{recreate} for `recreating'. NM: }
 
 For \hs{Applicative} computations, the traces need not record the dependency keys (they are implicit given the target key), and can be indexed by the hashes of the keys. Concretely, we could imagine storing:
 
