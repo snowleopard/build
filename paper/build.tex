@@ -23,6 +23,9 @@ A build system must build \underline{out-of-date targets} while \underline{respe
 
 \todo{NM}{We haven't used the term `target' before, perhaps change to `keys'?}
 
+\todo{AM}{Turn the above into a formal definition of `correctness' and add a section that provides a mathematical definition of correctness, which does not rely on materialising intermediate values.}
+
+
 We have underlined two different phrases in this sentence, and tackle each aspect separately.
 
 
@@ -71,9 +74,9 @@ The recording of a trace requires storing extra information with the execution, 
 
 A predicate trace allows us to mark the key dirty and rebuild it, extending that we can store a \textit{generative} trace which is the trace plus the complete result. Once we are storing the complete result it makes sense to record many generative traces per key, and to share them with other users, providing cloud-build functionality.
 
-\todo{NM}{I found terms `predicate' and `generative' hard to grasp and a bit abstract. Especially `predicate'.}
+\todo{NM}{I found terms `predicate' and `generative' hard to grasp and a bit abstract. Especially `predicate'. Let's replace it with `verifying'? And maybe `generative' with `recreating' since it allows to recreate values which were previously created by compute?}
 
-\todo{NM}{I would also like to see an actual \hs{upToDate} function for predicate, and a \hs{recover}/\hs{fetch} or something like that for generative.}
+\todo{NM}{I would also like to see an actual \hs{upToDate} function for verifying, and a \hs{recreate} for `recreating'.}
 
 For \hs{Applicative} computations, the traces need not record the dependency keys (they are implicit given the target key), and can be indexed by the hashes of the keys. Concretely, we could imagine storing:
 
