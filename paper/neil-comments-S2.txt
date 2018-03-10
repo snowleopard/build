@@ -1,0 +1,6 @@
+* The table has both properties (minimal and cutoff) and
+implementation (recursive, dependencies) - suggest making the
+delineation between the two clearer.
+
+* 2.6 should be the start of 3 - this is where we abstractly discuss
+build systems.

@@ -79,7 +79,7 @@ The following property is essential for build systems, it is their raison d'\^et
 
 \definition[Minimality]{A build system is \emph{minimal} if it executes tasks at
 most once per build and only if they transitively depend on files that changed
-since the previous build.}
+since the previous build.}\label{def-minimal}
 \vspace{2mm}
 
 To achieve minimality \Make relies on two main ideas: (i) it uses \emph{file
@@ -148,10 +148,10 @@ C1 = 1
 The new version uses the \cmd{INDIRECT} function, which allows us to reference a
 cell indirectly by a text string that is not necessarily known in advance. The
 current implementation of \Excel recomputes indirect references in every
-build~\cite{excel_recalc}. This clearly violates the minimality property: if
-\cmd{C1=1} and the user modifies \cmd{A2}, \Excel will recompute \cmd{B1},
-potentially triggering further unnecessary recalculation even though \cmd{B1}
-does not transitively depend on \cmd{A2}.
+build~\cite{excel_recalc}. This clearly violates the minimality
+property~\ref{def-minimal}: if \cmd{C1=1} and the user modifies \cmd{A2}, \Excel
+will recompute \cmd{B1}, potentially triggering further unnecessary
+recalculation even though \cmd{B1} does not transitively depend on \cmd{A2}.
 
 \Excel's build algorithm~\cite{excel_recalc} is significantly different from
 \Make. Since it is impossible to construct the full dependency graph upfront in
@@ -164,45 +164,54 @@ algorithm as \emph{reordering}, and will discuss it in more detail
 in~\S\ref{sec-implementation-excel}.
 
 Another distinguishing feature of \Excel is \emph{self-tracking}. Most build
-systems track changes of inputs and intermediate results, executing dependent
-tasks whenever they change, but \Excel can also track changes in the tasks
-themselves: if a formula is modified, \Excel will recompute it and propagate
-the changes. Self-tracking is uncommon in software build systems, where one
-often needs to manually initiate a full rebuild even if just a single task has
-changed. We further discuss self-tracking in~\S\ref{sec-tracking-aspects}.
+systems only track changes of inputs and intermediate results, but \Excel can
+also track changes in the tasks themselves: if a formula is modified, \Excel
+will recompute it and propagate the changes. Self-tracking is uncommon in
+software build systems, where one often needs to manually initiate a full
+rebuild even if just a single task has changed. We further discuss
+self-tracking in~\S\ref{sec-tracking-aspects}.
+
+\begin{figure}[h]
+\vspace{-1mm}
+\begin{subfigure}[b]{0.90\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/shake-example.pdf}}
+\caption{Dependency graph produced after the previous build.}
+\end{subfigure}
+\begin{subfigure}[b]{0.90\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/shake-example-rebuild.pdf}}
+\caption{Since \cmd{docs.txt} has changed, we rebuild \cmd{release.txt} and
+\cmd{release.tar}, discovering a new dependency.}
+\end{subfigure}
+\vspace{-1mm}
+\caption{Dynamic dependencies example: create \cmd{README} and add it to the
+list of release documents \cmd{docs.txt}.\label{fig-shake}}
+\vspace{-2mm}
+\end{figure}
 
 \subsection{\Shake: dynamic dependencies with no remorse}
 \label{sec-background-shake}
 
-Note that it is not always possible to know the dependencies of a task upfront,
-or \emph{statically}. To demonstrate this, let us add another task to the above
-makefile:
+\Shake was developed to solve the issue of dynamic
+dependencies~\cite{mitchell2012shake} and it excels at them without sacrificing
+the minimality requirement. To demonstrate this, we elaborate the \Make example
+from~\S\ref{sec-background-make} by adding the following files whose
+dependencies are shown in Fig.~\ref{fig-shake}(a):
 
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{makefile}
-release.tar: main.exe README
-    tar -cf release.tar main.exe README
-\end{minted}
-\vspace{1mm}
+\begin{itemize}
+    \item \cmd{LICENSE} is an input text file containing the project license.
+    \item \cmd{release.txt} is a text file listing all release files. This file
+    is produced by concatenating input files \cmd{bins.txt} and \cmd{docs.txt}
+    that list all binary and documentation files of the project.
+    \item \cmd{release.tar} is the release archive built by executing the
+    command \cmd{tar} on the release files.
+\end{itemize}
 
-\noindent
-So far so good: if either \cmd{main.exe} or \cmd{README} is dirty, \Make will
-recreate the release archive. But now imagine that we need to specify the files
-that go into \cmd{release.tar} in a text file \cmd{release.txt}. The dependencies
-of \cmd{release.tar} are no longer known statically: they \emph{depend on the
-content} of \cmd{release.txt}, which might not even exist before the build
-starts, e.g. if it is produced by concatenating input files \cmd{release-bins.txt}
-and \cmd{release-docs.txt}. Alas, makefiles cannot express such \emph{dynamic
-dependencies}, requiring ad hoc workarounds such as \emph{build phases}, which
-are problematic~\cite{hadrian}.
+The dependencies of \cmd{release.tar} are not known statically: they are
+determined by the content of \cmd{release.txt}, which might not even exist
+before the build. Makefiles cannot express such dependencies, requiring ad hoc
+workarounds such as \emph{build phases}, which are problematic~\cite{hadrian}.
+Here is how one can express the task for producing \cmd{release.tar} using \Shake.
 
-\Shake was developed specifically to address the issue of dynamic
-dependencies~\cite{mitchell2012shake} and it excels at handling them without
-sacrificing the minimality requirement. Here is how one can express the task
-for producing \cmd{release.tar} from the example discussed
-in~\S\ref{sec-background-make}.
-
-\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 "release.tar" %> \_ -> do
     need ["release.txt"]
@@ -210,41 +219,28 @@ in~\S\ref{sec-background-make}.
     need files
     system "tar" $ ["-cf", "result.tar"] ++ files
 \end{minted}
-\vspace{1mm}
 
 \noindent
 We first declare the static dependency on \cmd{release.txt}, then read its
 content (a list of files) and depend on it, dynamically. Finally, we specify the
 command to produce the resulting archive. Crucially, the archive will only be
-rebuilt if one of the dependencies (static or dynamic) has changed.
-
-\begin{figure}[h]
-\begin{subfigure}[b]{0.90\linewidth}
-\centerline{\includegraphics[scale=0.28]{fig/shake-example.pdf}}
-\vspace{-1mm}
-\caption{Dependency graph produced after the previous build.}
-\vspace{3mm}
-\end{subfigure}
-\begin{subfigure}[b]{0.90\linewidth}
-\centerline{\includegraphics[scale=0.28]{fig/shake-example-rebuild.pdf}}
-\vspace{-1mm}
-\caption{Since \cmd{docs.txt} is dirty, we rebuild \cmd{release.txt} and
-\cmd{release.tar}, discovering a new dependency.}
-\end{subfigure}
-\caption{Dynamic dependencies example: create \cmd{README} and add it to the
-list of release documents \cmd{docs.txt}.\label{fig-shake}}
-\end{figure}
+rebuilt if one of the dependencies (static or dynamic) has changed. For example,
+if we create another documentation file \cmd{README} and add it to
+\cmd{docs.txt}, \Shake will appropriately rebuild \cmd{release.txt} and
+\cmd{release.tar}, discovering the new dependency, as illustrated in
+Fig.~\ref{fig-shake}(b).
 
 \Shake's implementation is different from both \Make and \Excel in two aspects.
-First, it uses the dependency graph produced in the previous build to detect
-which files are dirty -- a powerful idea with a long history of use in
-\emph{incremental}~\cite{demers1981incremental},
+First, it uses the dependency from the previous build to detect which files need
+to be rebuilt. This is a powerful idea with a long history of
+use in \emph{incremental}~\cite{demers1981incremental},
 \emph{adaptive}~\cite{acar2002adaptive}, and
 \emph{self-adjusting}~\cite{acar2007selfadjusting} \emph{computations} (see a
 discussion in related work~\S\ref{sec-related}). Second, instead of abandoning
-and deferring the computation of tasks whose rediscovered dependencies are dirty
-(as \Excel does), \Shake \emph{pauses} their computation until the dependencies
-are brought up-to-date. We refer to this build algorithm as \emph{recursive}.
+and deferring the execution of tasks whose newly discovered dependencies have
+not yet been built (as \Excel does), \Shake \emph{pauses} their execution until
+the dependencies are brought up-to-date. We refer to this build algorithm as
+\emph{recursive}.
 
 \begin{figure}[h]
 \centerline{\includegraphics[scale=0.28]{fig/make-example-cutoff.pdf}}
@@ -298,31 +294,25 @@ Table~\ref{tab-summary}. The `Metadata' column refers to the \emph{auxiliary
 build information} persistently stored between builds by all build systems:
 \begin{itemize}
     \item \Make stores file modification times, or rather, it relies on the file
-    system to do that. In principle a single dirty bit is sufficient, as will be
-    demonstrated in~\S\ref{sec-implementations}.
-    \item \Excel stores the dirty bit as well as the calculation chain.
+    system to do that. In principle a single \emph{dirty bit} per file is
+    sufficient, as will be demonstrated in~\S\ref{sec-implementations}.
+    \item \Excel stores a dirty bit per cell as well as the calculation chain.
     \item \Shake stores the dependency graph discovered in the previous build,
     annotated with file content hashes for efficient checking of file changes.
     \item \Bazel stores all dependency graphs discovered in previous builds
     annotated with file hashes, and the content-addressable cache.
 \end{itemize}
 
-In this paper we show which build system properties are consequences of specific
-implementation choices (metadata and algorithm), and how one can obtain new
-build systems with desired properties by recombining parts of existing
-implementations. As a compelling example, we demonstrate how to combine
-advantages of \Shake and \Bazel in a cloud build system with dynamic dependencies.
-
 \begin{table}[h]
 \smaller
 \centering
-\begin{tabular}{l||l|c|c|c||l|l}
+\begin{tabular}{l||l|l||l|c|c|c}
 \hline
-$\!\!$Build system & Dependencies & Minimal & Cutoff & Cloud & Metadata                       & Algorithm   $\!\!$\\\hline
-$\!\!$\Make        & Static       & Yes     & No     & No    & File modification times        & Topological $\!\!$\\
-$\!\!$\Excel       & Dynamic      & No      & No     & No    & Dirty cells, calculation chain & Chain, defer$\!\!$\\
-$\!\!$\Shake       & Dynamic      & Yes     & Yes    & No    & Last dependency graph          & Recursive   $\!\!$\\
-$\!\!$\Bazel       & Static       & Yes     & Yes    & Yes   & All dependency graphs, cache   & Topological $\!\!$\\\hline
+$\!$Build system$\!$& Metadata                       & Algorithm    & Dependencies & Minimal & Cutoff & Cloud$\!$\\\hline
+$\!$\Make       $\!$& File modification times        & Topological  & Static       & Yes     & No     & No   $\!$\\
+$\!$\Excel      $\!$& Dirty cells, calculation chain & Reordering   & Dynamic      & No      & No     & No   $\!$\\
+$\!$\Shake      $\!$& Last dependency graph          & Recursive    & Dynamic      & Yes     & Yes    & No   $\!$\\
+$\!$\Bazel      $\!$& All dependency graphs, cache   & Topological  & Static       & Yes     & Yes    & Yes  $\!$\\\hline
 \hline
 \end{tabular}
 \vspace{2mm}
@@ -330,38 +320,8 @@ $\!\!$\Bazel       & Static       & Yes     & Yes    & Yes   & All dependency gr
 \vspace{-7mm}
 \end{table}
 
-\subsection{Common vocabulary for build systems}
-\label{sec-background-vocabulary}
-
-In this section we introduce a common vocabulary for build systems that allows
-us to abstract away from specific application domains, such as software
-development or spreadsheets. We will use this vocabulary throughout the rest of
-the paper.
-
-\emph{Keys} are used to distinguish \emph{values}. In software build systems
-keys are typically filenames, e.g. \cmd{main.c}, whereas values are file
-contents (a C program source code in this case). In spreadsheets keys are cell
-names, e.g. \cmd{A1}, and values are numbers, text, etc. that are typically
-displayed inside cells. In Haskell code, we will use type variables \hs{k}
-and \hs{v} to denote keys and values, respectively.
-
-We use a cryptographic \emph{hash function} \hs{hash :: v -> Hash} for efficient
-tracking and sharing of build results, where \hs{Hash} is an abstract data type
-equipped with the equality test.
-
-A \emph{store} associates keys to values. It is convenient to assume that a store
-is total, i.e. it contains a value for every possible key. We therefore also
-assume that the type of values is capable of encoding values corresponding to
-non-existent keys (missing files or empty cells). This, in particular, suggests
-that it is possible to \emph{depend on the absence of a value} which is a useful
-feature for build systems. In addition to usual \hs{get} and \hs{put} operations,
-some stores support the \hs{getHash} operation implemented more efficiently than
-by hashing the result of \hs{get}. For example, GVFS (Git Virtual File
-System)~\cite{gvfs} stores file hashes and downloads file contents only on demand.
-
-Some values must be provided by the user as \emph{input}. For example,
-\cmd{main.c} can be edited by the user who relies on the build system to
-compile it into \cmd{main.o} and subsequently \cmd{main.exe}. End build products,
-such as \cmd{main.exe}, are \emph{output} values. All other values (in this case
-\cmd{main.o}) are \emph{intermediate}; they are not interesting for the user
-but are produced in the process of turning inputs into outputs.
+In this paper we show which build system properties are consequences of specific
+implementation choices (metadata and algorithm), and how one can obtain new
+build systems with desired properties by recombining parts of existing
+implementations. As a compelling example, we demonstrate how to combine
+advantages of \Shake and \Bazel in a cloud build system with dynamic dependencies.
