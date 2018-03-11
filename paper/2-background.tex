@@ -7,15 +7,15 @@ such as \Make~\cite{feldman1979make}, \Shake~\cite{mitchell2012shake} and
 \Bazel~\cite{bazel}, as well as various incremental calculation engines, such
 as \Excel~\cite{advanced_excel}. In this section we use these four examples to
 introduce main domain-specific notions and requirements. Other notable examples
-of build systems and their relation to these four will be discussed
+of build systems and their relation to these four are discussed
 in~\S\ref{sec-related} and~\S\ref{sec-conclusions}.
 
 We start by giving an intuitive definition of a build system. After providing
-more context and examples in the rest of this section, we will be able to
+more context and examples in the rest of this section, we
 develop a formal definition in~\S\ref{sec-general-build}.
 
 \definition[Build system]{Given a description of tasks, a \emph{build system}
-executes some of them in an order that respects their dependencies to produce a
+executes them in an order that respects their dependencies to produce a
 specified output from supplied inputs.}
 \label{def-build}
 
@@ -27,7 +27,7 @@ formal specification. In this paper we therefore use a simple and sensible
 approximation to a real \Make that you might find on your machine.} was developed
 more than 40 years ago to automatically build software libraries and executable
 programs from source code. It uses \emph{makefiles} to describe tasks (often
-referred to as \emph{build rules}) and their dependencies in a simple text form.
+referred to as \emph{build rules}) and their dependencies in a simple textual form.
 For example:
 
 \vspace{1mm}
@@ -46,7 +46,7 @@ main.exe: util.o main.o
 \noindent
 The above makefile lists three tasks: (i) compile a utility library comprising
 files \cmd{util.h} and \cmd{util.c} into \cmd{util.o} by
-executing\footnote{In this example we treat \cmd{gcc} as a pure function for the
+executing\footnote{In this example we pretend \cmd{gcc} is a pure function for the
 sake of simplicity. In reality, there are multiple versions of \cmd{gcc} and the
 actual binary that is used to compile and link files is often also listed as a task
 dependency.} the command \cmd{gcc -c util.c}, (ii) compile the main source file
@@ -76,32 +76,32 @@ inputs and files that are rebuilt are highlighted.
 
 If the user runs \Make specifying \cmd{main.exe} as the desired output, \Make
 will first build \cmd{util.o} and \cmd{main.o}, in any order since the
-corresponding tasks are independent, and will then build \cmd{main.exe}. If the
-user modifies the sources of the utility library and runs \Make again, it will
+corresponding tasks are independent, and then build \cmd{main.exe}. If the
+user modifies the sources of \cmd{util.h} and runs \Make again, it will
 perform a \emph{full rebuild}, because all three tasks transitively depend on
-the library, as illustrated in Fig.~\ref{fig-make}(b). On the other hand, if the
-user modifies \cmd{main.c} then a \emph{partial rebuild} is sufficient: indeed,
+the \cmd{util.h}, as illustrated in Fig.~\ref{fig-make}(b). On the other hand, if the
+user modifies \cmd{main.c} then a \emph{partial rebuild} is sufficient:
 the file \cmd{util.o} does not need to be rebuilt, since its inputs have not
 changed, see Fig.~\ref{fig-make}(c). Note that if the dependency graph is
 \emph{acyclic} then each task needs to be executed at most once. Cyclic task
 dependencies are typically not allowed in build systems although there are rare
 exceptions, see~\S\ref{sec-iterative-compute}.
 
-The following property is essential for build systems, it is their raison d'\^etre.
+The following property is essential for build systems, it is their raison d'\^etre:
 
 \definition[Minimality]{A build system is \emph{minimal} if it executes tasks at
-most once per build and only if they transitively depend on files that changed
+most once per build and only if they transitively depend on inputs that changed
 since the previous build.}\label{def-minimal}
 \vspace{2mm}
 
 To achieve minimality \Make relies on two main ideas: (i) it uses \emph{file
-modification time} to detect the files that changed\footnote{Technically, you
+modification time} to detect which files changed\footnote{Technically, you
 can fool \Make by altering the modification time of a file without changing its
 content, e.g. by using the command \cmd{touch}. \Make is therefore minimal only
 under the assumption that you do not do that.}, and (ii) it constructs a
 complete task dependency graph from the information contained in the makefile
-and executes tasks in a \emph{topological order}. See further details
-in~\S\ref{sec-implementation-make}.
+and executes tasks in a \emph{topological order}. For a more concrete description
+see~\S\ref{sec-implementation-make}.
 
 \subsection{\Excel: dynamic dependencies at the cost of minimality}
 \label{sec-background-excel}
@@ -137,10 +137,10 @@ C1 = 1
 \noindent
 Here the cell \cmd{C1} controls which branch of the \cmd{IF} function is used
 to compute \cmd{B1}. When \cmd{C1=1}, the dependencies of \cmd{B1} are
-$\{\cmd{C1},\cmd{A1}\}$, otherwise they are $\{\cmd{C1},\cmd{A2}\}$, and this is
+$\{\cmd{C1},\cmd{A1}\}$, otherwise they are $\{\cmd{C1},\cmd{A2}\}$, and which is
 not known statically. One might say that the value of \cmd{C1} is statically
-known in this example, but imagine that it is a result of a long computation
-chain -- its value will then only become available during the build.
+known in this particular example, but imagine that it is the result of a long computation
+chain -- its value will only become available during the build.
 
 \Excel handles this example correctly: if \cmd{C1=1} and the user changes
 \cmd{A2}, \Excel will not recompute the result \cmd{B1}. Alas, other forms of
