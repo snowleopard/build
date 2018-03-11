@@ -6,8 +6,8 @@ module Neil.Build(
     getStore, putStore,
     Changed, getChanged, withChangedApplicative, withChangedMonad,
     Time, getStoreTime,
-    getInfo, putInfo, modifyInfo,
-    getTemp, putTemp, modifyTemp,
+    getInfo, modifyInfo,
+    getTemp, modifyTemp,
     Hash, getHash, Hashable, getStoreHash,
     ) where
 
