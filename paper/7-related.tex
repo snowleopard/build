@@ -49,7 +49,7 @@ type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
 Looks tanilisingly close to the profunctor optics definition in \cite{gibbons-profunctor-optics}:
 
 \begin{minted}{haskell}
-type Optic c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> f v
+type Optic p a b s t = p a b -> p s t
 \end{minted}
 
-The properties of such optics are well studied, and the functions like \hs{getDependencies} are very much based on observations from that field of work. Alas, we have been unable to remove the \hs{Maybe} used to encode whether a file is an input, without complicating other aspects of our definition. Furthermore, the \hs{Build} operation lacks any further such symmetry.
+Assuming we instantiate \hs{p} to something that provides \hs{k -> f v} -- which many of the actual instances in that paper do. The properties of such optics are well studied, and the functions like \hs{getDependencies} are very much based on observations from that field of work. Alas, we have been unable to remove the \hs{Maybe} used to encode whether a file is an input, without complicating other aspects of our definition. Furthermore, the \hs{Build} operation lacks any further such symmetry.
