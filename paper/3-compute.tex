@@ -56,10 +56,11 @@ We therefore also assume that the type of values is capable of encoding values
 corresponding to non-existent keys (missing files or empty cells). This, in
 particular, suggests that it is possible to \emph{depend on the absence of a
 value}, which is a useful feature for build systems. In addition to usual
-\hs{get} and \hs{put} operations, some stores support the \hs{getHash} operation
-implemented more efficiently than by hashing the result of \hs{get}. For example,
-GVFS (Git Virtual File System)~\cite{gvfs} stores file hashes and downloads file
-contents only on demand -- an important feature for cloud build systems.
+read and write operations, some stores also support a dedicated \emph{read hash}
+operation, which is implemented more efficiently than by reading and hashing the
+result. For example, GVFS (Git Virtual File System)~\cite{gvfs} stores file
+hashes and downloads file contents only on demand -- an important feature for
+cloud build systems.
 
 Some values must be provided by the user as \emph{input}. For example,
 \cmd{main.c} can be edited by the user who relies on the build system to
