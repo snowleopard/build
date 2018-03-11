@@ -176,3 +176,11 @@ ackermann get (Ackermann m n)
 
 \todo{AM}{Turn the above into a formal definition of `correctness' and add a section that provides a mathematical definition of correctness, which does not rely on materialising intermediate values.}
 
+\subsection{Free build structures}\label{sec-free-build}
+
+\begin{minted}{haskell}
+data Depend k v r = Depend [k] ([v] -> r)
+
+data Depends k v r = Depends [k] ([v] -> Depends k v r)
+                   | Done r
+\end{minted}

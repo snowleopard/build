@@ -13,7 +13,7 @@ build compute key info store = (info', store')
     where ...
 \end{minted}
 
-The function \hs{build} is responsible for ensuring that \hs{key} and its dependencies are up-to-date in \hs{store'} starting from \hs{store}. As part of that work, the \hs{build} function \textit{may} store other information in \hs{info'}, which will be provided as \hs{info} in future calls to \hs{build}. The \hs{info} parameter will be \hs{Nothing} on the very first call to \hs{build}.
+The function \hs{build} is responsible for ensuring that \hs{key} and its dependencies are up-to-date in \hs{store'} starting from \hs{store}. As part of that work, the \hs{build} function \textit{may} store other information in \hs{info'}, which will be provided as \hs{info} in future calls to \hs{build}. The \hs{info} parameter will be \hs{Nothing} on the very first call to \hs{build}. We assume that \hs{store} is total, where "missing files" can be represented by some sentinel value of \hs{v} if necessary.
 
 All the \hs{Build} types we define are polymorphic in both \hs{k} and \hs{v} (perhaps adding constraints to them), and have specific instantiations of \hs{c} and \hs{i}. How to implement \hs{Build} can be captured by the idea:
 
@@ -48,6 +48,7 @@ An alternative way is to simply build dependencies when they are requested. By c
 The second part, determining what to rebuild, can be addressed in one of three fundamental ways, with a number of tweaks and variations within them.
 
 \subsubsection{A dirty bit}
+\label{sec-dirty-bit}
 
 The idea of a dirty bit is to have one piece of information, whether a key is dirty or clean. After a run, all bits are set to clean. When a run starts anything that changed between the two states is marked dirty - by marking additional things dirty/clean the build system can track what needs to rebuild. When reaching a key, if it and all its dependencies are clean, the key does not need recomputing.
 
@@ -57,21 +58,21 @@ The idea of a dirty bit is to have one piece of information, whether a key is di
 
 With a dirty bit it is possible to achieve minimality. To achieve cut-off it would be important to not set the dirty bit after a computation that did not change the value. \Excel could model this approach, but does not. In contrast, \Make cannot model cut-off - to do so it would have to mark the node clean (so it didn't rebuild in the next run) and at the same time not mark the things it depends on dirty - an impossible task with only the ability to update to the latest modification time.
 
-\subsubsection{Verifying traces}
+\subsubsection{Verifying traces}\label{sec-verifying-traces}
 
 An alternative way to determine if a key is dirty is to record what state the values/hashes of dependencies were used at last time, and if something has changed, the key is dirty and must be recomputed - in essence a trace with which we can use to \textit{verify} existing values. We can describe a trace as:
 
 \begin{minted}{haskell}
 data Trace k v = Trace
     {key :: k
-    ,result :: Hash v
     ,dependencies :: [(k, Hash v)]
+    ,result :: Hash v
     }
 \end{minted}
 
 We assume that \hs{Hash v} is a small constant size, constructed from hashing the underlying \hs{v} rather than storing it directly. Checking a trace requires ensuring all the dependencies are up to date (using whatever ordering strategy as per \S\ref{sec-dependency-orderings}), then comparing if the dependencies are same as the current value and that the result is the same. After computing a fresh value we add its \hs{Trace} to the list. Therefore the information stored by a build system that verifies traces is \hs{[Trace k v]}.
 
-\subsubsection{Constructive traces}
+\subsubsection{Constructive traces}\label{sec-constructive-traces}
 
 A verifying trace allows us to mark a key dirty and rebuild it. Extending that information we can store a \textit{constructive} trace which is the trace plus the actual result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality. We can represent that as:
 
