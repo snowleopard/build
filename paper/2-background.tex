@@ -79,8 +79,8 @@ will first build \cmd{util.o} and \cmd{main.o}, in any order since the
 corresponding tasks are independent, and then build \cmd{main.exe}. If the
 user modifies the sources of \cmd{util.h} and runs \Make again, it will
 perform a \emph{full rebuild}, because all three tasks transitively depend on
-the \cmd{util.h}, as illustrated in Fig.~\ref{fig-make}(b). On the other hand, if the
-user modifies \cmd{main.c} then a \emph{partial rebuild} is sufficient:
+\cmd{util.h}, as illustrated in Fig.~\ref{fig-make}(b). On the other hand, if
+the user modifies \cmd{main.c} then a \emph{partial rebuild} is sufficient:
 the file \cmd{util.o} does not need to be rebuilt, since its inputs have not
 changed, see Fig.~\ref{fig-make}(c). Note that if the dependency graph is
 \emph{acyclic} then each task needs to be executed at most once. Cyclic task
@@ -98,9 +98,9 @@ To achieve minimality \Make relies on two main ideas: (i) it uses \emph{file
 modification time} to detect which files changed\footnote{Technically, you
 can fool \Make by altering the modification time of a file without changing its
 content, e.g. by using the command \cmd{touch}. \Make is therefore minimal only
-under the assumption that you do not do that.}, and (ii) it constructs a
-complete task dependency graph from the information contained in the makefile
-and executes tasks in a \emph{topological order}. For a more concrete description
+under the assumption that you do not do that.}, and (ii) it constructs a task
+dependency graph from the information contained in the makefile and executes
+tasks in a \emph{topological order}. For a more concrete description
 see~\S\ref{sec-implementation-make}.
 
 \subsection{\Excel: dynamic dependencies at the cost of minimality}
