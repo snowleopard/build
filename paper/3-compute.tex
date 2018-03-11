@@ -6,53 +6,59 @@ previous section~\S\ref{sec-background} and design complex build systems from
 simple primitives. Specifically, we present the \emph{compute} and \emph{build}
 abstractions:
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
 type Build c i k v = Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
 \end{minted}
+\vspace{1mm}
 
 \noindent
-Compute represents build rules (in build systems) or formulas (in spreadsheets),
-and is completely isolated from the world of compilers, file systems, memories,
+\hs{Compute} represents an abstract set of \emph{build tasks}, for example, build
+rules in software build systems or formulas in spreadsheets. It is completely
+isolated from the world of compilers, file systems, calculation chains, memories,
 caches, and all other complexities of real build systems. We explain the compute
-type in~\S\ref{sec-general-compute}, and then discuss several noteworthy special cases:
-functorial (\S\ref{sec-compute-functor}), applicative
+type in~\S\ref{sec-general-compute}, and then discuss several noteworthy special
+cases: functorial (\S\ref{sec-compute-functor}), applicative
 (\S\ref{sec-compute-applicative}) and monadic (\S\ref{sec-compute-monad}) types
 of compute.
 
-Build corresponds to the algorithm used for bringing a key-value store to a
-consistent state by recomputing dirty values in an appropriate order. We explain
-the build type in~\S\ref{sec-build}, and then provide implementations for several
-build systems in~\S\ref{sec-implementations}.
+\hs{Build} corresponds to the algorithm used for bringing a key-value store
+\store to a consistent state by recomputing out-of-date values in an
+appropriate order. We explain the build type and use it to develop a formal
+definition of build systems in~\S\ref{sec-general-build}.
+Sections~\S\ref{sec-build} and~\S\ref{sec-implementations} further deconstruct
+build algorithms and provide concrete implementations for several build systems.
 
 \subsection{Common vocabulary for build systems}
 \label{sec-vocabulary}
 
-In this section we introduce a common vocabulary for build systems that allows
+We start by introducing a common vocabulary for build systems that allows
 us to abstract away from specific application domains, such as software
 development or spreadsheets. We will use this vocabulary throughout the rest of
 the paper.
 
-\emph{Keys} are used to distinguish \emph{values}. In software build systems
-keys are typically filenames, e.g. \cmd{main.c}, whereas values are file
-contents (a C program source code in this case). In spreadsheets keys are cell
+\emph{Keys} are used to distinguish \emph{values}. In software build systems,
+keys are typically filenames, e.g.~\cmd{main.c}, whereas values are file
+contents (a C program source code in this case). In spreadsheets, keys are cell
 names, e.g. \cmd{A1}, and values are numbers, text, etc. that are typically
 displayed inside cells. In Haskell code, we will use type variables \hs{k}
 and \hs{v} to denote keys and values, respectively.
 
 We use a cryptographic \emph{hash function} \hs{hash :: v -> Hash} for efficient
-tracking and sharing of build results, where \hs{Hash} is an abstract data type
+tracking and sharing of~build results, where \hs{Hash} is an abstract data type
 equipped with the equality test.
 
-A \emph{store} associates keys to values. It is convenient to assume that a store
-is total, i.e. it contains a value for every possible key. We therefore also
-assume that the type of values is capable of encoding values corresponding to
-non-existent keys (missing files or empty cells). This, in particular, suggests
-that it is possible to \emph{depend on the absence of a value} which is a useful
-feature for build systems. In addition to usual \hs{get} and \hs{put} operations,
-some stores support the \hs{getHash} operation implemented more efficiently than
-by hashing the result of \hs{get}. For example, GVFS (Git Virtual File
-System)~\cite{gvfs} stores file hashes and downloads file contents only on demand.
+A \emph{store} associates keys to values. It is convenient to assume that a
+store is total function \store, i.e. it contains a value for every possible key.
+We therefore also assume that the type of values is capable of encoding values
+corresponding to non-existent keys (missing files or empty cells). This, in
+particular, suggests that it is possible to \emph{depend on the absence of a
+value}, which is a useful feature for build systems. In addition to usual
+\hs{get} and \hs{put} operations, some stores support the \hs{getHash} operation
+implemented more efficiently than by hashing the result of \hs{get}. For example,
+GVFS (Git Virtual File System)~\cite{gvfs} stores file hashes and downloads file
+contents only on demand -- an important feature for cloud build systems.
 
 Some values must be provided by the user as \emph{input}. For example,
 \cmd{main.c} can be edited by the user who relies on the build system to
