@@ -71,13 +71,74 @@ but are produced in the process of turning inputs into outputs.
 
 \subsection{Compute}\label{sec-general-compute}
 
+We describe build tasks and their dependencies using functions of type
+\hs{Compute}:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
+\end{minted}
+\vspace{1mm}
+
+\noindent
+A compute takes two arguments: \hs{fetch :: k -> f v} and \hs{key :: k}, and
+returns either \hs{Nothing} to indicate that the \hs{key} is an input and hence
+cannot be computed, or \hs{Just value} obtained by \hs{fetch}ing the
+dependencies of the \hs{key} and performing the required computation. A compute
+must be polymorphic in \hs{f} but may request certain computational
+power\footnote{Readers familiar with \emph{lenses} might recognise a familiar
+pattern. We discuss this in~\S\ref{sec-related}.} by specifying the
+constraint~\hs{c}. Let us look at an example by recalling the following
+spreadsheet from~\S\ref{sec-background-excel}:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{bash}
+A1 = 10
+A2 = 20
+B1 = A1 + A2
+\end{minted}
+\vspace{1mm}
+
+\noindent
+We can express it as an \emph{applicative compute} as follows:
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Cell = A1 | A2 | B1 deriving Eq
+
+add :: Compute Applicative Cell Integer
+add fetch key | key /= B1 = Nothing
+              | otherwise = Just $ (+) <$> fetch A1 <*> fetch A2
+\end{minted}
+\vspace{1mm}
+
+\noindent
+Cells \cmd{A1} and \cmd{A2} are inputs and \hs{add} returns \hs{Nothing} to
+indicate this. The only task is associated with the cell \cmd{B1}: fetch the
+values of \cmd{A1} and \cmd{A2} and apply the pure function~\hs{(+)} to them
+using the methods of \hs{Applicative} type class.
+
+%\hs{($) :: (a -> b) -> f a -> f b} and \hs{(<*>) :: f (a -> b) -> f a -> f b}
+
 ...
+
 % \begin{figure}
+% \begin{subfigure}[b]{\linewidth}
 % \begin{minted}{haskell}
 % type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
 % \end{minted}
+% \caption{Compute}
+% \end{subfigure}
+% ~\\
+% \begin{subfigure}[b]{\linewidth}
+% \begin{minted}{haskell}
+% dependency :: Compute Functor k v -> k -> Maybe k
+% dependency compute = fmap getConst . compute Const
+% \end{minted}
+% \caption{Functorial compute}
+% \end{subfigure}
 % \caption{Compute abstractions}\label{fig-compute}
 % \end{figure}
+
 % Consider abstractions in Fig.~\ref{fig-compute}.
 
 \subsection{Functorial compute}\label{sec-compute-functor}
