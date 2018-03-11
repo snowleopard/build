@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes #-}
-module Development.Build.Compute where
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+module Development.Build.Compute (Compute, inputCompute, isInput) where
 
 import Control.Applicative
 import Control.Monad
@@ -77,6 +78,14 @@ ackermann get (Ackermann m n)
 -- Unlike Collatz and Fibonacci computations, the Ackermann computation cannot
 -- be statically analysed for dependencies. We can only find the first dependency
 -- statically (Ackermann m (n - 1)), but not the second one.
+
+----------------------------- Spreadsheet examples -----------------------------
+data Cell = A1 | A2 | B1 deriving Eq
+
+add :: Compute Applicative Cell Integer
+add fetch key | key /= B1 = Nothing
+              | otherwise = Just $ (+) <$> fetch A1 <*> fetch A2
+
 
 -- These type synonyms are not very useful, but enumerate all interesting cases.
 type FunctorialCompute  k v = forall f. Functor     f => (k -> f v) -> k -> Maybe (f v)
