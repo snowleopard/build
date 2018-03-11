@@ -8,7 +8,6 @@ module Neil.Compute(
     Depends(..), runDepends, toDepends,
     ) where
 
-import Data.Kind
 import Data.Functor.Const
 import Data.Monoid
 import Data.Maybe

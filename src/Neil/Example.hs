@@ -3,13 +3,12 @@
 
 module Neil.Example where
 
-import Data.Default
 import Neil.Builder
 import Neil.Compute
 import Neil.Build
 import Control.Monad
 import Data.Maybe
-import qualified Data.Map as Map
+
 
 data Add k v = Add k k
              | Source
