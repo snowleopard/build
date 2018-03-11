@@ -12,7 +12,6 @@ module Neil.Build(
     ) where
 
 import Neil.Compute
-import Control.Monad.Extra
 import qualified Neil.DynamicMap as DM
 import Data.Typeable
 import Data.Hashable
@@ -20,7 +19,6 @@ import Control.Monad.Trans.State
 import Data.Maybe
 import Data.Default
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 
 
 type Build c i k v = (Ord k, Typeable k) => Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
@@ -101,4 +99,3 @@ getHash = Hash . hash
 
 getStoreHash :: (Hashable v) => k -> M i k v (Hash v)
 getStoreHash = fmap getHash . getStore
-

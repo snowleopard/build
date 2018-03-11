@@ -23,11 +23,7 @@ import Neil.Compute
 import Control.Monad.Extra
 import Data.Tuple.Extra
 import Data.Default
-import Data.Maybe
 import Data.Either.Extra
-import Debug.Trace
-import Data.List
-import Data.Typeable
 import Data.Map(Map)
 import Data.Set(Set)
 import qualified Data.Set as Set hiding (Set)
@@ -59,13 +55,13 @@ recursive
 recursive step compute = runM . ensure
     where
         ensure k = do
-            let ask x = ensure x >> getStore x
+            let fetch x = ensure x >> getStore x
             Recursive done <- getTemp
             when (k `Set.notMember` done) $ do
                 modifyTemp $ \(Recursive done) -> Recursive $ Set.insert k done
-                case trackDependencies compute ask k of
+                case trackDependencies compute fetch k of
                     Nothing -> return ()
-                    Just act -> step k (getDependenciesMaybe compute k) ask act
+                    Just act -> step k (getDependenciesMaybe compute k) fetch act
 
 
 reordering
@@ -104,7 +100,7 @@ data Traces k v = Traces
 
 instance Default (Traces k v) where def = Traces def def
 
--- | Given a way to ask for a dependency, and the key under construction, and the traces, pick the hashes that match
+-- | Given a way to fetch for a dependency, and the key under construction, and the traces, pick the hashes that match
 traceMatch :: (Monad m, Eq k) => (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
 traceMatch check k ts = mapMaybeM f ts
     where f (Trace k2 dkv v) = do
@@ -171,16 +167,16 @@ makeTrace = topological $ \k dk act -> do
 
 
 shakeDirtyBit :: Eq v => Build Monad (Changed k v, ()) k v
-shakeDirtyBit = withChangedMonad $ recursive $ \k dk ask act -> do
-    dirty <- getChanged k ||^ maybe (return True) (anyM (\k -> ask k >> getChanged k)) dk
+shakeDirtyBit = withChangedMonad $ recursive $ \k dk fetch act -> do
+    dirty <- getChanged k ||^ maybe (return True) (anyM (\k -> fetch k >> getChanged k)) dk
     when dirty $
         putStore k . snd =<< act
 
 
 -- | The simplified Shake approach of recording previous traces
 shake :: Hashable v => Build Monad [Trace k v] k v
-shake = recursive $ \k _ ask act -> do
-    poss <- traceMatch (\k v -> (==) v . getHash <$> ask k) k =<< getInfo
+shake = recursive $ \k _ fetch act -> do
+    poss <- traceMatch (\k v -> (==) v . getHash <$> fetch k) k =<< getInfo
     h <- getStoreHash k
     when (h `notElem` poss) $ do
         (dk, v) <- act
@@ -190,8 +186,8 @@ shake = recursive $ \k _ ask act -> do
 
 
 spreadsheetTrace :: (Hashable v) => Build Monad ([Trace k v], [k]) k v
-spreadsheetTrace = reordering $ \k dk ask act -> do
-    poss <- traceMatch (\k v -> (== Just v) . fmap getHash <$> ask k) k . fst =<< getInfo
+spreadsheetTrace = reordering $ \k dk fetch act -> do
+    poss <- traceMatch (\k v -> (== Just v) . fmap getHash <$> fetch k) k . fst =<< getInfo
     h <- getStoreHash k
     if h `elem` poss then
         return Nothing
@@ -234,8 +230,8 @@ bazel = topological $ \k dk act -> do
 
 
 shazel :: Hashable v => Build Monad (Traces k v) k v
-shazel = recursive $ \k _ ask act -> do
-    poss <- traceMatch (\k v -> (== v) . getHash <$> ask k) k . traces =<< getInfo
+shazel = recursive $ \k _ fetch act -> do
+    poss <- traceMatch (\k v -> (== v) . getHash <$> fetch k) k . traces =<< getInfo
     if null poss then do
         (dk, v) <- act
         dh <- mapM getStoreHash dk
@@ -250,8 +246,8 @@ shazel = recursive $ \k _ ask act -> do
 
 
 spreadsheetRemote :: Hashable v => Build Monad (Traces k v, [k]) k v
-spreadsheetRemote = reordering $ \k _ ask act -> do
-    poss <- traceMatch (\k v -> (== Just v) . fmap getHash <$> ask k) k . traces . fst =<< getInfo
+spreadsheetRemote = reordering $ \k _ fetch act -> do
+    poss <- traceMatch (\k v -> (== Just v) . fmap getHash <$> fetch k) k . traces . fst =<< getInfo
     if null poss then do
         res <- act
         case res of
