@@ -1,73 +1,85 @@
 \clearpage
 \section{Engineering aspects}\label{sec-engineering}
 
-Or ``Build systems in the real world'', or ``Crazy things section''...
+In the previous sections we have modelled the most critical subset of various build systems. However, like all real-world systems, there are many corners that obscure the essence. In this section we discuss some of those details, what would need to be done to capture them in our model, and what the impact would be.
 
 \subsection{Partial stores, exceptions}
 
-Given a \hs{Build c i k v} defined for a total store, one can use it
-with a partial store \hs{k -> Maybe v}, obtaining a special case
-\hs{Build c i k (Maybe v)}, or with a store \hs{k -> Either e v} that can
-throw exceptions of type \hs{e}, obtaining a special case
-\hs{Build c i k (Either e v)}.
-
-\subsection{Non-deterministic computations}\label{sec-non-determinism}
-
-Sandboxing: guarding against non-determinism due to missing dependencies.
-
-\todo{AM}{Rewrite everything below.}
-
-Non-determinism, specifically, its \emph{useless} form. This doesn't
-include \Excel's \textsf{RANDBETWEEN} function, which is useful.
-To define correctness of non-deterministic build systems, one needs to
-switch from \hs{Applicative} and \hs{Monad} abstractions to
-\hs{Alternative} and \hs{MonadPlus}, respectively, but this is not
-required for actual implementations, most of which can happily accept
-non-deterministic results (with a notable exception of \Buck).
-
-... Some old text:
-
-Build systems and spreadsheets compute output values from input and intermediate
-values. In the most typical case, these \emph{computations} are \emph{functions},
-such as \textsf{C1 = A1 + B1}, i.e. their result is uniquely determined by the
-input values. However, in general they can be \emph{relations}, i.e. have
-multiple valid results. A spreadsheet example: \textsf{A2 = A1 + RANDOM(1,6)}.
-This computation has six valid results for each input value \textsf{A1}. In
-build systems, the object file \textsf{obj/file.o} is sometimes not uniquely
-determined by the source \textsf{src/file.c} -- different compiler runs may
-produce different valid results.
-
-Some build systems, e.g. \Buck, require all tasks to be
-\emph{deterministic}, i.e. produce exactly the same output when run on the
-same inputs. However, not all tasks are deterministic, and there are build
-systems that support \emph{non-determinism}. A simple example is \Excel's
-\textsf{RANDBETWEEN(low, high)} that returns a random integer in the
-interval \textsf{[low, high]}.
+Our model assumes a world where the store is fully-defined, every \hs{k} is associated with a \hs{v}, and every compute successfully completes returning a valid value. In the real world, build systems frequently deal with errors - e.g. ``file not found'', or ``compilation failed''. We can model such failure conditions by instantiating \hs{v} to either \hs{Maybe v} (for missing values) or \hs{Either e v} (for exceptions of type \hs{e}). That can model the the values inside the store and the compute function, but because \hs{v} is polymorphic for builds, it does not let the build system apply special behaviour for errors - e.g. early aborting. We consider such details an engineering concern, which has no real impact on the power or high-level implementation of the build system.
 
 \subsection{Concurrency}\label{sec-concurrency}
 
-Nothing fundamentally difficult and fits our theory, but hard to get right in
-practice.
+While we have given simple implementations assuming a single thread of execution, all the build systems we address are actually concurrent. While it complicates the model to add concurrency, the complications can be restricted exclusively to the dependency strategy:
 
-\todo{NM}{Add a paragraph on how to introduce concurrency to implementations
-in~\S\ref{sec-implementations}}.
+\begin{enumerate}
+\item The \hs{topological} function can instead retain the dependency graph, and whenever all the dependencies of a node are complete, the node itself can be started.
+\item The \hs{reordering} function can be made parallel in a few ways, but the most direct is to have $n$ threads reading entries from the list of keys. As before, if a key requires something not yet built, it is added to the end -- the difference is that sometimes things will be moved back not because they are out of order but because of races with earlier nodes that had not yet finished. As a consequence, over successive runs, potentially racey dependencies will be separated, giving better parallelism over time.
+\item The \hs{recursive} function can be made parallel by working more directly on the \hs{Depeneds} structure, which gives multiple dependency keys at a time (all those arising from \hs{Applicative} dependencies). All such dependencies can be executed simultaneously, with a slightly smarter check for whether something is already executing that also blocks until an existing execution has finished.
+\end{enumerate}
+
+The actual implementation of the parallel strategies is not overly onerous, but neither is it beautiful or informative.
+
+\subsection{Impure computations}\label{sec-non-determinism}
+
+In our model we define \hs{Compute} as a function - when give the same inputs it will always produce the same outputs. Alas, the real-world is not as obliging. Some examples of impure \hs{Compute} functions include:
+
+\begin{description}
+\item[Untracked state] Some actions depend on untracked state - for example your C compilation may explicitly list the \texttt{source.c} file as a dependency, but it may not record that the version of \texttt{gcc} is also a dependency.
+\item[Volatility] Some actions are defined to change in every execution, for example \Excel has a function \textsf{RANDBETWEEN} which produces a random number - on each recalculation this function is defined to change. Similarly, build systems like \Make and \Shake provide \textsf{phony} rules which are also volatile.
+\item[Non-determinism] Some actions are non-determinstic, producing one result from a possble set. As an example, GHC when compiled using parallelism can change the order in which unique variables are obtained from the supply, producing semantically identical results but with different hidden variables.
+\end{description}
+
+Interestingly, there is signficant interplay between all three sources of impurity. Systems like \Bazel use various sandboxing techniques to guard against missing dependencies, but none are likely to capture all dependencies right down to CPU model and microcode version. Rules that do have untracked state can be marked as volatile, a technique \Excel takes with the \textsf{INDIRECT} function, removing the untracked-state at the cost of more recomputation.
+
+We note that while all the simple implementations presented in \S\ref{sec-implementations} can deal with non-determinism, some real build systems cannot, e.g. \Buck.
+
+One tempting way of modelling non-determinism is to enrich \hs{Compute} from \hs{Applicative} or \hs{Monad} to \hs{Alternative} or \hs{MonadPlus} respectively - both provide the underlying class with zero and choice. However, that seems to encode a different type of non-determinism - a kind of dependency-level non-determinism when most rules really experience a value-level non-determinism.
+
+Volatility can be modelled by introducing a special \hs{k} whose value is changed between every run.
 
 \subsection{Cloud aspects}\label{sec-cloud-aspects}
 
-Cloud aspects: eviction/garbage collection, `frankenbuilds', etc.
+Our model of cloud builds provides a basic framework to discuss and reason about them, but lacks a number of important engineering corners:
 
-\todo{AM}{Descibe frankenbuilds linking to CloudBuild paper.}
+\begin{description}
+\item[Materialisation] Sometimes input files will go through many transformations before producing the end result, e.g. an installer package. These intermediate steps may be large, so some cloud builds can execute the graph \textit{without} downloading or \textit{materialising} the intermediate nodes - only the final one. Some build systems can go even further, integrating with the file system to only materialise the file when the user accesses it \cite{google_internal}.
+\item[Eviction] The store of traces as shown grows indefinitely. In many cases resource constraints mean that eventually items must be evicted from the store that are predicted not to be used again. One option is to evict the contents and any trace that mentions the now-defunct \hs{Hash}. However, if the build system can defer materialisation, it may be possible to only evict the contents, allowing builds to pass-through hashes of values where the underlying value is not known. If so, the build must be able to recreate the value if required, potentially dealing with a different result in a future run.
+\item[Frankenbuilds] A build is considered a franken-build \cite{cloudbuild} if a value is calculated locally, but something that depends on that key is pulled from the cache, and the value calculated locally does not match what was previously calculated by the cloud. Our implementations avoid this issue by storing complete traces, but if a cloud build system was to only reference input nodes it could be a problem.
+\item[Communication] With a cloud build communication with a central server can be a bottleneck, so it is important to send only the minimum amount of information, optimising with respect to build-system specific invariants - see \S\ref{sec-smart-traces} for some possible optimisations.
+\item[Offloading] Once the cloud is storing build products and traces, it is not infeasible for the cloud to also contain dedicated workers that can help with jobs run locally - offloading some of the computation and potentially running vastly more commands in parallel.
+\end{description}
 
 \subsection{Tracking and self-tracking}\label{sec-tracking-aspects}
 
-Annotating dependency graphs with hashes, times, etc. is in many cases just an
-engineering trade-off.
+Some build systems, for example \Excel and \Ninja are capable of recomputing a node if either its dependencies change, \textit{or} the rule itself changes. For example:
 
-\todo{NM}{Clarify, e.g. Shake's \cmd{ChangeModtime}.}
+\begin{minted}[xleftmargin=10pt]{bash}
+A1 = 20
+A2 = 10
+B1 = A1+A2
+\end{minted}
 
-\todo{NM}{Explain how self-tracking can be implemented.}
+In \Excel the user can alter the value produced by \textsf{B1} by either editing the inputs of \textsf{A1} or \textsf{A2}, \textit{or} editing the formula in \textsf{B1} - e.g. to \textsf{A1-A2}. This pattern can be captured by describing the rule producing \textsf{B1} as also depending on the value \textsf{B1.formula}. In a \hs{Monad} build system the implementation can be given very directly as:
+
+\begin{minted}{haskell}
+compute ask "B1" = do
+    formula <- ask "B1-formula"
+    evalFormula ask formula
+\end{minted}
+
+Namely, first look up the formula, then interpret it. In an \hs{Applicative} system it is not possible to change dependencies based on the formula, as would be required, so instead the formula can be captured as a dependency (but its value not used) and \textit{also} baked directly into the \hs{compute} function.
+
+The build systems that have precise tracking of self-computation are all onces which use a non-Embedded Domain Specific Language to describe computations. Those which make use of a full programming language, e.g. \Shake, are much more difficult to implement equality on rules as they are arbitrary functions making use of opqaue abstractions. For such build systems the incredibly pessimistic assuming of saying that any change to the build system potentially changes any rule can often be used -- the classic example being a \texttt{Makefile} depending on itself.
 
 \subsection{Iterative computations}\label{sec-iterative-compute}
+
+Some computations are best described not by a chain of acyclic dependencies, but by a loop - for example \LaTeX requires repeated rebuilding until it reaches a fixed point - something that can be directly expressed in build systems such as Pluto \cite{pluto}. Another example of cyclic computations is \Excel, where a cell can depend on itself, for example:
+
+\begin{minted}{bash}
+A1 = A1 + 1
+\end{minted}
+
+In such cases \Excel guarantees to execute the computation exactly once per refresh cycle.
 
 Iterative computations, e.g. LaTeX. \Excel has built-in support for this.
 
