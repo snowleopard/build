@@ -79,17 +79,20 @@ Some computations are best described not by a chain of acyclic dependencies, but
 A1 = A1 + 1
 \end{minted}
 
-In such cases \Excel guarantees to execute the computation exactly once per refresh cycle.
+In such cases \Excel will normally not execute anything, but if the ``Iterative Calculations'' feature is enabled will execute the formula a maximum of $n$ times per calculation (where $n$ is a setting that defaults to 100).
 
-Iterative computations, e.g. LaTeX. \Excel has built-in support for this.
+For examples like \LaTeX we consider the proper encoding to not be with circular rules, but with a series of iterative steps, as described in \S\ref{neil-iterative-on-stack-overflow}. It is important that the number of executions is bounded, otherwise the build system may not terminate (a legitimate concern with \LaTeX which can be put into a situation where it is bistable or divering over multiple executions).
 
-\todo{NM}{Clarify how this fits with the example implementations.}
+The examples in \Excel tend to encode either mutable state, or recurrence relations. The former is only required because \Excel inherently lacks the ability to write mutable state, and the latter is probably better solved using explicit recurrence formulae.
+
+Overall we choose not to deal with cyclic rules, a choice that most build systems also follow.
 
 \subsection{Polymorphism}\label{sec-polymorphism}
 
-Polymorphic keys and values: tasks with multiple outputs, e.g. GHC's \cmd{hi}
-and \cmd{o} files, phony tasks, etc.
+Our build system abstraction assumes a \hs{k -> v} store, along with a build system that works directly on \hs{k} and \hs{v} values. However, certain build systems provide greater flexiblity, e.g. \Shake permits polymorphic keys and values, allowing types that are only stored in the Shake information, and never persisted to the Store.
 
-\todo{AM}{Give an example.}
+As one example of richer keys/values, consider the version of \textsf{gcc} - for many builds it should be a dependency. In \Shake we can define an \textit{oracle} rule as per \cite{mitchell2012shake} whose value is the result of running \hs{gcc --version} and which is volatile, making the \textsf{gcc} version something that can be depended upon. Of course, provided the build can express volatile dependencies and supports cutoff, the version number could equally be written to a file and used in a similar way.
 
-\todo{NM}{Describe how to add this feature to \Shake.}
+Another more compelling example is build rules that produce multiple keys -- for example \textsf{ghc Foo.hs} produces both \textsf{Foo.hi} and \textsf{Foo.o}. That can be represented by having a key whose value is a pair of file names, and whose result is a pair of file contents. From that, the rule for \textsf{Foo.hi} can be the first-component of the result of the pair. Again, such an operation can be encoded without polymorphic keys provided the pair of files (or a dummy file representing the pair) is marked as changed if either of the contained files change. Once again, polymorphic dependencies provide convenience rather than power.
+
+Authors have remarked that polymorphism provides a much easier expression of concepts, e.g. \citet{hadrian}, but it is not essential and thus not necessary to model.
