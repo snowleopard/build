@@ -153,8 +153,8 @@ The Shake approach for dependency tracking involves recording traces and verifyi
 
 \begin{minted}{haskell}
 shake :: Hashable v => Build Monad [Trace k v] k v
-shake = recursive $ \k _ ask act -> do
-    poss <- traceMatch (\k v -> (==) v . getHash <$> ask k) k =<< getInfo
+shake = recursive $ \k _ fetch act -> do
+    poss <- traceMatch (\k v -> (==) v . getHash <$> fetch k) k =<< getInfo
     h <- getStoreHash k
     when (h `notElem` poss) $ do
         (dk, v) <- act
@@ -163,7 +163,7 @@ shake = recursive $ \k _ ask act -> do
         modifyInfo (Trace k (zip dk dh) (getHash v) :)
 \end{minted}
 
-This implementation uses the \hs{recursive} function which requires a function which gets the key to build (\hs{k}), a way to ask for the result of a dependecy (\hs{ask}), and a way to build \hs{k} (\hs{act}). The code first looks up the traces that match the current situation, creating a list of possible results as \hs{poss}, using the helper \hs{traceMatch}. We check if the current value for the key is one of the possible results, and it not, build the key and store it in the trace. We can implement \hs{traceMatch}, which is used in all build systems working with \hs{Trace}, as:
+This implementation uses the \hs{recursive} function which requires a function which gets the key to build (\hs{k}), a way to fetch the result of a dependecy (\hs{fetch}), and a way to build \hs{k} (\hs{act}). The code first looks up the traces that match the current situation, creating a list of possible results as \hs{poss}, using the helper \hs{traceMatch}. We check if the current value for the key is one of the possible results, and it not, build the key and store it in the trace. We can implement \hs{traceMatch}, which is used in all build systems working with \hs{Trace}, as:
 
 \begin{minted}{haskell}
 traceMatch :: (Monad m, Eq k) => (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
@@ -183,13 +183,13 @@ recursive
 recursive step compute = runM . ensure
     where
         ensure k = do
-            let ask x = ensure x >> getStore x
+            let fetch x = ensure x >> getStore x
             done <- getTemp
             when (k `Set.notMember` done) $ do
                 modifyTemp $ Set.insert k set
-                case trackDependencies compute ask k of
+                case trackDependencies compute fetch k of
                     Nothing -> return ()
-                    Just act -> step k (getDependenciesMaybe compute k) ask act
+                    Just act -> step k (getDependenciesMaybe compute k) fetch act
 \end{minted}
 
 The required \hs{step} function gets given the \hs{k} to build, the dependencies as \hs{Maybe [k]} (where they are \hs{Nothing} if the rule is truely monadic), a function to demand the result of a dependent key, and a function to compute the current value and return the actual dependencies. To ensure each file is only visited once in a single execution a piece of temporary state is used with \hs{getTemp} and \hs{modifyTemp} to record which files were visited - this state is not persisted to the \hs{i} info parameter and is reset on each fresh execution of \hs{M}.
@@ -223,8 +223,8 @@ Using the abstractions and approaches built thus far, we have shown how to combi
 
 \begin{minted}{haskell}
 cloudShake :: Hashable v => Build Monad (Traces k v) k v
-cloudShake = recursive $ \k _ ask act -> do
-    poss <- traceMatch (\k v -> (== v) . getHash <$> ask k) k . traces =<< getInfo
+cloudShake = recursive $ \k _ fetch act -> do
+    poss <- traceMatch (\k v -> (== v) . getHash <$> fetch k) k . traces =<< getInfo
     if null poss then do
         (dk, v) <- act
         dh <- mapM getStoreHash dk
@@ -238,7 +238,7 @@ cloudShake = recursive $ \k _ ask act -> do
             putStore k . (Map.! head poss) . contents =<< getInfo
 \end{minted}
 
-The differences from \hs{bazel} are minor - the dependency scheme has changed from \hs{topological} to \hs{recursive}, and thus the dependency keys \hs{dk} are captured from the action rather than in advance, and the checking calls \hs{ask} to get the result instead of accessing the store directly. We believe this accurately captures and can be used to reason about how to make \Shake work with a cloud-based cache -- a challenge we intend to attempt in the future.
+The differences from \hs{bazel} are minor - the dependency scheme has changed from \hs{topological} to \hs{recursive}, and thus the dependency keys \hs{dk} are captured from the action rather than in advance, and the checking calls \hs{fetch} to get the result instead of accessing the store directly. We believe this accurately captures and can be used to reason about how to make \Shake work with a cloud-based cache -- a challenge we intend to attempt in the future.
 
 \subsection{Smarter \hs{[Trace]} Structures}\label{sec-smart-traces}
 
@@ -257,4 +257,3 @@ Here the \hs{Choice} effectively encodes a tree, asking successive questions abo
 \end{enumerate}
 
 As an aside we note that the optimal cloud structure for applicative and monadic constructive systems has a resemblance to the free dependency structures described in \S\ref{sec-free-build}.
-
