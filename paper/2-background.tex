@@ -10,12 +10,14 @@ introduce main domain-specific notions and requirements. Other notable examples
 of build systems and their relation to these four will be discussed
 in~\S\ref{sec-related} and~\S\ref{sec-conclusions}.
 
-\begin{quote}
-A build system must build \underline{out-of-date keys} while \underline{respecting dependency orderings}.
-\end{quote}
+We start by giving an intuitive definition of a build system. After providing
+more context and examples in the rest of this section, we will be able to
+develop a formal definition in~\S\ref{sec-general-build}.
 
-\todo{AM}{Turn the above into a formal definition of `correctness' and add a section that provides a mathematical definition of correctness, which does not rely on materialising intermediate values.}
-
+\definition[Build system]{Given a description of tasks, a \emph{build system}
+executes some of them in an order that respects their dependencies to produce a
+specified output from supplied inputs.}
+\label{def-build}
 
 \subsection{The venerable \Make: static dependencies and file modification times}
 \label{sec-background-make}
@@ -72,7 +74,10 @@ inputs and files that are rebuilt are highlighted.
 \label{fig-make}}
 \end{figure}
 
-If the user modifies the sources of the utility library and runs \Make, it will
+If the user runs \Make specifying \cmd{main.exe} as the desired output, \Make
+will first build \cmd{util.o} and \cmd{main.o}, in any order since the
+corresponding tasks are independent, and will then build \cmd{main.exe}. If the
+user modifies the sources of the utility library and runs \Make again, it will
 perform a \emph{full rebuild}, because all three tasks transitively depend on
 the library, as illustrated in Fig.~\ref{fig-make}(b). On the other hand, if the
 user modifies \cmd{main.c} then a \emph{partial rebuild} is sufficient: indeed,
@@ -179,24 +184,17 @@ rebuild even if just a single build task has changed. We further discuss
 self-tracking in~\S\ref{sec-tracking-aspects}.
 
 \begin{figure}[h]
-\vspace{1mm}
 \begin{subfigure}[b]{0.90\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/shake-example.pdf}}
-\vspace{-1mm}
 \caption{Dependency graph produced after the previous build.}
-\vspace{1mm}
 \end{subfigure}
-\vspace{1mm}
 \begin{subfigure}[b]{0.90\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/shake-example-rebuild.pdf}}
-\vspace{-1mm}
 \caption{Since \cmd{docs.txt} has changed, we rebuild \cmd{release.txt} and
 \cmd{release.tar}, discovering a new dependency.}
 \end{subfigure}
-\vspace{-2mm}
 \caption{Dynamic dependencies example: create \cmd{README} and add it to the
 list of release documents \cmd{docs.txt}.\label{fig-shake}}
-\vspace{-2mm}
 \end{figure}
 
 \subsection{\Shake: dynamic dependencies with no remorse}
@@ -223,6 +221,7 @@ before the build. Makefiles cannot express such dependencies, requiring ad hoc
 workarounds such as \emph{build phases}, which are problematic~\cite{hadrian}.
 Here is how one can express the task for producing \cmd{release.tar} using \Shake.
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 "release.tar" %> \_ -> do
     need ["release.txt"]
@@ -230,6 +229,7 @@ Here is how one can express the task for producing \cmd{release.tar} using \Shak
     need files
     system "tar" $ ["-cf", "result.tar"] ++ files
 \end{minted}
+\vspace{1mm}
 
 \noindent
 We first declare the static dependency on \cmd{release.txt}, then read its
