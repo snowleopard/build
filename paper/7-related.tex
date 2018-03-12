@@ -3,7 +3,7 @@
 
 In section \S\ref{sec-background} we cover many build systems, but there is frustrating little work comparatively analysing build systems. In this section we cover a few build systems that may not
 
-\subsection{Other Build Systems}
+\subsection{Other Build Systems}\label{sec-related-build}
 
 Most build systems, when viewed at the level we talk, can be captured with minor variations on the code presented in \S\ref{sec-implementations}. As some examples:
 
@@ -30,7 +30,7 @@ To achieve minimality, each separate command is traced at the OS-level, allowing
 
 Taking our abstraction, it is possible to encode \Fabricate assuming that nodes like \cmd{gcc -c util.c} are keys, there is a linear dependency between each successive node, and that the OS-level tracing can be lifted back as a monadic \hs{Compute} function\footnote{In fact, \Shake has an execution mode that can model \Fabricate{}-like build systems -- see \hs{Development.Shake.Forward} in the \Shake library.}. However, in our pure model the mapping is not perfect as \hs{gcc} writes to arbitrary files whose locations are not known in advance.
 
-\subsection{Memoization}
+\subsection{Memoization}\label{sec-related-memo}
 
 \todo{AM}{Not convined this is really related, but if you think it is, please write something.}
 
@@ -38,7 +38,7 @@ Taking our abstraction, it is possible to encode \Fabricate assuming that nodes 
 
 While not typically considered build systems, self-adjusting computation is a well studied area, and in particular the constrast between different formulations has been well studied. \todo{AM}{Say something.}
 
-\subsection{Profunctor Optics}
+\subsection{Profunctor Optics}\label{sec-related-optics}
 
 The \hs{Compute} definition of:
 
@@ -53,3 +53,9 @@ type Optic p a b s t = p a b -> p s t
 \end{minted}
 
 Assuming we instantiate \hs{p} to something that provides \hs{k -> f v} -- which many of the actual instances in that paper do. The properties of such optics are well studied, and the functions like \hs{getDependencies} are very much based on observations from that field of work. Alas, we have been unable to remove the \hs{Maybe} used to encode whether a file is an input, without complicating other aspects of our definition. Furthermore, the \hs{Build} operation lacks any further such symmetry.
+
+\subsection{Free applicative functors and monads}\label{sec-related-free}
+
+\todo{AM}{Mention that one could have chosen a free construction to create
+a small DSL for build tasks. Although this simplifies some of the presented
+combinators, in general this seems unnecessary.}
