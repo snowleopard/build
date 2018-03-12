@@ -17,6 +17,9 @@
       "SIGPLAN",
       "acmart",
       "etre",
+      "fmap",
+      "mempty",
+      "newtype",
       "sigplanproc",
       "topmatter"
     ]

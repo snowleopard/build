@@ -18,10 +18,8 @@ type Build c i k v = Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
 rules in software build systems or formulas in spreadsheets. It is completely
 isolated from the world of compilers, file systems, calculation chains, caches,
 and all other complexities of real build systems. We explain the compute type
-in~\S\ref{sec-general-compute}, and then discuss several noteworthy special
-cases: functorial (\S\ref{sec-compute-functor}), applicative
-(\S\ref{sec-compute-applicative}) and monadic (\S\ref{sec-compute-monad}) types
-of compute.
+in~\S\ref{sec-general-compute}, discussing several noteworthy special cases:
+functorial, applicative and monadic types of compute.
 
 \hs{Build} corresponds to the algorithm used for bringing a key-value store
 \store to a consistent state by recomputing out-of-date values in an
@@ -36,8 +34,8 @@ systems.
 
 We start by introducing a common vocabulary for build systems that allows
 us to abstract away from specific application domains, such as software
-development or spreadsheets. We will use this vocabulary throughout the rest of
-the paper.
+development or spreadsheets.
+% We will use this vocabulary throughout the rest of the paper.
 
 \emph{Keys} are used to distinguish \emph{values}. In software build systems,
 keys are typically filenames, e.g.~\cmd{main.c}, whereas values are file
@@ -69,7 +67,7 @@ such as \cmd{main.exe}, are \emph{output} values. All other values (in this case
 \cmd{main.o}) are \emph{intermediate}; they are not interesting for the user
 but are produced in the process of turning inputs into outputs.
 
-\subsection{Compute}\label{sec-general-compute}
+\subsection{Compute}\label{sec-compute-applicative}
 
 We describe build tasks and their dependencies using functions of type
 \hs{Compute}:
@@ -87,8 +85,8 @@ cannot be computed, or \hs{Just}~\hs{value} obtained by \hs{fetch}ing the
 dependencies of the \hs{key} and performing the required computation. A compute
 must be polymorphic in \hs{f} but may request certain computational
 power\footnote{Readers familiar with \emph{lenses} or \emph{profunctor optics}
-might recognise a familiar pattern. We discuss this in~\S\ref{sec-related}.} by
-specifying the constraint~\hs{c}. Let us look at an example by recalling the
+might recognise a familiar pattern. We discuss this in~\S\ref{sec-related-optics}.}
+by specifying the constraint~\hs{c}. Let us look at an example by recalling the
 following spreadsheet from~\S\ref{sec-background-excel}:
 
 \vspace{1mm}
@@ -123,8 +121,108 @@ The \hs{Compute} type and the example above might seem mysterious. Why insist on
 \hs{Compute} to be polymorphic in \hs{f}? Why choose the \hs{Applicative}
 constraint?
 
+The answer to both questions is that we can statically analyse an applicative
+compute and extract all dependencies of a key using the following function:
 
-\subsection{Functorial compute}\label{sec-compute-functor}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+dependencies :: Compute Applicative k v -> k -> [k]
+dependencies compute = maybe [@@] getConst . compute (\k -> Const [k])
+\end{minted}
+\vspace{1mm}
+
+\noindent
+We can use this function to extract dependencies of \hs{add}, as shown in the
+following GHCi session:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ dependencies add "A1"
+[@@]
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ dependencies add "B1"
+["A1", "A2"]
+\end{minted}
+\vspace{1mm}
+
+\noindent
+It is important to note that we extract the dependencies without providing any
+values to the compute. This guarantees that no actual computation is performed
+during the analysis -- we cannot execute the function \hs{(+)} if we have no
+values for it! Static analysis of applicative computations is not new and has
+been used to similar effect before, e.g. see~\cite{free-applicatives}.
+
+To understand how \hs{dependencies} works, let us examine its type more closely,
+expanding the type synonym \hs{Compute}:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+(@\std{forall}@ f. Applicative f => (k -> f v) -> k -> Maybe (f v)) -> k -> [k]
+\end{minted}
+\vspace{1mm}
+
+\noindent
+Since the first argument is polymorphic in \hs{f}, we can choose any \hs{f} that
+satisfies the \hs{Applicative} constraint. A good choice in this case is the
+applicative functor \hs{Const} defined in the standard module
+\cmd{Data.Functor.Const}:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+newtype Const m a = Const { getConst :: m }
+
+instance Functor (Const m) where
+    fmap _ (Const m) = Const m
+
+instance Monoid m => Applicative (Const m) where
+    pure _              = Const mempty
+    Const x <*> Const y = Const (x <> y)
+\end{minted}
+\vspace{1mm}
+
+\noindent
+A value of type \hs{Const}~\hs{[}\hs{k]}~\hs{v} contains no values \hs{v} but
+allows us to record all invocations of the custom \hs{fetch} function that we
+feed to the given compute: \hs{fetch k = Const [k]}. The compute returns a
+value of type \hs{Maybe}~\hs{(Const}~\hs{[}\hs{k]}~\hs{v)}, which we unwrap
+using \hs{maybe [@@] getConst} since inputs have no dependencies.
+
+We can also execute a compute on a given store to obtain the resulting value.
+This uses a very similar transformation based on the \hs{Identity} monad
+defined in \cmd{Data.Functor.Identity}:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+execute :: Compute Monad k v -> (k -> v) -> k -> Maybe v
+execute compute store = fmap runIdentity . compute (Identity . store)
+\end{minted}
+\vspace{1mm}
+
+\noindent
+Note that \hs{execute} can accept both an applicative as well as a \emph{monadic
+compute} introduced in~\S\ref{sec-compute-monad}. Below we run \hs{execute} on
+the above \hs{add} example. Note that \hs{execute} returns \hs{Nothing} for
+inputs.
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ store key = if key == "A1" then 10 else 20
+@\ghci@ execute add store "A1"
+Nothing
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ execute add store "B1"
+Just 30
+\end{minted}
+\vspace{1mm}
+
+\subsection{Monadic compute}\label{sec-compute-monad}
+
+
+\subsection{Compute examples (likely to be removed)}
 
 The \emph{Collatz sequence} $C_i$ is defined as follows:
 
@@ -155,8 +253,6 @@ collatz get (Collatz k) | k <= 0    = Nothing
 
 ...
 
-
-\subsection{Applicative compute}\label{sec-compute-applicative}
 The \emph{generalised Fibonacci sequence} $F_i$ is defined as follows:
 
 \[
@@ -182,15 +278,6 @@ fibonacci get (Fibonacci k) | k <= 1    = Nothing
 \end{minted}
 
 ...
-
-\label{getdependencies} We can define the dependencies for a \hs{Compute Applicative} using the \hs{Const} functor:
-
-\begin{minted}{haskell}
-getDependencies :: Compute Applicative k v -> k -> [k]
-getDependencies comp = maybe [] getConst . comp (\k -> Const [k])
-\end{minted}
-
-\subsection{Monadic compute}\label{sec-compute-monad}
 
 The \emph{Ackermann function} $A(m, n)$ is defined as follows:
 
@@ -220,7 +307,7 @@ ackermann get (Ackermann m n)
 
 ...
 
-\todo{AM}{Turn the above into a formal definition of `correctness' and add a section that provides a mathematical definition of correctness, which does not rely on materialising intermediate values.}
+\todo{AM}{Provide a formal definition of `correctness', which does not rely on materialising intermediate values.}
 
 \subsection{Free build structures}\label{sec-free-build}
 
