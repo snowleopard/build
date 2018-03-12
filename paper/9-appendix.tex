@@ -5,7 +5,6 @@
 
 In this section we clarify some of the compute transformers used in this paper.
 
-
 \hs{execute} uses the transformation based on the \hs{Identity} monad, feeding
 \hs{fetch k = pure (store k)} to the compute:
 
@@ -35,7 +34,7 @@ instance Monad Identity where
 \end{minted}
 \vspace{1mm}
 
-\todo{AM}{Explain \hs{trackDependencies}.}
+\todo{AM}{Explain \hs{track}.}
 
 \subsection{Compute examples}\label{sec-appendix-compute-examples}
 

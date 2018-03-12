@@ -250,8 +250,8 @@ C1 = 1
 The task corresponding to the cell \cmd{B1} statically depends on \cmd{C1} and
 dynamically depends on either \cmd{A1} or \cmd{A2}. We can express this using
 our compute abstraction as follows\footnote{The spreadsheet example that uses
-the \hs{INDIRECT} function can be expressed as well: simply replace the last
-line of the \hs{select} function with \hs{fetch ("A" ++ show c1)}.}:
+the \hs{INDIRECT} function can be expressed very similarly: simply replace the
+last line of the \hs{select} function with \hs{fetch ("A" ++ show c1)}.}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -274,13 +274,41 @@ Just 20
 \end{minted}
 \vspace{1mm}
 
-% Note that this presentation of build tasks makes dynamic dependencies
-% immediately recognisable: we need to examine the actual value \hs{c1} by
-% extracting it from the computational context using \hs{Monad}'s bind statement
-% \hs{c1 <- fetch}
+\noindent
+In the above execution $\cmd{C1} \neq 1$, hence the \hs{else} branch is taken.
+To extract the dependencies of \hs{select} we introduce the function \hs{track}:
+a combination of \hs{execute} and \hs{dependencies} that takes the store~\store
+as input and computes both the resulting value and the list of its dependencies:
 
-Now we need a combination of \hs{Const} and \hs{Identity}, which is the
-\hs{Writer} monad!
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+import Control.Monad.Writer
+\end{minted}
+\vspace{0.5mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+track :: Compute Monad k v -> (k -> v) -> k -> Maybe (v, [k])
+track compute store = fmap runWriter . compute (\k -> writer (store k, [k]))
+\end{minted}
+\vspace{1mm}
+
+\noindent
+The implementation uses the \hs{Writer} monad (\S\ref{sec-appendix-transformers}):
+we feed \hs{fetch k = writer (store k, [k])} to the compute, which in addition
+to fetching a value from the store, tracks the corresponding key. We can use
+\hs{track} to track both applicative and monadic compute:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ store key = if key == "A1" then 10 else 20
+@\ghci@ track add store "B1"
+Just (30,["A1","A2"])
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ track select store "B1"
+Just (20,["C1","A2"])
+\end{minted}
+\vspace{1mm}
 
 \subsection{Build}\label{sec-general-build}
 
