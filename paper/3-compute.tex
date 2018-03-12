@@ -14,12 +14,12 @@ type Build c i k v = Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
 \vspace{1mm}
 
 \noindent
-\hs{Compute} represents an abstract set of \emph{build tasks}, for example, build
-rules in software build systems or formulas in spreadsheets. It is completely
-isolated from the world of compilers, file systems, calculation chains, caches,
-and all other complexities of real build systems. We explain the compute type
-in~\S\ref{sec-compute-applicative}, discussing several noteworthy special cases:
-functorial, applicative and monadic types of compute.
+\hs{Compute} represents an abstract collection of \emph{build tasks}, for
+example, build rules in software build systems or formulas in spreadsheets. It
+is completely isolated from the world of compilers, calculation chains, file
+systems, caches, and all other complexities of real build systems. We explain
+the compute type in~\S\ref{sec-compute-applicative}, discussing several
+noteworthy special cases: functorial, applicative and monadic types of compute.
 
 \hs{Build} corresponds to the algorithm used for bringing a key-value store
 \store to a consistent state by recomputing out-of-date values in an
@@ -166,7 +166,7 @@ expanding the type synonym \hs{Compute}:
 \noindent
 Since the first argument is polymorphic in \hs{f}, we can choose any \hs{f} that
 satisfies the \hs{Applicative} constraint. A good choice in this case is the
-applicative functor \hs{Const} defined in the standard module
+applicative functor \hs{Const} defined in GHC's standard library module
 \cmd{Data.Functor.Const}:
 
 \vspace{1mm}
@@ -186,12 +186,13 @@ instance Monoid m => Applicative (Const m) where
 A value of type \hs{Const}~\hs{[}\hs{k]}~\hs{v} contains no values \hs{v} but
 allows us to record all invocations of the custom \hs{fetch} function that we
 feed to the given compute: \hs{fetch k = Const [k]}. The compute returns a
-value of type \hs{Maybe}~\hs{(Const}~\hs{[}\hs{k]}~\hs{v)}, which we unwrap
-using \hs{maybe [@@] getConst} since inputs have no dependencies.
+value of type \hs{Maybe}~\hs{(Const}~\hs{[}\hs{k]}~\hs{v)}, which we can unwrap
+using \hs{maybe [@@] getConst}, i.e. returning the empty list of dependencies
+in case of an input.
 
-We can also execute a compute on a given store to obtain the resulting value.
-This uses a similar transformation based on the \hs{Identity} monad
-defined in \cmd{Data.Functor.Identity}:
+We can also execute a compute on a given store. This relies on a similar
+transformation, now based on the \hs{Identity} monad defined in
+\cmd{Data.Functor.Identity}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -221,11 +222,57 @@ Just 30
 
 \subsection{Monadic compute}\label{sec-compute-monad}
 
-...
+As discussed in~\S\ref{sec-background}, some build tasks have dynamic
+dependencies, which are determined by values of intermediate computations. In
+our framework, such build tasks correspond to \emph{monadic compute}, i.e.
+the type \hs{Compute}~\hs{Monad}~\hs{k}~\hs{v}. Recall the following spreadsheet
+example:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{bash}
+A1 = 10
+A2 = 20
+B1 = IF(C1=1,A1,A2)
+C1 = 1
+\end{minted}
+\vspace{1mm}
+
+\noindent
+The task corresponding to the cell \cmd{B1} statically depends on \cmd{C1} and
+dynamically depends on either \cmd{A1} or \cmd{A2}. We can express this using
+our compute abstraction as follows\footnote{The spreadsheet example that uses
+the \hs{INDIRECT} function can be expressed as well: simply replace the last
+line of the \hs{select} function with \hs{fetch ("A" ++ show c1)}.}:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+select :: Compute Monad String Integer
+select fetch key | key /= "B1" = Nothing
+                 | otherwise   = Just $ do
+                     c1 <- fetch "C1"
+                     if c1 == 1 then fetch "A1" else fetch "A2"
+\end{minted}
+\vspace{1mm}
+
+We cannot statically analyse \hs{select} using the function \hs{dependencies}
+from the previous section, but we can still \hs{execute} it on a given store:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ store key = if key == "A1" then 10 else 20
+@\ghci@ execute select store "B1"
+Just 20
+\end{minted}
+\vspace{1mm}
+
+% Note that this presentation of build tasks makes dynamic dependencies
+% immediately recognisable: we need to examine the actual value \hs{c1} by
+% extracting it from the computational context using \hs{Monad}'s bind statement
+% \hs{c1 <- fetch}
+
+
 
 \subsection{Build}\label{sec-general-build}
-
-...
 
 \todo{AM}{Provide a formal definition of `correctness', which does not rely on materialising intermediate values.}
 

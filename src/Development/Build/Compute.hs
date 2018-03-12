@@ -84,6 +84,19 @@ add :: Compute Applicative String Integer
 add fetch key | key /= "B1" = Nothing
               | otherwise   = Just $ (+) <$> fetch "A1" <*> fetch "A2"
 
+select :: Compute Monad String Integer
+select fetch key | key /= "B1" = Nothing
+                 | otherwise   = Just $ do
+                     c1 <- fetch "C1"
+                     if c1 == 1 then fetch "A1" else fetch "A2"
+
+indirect :: Compute Monad String Integer
+indirect fetch key | key /= "B1" = Nothing
+                   | otherwise   = Just $ do
+                       c1 <- fetch "C1"
+                       fetch ("A" ++ show c1)
+
+
 -- These type synonyms are not very useful, but enumerate all interesting cases.
 type FunctorialCompute  k v = forall f. Functor     f => (k -> f v) -> k -> Maybe (f v)
 type ApplicativeCompute k v = forall f. Applicative f => (k -> f v) -> k -> Maybe (f v)
