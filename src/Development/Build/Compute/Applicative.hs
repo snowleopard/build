@@ -13,7 +13,7 @@ import Development.Build.Utilities
 
 -- | Lift a pure function to an applicative compute.
 pureCompute :: (k -> v) -> Compute Applicative k v
-pureCompute f _ = Just . pure . f
+pureCompute store _ = Just . pure . store
 
 -- TODO: Does this always terminate? It's not obvious!
 dependencies :: Compute Applicative k v -> k -> [k]
@@ -31,9 +31,9 @@ acyclic compute = isJust . transitiveDependencies compute
 -- returned if the given key is an input.
 debugPartial :: Applicative f => Compute Applicative k v
                             -> (k -> f (Maybe v)) -> k -> Maybe (f (Either k v))
-debugPartial compute partialGet = fmap getCompose . compute (Compose . get)
+debugPartial compute store = fmap getCompose . compute (Compose . fetch)
   where
-    get k = maybe (Left k) Right <$> partialGet k
+    fetch k = maybe (Left k) Right <$> store k
 
 -- | Convert a compute with a total lookup function @k -> m v@ into a compute
 -- with a partial lookup function @k -> m (Maybe v)@. This essentially lifts the
@@ -41,7 +41,7 @@ debugPartial compute partialGet = fmap getCompose . compute (Compose . get)
 -- indicates that the compute failed because of a missing dependency.
 -- Use 'debugPartial' if you need to know which dependency was missing.
 partial :: Compute Applicative k v -> Compute Applicative k (Maybe v)
-partial compute get = fmap getCompose . compute (Compose . get)
+partial compute fetch = fmap getCompose . compute (Compose . fetch)
 
 -- | Convert a compute with a total lookup function @k -> m v@ into a compute
 -- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
@@ -49,4 +49,4 @@ partial compute get = fmap getCompose . compute (Compose . get)
 -- where the result @Left e@ indicates that the compute failed because of a
 -- failed dependency lookup, and @Right v@ yeilds the value otherwise.
 exceptional :: Compute Applicative k v -> Compute Applicative k (Either e v)
-exceptional compute get = fmap getCompose . compute (Compose . get)
+exceptional compute fetch = fmap getCompose . compute (Compose . fetch)

@@ -17,9 +17,9 @@ import Development.Build.Utilities
 
 -- TODO: Does this always terminate? It's not obvious!
 dependencies :: Monad m => Compute Monad k v -> (k -> m v) -> k -> m [k]
-dependencies compute get = execWriterT . sequenceA . compute tracingGet
+dependencies compute store = execWriterT . sequenceA . compute fetch
   where
-    tracingGet k = tell [k] >> lift (get k)
+    fetch k = tell [k] >> lift (store k)
 
 trackDependencies :: Compute Monad k v -> (k -> v) -> k -> Maybe (v, [k])
 trackDependencies compute store = fmap runWriter . compute fetch
@@ -33,23 +33,24 @@ trackDependenciesM compute store = fmap runWriterT . compute fetch
 
 transitiveDependencies :: (Eq k, Monad m) => Compute Monad k v
                                           -> (k -> m v) -> k -> m (Maybe [k])
-transitiveDependencies compute get = reachM (dependencies compute get)
+transitiveDependencies compute fetch = reachM (dependencies compute fetch)
 
 acyclic :: (Eq k, Monad m) => Compute Monad k v -> (k -> m v) -> k -> m Bool
-acyclic compute get = fmap isJust . transitiveDependencies compute get
+acyclic compute fetch = fmap isJust . transitiveDependencies compute fetch
 
 inputs :: (Eq k, Monad m) => Compute Monad k v -> (k -> m v) -> k -> m (Maybe [k])
-inputs compute get key = do
-    deps <- transitiveDependencies compute get key
+inputs compute fetch key = do
+    deps <- transitiveDependencies compute fetch key
     return $ filter (isInput compute) <$> deps
 
 pureInputs :: Eq k => Compute Monad k v -> (k -> v) -> k -> Maybe [k]
-pureInputs compute f = runIdentity . inputs compute (Identity . f)
+pureInputs compute fetch = runIdentity . inputs compute (Identity . fetch)
 
 -- | Check that a compute is /consistent/ with a pure lookup function @f@, i.e.
 -- if it returns @Just v@ for some key @k@ then @f k == v@.
 consistent :: Eq v => Compute Monad k v -> (k -> v) -> Bool
-consistent compute f = forall $ \k -> maybe True (f k ==) $ execute compute f k
+consistent compute fetch =
+    forall $ \k -> maybe True (fetch k ==) $ execute compute fetch k
 
 -- | Given a @compute@, a pair of key-value maps describing the contents of a
 -- store @before@ and @after@ a build system was executed to build a given @key@,
@@ -70,16 +71,16 @@ correctBuild compute before after key =
 -- | Run a compute with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
 execute :: Compute Monad k v -> (k -> v) -> k -> Maybe v
-execute compute f = fmap runIdentity . compute (Identity . f)
+execute compute store = fmap runIdentity . compute (pure . store)
 
 -- | Run a compute with a partial lookup function. The result @Left k@ indicates
 -- that the compute failed due to a missing dependency @k@. Otherwise, the
 -- result @Right v@ yields the computed value.
 debugPartial :: Monad m => Compute Monad k v
                       -> (k -> m (Maybe v)) -> k -> Maybe (m (Either k v))
-debugPartial compute partialGet = fmap runExceptT . compute get
+debugPartial compute store = fmap runExceptT . compute fetch
   where
-    get k = maybe (throwE k) return =<< lift (partialGet k)
+    fetch k = maybe (throwE k) return =<< lift (store k)
 
 -- | Convert a compute with a total lookup function @k -> m v@ into a compute
 -- with a partial lookup function @k -> m (Maybe v)@. This essentially lifts the
@@ -87,7 +88,7 @@ debugPartial compute partialGet = fmap runExceptT . compute get
 -- indicates that the compute failed because of a missing dependency.
 -- Use 'debugPartial' if you need to know which dependency was missing.
 partial :: Compute Monad k v -> Compute Monad k (Maybe v)
-partial compute get = fmap runMaybeT . compute (MaybeT . get)
+partial compute fetch = fmap runMaybeT . compute (MaybeT . fetch)
 
 -- | Convert a compute with a total lookup function @k -> m v@ into a compute
 -- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
@@ -95,7 +96,7 @@ partial compute get = fmap runMaybeT . compute (MaybeT . get)
 -- where the result @Left e@ indicates that the compute failed because of a
 -- failed dependency lookup, and @Right v@ yeilds the value otherwise.
 exceptional :: Compute Monad k v -> Compute Monad k (Either e v)
-exceptional compute get = fmap runExceptT . compute (ExceptT . get)
+exceptional compute fetch = fmap runExceptT . compute (ExceptT . fetch)
 
 -- TODO: Does this always terminate? It's not obvious!
 staticDependencies :: Compute Monad k v -> k -> [k]
@@ -104,10 +105,10 @@ staticDependencies compute key = case getScript compute key of
     Just script -> staticScriptDependencies script
 
 data Script k v a where
-    Get  :: k -> Script k v v
-    Pure :: a -> Script k v a
-    Ap   :: Script k v (a -> b) -> Script k v a -> Script k v b
-    Bind :: Script k v a -> (a -> Script k v b) -> Script k v b
+    Fetch :: k -> Script k v v
+    Pure  :: a -> Script k v a
+    Ap    :: Script k v (a -> b) -> Script k v a -> Script k v b
+    Bind  :: Script k v a -> (a -> Script k v b) -> Script k v b
 
 instance Functor (Script k v) where
     fmap = Ap . Pure
@@ -122,26 +123,26 @@ instance Monad (Script k v) where
     (>>=)  = Bind
 
 getScript :: Compute Monad k v -> k -> Maybe (Script k v v)
-getScript compute = compute Get
+getScript compute = compute Fetch
 
 runScript :: Monad m => (k -> m v) -> Script k v a -> m a
-runScript get script = case script of
-    Get k    -> get k
+runScript fetch script = case script of
+    Fetch k  -> fetch k
     Pure v   -> pure v
-    Ap s1 s2 -> runScript get s1 <*> runScript get s2
-    Bind s f -> runScript get s >>= fmap (runScript get) f
+    Ap s1 s2 -> runScript fetch s1 <*> runScript fetch s2
+    Bind s f -> runScript fetch s >>= fmap (runScript fetch) f
 
 -- TODO: Fix inifinite loop
 staticScriptDependencies :: Script k v a -> [k]
 staticScriptDependencies script = case script of
-    Get k    -> [k]
+    Fetch k  -> [k]
     Pure _   -> []
     Ap s1 s2 -> staticScriptDependencies s1 ++ staticScriptDependencies s2
     Bind s _ -> staticScriptDependencies s
 
 isStatic :: Script k v a -> Bool
 isStatic script = case script of
-    Get _    -> True
+    Fetch _  -> True
     Pure _   -> True
     Ap s1 s2 -> isStatic s1 && isStatic s2
     Bind _ _ -> False

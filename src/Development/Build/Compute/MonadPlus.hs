@@ -17,32 +17,32 @@ import Development.Build.Utilities
 -- dependencies :: c m => Compute c k v -> (k -> m v) -> k -> m [k]
 
 dependencies :: MonadPlus m => Compute MonadPlus k v -> (k -> m v) -> k -> m [k]
-dependencies compute get = execWriterT . sequenceA . compute tracingGet
+dependencies compute store = execWriterT . sequenceA . compute fetch
   where
-    tracingGet k = tell [k] >> lift (get k)
+    fetch k = tell [k] >> lift (store k)
 
 transitiveDependencies :: (Eq k, MonadPlus m) => Compute MonadPlus k v
                                           -> (k -> m v) -> k -> m (Maybe [k])
-transitiveDependencies compute get = reachM (dependencies compute get)
+transitiveDependencies compute fetch = reachM (dependencies compute fetch)
 
 acyclic :: (Eq k, MonadPlus m) => Compute MonadPlus k v -> (k -> m v) -> k -> m Bool
-acyclic compute get = fmap isJust . transitiveDependencies compute get
+acyclic compute fetch = fmap isJust . transitiveDependencies compute fetch
 
 inputs :: (Eq k, MonadPlus m) => Compute MonadPlus k v -> (k -> m v) -> k -> m (Maybe [k])
-inputs compute get key = do
-    deps <- transitiveDependencies compute get key
+inputs compute fetch key = do
+    deps <- transitiveDependencies compute fetch key
     return $ filter (isInput compute) <$> deps
 
 -- | Check that a non-deterministic compute is /consistent/ with a pure lookup
 -- function @f@, i.e. for all keys @k@, if @f k == v@ then @Just v@ is a possible
 -- result of the compute.
 consistent :: Eq v => Compute MonadPlus k v -> (k -> v) -> Bool
-consistent compute f = forall $ \k -> Just (f k) `elem` runPure compute f k
+consistent compute store = forall $ \k -> Just (store k) `elem` runPure compute store k
 
 -- | Run a non-deterministic compute with a pure lookup function, listing all
 -- possible results, including @Nothing@ indicating that a given key is an input.
 runPure :: Compute MonadPlus k v -> (k -> v) -> k -> [Maybe v]
-runPure compute f = runIdentity . runListT . sequenceA . compute (ListT . Identity . pure . f)
+runPure compute store = runIdentity . runListT . sequenceA . compute (ListT . Identity . pure . store)
 
 -- pureInputs :: Eq k => Compute MonadPlus k v -> (k -> v) -> k -> [Maybe [k]]
 -- pureInputs compute f = runIdentity . runListT . inputs compute (ListT . return . pure . f)

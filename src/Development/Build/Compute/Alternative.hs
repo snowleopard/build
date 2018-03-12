@@ -16,7 +16,7 @@ failingCompute _ _ = Just empty
 
 -- | Run the first compute then the second compute, combining the results.
 (|||) :: Compute Alternative k v -> Compute Alternative k v -> Compute Alternative k v
-(|||) compute1 compute2 get key = compute1 get key <|> compute2 get key
+(|||) compute1 compute2 fetch key = compute1 fetch key <|> compute2 fetch key
 
 random :: (Int, Int) -> Compute Alternative k Int
 random (low, high) _ _ = asum $ map (Just . pure) [low..high]
