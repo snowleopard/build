@@ -166,16 +166,19 @@ expanding the type synonym \hs{Compute}:
 \noindent
 Since the first argument is polymorphic in \hs{f}, we can choose any \hs{f} that
 satisfies the \hs{Applicative} constraint. A good choice in this case is the
-applicative functor \hs{Const} defined in GHC's standard library module
-\cmd{Data.Functor.Const}:
+applicative functor \hs{Const}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 newtype Const m a = Const { getConst :: m }
-
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
 instance Functor (Const m) where
     fmap _ (Const m) = Const m
-
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
 instance Monoid m => Applicative (Const m) where
     pure _              = Const mempty
     Const x <*> Const y = Const (x <> y)
@@ -190,14 +193,34 @@ value of type \hs{Maybe}~\hs{(Const}~\hs{[}\hs{k]}~\hs{v)}, which we can unwrap
 using \hs{maybe [@@] getConst}, i.e. returning the empty list of dependencies
 in case of an input.
 
-We can also execute a compute on a given store. This relies on a similar
-transformation, now based on the \hs{Identity} monad defined in
-\cmd{Data.Functor.Identity}:
+We can also \hs{execute} a compute on a given store. This relies on a similar
+transformation, now based on the \hs{Identity} monad and feeding
+\hs{fetch k = pure (store k)} to the compute:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 execute :: Compute Monad k v -> (k -> v) -> k -> Maybe v
-execute compute store = fmap runIdentity . compute (Identity . store)
+execute compute store = fmap runIdentity . compute (pure . store)
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+newtype Identity a = Identity { runIdentity :: a }
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+instance Functor Identity where
+    fmap f (Identity a) = Identity (f a)
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+instance Applicative Identity where
+    pure a = Identity a
+    Identity f <*> Identity a = Identity (f a)
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+instance Monad Identity where
+    Identity a >>= f = f a
 \end{minted}
 \vspace{1mm}
 
@@ -218,7 +241,7 @@ Nothing
 @\ghci@ execute add store "B1"
 Just 30
 \end{minted}
-\vspace{1mm}
+% \vspace{1mm}
 
 \subsection{Monadic compute}\label{sec-compute-monad}
 
