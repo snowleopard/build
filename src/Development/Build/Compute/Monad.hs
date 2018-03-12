@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
     dependencies, transitiveDependencies, inputs, acyclic,
-    consistent, correctBuild, runPure, debugPartial, partial, exceptional,
+    consistent, correctBuild, execute, debugPartial, partial, exceptional,
     staticDependencies, Script (..), getScript, runScript, isStatic
     ) where
 
@@ -39,7 +39,7 @@ pureInputs compute f = runIdentity . inputs compute (Identity . f)
 -- | Check that a compute is /consistent/ with a pure lookup function @f@, i.e.
 -- if it returns @Just v@ for some key @k@ then @f k == v@.
 consistent :: Eq v => Compute Monad k v -> (k -> v) -> Bool
-consistent compute f = forall $ \k -> maybe True (f k ==) $ runPure compute f k
+consistent compute f = forall $ \k -> maybe True (f k ==) $ execute compute f k
 
 -- | Given a @compute@, a pair of key-value maps describing the contents of a
 -- store @before@ and @after@ a build system was executed to build a given @key@,
@@ -59,8 +59,8 @@ correctBuild compute before after key =
 
 -- | Run a compute with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
-runPure :: Compute Monad k v -> (k -> v) -> k -> Maybe v
-runPure compute f = fmap runIdentity . compute (Identity . f)
+execute :: Compute Monad k v -> (k -> v) -> k -> Maybe v
+execute compute f = fmap runIdentity . compute (Identity . f)
 
 -- | Run a compute with a partial lookup function. The result @Left k@ indicates
 -- that the compute failed due to a missing dependency @k@. Otherwise, the

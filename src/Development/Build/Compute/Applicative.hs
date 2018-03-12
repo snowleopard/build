@@ -17,7 +17,7 @@ pureCompute f _ = Just . pure . f
 
 -- TODO: Does this always terminate? It's not obvious!
 dependencies :: Compute Applicative k v -> k -> [k]
-dependencies compute = getConst . sequenceA . compute (Const . return)
+dependencies compute = maybe [] getConst . compute (\k -> Const [k])
 
 transitiveDependencies :: Eq k => Compute Applicative k v -> k -> Maybe [k]
 transitiveDependencies compute = reach (dependencies compute)

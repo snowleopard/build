@@ -82,7 +82,7 @@ ackermann get (Ackermann m n)
 ----------------------------- Spreadsheet examples -----------------------------
 add :: Compute Applicative String Integer
 add fetch key | key /= "B1" = Nothing
-              | otherwise = Just $ (+) <$> fetch "A1" <*> fetch "A2"
+              | otherwise   = Just $ (+) <$> fetch "A1" <*> fetch "A2"
 
 -- These type synonyms are not very useful, but enumerate all interesting cases.
 type FunctorialCompute  k v = forall f. Functor     f => (k -> f v) -> k -> Maybe (f v)
