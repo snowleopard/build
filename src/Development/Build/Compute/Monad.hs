@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Compute.Monad (
-    dependencies, transitiveDependencies, inputs, acyclic,
+    dependencies, trackDependencies, transitiveDependencies, inputs, acyclic,
     consistent, correctBuild, execute, debugPartial, partial, exceptional,
     staticDependencies, Script (..), getScript, runScript, isStatic
     ) where
@@ -20,6 +20,11 @@ dependencies :: Monad m => Compute Monad k v -> (k -> m v) -> k -> m [k]
 dependencies compute get = execWriterT . sequenceA . compute tracingGet
   where
     tracingGet k = tell [k] >> lift (get k)
+
+trackDependencies :: Monad m => Compute Monad k v -> (k -> m v) -> k -> Maybe (m (v, [k]))
+trackDependencies compute fetch = fmap runWriterT . compute tracingFetch
+  where
+    tracingFetch k = tell [k] >> lift (fetch k)
 
 transitiveDependencies :: (Eq k, Monad m) => Compute Monad k v
                                           -> (k -> m v) -> k -> m (Maybe [k])
