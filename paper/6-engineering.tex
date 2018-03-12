@@ -29,7 +29,7 @@ In our model we define \hs{Compute} as a function - when give the same inputs it
 \item[Non-determinism] Some actions are non-determinstic, producing one result from a possble set. As an example, GHC when compiled using parallelism can change the order in which unique variables are obtained from the supply, producing semantically identical results but with different hidden variables.
 \end{description}
 
-Interestingly, there is signficant interplay between all three sources of impurity. Systems like \Bazel use various sandboxing techniques to guard against missing dependencies, but none are likely to capture all dependencies right down to CPU model and microcode version. Rules that do have untracked state can be marked as volatile, a technique \Excel takes with the \textsf{INDIRECT} function, removing the untracked-state at the cost of more recomputation.
+Interestingly, there is significant interplay between all three sources of impurity. Systems like \Bazel use various sandboxing techniques to guard against missing dependencies, but none are likely to capture all dependencies right down to CPU model and microcode version. Rules that do have untracked state can be marked as volatile, a technique \Excel takes with the \textsf{INDIRECT} function, removing the untracked-state at the cost of more recomputation.
 
 We note that while all the simple implementations presented in \S\ref{sec-implementations} can deal with non-determinism, some real build systems cannot, e.g. \Buck.
 
@@ -69,7 +69,7 @@ compute ask "B1" = do
 
 Namely, first look up the formula, then interpret it. In an \hs{Applicative} system it is not possible to change dependencies based on the formula, as would be required, so instead the formula can be captured as a dependency (but its value not used) and \textit{also} baked directly into the \hs{compute} function.
 
-The build systems that have precise tracking of self-computation are all onces which use a non-Embedded Domain Specific Language to describe computations. Those which make use of a full programming language, e.g. \Shake, are much more difficult to implement equality on rules as they are arbitrary functions making use of opqaue abstractions. For such build systems the incredibly pessimistic assuming of saying that any change to the build system potentially changes any rule can often be used -- the classic example being a \texttt{Makefile} depending on itself.
+The build systems that have precise tracking of self-computation are all ones which use a non-Embedded Domain Specific Language to describe computations. Those which make use of a full programming language, e.g. \Shake, are much more difficult to implement equality on rules as they are arbitrary functions making use of opaque abstractions. For such build systems the incredibly pessimistic assuming of saying that any change to the build system potentially changes any rule can often be used -- the classic example being a \texttt{Makefile} depending on itself.
 
 \subsection{Iterative computations}\label{sec-iterative-compute}
 
@@ -81,7 +81,7 @@ A1 = A1 + 1
 
 In such cases \Excel will normally not execute anything, but if the ``Iterative Calculations'' feature is enabled will execute the formula a maximum of $n$ times per calculation (where $n$ is a setting that defaults to 100).
 
-For examples like \LaTeX we consider the proper encoding to not be with circular rules, but with a series of iterative steps, as described in \S\ref{neil-iterative-on-stack-overflow}. It is important that the number of executions is bounded, otherwise the build system may not terminate (a legitimate concern with \LaTeX which can be put into a situation where it is bistable or divering over multiple executions).
+For examples like \LaTeX we consider the proper encoding to not be with circular rules, but with a series of iterative steps, as described in \S\ref{neil-iterative-on-stack-overflow}. It is important that the number of executions is bounded, otherwise the build system may not terminate (a legitimate concern with \LaTeX which can be put into a situation where it is bistable or diverging over multiple executions).
 
 The examples in \Excel tend to encode either mutable state, or recurrence relations. The former is only required because \Excel inherently lacks the ability to write mutable state, and the latter is probably better solved using explicit recurrence formulae.
 
@@ -89,7 +89,7 @@ Overall we choose not to deal with cyclic rules, a choice that most build system
 
 \subsection{Polymorphism}\label{sec-polymorphism}
 
-Our build system abstraction assumes a \hs{k -> v} store, along with a build system that works directly on \hs{k} and \hs{v} values. However, certain build systems provide greater flexiblity, e.g. \Shake permits polymorphic keys and values, allowing types that are only stored in the Shake information, and never persisted to the Store.
+Our build system abstraction assumes a \hs{k -> v} store, along with a build system that works directly on \hs{k} and \hs{v} values. However, certain build systems provide greater flexibility, e.g. \Shake permits polymorphic keys and values, allowing types that are only stored in the Shake information, and never persisted to the Store.
 
 As one example of richer keys/values, consider the version of \textsf{gcc} - for many builds it should be a dependency. In \Shake we can define an \textit{oracle} rule as per \cite{mitchell2012shake} whose value is the result of running \hs{gcc --version} and which is volatile, making the \textsf{gcc} version something that can be depended upon. Of course, provided the build can express volatile dependencies and supports cutoff, the version number could equally be written to a file and used in a similar way.
 

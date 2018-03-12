@@ -18,7 +18,7 @@ type Build c i k v = Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
 rules in software build systems or formulas in spreadsheets. It is completely
 isolated from the world of compilers, file systems, calculation chains, caches,
 and all other complexities of real build systems. We explain the compute type
-in~\S\ref{sec-general-compute}, discussing several noteworthy special cases:
+in~\S\ref{sec-compute-applicative}, discussing several noteworthy special cases:
 functorial, applicative and monadic types of compute.
 
 \hs{Build} corresponds to the algorithm used for bringing a key-value store
@@ -190,7 +190,7 @@ value of type \hs{Maybe}~\hs{(Const}~\hs{[}\hs{k]}~\hs{v)}, which we unwrap
 using \hs{maybe [@@] getConst} since inputs have no dependencies.
 
 We can also execute a compute on a given store to obtain the resulting value.
-This uses a very similar transformation based on the \hs{Identity} monad
+This uses a similar transformation based on the \hs{Identity} monad
 defined in \cmd{Data.Functor.Identity}:
 
 \vspace{1mm}

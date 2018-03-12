@@ -13,14 +13,20 @@
       }
     ],
     "cSpell.words": [
+      "Elem",
+      "Ericson",
+      "Hashable",
       "PACMPL",
       "SIGPLAN",
       "acmart",
+      "bazel",
       "etre",
       "fmap",
       "mempty",
       "newtype",
+      "poss",
       "sigplanproc",
-      "topmatter"
+      "topmatter",
+      "uncurry"
     ]
   }
