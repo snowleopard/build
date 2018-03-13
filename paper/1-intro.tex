@@ -1,11 +1,11 @@
 \section{Introduction}\label{sec-intro}
 
-Build systems (such as \Make) are big, complicated, but unloved part of
-the software ecosystem.  Every developer on the planet uses one, but
-they are very much a means to an end, and seldom the focus of
-attention.  But the challenges of scale have driven large software firms
-like Microsoft, Facebook, and Google to develop their own build
-systems, each with its own choices and idiosyncrasies.
+Build systems (such as \Make) are big, complicated, and used by every
+software developer on the planet.  But they are a sadly unloved part
+of the software ecosystem, very much a means to an end, and seldom the
+focus of attention.  Despite this, the challenges of scale have driven
+large software firms like Microsoft, Facebook, and Google to develop
+their own build systems, each with its own choices and idiosyncrasies.
 
 Seldom do people ask questions like ``What does it mean for my build
 system to be correct?'' or ``What are the trade-offs between different
@@ -26,12 +26,12 @@ a dozen lines of code or so.
 Doing this in a single setting allows
 the differences and similarities between these huge systems to be
 brought out clearly.
-\item Build systems vary on many axes;
-for example: static vs dynamic dependencies; cloud-build, including
+\item Build systems vary on many axes,
+including: static vs dynamic dependencies; cloud-build, including
 shallow vs deep; deterministic vs non-deterministic build rules;
 early cut-off; self-tracking build systems; and persistent metadata.
 These properties (which we define in~\S\ref{sec-background}) are often
-deeply-built-in assumptions of a particular build system.
+deeply built into any particular build system.
 In contrast, our framework allows them to be distinguished,
 reasoned about, and varied.
 \item We show that all build system we look at can be broken along two axes - the order in which they build dependencies, and whether they decide to build a particular dependency. Interestingly, these two aspects can be recombined without restriction to produce new build systems.
@@ -40,7 +40,7 @@ and cloud-build; yet no currently-available build system supports
 both.  Our framework makes it rather easy to do so, for the first
 time.
 \end{itemize}
-Thus equipped, instead of seeing build systems as unrelated
+In short, instead of seeing build systems as unrelated
 points in space, we can re-envisage them as locations in a landscape,
 leading to better understanding of what they do and how they compare,
 and suggesting exploration of other (as yet unoccupied points) in the

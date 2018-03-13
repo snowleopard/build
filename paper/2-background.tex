@@ -2,22 +2,16 @@
 \section{Background}\label{sec-background}
 
 Build systems automate the execution of simple repeatable tasks for individual
-users, as well as for large organisations. There are software build systems,
-such as \Make~\cite{feldman1979make}, \Shake~\cite{mitchell2012shake} and
-\Bazel~\cite{bazel}, as well as various incremental calculation engines, such
-as \Excel~\cite{advanced_excel}. In this section we use these four examples to
-introduce main domain-specific notions and requirements. Other notable examples
-of build systems and their relation to these four are discussed
+users, as well as for large organisations. In this section we explore the design
+space of build systems, using four concrete examples:
+\Make~\cite{feldman1979make}, \Shake~\cite{mitchell2012shake},
+\Bazel~\cite{bazel}, and \Excel~\cite{advanced_excel}\footnote{Excel appears
+very different to the others but, seen through the lens of this paper, it is
+very close indeed.}.
+We have carefully chosen these four to illustrate the various axes on which build systems
+differ; we discuss many other notable examples
+of build systems, and their relationships,
 in~\S\ref{sec-related} and~\S\ref{sec-conclusions}.
-
-We start by giving an intuitive definition of a build system. After providing
-more context and examples in the rest of this section, we
-develop a formal definition in~\S\ref{sec-general-build}.
-
-\definition[Build system]{Given a description of tasks, a \emph{build system}
-executes them in an order that respects their dependencies to produce a
-specified output from supplied inputs.}
-\label{def-build}
 
 \subsection{The venerable \Make: static dependencies and file modification times}
 \label{sec-background-make}
@@ -138,9 +132,9 @@ C1 = 1
 Here the cell \cmd{C1} controls which branch of the \cmd{IF} function is used
 to compute \cmd{B1}. When \cmd{C1=1}, the dependencies of \cmd{B1} are
 $\{\cmd{C1},\cmd{A1}\}$, otherwise they are $\{\cmd{C1},\cmd{A2}\}$, and which is
-not known statically. One might say that the value of \cmd{C1} is statically
+not known statically\footnote{One might say that the value of \cmd{C1} is statically
 known in this particular example, but imagine that it is the result of a long computation
-chain -- its value will only become available during the build.
+chain -- its value will only become available during the build.}.
 
 \Excel handles this example correctly: if \cmd{C1=1} and the user changes
 \cmd{A2}, \Excel will not recompute the result \cmd{B1}. Alas, other forms of
@@ -224,10 +218,10 @@ Here is how one can express the task for producing \cmd{release.tar} using \Shak
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 "release.tar" %> \_ -> do
-    need ["release.txt"]
-    files <- lines <$> readFile "release.txt"
-    need files
-    system "tar" $ ["-cf", "result.tar"] ++ files
+    { need ["release.txt"]
+    ; files <- lines <$> readFile "release.txt"
+    ; need files
+    ; system "tar" $ ["-cf", "result.tar"] ++ files }
 \end{minted}
 \vspace{1mm}
 
@@ -246,8 +240,8 @@ First, it uses the dependency graph from the previous build to decide which
 files need to be rebuilt. This idea has a long history, going back to
 \emph{incremental}~\cite{demers1981incremental},
 \emph{adaptive}~\cite{acar2002adaptive}, and
-\emph{self-adjusting}~\cite{acar2007selfadjusting} \emph{computations} (see a
-discussion in related work~\S\ref{sec-related}). Second, instead of abandoning
+\emph{self-adjusting computations} (see \cite{acar2007selfadjusting} and \S\ref{sec-related}).
+Second, instead of abandoning
 and deferring the execution of tasks whose newly discovered dependencies have
 not yet been built (as \Excel does), \Shake \emph{pauses} their execution until
 the dependencies are brought up-to-date. We refer to this build algorithm as
