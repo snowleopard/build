@@ -1,25 +1,18 @@
-\section{Build tasks, abstractly}\label{sec-compute}
+\section{Build systems, abstractly}\label{sec-compute}
 
 This section presents purely functional abstractions that allow us to express
 all the intricacies of build systems discussed in the previous
 section~\S\ref{sec-background} and design complex build systems from simple
 primitives. Specifically, we present the \emph{compute} and \emph{build}
-abstractions:
+abstractions, which are described in
+Sections~\ref{sec-task} and \ref{sec-general-build} respectively.
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
-type Build c i k v = Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
+type Task c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
+type Build c i k v = Task c k v -> k -> Store i k v -> Store i k v
 \end{minted}
 \vspace{1mm}
-
-\noindent
-\hs{Compute} represents an abstract collection of \emph{build tasks}, for
-example, build rules in software build systems or formulas in spreadsheets. It
-is completely isolated from the world of compilers, calculation chains, file
-systems, caches, and all other complexities of real build systems. We explain
-the compute type in~\S\ref{sec-compute-applicative}, discussing several
-noteworthy special cases: functorial, applicative and monadic types of compute.
 
 \hs{Build} corresponds to the algorithm used for bringing a key-value store
 \store to a consistent state by recomputing out-of-date values in an
@@ -32,23 +25,67 @@ systems.
 \subsection{Common vocabulary for build systems}
 \label{sec-vocabulary}
 
-We start by introducing a common vocabulary for build systems that allows
+\begin{figure}
+\begin{minted}{haskell}
+-- Stores
+data Store i k v   -- Abstract
+getInfo  :: Store i k v -> i
+putInfo  :: Store i k v -> i -> Store i k v
+getValue :: Store i k v -> k -> v
+putValue :: Hashable v => Store i k v -> k -> v -> Store i k v
+getHash  :: Hashable v => Store i k v -> k -> Hash
+
+-- Hashing
+hash :: Hashable a => a -> Hash
+
+-- Applicative
+(<*>) :: Applicative f => f (a->b) -> f a -> f b  -- Left-associative
+(<$>) :: Applicative f => (a->b) -> f a -> f b    -- Left-associative
+pure  :: Applicative f => a -> f a
+
+-- State monad
+data State s
+instance Applicative State
+instance Monad       State
+evalState :: State s a -> s -> s
+getState  :: State s s
+\end{minted}
+\caption{Signatures of library functions}
+\label{fig-lib-funs}
+\end{figure}
+
+We start by establishing a common vocabulary for build systems that allows
 us to abstract away from specific application domains, such as software
 development or spreadsheets.
 % We will use this vocabulary throughout the rest of the paper.
 
-\emph{Keys} are used to distinguish \emph{values}. In software build systems,
-keys are typically filenames, e.g.~\cmd{main.c}, whereas values are file
-contents (a C program source code in this case). In spreadsheets, keys are cell
-names, e.g. \cmd{A1}, and values are numbers, text, etc. that are typically
-displayed inside cells. In Haskell code, we will use type variables \hs{k}
-and \hs{v} to denote keys and values, respectively.
+A \emph{build system} takes a \emph{task description}, a target \emph{key},
+and a \emph{store}, and returns a new store in which the target key is
+up to date.  The store is a key/value mapping, togther with
+\emph{persistent build state} that is maintained by the build system itself.
 
-We use a cryptographic \emph{hash function} \hs{hash :: v -> Hash} for efficient
-tracking and sharing of~build results, where \hs{Hash} is an abstract data type
-equipped with the equality test.
+In software build systems, keys are typically filenames,
+e.g.~\cmd{main.c}, and values are file contents (a C program source
+code in this case). In spreadsheets, keys are cell names,
+e.g. \cmd{A1}, and values are numbers, text, etc. that are typically
+displayed inside cells. In our Haskell code, we will use type
+variables \hs{k} and \hs{v} to denote keys and values, respectively.
 
-A \emph{store} associates keys to values. It is convenient to assume that a
+Some values must be provided by the user as \emph{input}. For example,
+\cmd{main.c} can be edited by the user who relies on the build system to
+compile it into \cmd{main.o} and subsequently \cmd{main.exe}. End build products,
+such as \cmd{main.exe}, are \emph{output} values. All other values (in this case
+\cmd{main.o}) are \emph{intermediate}; they are not interesting for the user
+but are produced in the process of turning inputs into outputs.
+
+The types of the library functions we use in this paper is
+given in Figure~\ref{fig-lib-funs}.
+We use a cryptographic \emph{hash function} \hs{hash :: Hashable v =>
+v -> Hash} for efficient tracking and sharing of~build results, where
+\hs{Hash} is an abstract data type equipped with the equality test.
+
+A \emph{store}, of type \hs{Store i k v}, associates keys to values.
+It is convenient to assume that a
 store is total function \store, i.e. it contains a value for every possible key.
 We therefore also assume that the type of values is capable of encoding values
 corresponding to non-existent keys (missing files or empty cells). This, in
@@ -60,62 +97,120 @@ result. For example, GVFS (Git Virtual File System)~\cite{gvfs} stores file
 hashes and downloads file contents only on demand -- an important feature for
 cloud build systems.
 
-Some values must be provided by the user as \emph{input}. For example,
-\cmd{main.c} can be edited by the user who relies on the build system to
-compile it into \cmd{main.o} and subsequently \cmd{main.exe}. End build products,
-such as \cmd{main.exe}, are \emph{output} values. All other values (in this case
-\cmd{main.o}) are \emph{intermediate}; they are not interesting for the user
-but are produced in the process of turning inputs into outputs.
+The store also contains a single persistent value, of type \hs{i}, representing
+the persistent state maintained by the build system itself -- its ``memory''.
 
-\subsection{Compute}\label{sec-compute-applicative}
+\subsection{The Task abstraction}\label{sec-task}
 
-We describe build tasks and their dependencies using functions of type
-\hs{Compute}:
-
-\vspace{1mm}
+Our first key idea is the task-description abstraction:
 \begin{minted}[xleftmargin=10pt]{haskell}
-type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
+type Task c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
 \end{minted}
-\vspace{1mm}
-
-\noindent
-A compute takes two arguments: \hs{fetch :: k -> f v} and \hs{key :: k}, and
-returns either \hs{Nothing} to indicate that the \hs{key} is an input and hence
-cannot be computed, or \hs{Just}~\hs{value} obtained by \hs{fetch}ing the
-dependencies of the \hs{key} and performing the required computation. A compute
-must be polymorphic in \hs{f} but may request certain computational
-power\footnote{Readers familiar with \emph{lenses} or \emph{profunctor optics}
-might recognise a familiar pattern. We discuss this in~\S\ref{sec-related-optics}.}
-by specifying the constraint~\hs{c}. Let us look at an example by recalling the
-following spreadsheet from~\S\ref{sec-background-excel}:
-
+This highly-abstracted type is best introduced through an example.
+Consider this Excel spreadsheet (c.f. \S\ref{sec-background-excel}):
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{bash}
-A1 = 10
-A2 = 20
-B1 = A1 + A2
+  A1: 10     B1: =A1 + A2
+  A2: 20     B2: =B1 * 2
 \end{minted}
 \vspace{1mm}
-
-\noindent
-The only build task in this spreadsheet can be expressed as an \emph{applicative
-compute}, operating on keys (cell names) of type \hs{String} and values of
-type \hs{Integer}:
-
+Here cell \hs{A1} contains the value \hs{10} while cell \hs{B1} contains
+the formula \hs{=A1+A2}.
+We can represent the formulae of of this spreadsheet
+with the following task description
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-add :: Compute Applicative String Integer
-add fetch key | key /= "B1" = Nothing
-              | otherwise   = Just $ (+) <$> fetch "A1" <*> fetch "A2"
+sprsh1 :: Compute Applicative String Integer
+sprsh1 get "B1" = Just ((+) <$> get "A1" <*> "A2")
+sprsh1 get "B2" = Just ((* 2) <$> get "B1")
+sprsh1 _   _    = Nothing
 \end{minted}
 \vspace{1mm}
+Here we instantiate keys \hs{k} with \hs{String}, and values \hs{v} with \hs{Integer}.
+(Real spreadsheet cells would contain a wider range of values, of course.)
+The task description \hs{sprsh1} embodies all the \emph{formulae} of the spreadsheet,
+but not the constant values.  Like every \hs{Task}, \hs{sprsh1} is given
+a \hs{get} function and a key. It pattern-matches on the key to see if it has
+a task description (in the Excel case, a formula)
+for it.  If not, it returns \hs{Nothing}, indicating that there is no formula in
+that cell.  If there is a formula in the cell, it computes
+the value of the formula, using \hs{get} to find the value of any keys on
+which it depends.
 
-\noindent
-The cells \cmd{A1} and \cmd{A2} are inputs, which is indicated by returning
-\hs{Nothing}. The cell \cmd{B1} is an output, whose value is computed by
-fetching the values of \cmd{A1} and \cmd{A2} and applying the pure
-function~\hs{(+)} using the methods of the \hs{Applicative} type
-class~\cite{mcbride2008applicative}.
+The code to ``compute the value of a formula'' in \hs{sprsh1} looks a bit mysterious
+because it takes place in an \hs{Applicative} computation \cite{mcbride2008applicative}
+-- the relevant type signatures
+are given in Figure~\ref{fig-lib-funs}.  We will return to the need for this
+generality in
+Section~\ref{sec-deps}\footnote{Readers familiar with \emph{lenses} or \emph{profunctor optics}
+might recognise a familiar pattern. We discuss this in~\S\ref{sec-related-optics}.}.
+
+For now, we content ourselves with observing that a task description,
+of type \hs{Task c k v}, is completely isolated from the world of
+compilers, calculation chains, file systems, caches, and all other
+complexities of real build systems.  It just computes a single output, in
+a side-effect-free way, using a call-back (\hs{get}) to get the values
+of its dependencies.
+
+\subsection{The Build abstraction}\label{sec-general-build}
+
+Next comes our second key abstraction: a build system:
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+type Build c i k v = Task c k v -> k -> Store i k v -> Store i k v
+\end{minted}
+\vspace{1mm}
+The signature is very straightforward.  Given a task description, a target key,
+and a store, the build system returns a new store in which the value of the
+target key is up-to-date.  (What exactly does ``up to date'' mean?  We answer
+that precisely in \S\ref{sec-build-correctness}.
+
+\emph{SLPJ: is this right?}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+dumbBuild :: Build Monad () k v
+dumbBuild task k store = execState (go k) store
+  where
+    go :: k -> State s v
+    go k = case (task go k) of
+             Nothing  -> do { s <- getState; return (getValue s k) }
+             Just act -> do { v <- act; updState (\s -> putStore s k v); return v }
+\end{minted}
+\vspace{1mm}
+\emph{SLPJ: explain}
+
+\subsection{Correctness of a build system} \label{sec-build-correctness}
+
+We can now say what it means for a build system to be \emph{correct}, something
+that is seldom stated formally:
+
+\definition[Correctness]{Suppose \hs{build :: Build c i k v} is a build system,
+\hs{task :: Task c k v} describes an acyclic collection of build tasks, \hs{key} is an output
+key, \hs{store} be a store.
+Then the \hs{result}ing store \hs{result = build compute key store}
+is~\emph{correct} if there exists a store \hs{ideal}, such that
+
+\begin{itemize}
+    \item The \hs{ideal} store is \emph{consistent} with \hs{task}, i.e.
+    for all possible non-input keys \hs{k}, the result of executing the
+    \hs{compute} matches the value in the \hs{ideal} store:
+    \[
+    \hs{execute}~\hs{ideal}~\hs{k}~\hs{==}~\hs{Just}~\hs{(}\hs{ideal}~\hs{k)}.
+    \]
+    \item The \hs{result} and \hs{ideal} agree on the output \hs{key}, i.e.
+    \hs{result}~\hs{key}~\hs{==}~\hs{ideal}~\hs{key}. In other words, we require
+    that the output \hs{key} has the correct value, but do not impose any
+    restrictions on intermediate keys, therefore permitting shallow cloud builds.
+    \item The \hs{store}, \hs{ideal} and \hs{result} all agree on the inputs
+    that belong to the transitive closure of \hs{key}'s dependencies. This means
+    that (i) no inputs were corrupted during the build, and (ii)~the \hs{ideal}
+    store has constraints not only on the output, but also on the inputs.
+\end{itemize}
+}
+\label{def-correct}
+
+
+\subsection{Computing dependencies}
 
 The \hs{Compute} type and the example above might seem mysterious. Why insist on
 \hs{Compute} to be polymorphic in \hs{f}? Why choose the \hs{Applicative}
@@ -338,59 +433,4 @@ the store.
 %                    | Done r
 % \end{minted}
 
-\subsection{Build}\label{sec-general-build}
-
-Equipped with the \hs{Compute} abstraction, we can now introduce \hs{Build} in
-more detail. Recall the informal definition of a build system
-from~\S\ref{sec-background}:
-
-\vspace{2mm}
-\emph{Definition (Build system).}\hspace{1.5mm}Given a description of tasks, a
-\emph{build system} executes them in an order that respects their dependencies
-to produce a specified output from supplied inputs.
-\vspace{2mm}
-
-\noindent
-To make the definition more precise, we express it as the following function:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-type Build c i k v = Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
-\end{minted}
-\vspace{1mm}
-
-\noindent
-The type closely matches the above definition: \hs{Compute c k v} is `a
-description of tasks', a key~\hs{k} is~`a~specified output', and the store
-\store holds `supplied inputs'. The additional input parameter \hs{Maybe i}
-may provide auxiliary information from the previous build, as discussed
-in~\S\ref{sec-background-summary}. The build system produces auxiliary
-information \hs{i} for the next build as well as an updated store, where the
-output \hs{k} must be up-to-date. We formally capture the correctness of the
-resulting store in the following definition.
-
-\definition[Correctness]{Let \hs{build :: Build c i k v} be a build system,
-\hs{compute} describe an acyclic collection of build tasks, \hs{key} be an output
-key, \hs{mi :: Maybe i} be auxiliary information, and \hs{store} be a store.
-Then the \hs{result}ing store \hs{(_, result) = build compute k mi store}
-is~\emph{correct} if there exists an \hs{ideal} store, such that
-
-\begin{itemize}
-    \item The \hs{ideal} store is \emph{consistent} with the \hs{compute}, i.e.
-    for all possible non-input keys \hs{k}, the result of executing the
-    \hs{compute} matches the value in the \hs{ideal} store:
-    \[
-    \hs{execute}~\hs{ideal}~\hs{k}~\hs{==}~\hs{Just}~\hs{(}\hs{ideal}~\hs{k)}.
-    \]
-    \item The \hs{result} and \hs{ideal} agree on the output \hs{key}, i.e.
-    \hs{result}~\hs{key}~\hs{==}~\hs{ideal}~\hs{key}. In other words, we require
-    that the output \hs{key} has the correct value, but do not impose any
-    restrictions on intermediate keys, therefore permitting shallow cloud builds.
-    \item The \hs{store}, \hs{ideal} and \hs{result} all agree on the inputs
-    that belong to the transitive closure of \hs{key}'s dependencies. This means
-    that (i) no inputs were corrupted during the build, and (ii)~the \hs{ideal}
-    store has constraints not only on the output, but also on the inputs.
-\end{itemize}
-}
-\label{def-correct}
 
