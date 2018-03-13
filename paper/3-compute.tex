@@ -275,7 +275,7 @@ Just 20
 \vspace{1mm}
 
 \noindent
-In the above execution $\cmd{C1} \neq 1$, hence the \hs{else} branch is taken.
+In the example above $\cmd{C1} \neq 1$, hence the \hs{else} branch is taken.
 To extract the dependencies of \hs{select} we introduce the function \hs{track}:
 a combination of \hs{execute} and \hs{dependencies} that takes the store~\store
 as input and computes both the resulting value and the list of its dependencies:
@@ -294,8 +294,8 @@ track compute store = fmap runWriter . compute (\k -> writer (store k, [k]))
 \noindent
 The implementation uses the \hs{Writer} monad (\S\ref{sec-appendix-transformers}):
 we feed \hs{fetch k = writer (store k, [k])} to the compute, which in addition
-to fetching a value from the store, tracks the corresponding key. We can use
-\hs{track} to track both applicative and monadic compute:
+to fetching a value from the store, tracks the corresponding key. We can
+\hs{track} both applicative and monadic compute:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -309,16 +309,88 @@ Just (30,["A1","A2"])
 Just (20,["C1","A2"])
 \end{minted}
 \vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ store' key = if key == "A1" then 10 else 1
+@\ghci@ track select store' "B1"
+Just (10,["C1","A1"])
+\end{minted}
+\vspace{1mm}
+
+\noindent
+As expected, the dependencies of \hs{select} are determined by the contents of
+the store.
+
+% \subsection{Recognising an applicative compute wearing a monadic hat}
+
+% Although dynamic dependencies are very useful, they typically represent only a
+% small fraction of all dependencies. One can exploit this in a build system by
+% recognising applicative computations even though they have the type
+% \hs{Compute}~\hs{Monad} and treating them specially.
+
+% Consider the following data type.
+
+% \subsection{Free build structures}\label{sec-free-build}
+
+% \begin{minted}{haskell}
+% data Depend k v r = Depend [k] ([v] -> r)
+
+% data Depends k v r = Depends [k] ([v] -> Depends k v r)
+%                    | Done r
+% \end{minted}
 
 \subsection{Build}\label{sec-general-build}
 
-\todo{AM}{Provide a formal definition of `correctness', which does not rely on materialising intermediate values.}
+Equipped with the \hs{Compute} abstraction, we can now introduce \hs{Build} in
+more detail. Recall the informal definition of a build system
+from~\S\ref{sec-background}:
 
-\subsection{Free build structures}\label{sec-free-build}
+\vspace{2mm}
+\emph{Definition (Build system).}\hspace{1.5mm}Given a description of tasks, a
+\emph{build system} executes them in an order that respects their dependencies
+to produce a specified output from supplied inputs.
+\vspace{2mm}
 
-\begin{minted}{haskell}
-data Depend k v r = Depend [k] ([v] -> r)
+\noindent
+To make the definition more precise, we express it as the following function:
 
-data Depends k v r = Depends [k] ([v] -> Depends k v r)
-                   | Done r
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+type Build c i k v = Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
 \end{minted}
+\vspace{1mm}
+
+\noindent
+The type closely matches the above definition: \hs{Compute c k v} is `a
+description of tasks', a key~\hs{k} is~`a~specified output', and the store
+\store holds `supplied inputs'. The additional input parameter \hs{Maybe i}
+may provide auxiliary information from the previous build, as discussed
+in~\S\ref{sec-background-summary}. The build system produces auxiliary
+information \hs{i} for the next build as well as an updated store, where the
+output \hs{k} must be up-to-date. We formally capture the correctness of the
+resulting store in the following definition.
+
+\definition[Correctness]{Let \hs{build :: Build c i k v} be a build system,
+\hs{compute} describe an acyclic collection of build tasks, \hs{key} be an output
+key, \hs{mi :: Maybe i} be auxiliary information, and \hs{store} be a store.
+Then the \hs{result}ing store \hs{(_, result) = build compute k mi store}
+is~\emph{correct} if there exists an \hs{ideal} store, such that
+
+\begin{itemize}
+    \item The \hs{ideal} store is \emph{consistent} with the \hs{compute}, i.e.
+    for all possible non-input keys \hs{k}, the result of executing the
+    \hs{compute} matches the value in the \hs{ideal} store:
+    \[
+    \hs{execute}~\hs{ideal}~\hs{k}~\hs{==}~\hs{Just}~\hs{(}\hs{ideal}~\hs{k)}.
+    \]
+    \item The \hs{result} and \hs{ideal} agree on the output \hs{key}, i.e.
+    \hs{result}~\hs{key}~\hs{==}~\hs{ideal}~\hs{key}. In other words, we require
+    that the output \hs{key} has the correct value, but do not impose any
+    restrictions on intermediate keys, therefore permitting shallow cloud builds.
+    \item The \hs{store}, \hs{ideal} and \hs{result} all agree on the inputs
+    that belong to the transitive closure of \hs{key}'s dependencies. This means
+    that (i) no inputs were corrupted during the build, and (ii)~the \hs{ideal}
+    store has constraints not only on the output, but also on the inputs.
+\end{itemize}
+}
+\label{def-correct}
+
