@@ -185,7 +185,7 @@ recursive step compute = runM . ensure
             done <- getTemp
             when (k `Set.notMember` done) $ do
                 modifyTemp $ Set.insert k set
-                case trackDependencies compute fetch k of
+                case track compute fetch k of
                     Nothing -> return ()
                     Just act -> step k (getDependenciesMaybe compute k) fetch act
 \end{minted}
