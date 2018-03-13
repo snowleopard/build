@@ -121,20 +121,20 @@ with the following task description
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 sprsh1 :: Compute Applicative String Integer
-sprsh1 get "B1" = Just ((+) <$> get "A1" <*> "A2")
-sprsh1 get "B2" = Just ((* 2) <$> get "B1")
-sprsh1 _   _    = Nothing
+sprsh1 fetch "B1" = Just ((+)   <$> fetch "A1" <*> "A2")
+sprsh1 fetch "B2" = Just ((* 2) <$> fetch "B1")
+sprsh1 _   _      = Nothing
 \end{minted}
 \vspace{1mm}
 Here we instantiate keys \hs{k} with \hs{String}, and values \hs{v} with \hs{Integer}.
 (Real spreadsheet cells would contain a wider range of values, of course.)
 The task description \hs{sprsh1} embodies all the \emph{formulae} of the spreadsheet,
 but not the constant values.  Like every \hs{Task}, \hs{sprsh1} is given
-a \hs{get} function and a key. It pattern-matches on the key to see if it has
+a \hs{fetch} function and a key. It pattern-matches on the key to see if it has
 a task description (in the Excel case, a formula)
 for it.  If not, it returns \hs{Nothing}, indicating that there is no formula in
 that cell.  If there is a formula in the cell, it computes
-the value of the formula, using \hs{get} to find the value of any keys on
+the value of the formula, using \hs{fetch} to find the value of any keys on
 which it depends.
 
 The code to ``compute the value of a formula'' in \hs{sprsh1} looks a bit mysterious
@@ -149,7 +149,7 @@ For now, we content ourselves with observing that a task description,
 of type \hs{Task c k v}, is completely isolated from the world of
 compilers, calculation chains, file systems, caches, and all other
 complexities of real build systems.  It just computes a single output, in
-a side-effect-free way, using a call-back (\hs{get}) to get the values
+a side-effect-free way, using a call-back (\hs{fetch}) to obtain the values
 of its dependencies.
 
 \subsection{The Build abstraction}\label{sec-general-build}
