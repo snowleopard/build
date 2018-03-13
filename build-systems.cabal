@@ -19,12 +19,12 @@ source-repository head
 library
   hs-source-dirs:       src
   exposed-modules:      Development.Build,
-                        Development.Build.Compute,
-                        Development.Build.Compute.Alternative,
-                        Development.Build.Compute.Applicative,
-                        Development.Build.Compute.Functor,
-                        Development.Build.Compute.Monad,
-                        Development.Build.Compute.MonadPlus,
+                        Development.Build.Task,
+                        Development.Build.Task.Alternative,
+                        Development.Build.Task.Applicative,
+                        Development.Build.Task.Functor,
+                        Development.Build.Task.Monad,
+                        Development.Build.Task.MonadPlus,
                         Development.Build.Example.Spreadsheet,
                         Development.Build.NonDeterministic,
                         Development.Build.Plan,

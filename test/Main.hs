@@ -4,7 +4,7 @@ import Data.List.NonEmpty (NonEmpty (..), toList)
 import Data.Maybe
 
 import Development.Build
-import Development.Build.Compute
+import Development.Build.Task
 import Development.Build.Store
 
 import Development.Build.Example.Spreadsheet
@@ -39,19 +39,19 @@ outputs = "B1" :| ["B2", "B3", "C1", "C2", "F30" ]
 cellNotFoundValue :: Cell -> Int
 cellNotFoundValue _ = 0
 
-compute :: Compute Monad Cell Int
-compute = spreadsheetCompute spreadsheet
+task :: Task Monad Cell Int
+task = spreadsheetTask spreadsheet
 
 dumbResult :: Cell -> Int
-dumbResult = snd $ sequentialMultiBuild dumb compute outputs Nothing inputs
+dumbResult = snd $ sequentialMultiBuild dumb task outputs Nothing inputs
 
 slowResult :: Cell -> Int
-slowResult = snd $ sequentialMultiBuild slow compute outputs Nothing inputs
+slowResult = snd $ sequentialMultiBuild slow task outputs Nothing inputs
 
 tracingDumbResult :: IO (Cell -> Int)
 tracingDumbResult = snd <$> runPureStore build inputs
   where
-    build = sequentialMultiStoreBuild dumbTracing compute (toList outputs)
+    build = sequentialMultiStoreBuild dumbTracing task (toList outputs)
 
 printOutputs :: (Cell -> Int) -> IO ()
 printOutputs store = forM_ outputs $

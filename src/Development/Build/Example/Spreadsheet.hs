@@ -4,7 +4,7 @@ module Development.Build.Example.Spreadsheet where
 import Data.Char
 import Data.Maybe
 import Data.String
-import Development.Build.Compute
+import Development.Build.Task
 import Text.Read
 
 -- | A 'Cell' is described by a pair integers: 'row' and 'column'. We provide
@@ -73,8 +73,8 @@ type Spreadsheet = Cell -> Maybe Formula
 
 -- TODO: Implement 'Random'.
 -- | Spreadsheet computation.
-spreadsheetCompute :: Spreadsheet -> Compute Monad Cell Int
-spreadsheetCompute spreadsheet get cell@(Cell r c) = case spreadsheet cell of
+spreadsheetTask :: Spreadsheet -> Task Monad Cell Int
+spreadsheetTask spreadsheet get cell@(Cell r c) = case spreadsheet cell of
     Nothing      -> Nothing -- This is an input
     Just formula -> Just $ evaluate formula
   where

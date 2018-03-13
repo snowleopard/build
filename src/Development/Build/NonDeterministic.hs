@@ -7,7 +7,7 @@ import Control.Monad.List
 import System.Random
 
 -- | A monad capable of running non-deterministic computations. Given a result
--- of an 'Alternative' of 'MonadPlus' compute, chooses either to fail or return
+-- of an 'Alternative' of 'MonadPlus' task, chooses either to fail or return
 -- a random result. Note the parametericity guarantees that if a @Just value@ is
 -- returned it is indeed a possible result.
 class Monad m => NonDeterministic m where
