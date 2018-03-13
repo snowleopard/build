@@ -69,7 +69,7 @@ correctBuild task before after key =
 -- | Run a task with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
 execute :: Task Monad k v -> (k -> v) -> k -> Maybe v
-execute task store = fmap runIdentity . task (pure . store)
+execute task fetch = fmap runIdentity . task (pure . fetch)
 
 -- | Run a task with a partial lookup function. The result @Left k@ indicates
 -- that the task failed due to a missing dependency @k@. Otherwise, the

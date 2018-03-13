@@ -20,7 +20,7 @@ import Development.Build.Utilities
 -- about the key and if it is required for building any of the /outputs/ the
 -- build system will need to discover its dependencies. We require that every
 -- plan is 'acyclic'.
-type Plan k v = k -> Maybe (Hash v, [(k, Hash v)])
+type Plan k v = k -> Maybe (Hash, [(k, Hash)])
 
 -- | Sometimes you have no plan at all, i.e. @noPlan = const Nothing@.
 noPlan :: Plan k v
@@ -47,10 +47,10 @@ acyclic plan = forall $ \key -> isJust (reach knownDependencies key)
 --     1. The value has expected hash, i.e. @getHash key@ returns @keyHash@.
 --     2. All dependencies have expected hashes: i.e. @getHash k@ returns @h@
 --        for each @(k, h)@ in @deps@.
-upToDate :: (Eq v, Store m k v) => Plan k v -> k -> m Bool
-upToDate plan key = case plan key of
-    Nothing -> return False -- We don't know and conservatively return False
-    Just (keyHash, deps) -> checkHashes ((key, keyHash) : deps)
+upToDate :: Hashable v => Store i k v -> Plan k v -> k -> Bool
+upToDate store plan key = case plan key of
+    Nothing -> False -- We don't know and conservatively return False
+    Just (keyHash, deps) -> checkHashes store ((key, keyHash) : deps)
 
 -- | Check that a 'Plan' is consistent with respect to a given 'Store'.
 -- * An empty plan (@plan key == Nothing@) is consistent.
@@ -59,7 +59,7 @@ upToDate plan key = case plan key of
 --     1. The value has expected hash, i.e. @getHash key@ returns @keyHash@.
 --     2. All dependencies have expected hashes: i.e. @getHash k@ returns @h@
 --        for each @(k, h)@ in @deps@.
-consistent :: (Eq v, Store m k v) => Plan k v -> m Bool
-consistent plan = forallM $ \key -> case plan key of
-    Nothing -> return True -- Incomplete plan is consistent
-    Just (keyHash, deps) -> checkHashes ((key, keyHash) : deps)
+consistent :: Hashable v => Store i k v -> Plan k v -> Bool
+consistent store plan = forall $ \key -> case plan key of
+    Nothing -> True -- Incomplete plan is consistent
+    Just (keyHash, deps) -> checkHashes store ((key, keyHash) : deps)

@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleContexts, OverloadedStrings, ScopedTypeVariables #-}
 import Control.Monad
-import Data.List.NonEmpty (NonEmpty (..), toList)
 import Data.Maybe
 
 import Development.Build
@@ -9,8 +8,8 @@ import Development.Build.Store
 
 import Development.Build.Example.Spreadsheet
 
-inputs :: Cell -> Int
-inputs cell = fromMaybe (cellNotFoundValue cell) $ lookup cell
+inputs :: Store () Cell Int
+inputs = initialise () $ \cell -> fromMaybe (cellNotFoundValue cell) $ lookup cell
     [ ("A1", 1)
     , ("A2", 2)
     , ("A3", 3) ]
@@ -28,8 +27,8 @@ spreadsheet cell = case name cell of
     'F':_ -> Just $ rel (-1) 0 + rel (-2) 0 --          Fn = F(n - 1) + F(n - 2)
     _     -> Nothing
 
-outputs :: NonEmpty Cell
-outputs = "B1" :| ["B2", "B3", "C1", "C2", "F30" ]
+outputs :: [Cell]
+outputs = [ "B1", "B2", "B3", "C1", "C2", "F30" ]
 
 -- TODO: Handle lookup errors nicer
 -- cellNotFoundError :: Cell -> Int
@@ -42,26 +41,26 @@ cellNotFoundValue _ = 0
 task :: Task Monad Cell Int
 task = spreadsheetTask spreadsheet
 
-dumbResult :: Cell -> Int
-dumbResult = snd $ sequentialMultiBuild dumb task outputs Nothing inputs
+dumbResult :: Store () Cell Int
+dumbResult = sequentialMultiBuild dumb task outputs inputs
 
-slowResult :: Cell -> Int
-slowResult = snd $ sequentialMultiBuild slow task outputs Nothing inputs
+slowResult :: Store () Cell Int
+slowResult = sequentialMultiBuild slow task outputs inputs
 
-tracingDumbResult :: IO (Cell -> Int)
-tracingDumbResult = snd <$> runPureStore build inputs
-  where
-    build = sequentialMultiStoreBuild dumbTracing task (toList outputs)
+-- tracingDumbResult :: IO (Cell -> Int)
+-- tracingDumbResult = snd <$> runPureStore build inputs
+--   where
+--     build = sequentialMultiStoreBuild dumbTracing task (toList outputs)
 
-printOutputs :: (Cell -> Int) -> IO ()
+printOutputs :: Store () Cell Int -> IO ()
 printOutputs store = forM_ outputs $
-    \key -> putStrLn (show (name key) ++ " = " ++ show (store key))
+    \key -> putStrLn (show (name key) ++ " = " ++ show (getValue store key))
 
 main :: IO ()
 main = do
     putStrLn "======== dumbBuild ========"
     printOutputs dumbResult
-    putStrLn "======== dumbTracingBuild ========"
-    printOutputs =<< tracingDumbResult
+    -- putStrLn "======== dumbTracingBuild ========"
+    -- printOutputs =<< tracingDumbResult
     putStrLn "======== slowBuild ========"
     printOutputs slowResult
