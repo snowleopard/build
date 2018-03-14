@@ -44,8 +44,8 @@ task = spreadsheetTask spreadsheet
 dumbResult :: Store () Cell Int
 dumbResult = sequentialMultiBuild dumb task outputs inputs
 
-slowResult :: Store () Cell Int
-slowResult = sequentialMultiBuild slow task outputs inputs
+busyResult :: Store () Cell Int
+busyResult = sequentialMultiBuild busy task outputs inputs
 
 -- tracingDumbResult :: IO (Cell -> Int)
 -- tracingDumbResult = snd <$> runPureStore build inputs
@@ -62,5 +62,5 @@ main = do
     printOutputs dumbResult
     -- putStrLn "======== dumbTracingBuild ========"
     -- printOutputs =<< tracingDumbResult
-    putStrLn "======== slowBuild ========"
-    printOutputs slowResult
+    putStrLn "======== busyBuild ========"
+    printOutputs busyResult

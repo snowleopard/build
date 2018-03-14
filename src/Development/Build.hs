@@ -2,7 +2,7 @@
 module Development.Build (
     -- * Build
     Build, MultiBuild, sequentialMultiBuild, --, sequentialMultiStoreBuild,
-    dumb, slow, -- purify, slow, dumbTracing,
+    dumb, busy, -- purify, slow, dumbTracing,
 
     -- * Properties
     correct, idempotent
@@ -40,7 +40,7 @@ sequentialMultiBuild build task outputs store = case outputs of
 -- sequentialMultiStoreBuild :: StoreBuild Monad m k v -> MultiStoreBuild Monad m k v
 -- sequentialMultiStoreBuild build task = mapM_ (build task)
 
-dumb :: Eq k => Build Monad i k v
+dumb :: (Eq k, Hashable v) => Build Monad i k v
 dumb task key store = case execute task (getValue store) key of
     Nothing    -> store
     Just value -> putValue store key value
@@ -56,12 +56,13 @@ dumb task key store = case execute task (getValue store) key of
 --         liftIO $ putStrLn ("Computing key: " ++ show k)
 --         mapM_ (putValue k =<<) (task myGetValue k)
 
-slow :: Eq k => Build Monad i k v
-slow task key store = case task fetch key of
-    Nothing -> store
-    Just fv -> let (value, store') = runState fv store in putValue store' key value
+busy ::(Eq k, Hashable v) => Build Monad () k v
+busy task key store = execState (go key) store
   where
-    fetch k = state $ \s -> let s' = slow task k s in (getValue s' k, s')
+    -- go :: k -> State (Store () k v) v
+    go k = case task go k of
+        Nothing  -> do { s <- get; return (getValue s k) }
+        Just act -> do { v <- act; modify (\s -> putValue s k v); return v }
 
 -- | Given a @build@ and @task@, check that for any key-value map describing
 -- the contents of a store @before@ the build system is executed to build a list

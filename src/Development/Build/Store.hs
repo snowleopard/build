@@ -20,6 +20,9 @@ class Hashable a where
     -- hashing, e.g. SHA256.
     hash :: a -> Hash
 
+instance Hashable Int where
+    hash = id
+
 data Store i k v = Store { getInfo :: i, getValue :: k -> v }
 
 getHash :: Hashable v => Store i k v -> k -> Hash
@@ -28,8 +31,10 @@ getHash s = hash . getValue s
 putInfo :: Store i k v -> i -> Store i k v
 putInfo s i = s { getInfo = i }
 
-putValue :: Eq k => Store i k v -> k -> v -> Store i k v
+putValue :: (Eq k, Hashable v) => Store i k v -> k -> v -> Store i k v
 putValue s k v = s { getValue = \key -> if key == k then v else getValue s key }
+  where
+    _ = hash v
 
 checkHashes :: Hashable v => Store m k v -> [(k, Hash)] -> Bool
 checkHashes store = all (\(k, h) -> getHash store k == h)
