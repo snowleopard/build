@@ -118,7 +118,7 @@ with the following task description:
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 sprsh1 :: Task Applicative String Integer
-sprsh1 fetch "B1" = Just ((+)   <$> fetch "A1" <*> "A2")
+sprsh1 fetch "B1" = Just ((+)   <$> fetch "A1" <*> fetch "A2")
 sprsh1 fetch "B2" = Just ((* 2) <$> fetch "B1")
 sprsh1 _   _      = Nothing
 \end{minted}
@@ -184,10 +184,34 @@ returned by the \hs{task} to produce a resulting value~\hs{v}, stores it
 
 Given an acyclic task description, the \hs{busy} build system terminates with a
 correct result, but it is not a minimal build system (c.f. the
-Definition~\ref{def-minimal}); \hs{busy} keeps no track of keys it has already
-brought up-to-date, and will therefore busily recompute the same keys again and
-again if they have multiple dependents. We will develop much more efficient
-build systems in~\S\ref{sec-implementations}.
+Definition~\ref{def-minimal}). Since \hs{busy} has no memory (\hs{i = ()}), it
+cannot keep track of keys it has already built, and will therefore busily
+recompute the same keys again and again if they have multiple dependents. We
+will develop much more efficient build systems in~\S\ref{sec-implementations}.
+
+Despite its limitations, \hs{busy} can easily handle our \hs{sprsh1} example
+from the previous section~\S\ref{sec-task}. Below we initialise the store with
+\cmd{A1} set to 10 and all other cells set to 20.
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ store  = initialise () $ \key -> if key == "A1" then 10 else 20
+@\ghci@ result = busy sprsh1 "B2" store
+@\ghci@ getValue result "B1"
+30
+@\ghci@ getValue result "B2"
+60
+\end{minted}
+\vspace{1mm}
+
+\noindent
+As one can see, \hs{busy} correctly built both \cmd{B1} and \cmd{B2}, and in the
+right order (if it had built \cmd{B2} before building \cmd{B1}, the result would
+have been $20 * 2 = 40$ instead of $(10 + 20) * 2 = 60$). As an example showing
+that \hs{busy} is not minimal, imagine that the formula in cell \cmd{B2} was
+\cmd{B1~+~B1} instead of \cmd{B1~*~2}. This would lead to calling
+\hs{compute}~\hs{"B1"} twice -- once per each occurrence of \cmd{B1} in the
+formula.
 
 \subsection{Correctness of a build system} \label{sec-build-correctness}
 
