@@ -281,12 +281,12 @@ all intermediates in the cloud. We illustrate shallow cloud builds by an example
 
 The user starts by checking out the project sources, whose hashes are (for
 simplicity)~1,~2~and~3, and requests to build \cmd{main.exe}, see
-Fig.~\ref{fig-bazel}(a,b). By looking up the history of all previous builds of
-the project\footnote{Here we ignore the issue of limited cloud storage resources
-for the sake of simplicity; in practice, old entries are regularly evicted from
-the storage, as further discussed in~\S\ref{sec-cloud-aspects}.}, the build
-system finds that someone has already compiled these exact sources before and
-their resulting files \cmd{util.o} and \cmd{main.o} had hashes 4~and~5.
+Fig.~\ref{fig-bazel}(a,b). By looking up the global history of all previous
+builds of the project\footnote{Here we ignore the issue of limited cloud storage
+resources for the sake of simplicity; in practice, old entries are regularly
+evicted from the storage, as further discussed in~\S\ref{sec-cloud-aspects}.},
+the build system finds that someone has already compiled these exact sources
+before and their resulting files \cmd{util.o} and \cmd{main.o} had hashes 4~and~5.
 Similarly, the build system finds that the hash of the resulting \cmd{main.exe}
 should be 6 and downloads the actual binary from the shared cloud storage, since
 it is the end build product and must therefore be materialised.
@@ -316,14 +316,17 @@ in~\S\ref{sec-implementations}.
 \begin{figure}[t]
 \begin{subfigure}[b]{0.25\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-checkout.pdf}}
+\vspace{-1mm}
 \caption{Checkout source files}
 \end{subfigure}
 \begin{subfigure}[b]{0.40\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-build.pdf}}
+\vspace{-1mm}
 \caption{Build \cmd{main.exe}}
 \end{subfigure}
 \begin{subfigure}[b]{0.31\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-rebuild.pdf}}
+\vspace{-1mm}
 \caption{Modify \cmd{util.c} and rebuild}
 \end{subfigure}
 \vspace{-2mm}
@@ -333,7 +336,7 @@ from the cloud and skip intermediate files (only their hashes are needed),
 \cmd{util.o} (since nobody has compiled \cmd{util.c} before) and downloading
 \cmd{main.o}. File hashes are shown inside circles.
 \label{fig-bazel}}
-\vspace{-2mm}
+\vspace{-1mm}
 \end{figure}
 
 \subsection{Summary}
@@ -355,7 +358,7 @@ build information} persistently stored between builds by all build systems:
 \end{itemize}
 
 \begin{table}[h]
-\vspace{-1mm}
+\vspace{-2mm}
 \smaller
 \centering
 \begin{tabular}{l||l|l||l|c|c|c}

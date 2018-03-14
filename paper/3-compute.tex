@@ -116,7 +116,7 @@ the formula \cmd{A1+A2}, etc. We can represent the formulae of this spreadsheet
 with the following task description:
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-sprsh1 :: Compute Applicative String Integer
+sprsh1 :: Task Applicative String Integer
 sprsh1 fetch "B1" = Just ((+)   <$> fetch "A1" <*> "A2")
 sprsh1 fetch "B2" = Just ((* 2) <$> fetch "B1")
 sprsh1 _   _      = Nothing
@@ -202,10 +202,101 @@ is~\emph{correct} if there exists a store \hs{ideal}, such that
 }
 \label{def-correct}
 
+\subsection{Monadic tasks}\label{sec-task-monad}
+
+As discussed in~\S\ref{sec-background}, some build tasks have dynamic
+dependencies, which are determined by values of intermediate computations. In
+our framework, such build tasks correspond to \emph{monadic task}, i.e.
+the type \hs{Task}~\hs{Monad}~\hs{k}~\hs{v}. Recall the following spreadsheet
+example:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{bash}
+A1 = 10
+A2 = 20
+B1 = IF(C1=1,A1,A2)
+C1 = 1
+\end{minted}
+\vspace{1mm}
+
+\noindent
+The task corresponding to the cell \cmd{B1} statically depends on \cmd{C1} and
+dynamically depends on either \cmd{A1} or \cmd{A2}. We can express this using
+our task abstraction as follows\footnote{The spreadsheet example that uses
+the \hs{INDIRECT} function can be expressed very similarly: simply replace the
+last line of the \hs{select} function with \hs{fetch ("A" ++ show c1)}.}:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+select :: Task Monad String Integer
+select fetch key | key /= "B1" = Nothing
+                 | otherwise   = Just $ do
+                     c1 <- fetch "C1"
+                     if c1 == 1 then fetch "A1" else fetch "A2"
+\end{minted}
+\vspace{1mm}
+
+We cannot statically analyse \hs{select} using the function \hs{dependencies}
+from the previous section, but we can still \hs{execute} it on a given store:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ store key = if key == "A1" then 10 else 20
+@\ghci@ execute select store "B1"
+Just 20
+\end{minted}
+\vspace{1mm}
+
+\noindent
+In the example above $\cmd{C1} \neq 1$, hence the \hs{else} branch is taken.
+To extract the dependencies of \hs{select} we introduce the function \hs{track}:
+a combination of \hs{execute} and \hs{dependencies} that takes the store~\store
+as input and computes both the resulting value and the list of its dependencies:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+import Control.Monad.Writer
+\end{minted}
+\vspace{0.5mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+track :: Task Monad k v -> (k -> v) -> k -> Maybe (v, [k])
+track task store = fmap runWriter . task (\k -> writer (store k, [k]))
+\end{minted}
+\vspace{1mm}
+
+\noindent
+The implementation uses the \hs{Writer} monad (\S\ref{sec-appendix-transformers}):
+we feed \hs{fetch k = writer (store k, [k])} to the compute, which in addition
+to fetching a value from the store, tracks the corresponding key. We can
+\hs{track} both applicative and monadic compute:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ store key = if key == "A1" then 10 else 20
+@\ghci@ track add store "B1"
+Just (30,["A1","A2"])
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ track select store "B1"
+Just (20,["C1","A2"])
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ store' key = if key == "A1" then 10 else 1
+@\ghci@ track select store' "B1"
+Just (10,["C1","A1"])
+\end{minted}
+\vspace{1mm}
+
+\noindent
+As expected, the dependencies of \hs{select} are determined by the contents of
+the store.
+
 \subsection{Computing dependencies}\label{sec-deps}
 
-The \hs{Compute} type and the example above might seem mysterious. Why insist on
-\hs{Compute} to be polymorphic in \hs{f}? Why choose the \hs{Applicative}
+The \hs{Task} type and the example above might seem mysterious. Why insist on
+\hs{Task} to be polymorphic in \hs{f}? Why choose the \hs{Applicative}
 constraint?
 
 The answer to both questions is that we can statically analyse an applicative
@@ -217,8 +308,8 @@ import Data.Functor.Const
 \end{minted}
 \vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-dependencies :: Compute Applicative k v -> k -> [k]
-dependencies compute = maybe [@@] getConst . compute (\k -> Const [k])
+dependencies :: Task Applicative k v -> k -> [k]
+dependencies task = maybe [@@] getConst . task (\k -> Const [k])
 \end{minted}
 \vspace{1mm}
 
@@ -245,7 +336,7 @@ values for it! Static analysis of applicative computations is not new and has
 been used to similar effect before, e.g. see~\cite{free-applicatives}.
 
 To understand how \hs{dependencies} works, let us examine its type more closely,
-expanding the type synonym \hs{Compute}:
+expanding the type synonym \hs{Task}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -294,14 +385,14 @@ import Data.Functor.Identity
 \end{minted}
 \vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-execute :: Compute Monad k v -> (k -> v) -> k -> Maybe v
+execute :: Task Monad k v -> (k -> v) -> k -> Maybe v
 execute compute store = fmap runIdentity . compute (pure . store)
 \end{minted}
 \vspace{1mm}
 
 \noindent
 Note that \hs{execute} can accept both an applicative as well as a \emph{monadic
-compute} introduced in~\S\ref{sec-compute-monad}. Below we run \hs{execute} on
+task} introduced in~\S\ref{sec-task-monad}. Below we run \hs{execute} on
 the above \hs{add} example. Note that \hs{execute} returns \hs{Nothing} for
 inputs.
 
@@ -315,97 +406,6 @@ Nothing
 @\ghci@ execute add store "B1"
 Just 30
 \end{minted}
-
-\subsection{Monadic compute}\label{sec-compute-monad}
-
-As discussed in~\S\ref{sec-background}, some build tasks have dynamic
-dependencies, which are determined by values of intermediate computations. In
-our framework, such build tasks correspond to \emph{monadic compute}, i.e.
-the type \hs{Compute}~\hs{Monad}~\hs{k}~\hs{v}. Recall the following spreadsheet
-example:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{bash}
-A1 = 10
-A2 = 20
-B1 = IF(C1=1,A1,A2)
-C1 = 1
-\end{minted}
-\vspace{1mm}
-
-\noindent
-The task corresponding to the cell \cmd{B1} statically depends on \cmd{C1} and
-dynamically depends on either \cmd{A1} or \cmd{A2}. We can express this using
-our compute abstraction as follows\footnote{The spreadsheet example that uses
-the \hs{INDIRECT} function can be expressed very similarly: simply replace the
-last line of the \hs{select} function with \hs{fetch ("A" ++ show c1)}.}:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-select :: Compute Monad String Integer
-select fetch key | key /= "B1" = Nothing
-                 | otherwise   = Just $ do
-                     c1 <- fetch "C1"
-                     if c1 == 1 then fetch "A1" else fetch "A2"
-\end{minted}
-\vspace{1mm}
-
-We cannot statically analyse \hs{select} using the function \hs{dependencies}
-from the previous section, but we can still \hs{execute} it on a given store:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ store key = if key == "A1" then 10 else 20
-@\ghci@ execute select store "B1"
-Just 20
-\end{minted}
-\vspace{1mm}
-
-\noindent
-In the example above $\cmd{C1} \neq 1$, hence the \hs{else} branch is taken.
-To extract the dependencies of \hs{select} we introduce the function \hs{track}:
-a combination of \hs{execute} and \hs{dependencies} that takes the store~\store
-as input and computes both the resulting value and the list of its dependencies:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-import Control.Monad.Writer
-\end{minted}
-\vspace{0.5mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-track :: Compute Monad k v -> (k -> v) -> k -> Maybe (v, [k])
-track compute store = fmap runWriter . compute (\k -> writer (store k, [k]))
-\end{minted}
-\vspace{1mm}
-
-\noindent
-The implementation uses the \hs{Writer} monad (\S\ref{sec-appendix-transformers}):
-we feed \hs{fetch k = writer (store k, [k])} to the compute, which in addition
-to fetching a value from the store, tracks the corresponding key. We can
-\hs{track} both applicative and monadic compute:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ store key = if key == "A1" then 10 else 20
-@\ghci@ track add store "B1"
-Just (30,["A1","A2"])
-\end{minted}
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ track select store "B1"
-Just (20,["C1","A2"])
-\end{minted}
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ store' key = if key == "A1" then 10 else 1
-@\ghci@ track select store' "B1"
-Just (10,["C1","A1"])
-\end{minted}
-\vspace{1mm}
-
-\noindent
-As expected, the dependencies of \hs{select} are determined by the contents of
-the store.
 
 % \subsection{Recognising an applicative compute wearing a monadic hat}
 
