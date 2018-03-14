@@ -333,10 +333,8 @@ from the cloud and skip intermediate files (only their hashes are needed),
 \cmd{util.o} (since nobody has compiled \cmd{util.c} before) and downloading
 \cmd{main.o}. File hashes are shown inside circles.
 \label{fig-bazel}}
-\vspace{-2mm}
+\vspace{-4mm}
 \end{figure}
-
-
 
 \subsection{Summary}
 \label{sec-background-summary}
@@ -357,6 +355,7 @@ build information} persistently stored between builds by all build systems:
 \end{itemize}
 
 \begin{table}[h]
+\vspace{-1mm}
 \smaller
 \centering
 \begin{tabular}{l||l|l||l|c|c|c}
@@ -368,9 +367,9 @@ $\!$\Shake      $\!$& Previous dependency graph      & Recursive    & Dynamic   
 $\!$\Bazel      $\!$& All dependency graphs, cache   & Topological  & Static       & Yes     & Yes    & Yes  $\!$\\\hline
 \hline
 \end{tabular}
-\vspace{2mm}
+\vspace{0.5mm}
 \caption{Summary of build system differences.\label{tab-summary}}
-\vspace{-7mm}
+\vspace{-8mm}
 \end{table}
 
 In this paper we elucidate which build system properties are consequences of
