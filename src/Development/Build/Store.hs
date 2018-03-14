@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, DefaultSignatures, FunctionalDependencies #-}
 module Development.Build.Store (
     -- * Hashing
-    Hash, Hashable,
+    Hash, Hashable (..),
 
     -- * Store
     Store, getValue, putValue, getHash, getInfo, putInfo, initialise, checkHashes
@@ -22,6 +22,9 @@ class Hashable a where
 
 instance Hashable Int where
     hash = id
+
+instance Hashable Integer where
+    hash = fromIntegral
 
 data Store i k v = Store { getInfo :: i, getValue :: k -> v }
 

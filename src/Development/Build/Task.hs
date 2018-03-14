@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-module Development.Build.Task (Task, inputTask, isInput) where
+module Development.Build.Task (Task, inputTask, isInput, sprsh1) where
 
 import Control.Applicative
 import Control.Monad
@@ -96,6 +96,10 @@ indirect fetch key | key /= "B1" = Nothing
                        c1 <- fetch "C1"
                        fetch ("A" ++ show c1)
 
+sprsh1 :: Task Applicative String Integer
+sprsh1 fetch "B1" = Just ((+) <$> fetch "A1" <*> fetch "A2")
+sprsh1 fetch "B2" = Just ((* 2) <$> fetch "B1")
+sprsh1 _ _ = Nothing
 
 -- These type synonyms are not very useful, but enumerate all interesting cases.
 type FunctorialTask  k v = forall f. Functor     f => (k -> f v) -> k -> Maybe (f v)
