@@ -5,13 +5,13 @@ Build systems automate the execution of simple repeatable tasks for individual
 users, as well as for large organisations. In this section we explore the design
 space of build systems, using four concrete examples:
 \Make~\cite{feldman1979make}, \Shake~\cite{mitchell2012shake},
-\Bazel~\cite{bazel}, and \Excel~\cite{advanced_excel}\footnote{Excel appears
+\Bazel~\cite{bazel}, and \Excel~\cite{advanced_excel}\footnote{\Excel appears
 very different to the others but, seen through the lens of this paper, it is
 very close indeed.}.
 We have carefully chosen these four to illustrate the various axes on which build systems
 differ; we discuss many other notable examples
 of build systems, and their relationships,
-in~\S\ref{sec-related} and~\S\ref{sec-conclusions}.
+in~\S\ref{sec-related}-\S\ref{sec-conclusions}.
 
 \subsection{The venerable \Make: static dependencies and file modification times}
 \label{sec-background-make}
@@ -28,10 +28,14 @@ For example:
 \begin{minted}[xleftmargin=10pt]{makefile}
 util.o: util.h util.c
     gcc -c util.c
-
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{makefile}
 main.o: util.h main.c
     gcc -c main.c
-
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{makefile}
 main.exe: util.o main.o
     gcc util.o main.o -o main.exe
 \end{minted}
@@ -62,10 +66,12 @@ Fig.~\ref{fig-make}(a).
 \centerline{\includegraphics[scale=0.28]{fig/make-example-partial.pdf}}
 \caption{Partial rebuild}
 \end{subfigure}
-\caption{A task dependency graph and two build scenarios. Input files are shown as
-rectangles, intermediate and output files are shown as rounded rectangles. Dirty
-inputs and files that are rebuilt are highlighted.
+\vspace{-2mm}
+\caption{A task dependency graph and two build scenarios. Input files are shown
+as rectangles, intermediate and output files are shown as rounded rectangles.
+Modified inputs and files that are rebuilt are highlighted.
 \label{fig-make}}
+\vspace{-2mm}
 \end{figure}
 
 If the user runs \Make specifying \cmd{main.exe} as the desired output, \Make
@@ -103,10 +109,9 @@ see~\S\ref{sec-implementation-make}.
 \Excel is a build system in disguise. Consider the following simple spreadsheet.
 
 \vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{bash}
-A1 = 10
-A2 = 20
-B1 = A1 + A2
+\begin{minted}[xleftmargin=10pt]{text}
+A1: 10      B1: A1 + A2
+A2: 20
 \end{minted}
 \vspace{1mm}
 
@@ -120,11 +125,9 @@ dependencies may change \emph{dynamically} according to computation results. For
 example:
 
 \vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{bash}
-A1 = 10
-A2 = 20
-B1 = IF(C1=1,A1,A2)
-C1 = 1
+\begin{minted}[xleftmargin=10pt]{text}
+A1: 10      B1: IF(C1=1,A1,A2)      C1: 1
+A2: 20
 \end{minted}
 \vspace{1mm}
 
@@ -142,11 +145,9 @@ dynamic dependencies can force \Excel to perform unnecessary computation.
 Consider the following modification of the above example:
 
 \vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{bash}
-A1 = 10
-A2 = 20
-B1 = INDIRECT("A" & C1)
-C1 = 1
+\begin{minted}[xleftmargin=10pt]{text}
+A1: 10      B1: INDIRECT("A" & C1)      C1: 1
+A2: 20
 \end{minted}
 \vspace{1mm}
 
@@ -184,11 +185,13 @@ self-tracking in~\S\ref{sec-tracking-aspects}.
 \end{subfigure}
 \begin{subfigure}[b]{0.90\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/shake-example-rebuild.pdf}}
-\caption{Since \cmd{docs.txt} has changed, we rebuild \cmd{release.txt} and
+\caption{Since \cmd{docs.txt} was modified, we rebuild \cmd{release.txt} and
 \cmd{release.tar}, discovering a new dependency.}
 \end{subfigure}
+\vspace{-2mm}
 \caption{Dynamic dependencies example: create \cmd{README} and add it to the
 list of release documents \cmd{docs.txt}.\label{fig-shake}}
+\vspace{-2mm}
 \end{figure}
 
 \subsection{\Shake: dynamic dependencies with no remorse}
@@ -248,12 +251,14 @@ the dependencies are brought up-to-date. We refer to this build algorithm as
 \emph{recursive}.
 
 \begin{figure}[h]
+\vspace{-5mm}
 \centerline{\includegraphics[scale=0.28]{fig/shake-example-cutoff.pdf}}
-\vspace{-2mm}
+\vspace{-3mm}
 \caption{An early cutoff example: if a comment is added to \cmd{main.c}, the
 rebuild is stopped after detecting that \cmd{main.o} is unchanged, since this
 indicates that \cmd{main.exe} and its dependents do not need to be
 rebuilt.\label{fig-cutoff}}
+\vspace{-2mm}
 \end{figure}
 
 \Shake also supports the following \emph{early cutoff optimisation}. When it
@@ -266,23 +271,20 @@ below) do.
 \subsection{\Bazel: a cloud build system}
 \label{sec-background-bazel}
 
-When build systems are used by large teams, different team members
-often end up executing exactly the same tasks on their local machines.
-A \emph{cloud build system} can speed up builds dramatically by
-transparently sharing build results among team members. Furthermore, cloud
-build systems allow one to perform \emph{shallow builds} that materialise
-only end build products on a local machine, leaving all intermediates in the
-cloud. This is a significant optimisation compared to \emph{deep builds}
-that require all transitive dependencies of an end build product to be
-locally available. % Non-cloud build systems cannot support shallow builds.
+When build systems are used by large teams, different team members often end up
+executing exactly the same tasks on their local machines. A \emph{cloud build
+system} can speed up builds dramatically by transparently sharing build results
+among team members. Furthermore, cloud build systems allow one to perform
+\emph{shallow builds} that materialise only end build products locally, leaving
+all intermediates in the cloud.
 
 \Bazel is one of the first examples of openly available cloud build systems.
 Like \Make, it does not support dynamic dependencies and can therefore benefit
 from the simplicity of building tasks in a statically known topological order.
 It is minimal and supports the early cutoff optimisation.
 
-To support cloud builds, \Bazel maintains a conventional \emph{content-addressable
-cache}, which can be used to fetch a previously built file given the hash of its
+To support cloud builds, \Bazel maintains a \emph{content-addressable cache},
+which can be used to fetch a previously built file given the hash of its
 content, as well as \emph{dependency graphs from all previous builds}, annotated
 with observed file hashes\footnote{Here we ignore the issue of limited cloud
 storage resources for the sake of simplicity; in practice, old entries are
@@ -291,6 +293,50 @@ in~\S\ref{sec-cloud-aspects}.}. The latter allows to bypass the execution of
 a task, by predicting the hash of the result from the hashes of its dependencies,
 and subsequently fetching the result from the cache. A concrete implementation is
 provided in~\S\ref{sec-implementations}.
+
+Consider a cloud build example in Fig.~\ref{fig-bazel}. The user starts by
+checking out the project sources, whose hashes happen to be 1, 2 and 3, and
+requests to build \cmd{main.exe}. By looking up the history of all previous
+builds, the build system finds that someone has already compiled these sources
+before and obtains the hashes (4~and~5) of the resulting \cmd{util.o} and
+\cmd{main.o} files (the files themselves do not need to be downloaded).
+Similarly, the build system finds that the hash of the resulting \cmd{main.exe}
+should be 6 and downloads the actual binary from the cache, since it is the end
+build product and must be materialised. In the second scenario, shown in
+Fig.~\ref{fig-bazel}(c), the user modifies \cmd{util.c}, thereby changing its
+hash from 1 to 7. The build system finds that nobody has ever compiled the new
+$\{\cmd{util.c}, \cmd{util.h}\}$ combination and must therefore build
+\cmd{util.o}, which results in changing its hash from~4~to~8. The obtained
+combination of hashes of \cmd{util.o} and \cmd{main.o} has not been encountered
+before, therefore the build system first downloads \cmd{main.o} from the cache
+and then builds \cmd{main.exe} by linking the two object files. When the build
+is complete, the obtained files as well as the new dependency graph annotated
+with hashes are stored in the cloud for future reuse.
+
+\begin{figure}[t]
+\begin{subfigure}[b]{0.25\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/bazel-example-checkout.pdf}}
+\caption{Checkout source files}
+\end{subfigure}
+\begin{subfigure}[b]{0.40\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/bazel-example-build.pdf}}
+\caption{Build \cmd{main.exe}}
+\end{subfigure}
+\begin{subfigure}[b]{0.31\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/bazel-example-rebuild.pdf}}
+\caption{Modify \cmd{util.c} and rebuild}
+\end{subfigure}
+\vspace{-2mm}
+\caption{A cloud build example: (a)~checkout sources, (b)~download \cmd{main.exe}
+from the cloud and skip intermediate files (only their hashes are needed),
+(c)~modify \cmd{util.c} and rebuild \cmd{main.exe}, which requires building
+\cmd{util.o} (since nobody has compiled \cmd{util.c} before) and downloading
+\cmd{main.o}. File hashes are shown inside circles.
+\label{fig-bazel}}
+\vspace{-2mm}
+\end{figure}
+
+
 
 \subsection{Summary}
 \label{sec-background-summary}
