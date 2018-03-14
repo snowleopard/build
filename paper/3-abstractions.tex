@@ -177,18 +177,33 @@ busy task key store = execState (go key) store
 We can now say what it means for a build system to be \emph{correct}, something
 that is seldom stated formally:
 
-\definition[Correctness]{Suppose \hs{build :: Build c i k v} is a build system,
-\hs{task :: Task c k v} describes an acyclic collection of build tasks, \hs{key} is an output
-key, \hs{store} be a store.
-Then the \hs{result}ing store \hs{result = build compute key store}
-is~\emph{correct} if there exists a store \hs{ideal}, such that
+\definition[Correctness]{Suppose \hs{build} is a build system, \hs{task} is a
+build task description, \hs{key} is an output key, \hs{store} is an initial
+store, and \hs{result} is the store produced by running the build system with
+parameters \hs{task}, \hs{key} and \hs{store}. Or, using the precise language of
+our abstractions:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+build  :: Build c i k v
+task   :: Task c k v
+key    :: k
+store  :: Store i k v
+result :: Store i k v
+result = build task key store
+\end{minted}
+\vspace{1mm}
+
+\noindent
+Then the \hs{result} is~\emph{correct} if there exists an \hs{ideal} store, such
+that:
 
 \begin{itemize}
-    \item The \hs{ideal} store is \emph{consistent} with \hs{task}, i.e.
+    \item The \hs{ideal} store is \emph{consistent} with the \hs{task}, i.e.
     for all possible non-input keys \hs{k}, the result of executing the
-    \hs{compute} matches the value in the \hs{ideal} store:
+    \hs{task} matches the value in the \hs{ideal} store:
     \[
-    \hs{execute}~\hs{ideal}~\hs{k}~\hs{==}~\hs{Just}~\hs{(}\hs{ideal}~\hs{k)}.
+    \hs{execute}~\hs{task}~\hs{ideal}~\hs{k}~\hs{==}~\hs{Just}~\hs{(}\hs{ideal}~\hs{k)}.
     \]
     \item The \hs{result} and \hs{ideal} agree on the output \hs{key}, i.e.
     \hs{result}~\hs{key}~\hs{==}~\hs{ideal}~\hs{key}. In other words, we require
