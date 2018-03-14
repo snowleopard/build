@@ -99,7 +99,12 @@ indirect fetch key | key /= "B1" = Nothing
 sprsh1 :: Task Applicative String Integer
 sprsh1 fetch "B1" = Just ((+) <$> fetch "A1" <*> fetch "A2")
 sprsh1 fetch "B2" = Just ((* 2) <$> fetch "B1")
-sprsh1 _ _ = Nothing
+sprsh1 _     _    = Nothing
+
+sprsh2 :: Task Monad String Integer
+sprsh2 fetch "B1" = Just $ do c1 <- fetch "C1"
+                              if c1 == 1 then fetch "A1" else fetch "A2"
+sprsh2 _     _    = Nothing
 
 -- These type synonyms are not very useful, but enumerate all interesting cases.
 type FunctorialTask  k v = forall f. Functor     f => (k -> f v) -> k -> Maybe (f v)
