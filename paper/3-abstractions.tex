@@ -193,7 +193,6 @@ Despite limitations, \hs{busy} can easily handle the example \hs{sprsh1}
 from the previous subsection~\S\ref{sec-task}. Below we initialise the store with
 \cmd{A1} set to 10 and all other cells set to 20.
 
-\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 @\ghci@ store  = initialise () (\key -> if key == "A1" then 10 else 20)
 @\ghci@ result = busy sprsh1 "B2" store
@@ -202,10 +201,9 @@ from the previous subsection~\S\ref{sec-task}. Below we initialise the store wit
 @\ghci@ getValue result "B2"
 60
 \end{minted}
-\vspace{1mm}
 
 \noindent
-As one can see, \hs{busy} correctly built both \cmd{B1} and \cmd{B2}, and in the
+As one can see, \hs{busy} built both \cmd{B2} and its dependency \cmd{B1} in the
 right order (if it had built \cmd{B2} before building \cmd{B1}, the result would
 have been $20 * 2 = 40$ instead of $(10 + 20) * 2 = 60$). As an example showing
 that \hs{busy} is not minimal, imagine that the formula in cell \cmd{B2} was
@@ -216,11 +214,18 @@ formula.
 An alert reader might notice that \hs{busy} accepts \emph{monadic tasks} of
 type \hs{Task}~\hs{Monad}, whereas \hs{sprsh1} is a \hs{Task}~\hs{Applicative}.
 This indicates that \hs{busy} can cope with tasks containing dynamic
-dependencies, which we address in the next subsection~\S\ref{sec-task-monad}.
+dependencies, which we discuss in the next subsection~\S\ref{sec-task-monad}.
+
+It is interesting to note that if \hs{busy} is given a \emph{functorial task}
+of type \hs{Task}~\hs{Functor}, which cannot use the application operator
+\hs{<*>}, then \hs{busy} can rejoice in knowing that it will never have to
+rebuild a key twice. Indeed, functorial tasks are very much like tail recursive
+functions -- they cannot branch into multiple subproblems, always leading to a
+straight-line build.
 
 \subsection{Monadic tasks}\label{sec-task-monad}
 
-As discussed in~\S\ref{sec-background-excel}, some build tasks have dynamic
+As explained in~\S\ref{sec-background-excel}, some build tasks have dynamic
 dependencies, which are determined by values of intermediate computations. In
 our framework, such build tasks correspond to the type
 \hs{Task}~\hs{Monad}~\hs{k}~\hs{v}. Recall the following spreadsheet
@@ -231,7 +236,6 @@ example:
 A1: 10      B1: IF(C1=1,A1,A2)      C1: 1
 A2: 20
 \end{minted}
-\vspace{1mm}
 
 \noindent
 The task corresponding to the cell \cmd{B1} statically depends on \cmd{C1} and
@@ -250,12 +254,15 @@ sprsh2 _     _    = Nothing
 \vspace{1mm}
 
 \noindent
+The main difference compared to \hs{sprsh1} is that the computation now takes
+place in a \hs{Monad}, which allows us to extract the value of \hs{c1} and
+\hs{fetch} different keys depending on whether \hs{c1}~\hs{==}~\hs{1} or not.
+
 Since the \hs{busy} build system introduced in~\S\ref{sec-general-build} always
 rebuilds every dependency it encounters, it is easy for it to handle dynamic
-dependencies.
-
-\todo{AM}{Describe another simple build system that does topological sort and
-builds everything in order. It will not be able to handle dynamic dependencies.}
+dependencies. For minimal build systems, however, dynamic dependencies and hence
+monadic tasks are much more challenging, as we will see
+in~\S\ref{sec-implementations}.
 
 \subsection{Correctness of a build system} \label{sec-build-correctness}
 
