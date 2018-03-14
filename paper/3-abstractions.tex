@@ -16,7 +16,7 @@ development or spreadsheets.
 \subsection{Common vocabulary for build systems}\label{sec-vocabulary}
 
 \begin{figure}
-\begin{minted}{haskell}
+\begin{minted}[fontsize=\small]{haskell}
 -- An abstract store
 data Store i k v
 getInfo    :: Store i k v -> i
@@ -27,21 +27,21 @@ getHash    :: Hashable v => Store i k v -> k -> Hash
 initialise :: Hashable v => i -> (k -> v) -> Store i k v
 \end{minted}
 \vspace{1mm}
-\begin{minted}{haskell}
+\begin{minted}[fontsize=\small]{haskell}
 -- Hashing
 hash :: Hashable a => a -> Hash
 \end{minted}
 \vspace{1mm}
-\begin{minted}{haskell}
+\begin{minted}[fontsize=\small]{haskell}
 -- Applicative functors
 pure  :: Applicative f => a -> f a
 (<$>) :: Applicative f =>   (a -> b) -> f a -> f b -- Left-associative
 (<*>) :: Applicative f => f (a -> b) -> f a -> f b -- Left-associative
 \end{minted}
 \vspace{1mm}
-\begin{minted}{haskell}
+\begin{minted}[fontsize=\small]{haskell}
 -- State monad
-data State s
+data State s a
 instance Applicative (State s)
 instance Monad       (State s)
 get       :: State s s
@@ -50,13 +50,13 @@ modify    :: (s -> s) -> State s ()
 execState :: State s a -> s -> s
 \end{minted}
 \vspace{-2mm}
-\caption{Signatures of library functions}\label{fig-lib-funs}
+\caption{Signatures of main data types and library functions.}\label{fig-types}
 \vspace{-4mm}
 \end{figure}
 
 A \emph{build system} takes a \emph{task description}, a target \emph{key},
 and a \emph{store}, and returns a new store in which the target key is
-up to date. The store is a key-value map, together with \emph{persistent build
+up-to-date. The store is a key-value map, together with \emph{persistent build
 information} that is maintained by the build system itself.
 
 In software build systems, keys are typically filenames,
@@ -65,7 +65,7 @@ code in this case). In spreadsheets, keys are cell names,
 e.g. \cmd{A1}, and values are numbers, text, etc. that are typically
 displayed inside cells. In our Haskell code, we will use type
 variables \hs{k} and \hs{v} to denote keys and values, respectively.
-Fig.~\ref{fig-lib-funs} provides a Haskell encoding of our main definitions,
+Fig.~\ref{fig-types} provides a Haskell encoding of our main definitions,
 and gives types of the library functions we use in this paper.
 
 Some values must be provided by the user as \emph{input}. For example,
@@ -84,16 +84,17 @@ A \emph{store}, of type \hs{Store}~\hs{i}~\hs{k}~\hs{v}, associates keys to
 values. It is convenient to assume that a store is total, i.e. it contains a
 value for every possible key. We therefore also assume that the type of values
 is capable of encoding values corresponding to non-existent keys (missing files
-or empty cells). This, in particular, suggests that it is possible to
-\emph{depend on the absence of a value}, which is a useful feature for build
-systems. In addition to usual \hs{getValue} and \hs{putValue} operations, some
-stores also support a dedicated \hs{getHash} operation, which is implemented
-more efficiently than by hashing the result of \hs{getValue}. For example, GVFS
-(Git Virtual File System)~\cite{gvfs} stores file hashes and downloads file
-contents only on demand. The store also contains a single persistent value, of
-type \hs{i}, representing the persistent state maintained by the build system
-itself~--~its~``memory''. We can \hs{initialise} a store by supplying an initial
-value \hs{i} and a key-value map \store.
+or empty cells). In addition to usual \hs{getValue} and \hs{putValue} operations,
+some stores support a dedicated \hs{getHash} operation, which is implemented
+more efficiently than by hashing the result of \hs{getValue}\footnote{For
+example, Git Virtual File System~\cite{gvfs} stores file hashes and downloads
+file contents only on demand.}. The store also holds a value of type \hs{i},
+representing the persistent build information maintained by the build
+system~--~its ``memory''. Given an \hs{i} and a key-value map \store, we can
+\hs{initialise} a store.
+
+% This, in particular, suggests that it is possible to \emph{depend on the
+% absence of a value}, which is a useful feature for build systems.
 
 \subsection{The Task abstraction}\label{sec-task}
 
@@ -125,22 +126,20 @@ sprsh1 _   _      = Nothing
 Here we instantiate keys \hs{k} with \hs{String}, and values \hs{v} with \hs{Integer}.
 (Real spreadsheet cells would contain a wider range of values, of course.)
 The task description \hs{sprsh1} embodies all the \emph{formulae} of the spreadsheet,
-but not the input values.  Like every \hs{Task}, \hs{sprsh1} is given
-a \hs{fetch} function and a key. It pattern-matches on the key to see if it has
-a task description (in the \Excel case, a formula)
-for it.  If not, it returns \hs{Nothing}, indicating that there is no formula in
-that cell.  If there is a formula in the cell, it computes
-the value of the formula, using \hs{fetch} to find the value of any keys on
-which it depends.
+but not the input values.  Like every \hs{Task}, \hs{sprsh1} is given a
+\hs{fetch} function and a key. It pattern-matches on the key to see if it has a
+task description (in the \Excel case, a formula) for it. If not, it returns
+\hs{Nothing}, indicating the key is an input. If there is a formula in the cell,
+it computes the value of the formula, using \hs{fetch} to find the value of any
+keys on which it depends.
 
 The code to ``compute the value of a formula'' in \hs{sprsh1} looks a bit mysterious
 because it takes place in an \hs{Applicative} computation \cite{mcbride2008applicative}
--- the relevant type signatures
-are given in Fig.~\ref{fig-lib-funs}. We will return to the need for this
-generality in~\S\ref{sec-deps}.
+-- the relevant type signatures are given in Fig.~\ref{fig-types}. We will
+return to the need for this generality in~\S\ref{sec-deps}.
 
 For now, we content ourselves with observing that a task description,
-of type \hs{Task c k v}, is completely isolated from the world of
+of type \hs{Task}~\hs{c}~\hs{k}~\hs{v}, is completely isolated from the world of
 compilers, calculation chains, file systems, caches, and all other
 complexities of real build systems.  It just computes a single output, in
 a side-effect-free way, using a callback (\hs{fetch}) to find the values
@@ -156,21 +155,39 @@ type Build c i k v = Task c k v -> k -> Store i k v -> Store i k v
 \vspace{1mm}
 The signature is very straightforward.  Given a task description, a target key,
 and a store, the build system returns a new store in which the value of the
-target key is up-to-date. What exactly does ``up to date'' mean?  We answer
-that precisely in \S\ref{sec-build-correctness}.
+target key is up-to-date. What exactly does ``up-to-date'' mean?  We answer
+that precisely in \S\ref{sec-build-correctness}. Here is a simple build system:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 busy :: (Eq k, Hashable v) => Build Monad () k v
-busy task key store = execState (go key) store
+busy task key store = execState (compute key) store
   where
-    go k = case task go k of
+    compute k = case task compute k of
         Nothing  -> do { s <- get; return (getValue s k) }
         Just act -> do { v <- act; modify (\s -> putValue s k v); return v }
 \end{minted}
 \vspace{1mm}
 
-\emph{SLPJ: explain}
+\noindent
+The \hs{busy} build system uses a function
+\hs{compute}~\hs{::}~\hs{k}~\hs{->}~\hs{State}~\hs{(Store}~\hs{i}~\hs{k}~\hs{v)}~\hs{v},
+which given a key brings the associated value up-to-date and returns it. To do
+so, \hs{compute} calls \hs{task} passing itself as an argument, so that \hs{task}
+can use \hs{compute} to recursively find the values of its dependencies. If
+\hs{task} returns \hs{Nothing} (this key is an input), \hs{compute} simply reads
+the result from the store~\hs{s}, which is available in the \hs{State} monad (in
+which \hs{compute} runs) via the \hs{get} method~--~see the \hs{State} monad
+interface in Fig.~\ref{fig-types}. Otherwise it runs the action \hs{act}
+returned by the \hs{task} to produce a resulting value~\hs{v}, stores it
+(modifying the store \hs{s}), and returns it.
+
+Given an acyclic task description, the \hs{busy} build system terminates with a
+correct result, but it is not a minimal build system (c.f. the
+Definition~\ref{def-minimal}); \hs{busy} keeps no track of keys it has already
+brought up-to-date, and will therefore busily recompute the same keys again and
+again if they have multiple dependents. We will develop much more efficient
+build systems in~\S\ref{sec-implementations}.
 
 \subsection{Correctness of a build system} \label{sec-build-correctness}
 

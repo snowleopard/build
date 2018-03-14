@@ -70,7 +70,7 @@ data Trace k v = Trace
     }
 \end{minted}
 
-We assume that \hs{Hash v} is a small constant size, constructed from hashing the underlying \hs{v} rather than storing it directly. Checking a trace requires ensuring all the dependencies are up to date (using whatever ordering strategy as per \S\ref{sec-dependency-orderings}), then comparing if the dependencies are same as the current value and that the result is the same. After computing a fresh value we add its \hs{Trace} to the list. Therefore the information stored by a build system that verifies traces is \hs{[Trace k v]}.
+We assume that \hs{Hash v} is a small constant size, constructed from hashing the underlying \hs{v} rather than storing it directly. Checking a trace requires ensuring all the dependencies are up-to-date (using whatever ordering strategy as per \S\ref{sec-dependency-orderings}), then comparing if the dependencies are same as the current value and that the result is the same. After computing a fresh value we add its \hs{Trace} to the list. Therefore the information stored by a build system that verifies traces is \hs{[Trace k v]}.
 
 \subsubsection{Constructive traces}\label{sec-constructive-traces}
 
