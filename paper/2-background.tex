@@ -276,42 +276,42 @@ executing exactly the same tasks on their local machines. A \emph{cloud build
 system} can speed up builds dramatically by transparently sharing build results
 among team members. Furthermore, cloud build systems allow one to perform
 \emph{shallow builds} that materialise only end build products locally, leaving
-all intermediates in the cloud.
+all intermediates in the cloud. We illustrate shallow cloud builds by an example
+(see~Fig.~\ref{fig-bazel}).
+
+The user starts by checking out the project sources, whose hashes are (for
+simplicity)~1,~2~and~3, and requests to build \cmd{main.exe}, see
+Fig.~\ref{fig-bazel}(a,b). By looking up the history of all previous builds of
+the project\footnote{Here we ignore the issue of limited cloud storage resources
+for the sake of simplicity; in practice, old entries are regularly evicted from
+the storage, as further discussed in~\S\ref{sec-cloud-aspects}.}, the build
+system finds that someone has already compiled these exact sources before and
+their resulting files \cmd{util.o} and \cmd{main.o} had hashes 4~and~5.
+Similarly, the build system finds that the hash of the resulting \cmd{main.exe}
+should be 6 and downloads the actual binary from the shared cloud storage, since
+it is the end build product and must therefore be materialised.
+
+In the second scenario, shown in Fig.~\ref{fig-bazel}(c), the user modifies the
+source \cmd{util.c}, thereby changing its hash from~1~to~7. The build system
+finds that nobody has ever compiled the new $\{\cmd{util.c}, \cmd{util.h}\}$
+combination and must therefore build \cmd{util.o}, which results in changing its
+hash from~4~to~8. The obtained combination of hashes of \cmd{util.o} and
+\cmd{main.o} has not been encountered before either, therefore the build system
+first downloads \cmd{main.o} from the cloud and then builds \cmd{main.exe} by
+linking the two object files. When the build is complete, the obtained results
+may be uploaded to the cloud for future reuse by other team members.
 
 \Bazel is one of the first examples of openly available cloud build systems.
 Like \Make, it does not support dynamic dependencies and can therefore benefit
 from the simplicity of building tasks in a statically known topological order.
-It is minimal and supports the early cutoff optimisation.
-
-To support cloud builds, \Bazel maintains a \emph{content-addressable cache},
-which can be used to fetch a previously built file given the hash of its
-content, as well as \emph{dependency graphs from all previous builds}, annotated
-with observed file hashes\footnote{Here we ignore the issue of limited cloud
-storage resources for the sake of simplicity; in practice, old entries are
-regularly evicted from the storage, as further discussed
-in~\S\ref{sec-cloud-aspects}.}. The latter allows to bypass the execution of
-a task, by predicting the hash of the result from the hashes of its dependencies,
-and subsequently fetching the result from the cache. A concrete implementation is
-provided in~\S\ref{sec-implementations}.
-
-Consider a cloud build example in Fig.~\ref{fig-bazel}. The user starts by
-checking out the project sources, whose hashes happen to be 1, 2 and 3, and
-requests to build \cmd{main.exe}. By looking up the history of all previous
-builds, the build system finds that someone has already compiled these sources
-before and obtains the hashes (4~and~5) of the resulting \cmd{util.o} and
-\cmd{main.o} files (the files themselves do not need to be downloaded).
-Similarly, the build system finds that the hash of the resulting \cmd{main.exe}
-should be 6 and downloads the actual binary from the cache, since it is the end
-build product and must be materialised. In the second scenario, shown in
-Fig.~\ref{fig-bazel}(c), the user modifies \cmd{util.c}, thereby changing its
-hash from 1 to 7. The build system finds that nobody has ever compiled the new
-$\{\cmd{util.c}, \cmd{util.h}\}$ combination and must therefore build
-\cmd{util.o}, which results in changing its hash from~4~to~8. The obtained
-combination of hashes of \cmd{util.o} and \cmd{main.o} has not been encountered
-before, therefore the build system first downloads \cmd{main.o} from the cache
-and then builds \cmd{main.exe} by linking the two object files. When the build
-is complete, the obtained files as well as the new dependency graph annotated
-with hashes are stored in the cloud for future reuse.
+It is minimal and supports the early cutoff optimisation. To support cloud
+builds, \Bazel maintains a \emph{content-addressable cache} that can be used to
+fetch a previously built file given the hash of its content, and
+\emph{dependency graphs from all previous builds}, annotated with observed file
+hashes. The latter allows to bypass the execution of a task, by predicting the
+hash of the result from the hashes of its dependencies, and subsequently
+fetch the result from the cache. A concrete implementation is provided
+in~\S\ref{sec-implementations}.
 
 \begin{figure}[t]
 \begin{subfigure}[b]{0.25\linewidth}
@@ -333,7 +333,7 @@ from the cloud and skip intermediate files (only their hashes are needed),
 \cmd{util.o} (since nobody has compiled \cmd{util.c} before) and downloading
 \cmd{main.o}. File hashes are shown inside circles.
 \label{fig-bazel}}
-\vspace{-4mm}
+\vspace{-2mm}
 \end{figure}
 
 \subsection{Summary}
