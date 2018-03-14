@@ -31,7 +31,7 @@ If the \hs{Compute} function for \hs{k} calls the functional argument of \hs{d} 
 
 \subsubsection{Topological sort}
 
-The topological approach creates a linear ordering, which when followed, ensures each build is correct. Given a function from a key to its dependencies, and an initial key, you can compute the linear ordering by first taking the transitive closure, then doing a topological sort. However, to go from a \hs{Compute} to the dependencies, it must be the case that the constraint is \hs{Applicative}, as per \S\ref{sec-compute-applicative}.
+The topological approach creates a linear ordering, which when followed, ensures each build is correct. Given a function from a key to its dependencies, and an initial key, you can compute the linear ordering by first taking the transitive closure, then doing a topological sort. However, to go from a \hs{Compute} to the dependencies, it must be the case that the constraint is \hs{Applicative}, as per \S\ref{sec-deps}.
 
 \subsubsection{Reordering}
 
