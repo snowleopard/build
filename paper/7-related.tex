@@ -1,7 +1,6 @@
-\clearpage
 \section{Related work}\label{sec-related}
 
-In section \S\ref{sec-background} we cover many build systems, but there is frustrating little work comparatively analysing build systems. In this section we cover a few build systems that may not
+While there is research on individual build systems, there has been little research to date comparing different build systems. In \S\ref{sec-background} we cover several important build systems -- in this section we relate a few additional build systems to our abstractions, and discuss other places where similar abstractions arise.
 
 \subsection{Other Build Systems}\label{sec-related-build}
 
@@ -12,10 +11,10 @@ Most build systems, when viewed at the level we talk, can be captured with minor
 \item \Tup \cite{tup} functions much like \Make, but with a refined dirty-bit implementation that watches the file system for changes and can thus avoid rechecking the entire graph, and with automatic deleting of stale results.
 \item \Redo \cite{redo} almost exactly matches \Shake at the level of detail given here, differing only on aspects like polymorphic dependencies \S\ref{sec-polymorphism}.
 \item \Buck \cite{buck} and \CloudBuild \cite{cloudbuild} are both fundamentally similar to \Bazel, differing around areas such as non-determinism \S\ref{sec-non-determinism}.
-\item \Nix \cite{nix} has coarse-grained monadic dependencies, with precise hashing of dependencies and downloading of precomputed build products, so may be, at some level of abstraction, the same as the hypothetical Cloud Shake from \S\ref{sec-implementation-cloud-shake}. However, \Nix is not intended as a build system, and the coarse grained nature (packages, not individual files) makes it targeted to a different purpose. \todo{NM}{Read comment below when not on an airplane.}
+\item \Nix \cite{nix} has coarse-grained dependencies, with precise hashing of dependencies and downloading of precomputed build products. When combined with \hs{import-from-derivation} \Nix can also be considered monadic, making it similar to Cloud Shake from \S\ref{sec-implementation-cloud-shake}.  However, \Nix is not intended as a build system, and the coarse grained nature (packages, not individual files) makes it targeted to a different purpose.
 % John Ericson suggested in a blog comment that nix may be somewhat monadic, see:
 % \url{https://blogs.ncl.ac.uk/andreymokhov/cloud-and-dynamic-builds/\#comment-1849}.
-\item \Pluto \cite{pluto} has power to express cyclic dependencies, but that is implemented \todo{NM}{Read the paper so I can say something precise}
+\item \Pluto \cite{pluto} is based on a similar model to \Shake, but additionally allows cyclic build rules combined with a user-specific resolution strategy. Often such a strategy can be unfolded into the user rules without loss of precision, but a fully general resolution handler extends the \hs{Task} abstraction with additional features.
 \end{itemize}
 
 The one build system we are aware of that cannot be modelled in our framework is \Fabricate \cite{fabricate}. In \Fabricate a build system is a script which is run in-order, in the spirit of\footnote{\Fabricate requires scripts to be written in Python, but those details are not fundamental to what makes \Fabricate special.}:
@@ -30,32 +29,32 @@ To achieve minimality, each separate command is traced at the OS-level, allowing
 
 Taking our abstraction, it is possible to encode \Fabricate assuming that nodes like \cmd{gcc -c util.c} are keys, there is a linear dependency between each successive node, and that the OS-level tracing can be lifted back as a monadic \hs{Task} function\footnote{In fact, \Shake has an execution mode that can model \Fabricate{}-like build systems -- see \hs{Development.Shake.Forward} in the \Shake library.}. However, in our pure model the mapping is not perfect as \hs{gcc} writes to arbitrary files whose locations are not known in advance.
 
-\subsection{Memoization}\label{sec-related-memo}
-
-\todo{AM}{Not convined this is really related, but if you think it is, please write something.}
+% \todo{AM}{Not convined this is really related, but if you think it is, please write something.}
+% \subsection{Memoization}\label{sec-related-memo}
 
 \subsection{Self-adjusting computation}
 
-While not typically considered build systems, self-adjusting computation is a well studied area, and in particular the contrast between different formulations has been well studied. \todo{AM}{Say something.}
+While not typically considered build systems, self-adjusting computation is a well studied area, and in particular the contrast between different formulations has been well studied. \todo{AM}{Write this section.}
 
 \subsection{Profunctor Optics}\label{sec-related-optics}
 
-The \hs{Task} definition of:
+The definition of \hs{Task} is:
 
 \begin{minted}{haskell}
 type Task c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
 \end{minted}
 
-Looks tantalisingly close to the profunctor optics definition in \cite{gibbons-profunctor-optics}:
+Which looks tantalisingly close to the profunctor optics definition by \citet{gibbons-profunctor-optics}:
 
 \begin{minted}{haskell}
 type Optic p a b s t = p a b -> p s t
 \end{minted}
 
-Assuming we instantiate \hs{p} to something that provides \hs{k -> f v} -- which many of the actual instances in that paper do. The properties of such optics are well studied, and the functions like \hs{dependencies} are very much based on observations from that field of work. Alas, we have been unable to remove the \hs{Maybe} used to encode whether a file is an input, without complicating other aspects of our definition. Furthermore, the \hs{Build} operation lacks any further such symmetry.
+Provided we instantiate \hs{p} to something like \hs{k -> f v} -- which many of the actual instances in that paper do. The properties of such optics are well studied, and the functions like \hs{dependencies} are very much based on observations from that field of work. Alas, we have been unable to remove the \hs{Maybe} used to encode whether a file is an input, without complicating other aspects of our definition. Furthermore, the \hs{Build} operation lacks any further such symmetry.
 
-\subsection{Free applicative functors and monads}\label{sec-related-free}
-
-\todo{AM}{Mention that one could have chosen a free construction to create
-a small DSL for build tasks. Although this simplifies some of the presented
-combinators, in general this seems unnecessary.}
+% \subsection{Free applicative functors and monads}\label{sec-related-free}
+%
+% NM: Unconvinced it is worth it.
+% \todo{AM}{Mention that one could have chosen a free construction to create
+% a small DSL for build tasks. Although this simplifies some of the presented
+% combinators, in general this seems unnecessary.}
