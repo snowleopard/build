@@ -8,7 +8,7 @@ abstractly (in this section) and then concretely in~\S\ref{sec-implementations}.
 \todo{SLPJ}{What does this para add?}
 Let \hs{result}~\hs{=}~\hs{build}~\hs{task}~\hs{key}~\hs{store}. The build
 system \hs{build} is responsible for ensuring that \hs{key} and its dependencies
-are up-to-date in \hs{result} starting from \hs{store} (\S\ref{sec-build-correctness}). As part of that work,
+are up to date in \hs{result} starting from \hs{store} (\S\ref{sec-build-correctness}). As part of that work,
 \hs{build} \emph{may} store auxiliary information \hs{info} of type \hs{i} in
 the \hs{store}, which will be provided to future calls of \hs{build}.
 
@@ -138,7 +138,7 @@ data Trace k v = Trace
 
 We assume that \hs{Hash} is a small constant size, constructed from hashing the
 underlying \hs{v} rather than storing it directly. Checking a trace requires
-ensuring all the dependencies are up-to-date (using whatever ordering strategy
+ensuring all the dependencies are up to date (using whatever ordering strategy
 as per \S\ref{sec-dependency-orderings}), then comparing if the dependencies are
 same as the current value and that the result is the same. After computing a
 fresh value we add its \hs{Trace} to the list. Therefore the information stored
