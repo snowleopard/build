@@ -47,10 +47,8 @@ dumbResult = sequentialMultiBuild dumb task outputs inputs
 busyResult :: Store () Cell Int
 busyResult = sequentialMultiBuild busy task outputs inputs
 
--- tracingDumbResult :: IO (Cell -> Int)
--- tracingDumbResult = snd <$> runPureStore build inputs
---   where
---     build = sequentialMultiStoreBuild dumbTracing task (toList outputs)
+memoResult :: Store () Cell Int
+memoResult = sequentialMultiBuild memo task outputs inputs
 
 printOutputs :: Store () Cell Int -> IO ()
 printOutputs store = forM_ outputs $
@@ -60,7 +58,7 @@ main :: IO ()
 main = do
     putStrLn "======== dumbBuild ========"
     printOutputs dumbResult
-    -- putStrLn "======== dumbTracingBuild ========"
-    -- printOutputs =<< tracingDumbResult
     putStrLn "======== busyBuild ========"
     printOutputs busyResult
+    putStrLn "======== memoBuild ========"
+    printOutputs memoResult

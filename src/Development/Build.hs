@@ -1,8 +1,10 @@
 {-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes #-}
 module Development.Build (
     -- * Build
-    Build, MultiBuild, sequentialMultiBuild, --, sequentialMultiStoreBuild,
-    dumb, busy, -- purify, slow, dumbTracing,
+    Build, dumb, busy, memo,
+
+    -- * MultiBuild
+    MultiBuild, sequentialMultiBuild,
 
     -- * Properties
     correct, idempotent
@@ -22,47 +24,39 @@ import Development.Build.Utilities
 -- has no way of updating the map.
 type Build c i k v = Task c k v -> k -> Store i k v -> Store i k v
 
-type MultiBuild c i k v = Task c k v -> [k] -> Store i k v -> Store i k v
-
--- type StoreBuild c m k v = Store m k v => Task c k v -> k -> m ()
-
--- type MultiStoreBuild c m k v = Store m k v => Task c k v -> [k] -> m ()
-
--- How do I express that we can do it for any c, not just c = Monad?
--- purify :: (forall m. StoreBuild Monad m k v) -> Build Monad () k v
--- purify build task key _ = runState (build task key)
-
-sequentialMultiBuild :: Build Monad i k v -> MultiBuild Monad i k v
-sequentialMultiBuild build task outputs store = case outputs of
-    []     -> store
-    (k:ks) -> sequentialMultiBuild build task ks (build task k store)
-
--- sequentialMultiStoreBuild :: StoreBuild Monad m k v -> MultiStoreBuild Monad m k v
--- sequentialMultiStoreBuild build task = mapM_ (build task)
-
 dumb :: (Eq k, Hashable v) => Build Monad i k v
 dumb task key store = case execute task (getValue store) key of
     Nothing    -> store
     Just value -> putValue store key value
 
--- dumbTracing :: (MonadIO m, Show k, Show v) => StoreBuild Monad m k v
--- dumbTracing task = build
---   where
---     build k = do
---         let myGetValue k = do
---                 v <- getValue k
---                 liftIO $ putStrLn $ "Looked up key: " ++ show k ++ " => " ++ show v
---                 return v
---         liftIO $ putStrLn ("Computing key: " ++ show k)
---         mapM_ (putValue k =<<) (task myGetValue k)
-
 busy ::(Eq k, Hashable v) => Build Monad () k v
-busy task key store = execState (go key) store
+busy task key store = execState (compute key) store
   where
-    -- go :: k -> State (Store () k v) v
-    go k = case task go k of
+    -- compute :: k -> State (Store () k v) v
+    compute k = case task compute k of
         Nothing  -> do { s <- get; return (getValue s k) }
         Just act -> do { v <- act; modify (\s -> putValue s k v); return v }
+
+memo :: (Eq k, Hashable v) => Build Monad () k v
+memo task key store = fst $ execState (compute key) (store, [])
+  where
+    -- compute :: k -> State (Store () k v, [k]) v
+    compute k = case task compute k of
+        Nothing  -> do { s <- fst <$> get; return (getValue s k) }
+        Just act -> do
+            built <- snd <$> get
+            when (k `notElem` built) $ do
+                v <- act
+                modify $ \(s, built) -> (putValue s k v, k : built)
+            s <- fst <$> get
+            return (getValue s k)
+
+type MultiBuild c i k v = Task c k v -> [k] -> Store i k v -> Store i k v
+
+sequentialMultiBuild :: Build Monad i k v -> MultiBuild Monad i k v
+sequentialMultiBuild build task outputs store = case outputs of
+    []     -> store
+    (k:ks) -> sequentialMultiBuild build task ks (build task k store)
 
 -- | Given a @build@ and @task@, check that for any key-value map describing
 -- the contents of a store @before@ the build system is executed to build a list
