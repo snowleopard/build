@@ -190,8 +190,8 @@ recompute the same keys again and again if they have multiple dependents. We
 will develop much more efficient build systems in~\S\ref{sec-implementations}.
 
 Despite limitations, \hs{busy} can easily handle the example \hs{sprsh1}
-from the previous subsection~\S\ref{sec-task}. Below we initialise the store with
-\cmd{A1} set to 10 and all other cells set to 20.
+from the previous subsection~\S\ref{sec-task}. In the GHCi session below we
+initialise the store with \cmd{A1} set to 10 and all other cells set to 20.
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 @\ghci@ store  = initialise () (\key -> if key == "A1" then 10 else 20)
@@ -334,14 +334,15 @@ that:
     In other words, we require that the output \hs{key} has the correct value,
     but do not impose any restrictions on intermediate keys, therefore
     permitting shallow cloud builds.
-    \item The \hs{store}, \hs{result} and \hs{ideal} all agree on the inputs
-    that belong to the transitive closure of \hs{key}'s dependencies:
+    \item The \hs{result}, \hs{store} and \hs{ideal} all agree on the inputs
+    that belong to the transitive closure of \hs{key}'s dependencies with
+    respect to the \hs{result}:
     \[
-        \hs{and}~\hs{[}~\hs{getValue}~\hs{store}~\hs{k}~\hs{==}~\hs{getValue}~\hs{result}~\hs{k}~\hs{|}~\hs{k}~\hs{<-}~\hs{inputs}~\hs{key}~\hs{]}
+        \hs{and}~\hs{[}~\hs{getValue}~\hs{result}~\hs{k}~\hs{==}~\hs{getValue}~\hs{store}~\hs{k}~\hs{|}~\hs{k}~\hs{<-}~\hs{inputs}~\hs{task}~\hs{result}~\hs{key}~\hs{]}
     \]
     \vspace{-6mm}
     \[
-        \hs{and}~\hs{[}~\hs{getValue}~\hs{ideal}~\hs{k}~\hs{==}~\hs{getValue}~\hs{result}~\hs{k}~\hs{|}~\hs{k}~\hs{<-}~\hs{inputs}~\hs{key}~\hs{]}
+        \hs{and}~\hs{[}~\hs{getValue}~\hs{result}~\hs{k}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{k}~\hs{|}~\hs{k}~\hs{<-}~\hs{inputs}~\hs{task}~\hs{result}~\hs{key}~\hs{]}
     \]
     where the implementation of \hs{inputs} will be provided in the next
     subsection~\S\ref{sec-deps}, which is dedicated to the task dependency
@@ -365,12 +366,15 @@ support for cyclic tasks, see~\S\ref{sec-iterative-compute}.
 
 \subsection{Computing dependencies}\label{sec-deps}
 
-The \hs{Task} type and the example above might seem mysterious. Why insist on
-\hs{Task} to be polymorphic in \hs{f}? Why choose the \hs{Applicative}
-constraint?
+\todo{SLPJ}{Please edit as you see fit. We need \hs{dependencies} and
+\hs{track} to be defined for future sections. We also promised to define
+\hs{inputs} in the previous section, but I think it's not too critical and can
+be skipped/moved to Appendix if need be.}
 
-The answer to both questions is that we can statically analyse an applicative
-compute and extract all dependencies of a key using the following function:
+...
+
+We can statically analyse an applicative task and extract all dependencies of a
+key using the following function:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -384,23 +388,22 @@ dependencies task = maybe [@@] getConst . task (\k -> Const [k])
 \vspace{1mm}
 
 \noindent
-We can use this function to extract dependencies of \hs{add}, as shown in the
-following GHCi session:
+We can use this function to extract dependencies of \hs{sprsh1}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ dependencies add "A1"
+@\ghci@ dependencies sprsh1 "A1"
 [@@]
 \end{minted}
 \begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ dependencies add "B1"
+@\ghci@ dependencies sprsh1 "B1"
 ["A1", "A2"]
 \end{minted}
 \vspace{1mm}
 
 \noindent
-It is important to note that we extract the dependencies without providing any
-values to the compute. This guarantees that no actual computation is performed
+It is important to note that we extract the dependencies without supplying any
+values to the build task. This guarantees that no actual computation is performed
 during the analysis -- we cannot execute the function \hs{(+)} if we have no
 values for it! Static analysis of applicative computations is not new and has
 been used to similar effect before, e.g. see~\cite{free-applicatives}.
@@ -444,35 +447,9 @@ value of type \hs{Maybe}~\hs{(Const}~\hs{[}\hs{k]}~\hs{v)} that can be
 unwrapped using \hs{maybe [@@] getConst}, i.e. returning the empty list of
 dependencies in case of an input.
 
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ store key = if key == "A1" then 10 else 20
-@\ghci@ execute add store "A1"
-Nothing
-\end{minted}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ execute add store "B1"
-Just 30
-\end{minted}
-
-\subsection{Left-over stuff, need to relocate}
-
-We cannot statically analyse \hs{select} using the function \hs{dependencies}
-from the previous section, but we can still \hs{execute} it on a given store:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ store key = if key == "A1" then 10 else 20
-@\ghci@ execute select store "B1"
-Just 20
-\end{minted}
-\vspace{1mm}
-
-\noindent
-In the example above $\cmd{C1} \neq 1$, hence the \hs{else} branch is taken.
-To extract the dependencies of \hs{select} we introduce the function \hs{track}:
-a combination of \hs{execute} and \hs{dependencies} that takes the store~\store
-as input and computes both the resulting value and the list of its dependencies:
+To extract the dependencies of monadic tasks we introduce the function \hs{track}:
+a combination of \hs{execute} and \hs{dependencies} that takes a store as input
+and computes both the resulting value and the list of its dependencies:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -480,39 +457,63 @@ import Control.Monad.Writer
 \end{minted}
 \vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-track :: Task Monad k v -> (k -> v) -> k -> Maybe (v, [k])
-track task store = fmap runWriter . task (\k -> writer (store k, [k]))
+track :: Task Monad k v -> Store i k v -> k -> Maybe (v, [k])
+track task store = fmap runWriter . task (\k -> writer (getValue store k, [k]))
 \end{minted}
 \vspace{1mm}
 
-\noindent
 The implementation uses the \hs{Writer} monad (\S\ref{sec-appendix-transformers}):
-we feed \hs{fetch k = writer (store k, [k])} to the compute, which in addition
-to fetching a value from the store, tracks the corresponding key. We can
-\hs{track} both applicative and monadic compute:
+we feed \hs{fetch k = writer (getValue store k, [k])} to the task, which in
+addition to fetching a value from the store, tracks the corresponding key. We
+can \hs{track} both applicative and monadic tasks:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ store key = if key == "A1" then 10 else 20
-@\ghci@ track add store "B1"
+@\ghci@ store = initialise () (\key -> if key == "A1" then 10 else 20)
+@\ghci@ track sprsh1 store "B1"
 Just (30,["A1","A2"])
 \end{minted}
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ track select store "B1"
+@\ghci@ track sprsh2 store "B1"
 Just (20,["C1","A2"])
 \end{minted}
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ store' key = if key == "A1" then 10 else 1
-@\ghci@ track select store' "B1"
+@\ghci@ store' = initialise () (\key -> if key == "A1" then 10 else 1)
+@\ghci@ track sprsh2 store' "B1"
 Just (10,["C1","A1"])
 \end{minted}
 \vspace{1mm}
 
 \noindent
-As expected, the dependencies of \hs{select} are determined by the contents of
+As expected, the dependencies of \hs{sprsh2} are determined by the contents of
 the store.
+
+...
+
+Here is a draft implementation of \hs{inputs} used in the definition of
+build system correctness in \S\ref{sec-build-correctness}:
+
+\begin{minted}[xleftmargin=10pt]{haskell}
+inputs :: Eq k => Task Monad k v -> Store i k v -> k -> [k]
+inputs task store key = filter (isInput task) (closure deps key)
+  where
+    deps k = maybe [] snd (track task store k)
+
+closure :: Eq a => (a -> [a]) -> a -> [a] -- Standard graph transitive closure
+
+data Proxy a = Proxy
+
+isInput :: Task Monad k v -> k -> Bool
+isInput task = isNothing . task (const Proxy)
+\end{minted}
+
+\subsection{Free tasks (?)}
+
+\todo{AM}{Introduce free constructions \hs{TaskA} and \hs{TaskM} giving
+intuitions on what tasks really are. Requires some further discussion with Neil.
+This will take at least one page.}
 
 % \subsection{Recognising an applicative compute wearing a monadic hat}
 
