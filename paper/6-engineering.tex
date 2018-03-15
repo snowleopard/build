@@ -11,6 +11,7 @@ Our model assumes a world where the store is fully-defined, every \hs{k} is asso
 
 While we have given simple implementations assuming a single thread of execution, all the build systems we address are actually concurrent. While it complicates the model to add concurrency, the complications can be restricted exclusively to the dependency strategy:
 
+\todo{SLPJ}{Can we replace ``node'' with ``task''? Everywhere.}
 \begin{enumerate}
 \item The \hs{topological} function can instead retain the dependency graph, and whenever all the dependencies of a node are complete, the node itself can be started.
 \item The \hs{reordering} function can be made parallel in a few ways, but the most direct is to have $n$ threads reading entries from the list of keys. As before, if a key requires something not yet built, it is added to the end -- the difference is that sometimes things will be moved back not because they are out of order but because of races with earlier nodes that had not yet finished. As a consequence, over successive runs, potentially racey dependencies will be separated, giving better parallelism over time.
@@ -21,7 +22,7 @@ The actual implementation of the parallel strategies is not overly onerous, but 
 
 \subsection{Impure computations}\label{sec-non-determinism}
 
-In our model we define \hs{Compute} as a function - when give the same inputs it will always produce the same outputs. Alas, the real-world is not as obliging. Some examples of impure \hs{Compute} functions include:
+In our model we define \hs{Task} as a function - when give the same inputs it will always produce the same outputs. Alas, the real-world is not as obliging. Some examples of impure \hs{Task} functions include:
 
 \begin{description}
 \item[Untracked state] Some actions depend on untracked state - for example your C compilation may explicitly list the \texttt{source.c} file as a dependency, but it may not record that the version of \texttt{gcc} is also a dependency.
@@ -33,7 +34,7 @@ Interestingly, there is significant interplay between all three sources of impur
 
 We note that while all the simple implementations presented in \S\ref{sec-implementations} can deal with non-determinism, some real build systems cannot, e.g. \Buck.
 
-One tempting way of modelling non-determinism is to enrich \hs{Compute} from \hs{Applicative} or \hs{Monad} to \hs{Alternative} or \hs{MonadPlus} respectively - both provide the underlying class with zero and choice. However, that seems to encode a different type of non-determinism - a kind of dependency-level non-determinism when most rules really experience a value-level non-determinism.
+One tempting way of modelling non-determinism is to enrich \hs{Task} from \hs{Applicative} or \hs{Monad} to \hs{Alternative} or \hs{MonadPlus} respectively - both provide the underlying class with zero and choice. However, that seems to encode a different type of non-determinism - a kind of dependency-level non-determinism when most rules really experience a value-level non-determinism.
 
 Volatility can be modelled by introducing a special \hs{k} whose value is changed between every run.
 

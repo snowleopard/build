@@ -5,6 +5,9 @@ In the previous sections we discussed the types of build system, and how they br
 
 \subsection{Framework}
 
+todo{SLPJ}{I think this entire section, including the mysterious M, can be deleted.  Or is
+there anything that remains?}
+
 As we saw in \S\ref{sec-build}, a build system can be defined as:
 
 \begin{minted}{haskell}
@@ -46,7 +49,9 @@ We use \hs{runM} to switch between the pure world of \hs{Build} and a state mona
 
 \subsection{\Make}\label{sec-implementation-make}
 
-The \Make build system builds files in a linear order based on a topological sort. For each file, it builds it if the output file is older than any of the inputs. We can express this in our framework with:
+The \Make build system builds files in a linear order based on a topological sort.
+(See \S\ref{sec-concurrency} for parallel \Make.)
+For each file, it builds it if the output file is older than any of the inputs. We can express this in our framework with:
 
 \begin{minted}{haskell}
 make :: Eq v => Build Applicative (Changed k v, ()) k v
@@ -117,7 +122,7 @@ excel = withChanged $ reordering $ \k dk _ act -> do
                 return Nothing
 \end{minted}
 
-We use the helper function \hs{reordering} which provides the key to build (\hs{k}), the dependencies of \hs{k} (\hs{dk}) and an action to build \hs{k} (\hs{act}). The dirty check is the same as \hs{makeDirtyBit}, with the added complication that because the \hs{Compute} is monadic it may not be possible to statically get a list of dependencies - if \hs{dk} is \hs{Nothing} then the action uses the monadic power and we conservatively rebuild anyway. If the check determines that the key is dirty, and needs rebuilding, we run \hs{act}, giving two possibilities:
+We use the helper function \hs{reordering} which provides the key to build (\hs{k}), the dependencies of \hs{k} (\hs{dk}) and an action to build \hs{k} (\hs{act}). The dirty check is the same as \hs{makeDirtyBit}, with the added complication that because the \hs{Task} is monadic it may not be possible to statically get a list of dependencies - if \hs{dk} is \hs{Nothing} then the action uses the monadic power and we conservatively rebuild anyway. If the check determines that the key is dirty, and needs rebuilding, we run \hs{act}, giving two possibilities:
 
 \begin{enumerate}
 \item The key cannot be built at this time because it depends on a key which has not yet been computed - and thus \hs{act} returns \hs{Left e}, where \hs{e} is the key that we are waiting for. In response we return \hs{e} as the result of step - asking \hs{reordering} to requeue this key after \hs{e}.

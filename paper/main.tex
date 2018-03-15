@@ -62,7 +62,7 @@
 
 % Questions and tasks
 \newcommand{\q}[2]{\textbf{\color{blue} Question #1:} #2}
-\newcommand{\todo}[2]{\textbf{\color{red} #1:} #2}
+\newcommand{\todo}[2]{[\textbf{\color{red} #1:} #2]}
 
 % Abbreviations for build systems
 \newcommand{\Make}{\textsc{Make}\xspace}
@@ -145,7 +145,11 @@
 \email{first2.last2@inst2b.org}         %% \email is recommended
 
 \begin{abstract}
-Build systems are awesome. Build systems are terrifying. In this paper ...
+  Build systems are awesome, terrifying -- and unloved.
+  We offer a systematic, and executable, framework for developing and comparing
+  build systems, viewing them as related points in landscape rather than as isolated
+  phenomena.  This allows us to present (an executable prototype of) the first build
+  system that combines dynamic dependencies and cloud build.
 \end{abstract}
 
 %% 2012 ACM Computing Classification System (CSS) concepts

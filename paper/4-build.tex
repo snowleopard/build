@@ -1,17 +1,18 @@
 \section{Build Systems \`a la Carte}\label{sec-build}
 
 The focus of this paper is on a variety of implementations of \hs{Build}, given
-a client-supplied implementation of \hs{Task}. That is, we are going to take
-\hs{Task} as given from now on, and explore \hs{Build} variants: first
+a \emph{client-supplied} implementation of \hs{Task}. That is, we are going to take
+\hs{Task} as given from now on, and explore variants of \hs{Build}: first
 abstractly (in this section) and then concretely in~\S\ref{sec-implementations}.
 
+\todo{SLPJ}{What does this para add?}
 Let \hs{result}~\hs{=}~\hs{build}~\hs{task}~\hs{key}~\hs{store}. The build
 system \hs{build} is responsible for ensuring that \hs{key} and its dependencies
-are up-to-date in \hs{result} starting from \hs{store} (see the formal definition
-of correctness in~\S\ref{sec-build-correctness}). As part of that work,
+are up-to-date in \hs{result} starting from \hs{store} (\S\ref{sec-build-correctness}). As part of that work,
 \hs{build} \emph{may} store auxiliary information \hs{info} of type \hs{i} in
 the \hs{store}, which will be provided to future calls of \hs{build}.
 
+\todo{SLPJ}{What does this para add?}
 All the build systems we define are polymorphic in both \hs{k} and \hs{v}
 (perhaps adding constraints to them), and have specific instantiations of \hs{c}
 and \hs{i}. As an example, recall that the \hs{busy} build system defined
@@ -34,7 +35,7 @@ their properties and possible implementations.
 
 \subsubsection{Topological}
 
-The topological approach computes a linear order, which when followed, ensures
+The topological approach pre-computes a linear order, which when followed, ensures
 the \hs{build} is correct regardless of the initial \hs{store}. Given a function
 from a key to its dependencies, and the output \hs{key}, you can compute the
 linear order by first taking the transitive closure of \hs{key}'s dependencies,
@@ -46,13 +47,14 @@ out dynamic dependencies.
 \subsubsection{Reordering}
 
 The topological approach has two downsides: it is limited to \hs{Applicative}
-build systems and requires a fresh topological sort each time -- while the
-actions themselves may be incremental the pre-processing is not. An alternative
-approach is to store the topological order between build runs and assume it to
-be correct, but if the build determines it is wrong, reorder.
+build systems and requires a fresh topological sort each time.  So, while the
+actions themselves may be incremental (i.e. unnecessary tasks will not be performed),
+the pre-processing is not. We may try to incrementalise the topological sort by
+storing the topological order between build runs and assume it to
+be correct, but if the build determines it is wrong, fix it up.
 
 This requires a way to abort tasks that have failed due to out-of-date
-dependencies. It is also not minimal in the sense that tasks start, may do some
+dependencies. It is also not minimal in the sense that a task may start, do some
 meaningful work, then abort. However, in the case of an \hs{Applicative} system,
 that work is zero.
 
@@ -60,7 +62,7 @@ that work is zero.
 
 An alternative approach, utilised by the \hs{busy} build system
 (\S\ref{sec-general-build}) is to simply build dependencies when they are
-requested. By combining that with a transient store of which keys have already
+requested. By combining that with a transient log of which keys have already
 been built, you can obtain a minimal build system.
 
 This requires a way to suspend a running task, which can be done with cheap
@@ -69,39 +71,45 @@ continuation-passing style (what \Shake does now). An alternative approach to
 suspending a task is to abort it and restart it again later, at the cost
 of doing additional work.
 
-\subsection{Determining out-of-date keys}
+\subsection{Determining out-of-date keys} \label{sec-out-of-date}
 
 The second aspect, determining what to rebuild, can be addressed in one of three
 fundamental ways, with a number of tweaks and variations within them.
 
 \subsubsection{A dirty bit}\label{sec-dirty-bit}
 
-The idea of a dirty bit is to have one piece of information, whether a key is
+The idea of a dirty bit is to have one piece of persistent
+information per key, saying whether the key is
 \emph{dirty} or \emph{clean}. After a build, all bits are set to clean. When the
 next build starts anything that changed between the two states is marked
-dirty~--~by marking additional things dirty/clean the build system can track
-what needs to rebuild. When reaching a key, if it and all its dependencies are
+dirty.
+% ; and by marking additional things dirty/clean the build system can track
+% what needs to rebuild.
+When reaching a key, if it and all its dependencies are
 clean, the key does not need recomputing.
 
 \Excel models the dirty bit approach most directly, having an actual dirty bit
-associated with each cell. Since \Excel is the only manner by which a cell may
-be changed by the user, it can mark cells dirty as necessary. When rebuilding,
+associated with each cell, marking the cell it (and its dependencies) dirty
+if the user modifies it.
+When rebuilding,
 if a cell only depends on clean cells it is skipped, otherwise it is rebuilt and
 marked dirty itself.
+\todo{SLPJ}{What does ``marked dirty itself'' mean?}
 
 % AM: I didn't understand this bit, so commented it out.
 % The only wrinkle in this scheme is that \Excel supports
 % monadic tasks, and does not separately record the rebuilt, so it has
 % to approximate in this case.
 
-\Make uses file modification times, and compares files to their dependencies,
-which can be thought of as a dirty bit which is set when a file is newer than
-its dependencies. The interesting property of this dirty bit is that it is not
-under control of \Make, but an existing bit that is repurposed. In particular,
-rebuilding a file automatically clears its dirty bit, and automatically sets
-the dirty bit of the nodes depending on it. One thing \Make does require is that
-file timestamps only go forward in time -- something that can be violated by
-backup software.
+\Make uses file modification times, and compares files to their
+dependencies, which can be thought of as a dirty bit which is set when
+a file is newer than its dependencies. The interesting property of
+this dirty bit is that it is not under control of \Make; rather it is
+existing file-system information that is repurposed. In particular,
+rebuilding a file automatically clears its dirty bit, and
+automatically sets the dirty bit of the nodes depending on it. One
+thing \Make does require is that file timestamps only go forward in
+time -- something that can be violated by backup software.
 
 With a dirty bit it is possible to achieve minimality. To achieve early cutoff
 (\S\ref{sec-background-shake}) it would be important to not set the dirty bit
@@ -159,7 +167,7 @@ NM: It actually gets a bit more confusing than that - since you end up needing t
 
 AM: Now, after we've switched to \hs{Store i k v} it might work better?}
 
-\subsection{Summary}
+\subsection{Summary} \label{sec-design-space}
 
 \todo{AM/NM/SLPJ}{Add a decription for the table.}
 

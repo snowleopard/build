@@ -28,7 +28,7 @@ gcc util.o main.o -o main.exe
 
 To achieve minimality, each separate command is traced at the OS-level, allowing \Fabricate to record a trace entry stating that \cmd{gcc -c util.c} reads from \cmd{util.c}. In future runs \Fabricate runs the script from start to finish, skipping any commands where no inputs have changed.
 
-Taking our abstraction, it is possible to encode \Fabricate assuming that nodes like \cmd{gcc -c util.c} are keys, there is a linear dependency between each successive node, and that the OS-level tracing can be lifted back as a monadic \hs{Compute} function\footnote{In fact, \Shake has an execution mode that can model \Fabricate{}-like build systems -- see \hs{Development.Shake.Forward} in the \Shake library.}. However, in our pure model the mapping is not perfect as \hs{gcc} writes to arbitrary files whose locations are not known in advance.
+Taking our abstraction, it is possible to encode \Fabricate assuming that nodes like \cmd{gcc -c util.c} are keys, there is a linear dependency between each successive node, and that the OS-level tracing can be lifted back as a monadic \hs{Task} function\footnote{In fact, \Shake has an execution mode that can model \Fabricate{}-like build systems -- see \hs{Development.Shake.Forward} in the \Shake library.}. However, in our pure model the mapping is not perfect as \hs{gcc} writes to arbitrary files whose locations are not known in advance.
 
 \subsection{Memoization}\label{sec-related-memo}
 
@@ -40,10 +40,10 @@ While not typically considered build systems, self-adjusting computation is a we
 
 \subsection{Profunctor Optics}\label{sec-related-optics}
 
-The \hs{Compute} definition of:
+The \hs{Task} definition of:
 
 \begin{minted}{haskell}
-type Compute c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
+type Task c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
 \end{minted}
 
 Looks tantalisingly close to the profunctor optics definition in \cite{gibbons-profunctor-optics}:
