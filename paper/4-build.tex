@@ -158,3 +158,22 @@ For both verifying and constructive choices it is possible to choose smarter dat
 NM: It actually gets a bit more confusing than that - since you end up needing to pass functions to get yourself, your dependencies etc. Unclear there is a win. The functions would occur in the next section anyway.
 
 AM: Now, after we've switched to \hs{Store i k v} it might work better?}
+
+\subsection{Summary}
+
+\todo{AM/NM/SLPJ}{Add a decription for the table.}
+
+\begin{table}[h]
+\smaller
+\centering
+\begin{tabular}{l||c|c|c}
+\hline
+Property           & Topological & Reordering & Recursive    \\\hline
+\hline
+Dirty bit          & \Make                   & \Excel                   & \Shake without early cutoff \\\hline
+Verifying trace    & \Make with early cutoff & \Excel with early cutoff & \Shake                      \\\hline
+Constructive trace & \Bazel                  & Cloud \Excel             & Cloud \Shake                \\\hline
+\end{tabular}
+\vspace{0.5mm}
+\caption{Build systems \`a la carte.\label{tab-build-systems}}
+\end{table}
