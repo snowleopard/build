@@ -16,27 +16,27 @@ import Development.Build.Utilities
 
 import qualified Data.Map as Map
 
-------------------------------- New traces stuff -------------------------------
+------------------------ New traces stuff (also wrong!) ------------------------
 
-type Result k = (Hash, [(k, Hash)])
+type Result k v = (Hash v, [(k, Hash v)])
 
-checkResult :: Hashable v => Store i k v -> k -> Result k -> Bool
+checkResult :: Hashable v => Store i k v -> k -> Result k v -> Bool
 checkResult store key (keyHash, deps) =
     and [ getHash store k == h | (k, h) <- (key, keyHash) : deps ]
 
-type VerifyingTrace k = Map k [Result k]
+type VerifyingTrace k v = Map k [Result k v]
 
-verify :: (Ord k, Hashable v) => VerifyingTrace k -> Store i k v -> k -> Bool
+verify :: (Ord k, Hashable v) => VerifyingTrace k v -> Store i k v -> k -> Bool
 verify trace store key = case Map.lookup key trace of
     Nothing      -> False
     Just results -> any (checkResult store key) results
 
-data ConstructiveTrace k v = ConstructiveTrace (VerifyingTrace k) (Map Hash v)
+data ConstructiveTrace k v = ConstructiveTrace (VerifyingTrace k v) (Hash v -> v)
 
 construct :: (Ord k, Hashable v) => ConstructiveTrace k v -> Store i k v -> k -> Maybe v
 construct (ConstructiveTrace trace cache) store key
     | verify trace store key == False = Nothing
-    | otherwise                       = Map.lookup (getHash store key) cache
+    | otherwise                       = Just $ cache (getHash store key)
 
 ------------------------ Old plan stuff (to be deleted) ------------------------
 
@@ -50,7 +50,7 @@ construct (ConstructiveTrace trace cache) store key
 -- about the key and if it is required for building any of the /outputs/ the
 -- build system will need to discover its dependencies. We require that every
 -- plan is 'acyclic'.
-type Plan k v = k -> Maybe (Hash, [(k, Hash)])
+type Plan k v = k -> Maybe (Hash v, [(k, Hash v)])
 
 -- | Sometimes you have no plan at all, i.e. @noPlan = const Nothing@.
 noPlan :: Plan k v
