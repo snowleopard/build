@@ -1,6 +1,6 @@
 module Development.Build.Plan (
     -- Traces
-    VerifyingTrace, verify,
+    Result, checkResult, VerifyingTrace, verify, ConstructiveTrace, construct,
 
     -- * Plan
     Plan, noPlan,
@@ -18,14 +18,25 @@ import qualified Data.Map as Map
 
 ------------------------------- New traces stuff -------------------------------
 
-type VerifyingTrace k v = Map k (Hash, [(k, Hash)])
+type Result k = (Hash, [(k, Hash)])
 
-verify :: (Ord k, Hashable v) => VerifyingTrace k v -> Store i k v -> k -> Bool
+checkResult :: Hashable v => Store i k v -> k -> Result k -> Bool
+checkResult store key (keyHash, deps) =
+    and [ getHash store k == h | (k, h) <- (key, keyHash) : deps ]
+
+type VerifyingTrace k = Map k [Result k]
+
+verify :: (Ord k, Hashable v) => VerifyingTrace k -> Store i k v -> k -> Bool
 verify trace store key = case Map.lookup key trace of
-    Nothing -> False
-    Just (result, deps) -> getHash store key == result
-                        && and [ getHash store k == h | (k, h) <- deps ]
+    Nothing      -> False
+    Just results -> any (checkResult store key) results
 
+data ConstructiveTrace k v = ConstructiveTrace (VerifyingTrace k) (Map Hash v)
+
+construct :: (Ord k, Hashable v) => ConstructiveTrace k v -> Store i k v -> k -> Maybe v
+construct (ConstructiveTrace trace cache) store key
+    | verify trace store key == False = Nothing
+    | otherwise                       = Map.lookup (getHash store key) cache
 
 ------------------------ Old plan stuff (to be deleted) ------------------------
 
