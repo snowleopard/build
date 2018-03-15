@@ -35,7 +35,7 @@ pure  :: Applicative f => a -> f a
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- State monad
+-- Standard State monad (from Control.Monad.State)
 data State s a
 instance Applicative (State s)
 instance Monad       (State s)
@@ -43,6 +43,22 @@ get       :: State s s
 put       :: s -> State s ()
 modify    :: (s -> s) -> State s ()
 execState :: State s a -> s -> s
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Standard types from Data.Functor.Identity and Data.Functor.Const
+newtype Identity a = Identity { runIdentity :: a }
+\end{minted}
+\begin{minted}[fontsize=\small]{haskell}
+newtype Const ks a = Const { getConst :: ks }
+\end{minted}
+\vspace{0.5mm}
+\begin{minted}[fontsize=\small]{haskell}
+instance Functor (Const ks) where
+    fmap _ (Const ks) = Const ks
+instance Monoid ks => Applicative (Const ks) where
+    pure _              = Const mempty
+    Const x <*> Const y = Const (x <> y)
 \end{minted}
 \vspace{-2mm}
 \caption{Signatures of main data types and library functions.}\label{fig-types}
@@ -194,15 +210,6 @@ Notice that \hs{compute} passes itself to \hs{task} as an argument,
 so that the latter can use \hs{compute} to recursively find the
 values of \hs{k}'s dependencies.
 
-Now we can see why the \hs{Task} abstraction needed to be abstracted over \hs{f}:
-\begin{minted}[xleftmargin=10pt]{haskell}
-type Task c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
-\end{minted}
-The \hs{busy} build system instantiates \hs{c} to \hs{Monad} and \hs{f} to \hs{State (Store i k v)},
-so that the call-back to \hs{fetch :: k -> f v} can side-effect the \hs{Store},
-thereby allowing successive calls to \hs{fetch} to communicate with one another.
-We will see why we want \hs{Task} to be \emph{polymorphic} in \hs{f} in \S\ref{sec-deps}.
-
 Given an acyclic task description, the \hs{busy} build system terminates with a
 correct result, but it is not a \emph{minimal} build system
 (Definition~\ref{def-minimal}). Since \hs{busy} has no memory (\hs{i=()}), it
@@ -232,24 +239,54 @@ that \hs{busy} is not minimal, imagine that the formula in cell \cmd{B2} was
 \hs{compute}~\hs{"B1"} twice -- once per each occurrence of \cmd{B1} in the
 formula.
 
-An alert reader might notice that \hs{busy} accepts \emph{monadic tasks} of
-type \hs{Task}~\hs{Monad}, whereas \hs{sprsh1} is a \hs{Task}~\hs{Applicative}.
-This indicates that \hs{busy} can cope with tasks containing dynamic
-dependencies, which we discuss next (\S\ref{sec-task-monad}).
+\subsection{The need for polymorphism in \hs{Task}}
 
-It is interesting to note that if \hs{busy} is given a \emph{functorial task}
-of type \hs{Task}~\hs{Functor}, which cannot use the application operator
-\hs{<*>}, then \hs{busy} can rejoice in knowing that it will never have to
-rebuild a key twice. Indeed, functorial tasks are very much like tail recursive
-functions -- they cannot branch into multiple subproblems, always leading to a
-straight-line build.
+Now we can see why the \hs{Task} abstraction is polymorphic in \hs{f}:
+\begin{minted}[xleftmargin=10pt]{haskell}
+type Task c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
+\end{minted}
+The \hs{busy} build system instantiates \hs{f} to \hs{State (Store i k v)},
+so that the call-back to \hs{fetch :: k -> f v} can side-effect the \hs{Store},
+thereby allowing successive calls to \hs{fetch} to communicate with one another.
+
+We really, really want \hs{Task} to be \emph{polymorphic} in \hs{f}.
+Given \emph{one} task description T, we want to explore \emph{many} build systems that
+can build T -- and we will do so in Sections~\ref{sec-build} and \ref{sec-implementations}.
+As we shall see, each build system will use a different \hs{f}, so the task description
+must not fix \hs{f}.
+
+But nor can the task description work for \emph{any} \hs{f}; most
+task descriptions (e.g. \hs{sprsh1} in \S\ref{sec-task}) require that
+\hs{f} satisfies certain properties, such as \hs{Monad} or
+\hs{Applicatove}.  That is why \hs{task} has the ``\hs{c f =>}''
+constraint in its type, expressing that \hs{f} can only be instantiated by types
+that satisfy the constraints \hs{c}.
+
+So the type \hs{Task} emerges naturally, almost inevitably.  But now that
+it \emph{has} emgerged, we find the that constraints \hs{c} classify task descriptions
+in a very interesting way:
+\begin{itemize}
+\item \hs{Task Applicative}. In \hs{sprsh1} we needed only \hs{Applicative} operations,
+  expressing the fact that the dependencies between cells can be determined \emph{statically};
+  that is, by looking at the formulae, without ``executing'' them (see \S\ref{sec-deps}).
+\item \hs{Task Monad}.  As we shall see in \S\ref{sec-task-monad}, a monadic task
+  description allows \emph{dynamic} dependencies, in which a formula
+  may depend on the value of cell C, but \emph{which} cell C depends on
+  the value of another cell D.
+\item \hs{Task Functor} is somehat degenerate: the task description cannot even use
+  the application operator \hs{<*>}, which limits dependencies to a single linear chain.
+\end{itemize}
+
+Notice also that, even though \hs{busy} takes a \hs{Task Monad} as its argument, an application of
+\hs{busy} to a \hs{Task Applicative} will typecheck just fine.  It feels a bit
+like sub-typing, but it is actually just ordinary higher-rank polymorphism at work.
 
 \subsection{Monadic tasks}\label{sec-task-monad}
 
 As explained in~\S\ref{sec-background-excel}, some task descriptions have dynamic
 dependencies, which are determined by values of intermediate computations. In
 our framework, such task descriptions correspond to the type
-\hs{Task}~\hs{Monad}~\hs{k}~\hs{v}. Recall the following spreadsheet
+\hs{Task Monad k v}. Consider this spreadsheet
 example:
 
 \vspace{1mm}
@@ -277,7 +314,7 @@ sprsh2 _     _    = Nothing
 \vspace{1mm}
 
 \noindent
-The main difference compared to \hs{sprsh1} is that the computation now takes
+The big difference compared to \hs{sprsh1} is that the computation now takes
 place in a \hs{Monad}, which allows us to extract the value of \hs{c1} \emph{and
 then \hs{fetch} different keys depending on whether or not \hs{c1}~\hs{==}~\hs{1}}.
 
@@ -299,16 +336,10 @@ the same value as we see in the final store.
 To express this formally we need an auxiliary
 function \hs{recompute}, that computes the value of a key in a given store
 \emph{without attempting to update any dependencies}:
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-newtype Identity a = Identity { runIdentity :: a }
-\end{minted}
-\vspace{0mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 recompute :: Task Monad k v -> Store i k v -> k -> Maybe v
 recompute task store key = runIdentity <$> task (Identity . getValue store) key
 \end{minted}
-\vspace{1mm}
 \noindent
 \todo{SLPJ}{Why monad?}
 Here we do not need any effects in the \hs{fetch} callback to \hs{task}, so
@@ -400,25 +431,30 @@ support for cyclic tasks, see~\S\ref{sec-iterative-compute}.
 \hs{inputs} in the previous section, but I think it's not too critical and can
 be skipped/moved to Appendix if need be.}
 
-...
-
-We can statically analyse an applicative task and extract all dependencies of a
-key using the following function:
-
+Earlier we remarked that a \hs{Task Applicative} could only have static dependencies.
+Usually we would extract such static dependencies by (in the case of Excel)
+looking at the syntax tree of the formula.  But a task description has no
+such syntax tree.  Yet, remarkably, we can use the polymorphism of a
+\hs{Task Applicative} to find its dependencies \emph{without dong any of the actual work}.
+Here is the code:
 \vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-import Data.Functor.Const
-\end{minted}
-\vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 dependencies :: Task Applicative k v -> k -> [k]
-dependencies task = maybe [@@] getConst . task (\k -> Const [k])
+dependencies task k = case task (\k -> Const [k]) k of
+                        Nothing         -> []
+                        Just (Const ks) -> ks
 \end{minted}
 \vspace{1mm}
-
-\noindent
-We can use this function to extract dependencies of \hs{sprsh1}:
-
+Here \hs{Const} is a standard Haskell type defined in Figure~\ref{fig-types}.
+We instantiate \hs{f} to \hs{Const [k]}.  So a value of type \hs{f v},
+or in this case \hs{Const [k] v}, contains no value \hs{v}, but does contain
+a list of keys of type \hs{[k]} which we use to record dependencies.
+The \hs{fetch} callback that we pass to \hs{task}
+records a single dependency; and the standard definitions of \hs{Applicative}
+for \hs{Const} (which we give in Figure~\ref{fig-types}) combines the
+dependencies from different parts of the task.
+As a result, running the task with \hs{f} = \hs{Const [k]} will accumulate a list of
+the task's dependencies -- and that is just what \hs{dependencies} does:
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 @\ghci@ dependencies sprsh1 "A1"
@@ -431,52 +467,16 @@ We can use this function to extract dependencies of \hs{sprsh1}:
 \vspace{1mm}
 
 \noindent
-It is important to note that we extract the dependencies without supplying any
-values to the build task. This guarantees that no actual computation is performed
-during the analysis -- we cannot execute the function \hs{(+)} if we have no
-values for it! Static analysis of applicative computations is not new and has
-been used to similar effect before, e.g. see~\cite{free-applicatives}.
+Notice that these calls to \hs{dependencies} do no actual computation
+(in this case, spreadsheet arithmetic). They can't:
+we are not supplying a store or any input numbers.
+So, through the wonders of polymorphism, we are able to extract the
+dependencies of the spreadsheet formula, and to do so efficiently,
+simply by running its code in a different \hs{Applicative}!
+This is not new -- e.g. see~\cite{free-applicatives} -- but it is cool.
 
-To understand how \hs{dependencies} works, let us examine its type more closely,
-expanding the type synonym \hs{Task}:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-(@\std{forall}@ f. Applicative f => (k -> f v) -> k -> Maybe (f v)) -> k -> [k]
-\end{minted}
-\vspace{1mm}
-
-\noindent
-Since the first argument is polymorphic in \hs{f}, we can choose any \hs{f} that
-satisfies the \hs{Applicative} constraint. A good choice in this case is the
-applicative functor \hs{Const}:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-newtype Const m a = Const { getConst :: m }
-\end{minted}
-\vspace{0.5mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-instance Functor (Const m) where
-    fmap _ (Const m) = Const m
-\end{minted}
-\vspace{0.5mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-instance Monoid m => Applicative (Const m) where
-    pure _              = Const mempty
-    Const x <*> Const y = Const (x <> y)
-\end{minted}
-\vspace{1mm}
-
-\noindent
-A value of type \hs{Const}~\hs{[}\hs{k]}~\hs{v} contains no values \hs{v} but
-allows us to record all invocations of the custom \hs{fetch} function that we
-feed to the given compute: \hs{fetch k = Const [k]}. The compute returns a
-value of type \hs{Maybe}~\hs{(Const}~\hs{[}\hs{k]}~\hs{v)} that can be
-unwrapped using \hs{maybe [@@] getConst}, i.e. returning the empty list of
-dependencies in case of an input.
-
-To extract the dependencies of monadic tasks we introduce the function \hs{track}:
+So much for applicatives.  What about monadic tasks with dynamic dependencies?
+We introduce the function \hs{track}:
 a combination of \hs{recompute} and \hs{dependencies} that takes a store as input
 and computes both the resulting value and the list of its dependencies:
 
@@ -518,8 +518,9 @@ Just (10,["C1","A1"])
 \noindent
 As expected, the dependencies of \hs{sprsh2} are determined by the contents of
 the store.
+\todo{slpj}{This track stuff is not well motivated. When do we want it?  How do we use it?}
 
-...
+\todo{slpj}{I think we should push 'inputs' into the appendix.}
 
 Here is a draft implementation of \hs{inputs} used in the definition of
 build system correctness in \S\ref{sec-build-correctness}:
