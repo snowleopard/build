@@ -36,6 +36,25 @@ instance Monad Identity where
 
 \todo{AM}{Explain \hs{track}.}
 
+
+
+Here is a draft implementation of \hs{inputs} used in the definition of
+build system correctness in \S\ref{sec-build-correctness}:
+
+\begin{minted}[xleftmargin=10pt]{haskell}
+inputs :: Eq k => Task Monad k v -> Store i k v -> k -> [k]
+inputs task store key = filter (isInput task) (closure deps key)
+  where
+    deps k = maybe [] snd (track task store k)
+
+closure :: Eq a => (a -> [a]) -> a -> [a] -- Standard graph transitive closure
+
+data Proxy a = Proxy
+
+isInput :: Task Monad k v -> k -> Bool
+isInput task = isNothing . task (const Proxy)
+\end{minted}
+
 \subsection{Compute examples}\label{sec-appendix-compute-examples}
 
 \todo{AM}{Add some explanatory text.}

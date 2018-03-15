@@ -277,23 +277,23 @@ in a very interesting way:
   description allows \emph{dynamic} dependencies, in which a formula may depend
   on the value of cell \cmd{C}, but \emph{which} cell \cmd{C} depends on the
   value of another cell \cmd{D}.
-\item \hs{Task}~\hs{Functor} is somewhat degenerate: the task description cannot even
-  use the application operator \hs{<*>}, which limits dependencies to a single
-  linear chain.
-  % It is interesting to note that if \hs{busy} is given a \emph{functorial task}
-  % of type \hs{Task}~\hs{Functor}, which cannot use the application operator
-  % \hs{<*>}, then \hs{busy} can rejoice in knowing that it will never have to
-  % rebuild a key twice. Indeed, functorial tasks are very much like tail recursive
-  % functions, which cannot branch into multiple subproblems.
+\item \hs{Task}~\hs{Functor} is somewhat degenerate: the task description cannot
+  even use the application operator \hs{<*>}, which limits dependencies to a
+  single linear chain. It is interesting to note that, when run on a
+  \hs{Task}~\hs{Functor}, the \hs{busy} build system will build each key at most
+  once, thus partially fulfilling the minimality requirement~\ref{def-minimal}.
+  Alas, it still has no mechanism to decide which input keys changed since the
+  previous build.
 \item \hs{Task}~\hs{Alternative}, \hs{Task}~\hs{MonadPlus} and their
   variants can be used for describing tasks with a certain type of
   non-determinism, as discussed in~\S\ref{sec-non-determinism}.
 \end{itemize}
 
 Notice also that, even though \hs{busy} takes a \hs{Task}~\hs{Monad} as its
-argument, an application of \hs{busy} to a \hs{Task}~\hs{Applicative} will
-typecheck just fine.  It feels a bit like sub-typing, but it is actually just
-ordinary higher-rank polymorphism at work.
+argument, an application of \hs{busy} to a \hs{Task}~\hs{Functor} or
+a \hs{Task}~\hs{Applicative} will typecheck just fine. It feels a bit like
+sub-typing, but it is actually just ordinary higher-rank polymorphism at
+work~\cite{jones2007practical}.
 
 \subsection{Monadic tasks}\label{sec-task-monad}
 
@@ -352,10 +352,11 @@ To express this formally we need an auxiliary function \hs{compute}, that
 computes the value of a key in a given store \emph{without attempting to update
 any dependencies}:
 \begin{minted}[xleftmargin=10pt]{haskell}
-recompute :: Task Monad k v -> Store i k v -> k -> Maybe v
-recompute task store key = runIdentity <$> task (Identity . getValue store) key
+compute :: Task Monad k v -> Store i k v -> k -> Maybe v
+compute task store key = runIdentity <$> task (Identity . getValue store) key
 \end{minted}
 
+\noindent
 Here we do not need any effects in the \hs{fetch} callback to \hs{task}, so
 we can use the standard Haskell \hs{Identity} monad (Fig.~\ref{fig-types}).
 The use of \hs{Identity} just fixes the `impedance mismatch' between the pure
@@ -383,7 +384,7 @@ build         :: Build c i k v
 task          :: Task c k v
 key           :: k
 store, @@result :: Store i k v
-result = build task key store
+result = @@build @@task @@key @@store
 \end{minted}
 \vspace{1mm}
 
@@ -402,25 +403,21 @@ that:
     \item The \hs{result} and \hs{ideal} agree on the output \hs{key}, i.e.:
     \vspace{-1mm}
     \[
-        \hs{getValue}~\hs{result}~\hs{key}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{key}.
+    \hs{getValue}~\hs{result}~\hs{key}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{key}.
     \]
     In other words, we require that the output \hs{key} has the correct value,
     but do not impose any restrictions on intermediate keys, therefore
     permitting shallow cloud builds.
-    \item The \hs{result}, \hs{store} and \hs{ideal} all agree on the inputs
-    that belong to the transitive closure of \hs{key}'s dependencies with
-    respect to the \hs{result}:
+    \item The \hs{store}, \hs{result} and \hs{ideal} agree on all input keys
+    \hs{k} that belong to the transitive closure of \hs{key}'s dependencies:
     \[
-        \hs{and}~\hs{[}~\hs{getValue}~\hs{result}~\hs{k}~\hs{==}~\hs{getValue}~\hs{store}~\hs{k}~\hs{|}~\hs{k}~\hs{<-}~\hs{inputs}~\hs{task}~\hs{result}~\hs{key}~\hs{]}
+    \,\,\,\,\,\,\,\hs{getValue}~\hs{store}~\hs{k}~\hs{==}~\hs{getValue}~\hs{result}~\hs{k}~\hs{&&}~\hs{getValue}~\hs{store}~\hs{k}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{k}
     \]
-    \vspace{-6mm}
-    \[
-        \hs{and}~\hs{[}~\hs{getValue}~\hs{result}~\hs{k}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{k}~\hs{|}~\hs{k}~\hs{<-}~\hs{inputs}~\hs{task}~\hs{result}~\hs{key}~\hs{]}
-    \]
-    where the implementation of \hs{inputs} is provided in the Appendix, which
-    is dedicated to the task dependency analysis. This requirement guarantees
-    that (i) no inputs were corrupted during the build, and (ii)~the \hs{ideal}
-    store has constraints not only on the output, but also on the inputs.
+    % where the implementation of \hs{inputs} is provided in the Appendix, which
+    % is dedicated to the task dependency analysis.
+    This requirement asserts that (i) no inputs were corrupted during the
+    build, and (ii)~the \hs{ideal} store has constraints not only on the output,
+    but also on the inputs.
 \end{itemize}
 A build system is \emph{correct} if it produces a correct \hs{result} for any
 given \hs{task}, \hs{key} and \hs{store}.
@@ -447,21 +444,21 @@ the actual work}. Here is the code:
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 dependencies :: Task Applicative k v -> k -> [k]
-dependencies task k = case task (\k -> Const [k]) k of
-                         Nothing         -> []
-                         Just (Const ks) -> ks
+dependencies task key = case task (\k -> Const [k]) key of
+                            Nothing         -> []
+                            Just (Const ks) -> ks
 \end{minted}
 \vspace{1mm}
-Here \hs{Const} is a standard Haskell type defined in Figure~\ref{fig-types}.
-We instantiate \hs{f} to \hs{Const [k]}.  So a value of type \hs{f v},
-or in this case \hs{Const [k] v}, contains no value \hs{v}, but does contain
-a list of keys of type \hs{[k]} which we use to record dependencies.
-The \hs{fetch} callback that we pass to \hs{task}
-records a single dependency; and the standard definitions of \hs{Applicative}
-for \hs{Const} (which we give in Figure~\ref{fig-types}) combines the
-dependencies from different parts of the task.
-As a result, running the task with \hs{f} = \hs{Const [k]} will accumulate a list of
-the task's dependencies -- and that is just what \hs{dependencies} does:
+Here \hs{Const} is a standard Haskell type defined in Fig.~\ref{fig-types}. We
+instantiate \hs{f} to \hs{Const}~\hs{[@@k]}.  So a value of type \hs{f}~\hs{v},
+or in this case \hs{Const}~\hs{[@@k]}~\hs{v}, contains no value \hs{v}, but does
+contain a list of keys of type \hs{[@@k]} which we use to record dependencies.
+The \hs{fetch} callback that we pass to \hs{task} records a single dependency;
+and the standard definition of \hs{Applicative} for \hs{Const} (which we give
+in Fig.~\ref{fig-types}) combines the dependencies from different parts of the
+task. Running the task with \hs{f}~=~\hs{Const}~\hs{[@@k]} will thus
+accumulate a list of the task's dependencies -- and that is just what
+\hs{dependencies} does:
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 @\ghci@ dependencies sprsh1 "A1"
@@ -474,18 +471,21 @@ the task's dependencies -- and that is just what \hs{dependencies} does:
 \vspace{1mm}
 
 \noindent
-Notice that these calls to \hs{dependencies} do no actual computation
-(in this case, spreadsheet arithmetic). They can't:
-we are not supplying a store or any input numbers.
-So, through the wonders of polymorphism, we are able to extract the
-dependencies of the spreadsheet formula, and to do so efficiently,
-simply by running its code in a different \hs{Applicative}!
-This is not new -- e.g. see~\cite{free-applicatives} -- but it is cool.
+Notice that these calls to \hs{dependencies} do no actual computation (in this
+case, spreadsheet arithmetic). They cannot: we are not supplying a store or any
+input numbers. So, through the wonders of polymorphism, we are able to extract
+the dependencies of the spreadsheet formula, and to do so efficiently, simply by
+running its code in a different \hs{Applicative}! This is not new, for example
+see~\cite{free-applicatives}, but it is cool.
 
-So much for applicatives.  What about monadic tasks with dynamic dependencies?
-We introduce the function \hs{track}:
-a combination of \hs{recompute} and \hs{dependencies} that takes a store as input
-and computes both the resulting value and the list of its dependencies:
+So much for applicative tasks. What about monadic tasks with dynamic
+dependencies? As we have seen in~\S\ref{sec-background-shake}, dynamic
+dependencies need to be tracked too. This cannot be done statically; note that
+the application of the function \hs{dependencies} to a \hs{Task}~\hs{Monad} will
+not typecheck. We need to run a monadic task on a store with concrete values,
+which will determine the discovered dependencies. Accordingly, we introduce
+the function \hs{track}: a combination of \hs{compute} and \hs{dependencies}
+that computes both the resulting value and the list of its dependencies:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -494,80 +494,48 @@ import Control.Monad.Writer
 \vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 track :: Task Monad k v -> Store i k v -> k -> Maybe (v, [k])
-track task store = fmap runWriter . task (\k -> writer (getValue store k, [k]))
-\end{minted}
-\vspace{1mm}
-
-The implementation uses the \hs{Writer} monad (\S\ref{sec-appendix-transformers}):
-we feed \hs{fetch k = writer (getValue store k, [k])} to the task, which in
-addition to fetching a value from the store, tracks the corresponding key. We
-can \hs{track} both applicative and monadic tasks:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ store = initialise () (\key -> if key == "A1" then 10 else 20)
-@\ghci@ track sprsh1 store "B1"
-Just (30,["A1","A2"])
-\end{minted}
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ track sprsh2 store "B1"
-Just (20,["C1","A2"])
-\end{minted}
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ store' = initialise () (\key -> if key == "A1" then 10 else 1)
-@\ghci@ track sprsh2 store' "B1"
-Just (10,["C1","A1"])
+track task store = runWriter . task (\k -> writer (getValue store k, [k]))
 \end{minted}
 \vspace{1mm}
 
 \noindent
-As expected, the dependencies of \hs{sprsh2} are determined by the contents of
-the store.
-\todo{slpj}{This track stuff is not well motivated. When do we want it?  How do we use it?}
+The implementation uses the standard Haskell \hs{Writer} monad: we instantiate
+\hs{f} to \hs{Writer}~\hs{[@@k]}~\hs{v}, and feed
+\hs{fetch}~\hs{k}~\hs{=}~\hs{writer}~\hs{(@@getValue}~\hs{store}~\hs{k,}~\hs{[@@k])}
+to the task, which in addition to fetching a value from the store, tracks the
+corresponding key. Here is an example of \hs{track}ing monadic tasks:
 
-\todo{slpj}{I think we should push 'inputs' into the appendix.}
-
-Here is a draft implementation of \hs{inputs} used in the definition of
-build system correctness in \S\ref{sec-build-correctness}:
-
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-inputs :: Eq k => Task Monad k v -> Store i k v -> k -> [k]
-inputs task store key = filter (isInput task) (closure deps key)
-  where
-    deps k = maybe [] snd (track task store k)
-
-closure :: Eq a => (a -> [a]) -> a -> [a] -- Standard graph transitive closure
-
-data Proxy a = Proxy
-
-isInput :: Task Monad k v -> k -> Bool
-isInput task = isNothing . task (const Proxy)
+@\ghci@ store1 = initialise () (\key -> if key == "A1" then 10 else 1)
+@\ghci@ track sprsh2 store1 "B1"
+Just (1,["C1","B2"])
 \end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ store2 = initialise () (\key -> if key == "A1" then 10 else 20)
+@\ghci@ track sprsh2 store2 "B2"
+Just (20,["C1","B1"])
+\end{minted}
+\vspace{1mm}
 
-\subsection{Free tasks (?)}
+\noindent
+As expected, the dependencies of \hs{sprsh2} (see the spreadsheet
+in~\S\ref{sec-task-monad}) are determined by the contents of the store.
+Furthermore, the above example highlights the static cycle between cells
+\cmd{B1} and \cmd{B2}: in \hs{store1}, we have \cmd{B1 = B2 = A1 = 10},
+whereas in \hs{store2}, we have \cmd{B2 = B1 = A2 = 20}.
 
-\todo{AM}{Introduce free constructions \hs{TaskA} and \hs{TaskM} giving
-intuitions on what tasks really are. Requires some further discussion with Neil.
-This will take at least one page.}
+% \subsection{Free tasks}
+% \todo{AM}{Introduce free constructions \hs{TaskA} and \hs{TaskM} giving
+% intuitions on what tasks really are. This will take at least one page.}
+%
+% data TaskA k v a = InputA | TaskA [k] ([v] -> a)
+%
+% data TaskM k v a = InputM | DoneM a | TaskM [k] ([v] -> Task k v a)
 
-% \subsection{Recognising an applicative compute wearing a monadic hat}
-
+% \subsection{Recognising an applicative task wearing a monadic hat}
 % Although dynamic dependencies are very useful, they typically represent only a
 % small fraction of all dependencies. One can exploit this in a build system by
-% recognising applicative computations even though they have the type
-% \hs{Compute}~\hs{Monad} and treating them specially.
-
-% Consider the following data type.
-
-% \subsection{Free build structures}\label{sec-free-build}
-
-% \begin{minted}{haskell}
-% data Depend k v r = Depend [k] ([v] -> r)
-
-% data Depends k v r = Depends [k] ([v] -> Depends k v r)
-%                    | Done r
-% \end{minted}
-
-
+% recognising applicative tasks even though they have the type
+% \hs{Task}~\hs{Monad} and treating them specially.
