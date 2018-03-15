@@ -1,4 +1,7 @@
 module Development.Build.Plan (
+    -- Traces
+    VerifyingTrace, verify,
+
     -- * Plan
     Plan, noPlan,
 
@@ -7,8 +10,24 @@ module Development.Build.Plan (
     ) where
 
 import Data.Maybe
+import Data.Map (Map)
 import Development.Build.Store
 import Development.Build.Utilities
+
+import qualified Data.Map as Map
+
+------------------------------- New traces stuff -------------------------------
+
+type VerifyingTrace k v = Map k (Hash, [(k, Hash)])
+
+verify :: (Ord k, Hashable v) => VerifyingTrace k v -> Store i k v -> k -> Bool
+verify trace store key = case Map.lookup key trace of
+    Nothing -> False
+    Just (result, deps) -> getHash store key == result
+                        && and [ getHash store k == h | (k, h) <- deps ]
+
+
+------------------------ Old plan stuff (to be deleted) ------------------------
 
 -- | A /build plan/ is a partial map from a key to the hash of its value, plus a
 -- list of its @(key, hash)@ dependencies. Build plans are typically reused from
