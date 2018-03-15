@@ -221,10 +221,10 @@ Here is how one can express the task for producing \cmd{release.tar} using \Shak
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 "release.tar" %> \_ -> do
-    { need ["release.txt"]
-    ; files <- lines <$> readFile "release.txt"
-    ; need files
-    ; system "tar" $ ["-cf", "result.tar"] ++ files }
+    need ["release.txt"]
+    files <- lines <$> readFile "release.txt"
+    need files
+    system "tar" $ ["-cf", "result.tar"] ++ files
 \end{minted}
 \vspace{1mm}
 
@@ -247,7 +247,7 @@ files need to be rebuilt. This idea has a long history, going back to
 Second, instead of abandoning
 and deferring the execution of tasks whose newly discovered dependencies have
 not yet been built (as \Excel does), \Shake \emph{pauses} their execution until
-the dependencies are brought up-to-date. We refer to this build algorithm as
+the dependencies are brought up to date. We refer to this build algorithm as
 \emph{recursive}.
 
 \begin{figure}[h]

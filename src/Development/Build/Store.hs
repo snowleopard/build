@@ -13,37 +13,35 @@ module Development.Build.Store (
     ) where
 
 -- | A 'Hash' is used for efficient tracking and sharing of build results. We
--- use @type Hash = Int@ for prototyping.
-type Hash = Int
+-- use @newtype Hash a = Hash Int@ for prototyping.
+newtype Hash a = Hash Int deriving Eq
 
 class Hashable a where
     -- | Compute the hash of a given value. We typically assume cryptographic
     -- hashing, e.g. SHA256.
-    hash :: a -> Hash
+    hash :: a -> Hash a
 
 instance Hashable Int where
-    hash = id
+    hash = Hash
 
 instance Hashable Integer where
-    hash = fromIntegral
+    hash = Hash . fromIntegral
 
 data Store i k v = Store { getInfo :: i, getValue :: k -> v }
 
-getHash :: Hashable v => Store i k v -> k -> Hash
+getHash :: Hashable v => Store i k v -> k -> Hash v
 getHash s = hash . getValue s
 
 putInfo :: Store i k v -> i -> Store i k v
 putInfo s i = s { getInfo = i }
 
-putValue :: (Eq k, Hashable v) => Store i k v -> k -> v -> Store i k v
+putValue :: Eq k => Store i k v -> k -> v -> Store i k v
 putValue s k v = s { getValue = \key -> if key == k then v else getValue s key }
-  where
-    _ = hash v
 
 initialise :: i -> (k -> v) -> Store i k v
 initialise = Store
 
-checkHashes :: Hashable v => Store m k v -> [(k, Hash)] -> Bool
+checkHashes :: Hashable v => Store m k v -> [(k, Hash v)] -> Bool
 checkHashes store = all (\(k, h) -> getHash store k == h)
 
 agree :: Eq v => [Store i k v] -> [k] -> Bool

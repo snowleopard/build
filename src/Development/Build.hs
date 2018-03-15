@@ -28,12 +28,12 @@ import Development.Build.Utilities
 -- has no way of updating the map.
 type Build c i k v = Task c k v -> k -> Store i k v -> Store i k v
 
-dumb :: (Eq k, Hashable v) => Build Monad i k v
+dumb :: Eq k => Build Monad i k v
 dumb task key store = case compute task (getValue store) key of
     Nothing    -> store
     Just value -> putValue store key value
 
-busy :: forall k v. (Eq k, Hashable v) => Build Monad () k v
+busy :: forall k v. Eq k => Build Monad () k v
 busy task key store = execState (fetch key) store
   where
     fetch :: k -> State (Store () k v) v
@@ -41,7 +41,7 @@ busy task key store = execState (fetch key) store
         Nothing  -> do { s <- get; return (getValue s k) }
         Just act -> do { v <- act; modify (\s -> putValue s k v); return v }
 
-memo :: forall k v. (Eq k, Hashable v) => Build Monad () k v
+memo :: forall k v. Eq k => Build Monad () k v
 memo task key store = fst $ execState (fetch key) (store, [])
   where
     fetch :: k -> State (Store () k v, [k]) v
@@ -70,7 +70,7 @@ topological step task key = execState $ forM_ chain $ \k -> do
 type Time = Integer
 type MakeInfo k = (k -> Time, Time)
 
-make :: (Eq k, Hashable v) => Build Applicative (MakeInfo k) k v
+make :: Eq k => Build Applicative (MakeInfo k) k v
 make = topological $ \key deps act -> do
     (modTime, now) <- getInfo <$> get
     let dirty = or [ modTime dep > modTime key | dep <- deps ]
