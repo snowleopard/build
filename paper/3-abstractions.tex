@@ -103,8 +103,7 @@ is capable of encoding values corresponding to non-existent keys (missing files
 or empty cells). The store also holds a value of type \hs{i},
 representing the persistent build information maintained by the build
 system~--~its ``memory''.
-% Given an \hs{i} and a key/value map \store, we can
-% \hs{initialise} a store.
+% Given an \hs{i} and a key/value map \store, we can \hs{initialise} a store.
 
 \vspace{-2mm}
 \paragraph{Hashes.}
@@ -133,8 +132,8 @@ in~\S\ref{sec-related-optics}.} is best introduced by an example.
 Consider this \Excel spreadsheet:
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{text}
-  A1: 10     B1: A1 + A2
-  A2: 20     B2: B1 * 2
+A1: 10     B1: A1 + A2
+A2: 20     B2: B1 * 2
 \end{minted}
 \vspace{1mm}
 Here cell \cmd{A1} contains the value \cmd{10}, the cell \cmd{B1} contains
@@ -413,8 +412,6 @@ that:
     \[
     \,\,\,\,\,\,\,\hs{getValue}~\hs{store}~\hs{k}~\hs{==}~\hs{getValue}~\hs{result}~\hs{k}~\hs{&&}~\hs{getValue}~\hs{store}~\hs{k}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{k}
     \]
-    % where the implementation of \hs{inputs} is provided in the Appendix, which
-    % is dedicated to the task dependency analysis.
     This requirement asserts that (i) no inputs were corrupted during the
     build, and (ii)~the \hs{ideal} store has constraints not only on the output,
     but also on the inputs.
@@ -480,7 +477,7 @@ see~\cite{free-applicatives}, but it is cool.
 
 So much for applicative tasks. What about monadic tasks with dynamic
 dependencies? As we have seen in~\S\ref{sec-background-shake}, dynamic
-dependencies need to be tracked too. This cannot be done statically; note that
+dependencies need to be tracked too. This cannot be done statically; notice that
 the application of the function \hs{dependencies} to a \hs{Task}~\hs{Monad} will
 not typecheck. We need to run a monadic task on a store with concrete values,
 which will determine the discovered dependencies. Accordingly, we introduce
@@ -499,8 +496,9 @@ track task store = runWriter . task (\k -> writer (getValue store k, [k]))
 \vspace{1mm}
 
 \noindent
-The implementation uses the standard Haskell \hs{Writer} monad: we instantiate
-\hs{f} to \hs{Writer}~\hs{[@@k]}~\hs{v}, and feed
+The implementation uses the standard Haskell \hs{Writer} monad, which allows us
+to record addition information -- a list of keys of type \hs{[@@k]} -- when
+computing a task. We instantiate \hs{f} to \hs{Writer}~\hs{[@@k]}~\hs{v}, and feed
 \hs{fetch}~\hs{k}~\hs{=}~\hs{writer}~\hs{(@@getValue}~\hs{store}~\hs{k,}~\hs{[@@k])}
 to the task, which in addition to fetching a value from the store, tracks the
 corresponding key. Here is an example of \hs{track}ing monadic tasks:
