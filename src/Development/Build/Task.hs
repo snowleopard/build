@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-module Development.Build.Task (Task, inputTask, isInput, sprsh1) where
+module Development.Build.Task (Task, inputTask, isInput, sprsh1, sprsh2) where
 
 import Control.Applicative
 import Control.Monad
@@ -103,7 +103,9 @@ sprsh1 _     _    = Nothing
 
 sprsh2 :: Task Monad String Integer
 sprsh2 fetch "B1" = Just $ do c1 <- fetch "C1"
-                              if c1 == 1 then fetch "A1" else fetch "A2"
+                              if c1 == 1 then fetch "B2" else fetch "A2"
+sprsh2 fetch "B2" = Just $ do c1 <- fetch "C1"
+                              if c1 == 1 then fetch "A1" else fetch "B1"
 sprsh2 _     _    = Nothing
 
 -- These type synonyms are not very useful, but enumerate all interesting cases.

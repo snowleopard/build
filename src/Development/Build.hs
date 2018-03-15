@@ -38,8 +38,8 @@ busy task key store = execState (fetch key) store
   where
     fetch :: k -> State (Store () k v) v
     fetch k = case task fetch k of
-        Nothing  -> do { s <- get; return (getValue s k) }
-        Just act -> do { v <- act; modify (\s -> putValue s k v); return v }
+        Nothing  -> do s <- get; return (getValue s k)
+        Just act -> do v <- act; modify (\s -> putValue s k v); return v
 
 memo :: forall k v. Eq k => Build Monad () k v
 memo task key store = fst $ execState (fetch key) (store, [])
