@@ -160,7 +160,7 @@ that precisely in \S\ref{sec-build-correctness}. Here is a simple build system:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-busy :: (Eq k, Hashable v) => Build Monad () k v
+busy :: (Eq k, Hashable v) => Build Monad () k v -- Drop Hashable? It's confusing here
 busy task key store = execState (compute key) store
   where
     compute k = case task compute k of
