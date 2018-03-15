@@ -59,8 +59,7 @@ make = withChanged $ topological $ \k dk act -> do
     t <- getStoreTime k
     dt <- mapM getStoreTime dk
     let dirty = any (>= t) dt
-    when dirty $
-        putStore k =<< act
+    when dirty (putStore k =<< act)
 \end{minted}
 
 We'll come back to \hs{withChanged} afterwards, but ignoring that, reading the rest of the implementation you can see the underlying essence of \Make. We use the helper function \hs{topological} which gets called with each file in a dependency-respecting order given the file (\hs{k}), the dependencies (\hs{dk}) and an action to generate the result (\hs{act}). With those three things in hand, the implementation first gets the timestamp of the key being built, then the timestamps of the dependencies (which must have been rebuilt if necessary, thanks to the guarantees on \hs{topological}), and considers it dirty if any dependency was built after \hs{k}. If it is dirty, it rebuilds and stores the result.
@@ -100,8 +99,7 @@ On top of a dirty bit we can encode a time with a very small domain, concretely 
 makeDirtyBit :: Eq v => Build Applicative (Changed k v, ()) k v
 makeDirtyBit = withChanged $ topological $ \k dk act -> do
     dirty <- getChanged k ||^ anyM getChanged dk
-    when dirty $
-        putStore k =<< act
+    when dirty (putStore k =<< act)
 \end{minted}
 
 \subsection{\Excel}\label{sec-implementation-excel}
@@ -112,14 +110,12 @@ As a programming exercise, \Excel is the most challenging, due to the complicate
 excel :: Eq v => Build Monad (Changed k v, [k]) k v
 excel = withChanged $ reordering $ \k dk _ act -> do
     dirty <- getChanged k ||^ maybe (return True) (anyM getChanged) dk
-    if not dirty then
-        return Nothing
-    else
-        act >>= \case
-            Left e -> return $ Just e
-            Right (_, v) -> do
-                putStore k v
-                return Nothing
+    if not dirty
+       then return Nothing
+       else act >>= \case
+              Left e -> return $ Just e
+              Right (_, v) -> do putStore k v
+                                 return Nothing
 \end{minted}
 
 We use the helper function \hs{reordering} which provides the key to build (\hs{k}), the dependencies of \hs{k} (\hs{dk}) and an action to build \hs{k} (\hs{act}). The dirty check is the same as \hs{makeDirtyBit}, with the added complication that because the \hs{Task} is monadic it may not be possible to statically get a list of dependencies - if \hs{dk} is \hs{Nothing} then the action uses the monadic power and we conservatively rebuild anyway. If the check determines that the key is dirty, and needs rebuilding, we run \hs{act}, giving two possibilities:
