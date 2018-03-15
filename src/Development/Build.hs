@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes #-}
+{-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 module Development.Build (
     -- * Build
     Build, dumb, busy, memo, make,
@@ -29,23 +29,23 @@ import Development.Build.Utilities
 type Build c i k v = Task c k v -> k -> Store i k v -> Store i k v
 
 dumb :: (Eq k, Hashable v) => Build Monad i k v
-dumb task key store = case execute task (getValue store) key of
+dumb task key store = case compute task (getValue store) key of
     Nothing    -> store
     Just value -> putValue store key value
 
-busy ::(Eq k, Hashable v) => Build Monad () k v
-busy task key store = execState (compute key) store
+busy :: forall k v. (Eq k, Hashable v) => Build Monad () k v
+busy task key store = execState (fetch key) store
   where
-    -- compute :: k -> State (Store () k v) v
-    compute k = case task compute k of
+    fetch :: k -> State (Store () k v) v
+    fetch k = case task fetch k of
         Nothing  -> do { s <- get; return (getValue s k) }
         Just act -> do { v <- act; modify (\s -> putValue s k v); return v }
 
-memo :: (Eq k, Hashable v) => Build Monad () k v
-memo task key store = fst $ execState (compute key) (store, [])
+memo :: forall k v. (Eq k, Hashable v) => Build Monad () k v
+memo task key store = fst $ execState (fetch key) (store, [])
   where
-    -- compute :: k -> State (Store () k v, [k]) v
-    compute k = case task compute k of
+    fetch :: k -> State (Store () k v, [k]) v
+    fetch k = case task fetch k of
         Nothing  -> do { s <- fst <$> get; return (getValue s k) }
         Just act -> do
             built <- snd <$> get
@@ -78,10 +78,6 @@ make = topological $ \key deps act -> do
         v <- act
         let newModTime k = if k == key then now else modTime k
         modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
-
-
--- f :: k -> [k] -> State (Store (k -> Time, Time) k v) a -> State (Store (k -> Time, Time) k v) ()
--- f _ _ _ = return ()
 
 type MultiBuild c i k v = Task c k v -> [k] -> Store i k v -> Store i k v
 

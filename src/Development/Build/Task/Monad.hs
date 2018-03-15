@@ -1,8 +1,8 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 module Development.Build.Task.Monad (
     dependencies, track, trackM, transitiveDependencies, inputs, acyclic,
-    consistent, correctBuild, execute, debugPartial, partial, exceptional,
-    staticDependencies, Script (..), getScript, runScript, isStatic, execute'
+    consistent, correctBuild, compute, compute', debugPartial, partial,
+    exceptional, staticDependencies, Script (..), getScript, runScript, isStatic
     ) where
 
 import Control.Monad.Trans
@@ -50,7 +50,7 @@ inputs task store key = filter (isInput task) (closure deps key)
 -- if it returns @Just v@ for some key @k@ then @f k == v@.
 consistent :: Eq v => Task Monad k v -> Store i k v -> Bool
 consistent task store =
-    forall $ \k -> case execute task (getValue store) k of
+    forall $ \k -> case compute task (getValue store) k of
         Nothing -> True
         Just v  -> getValue store k == v
 
@@ -70,12 +70,12 @@ correctBuild task store result key =
 
 -- | Run a task with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
-execute :: Task Monad k v -> (k -> v) -> k -> Maybe v
-execute task fetch = fmap runIdentity . task (pure . fetch)
+compute :: Task Monad k v -> (k -> v) -> k -> Maybe v
+compute task fetch = fmap runIdentity . task (pure . fetch)
 
 -- The version used in the paper
-execute' :: Task Monad k v -> Store i k v -> k -> Maybe v
-execute' task store key = runIdentity <$> task (Identity . getValue store) key
+compute' :: Task Monad k v -> Store i k v -> k -> Maybe v
+compute' task store key = runIdentity <$> task (Identity . getValue store) key
 
 -- | Run a task with a partial lookup function. The result @Left k@ indicates
 -- that the task failed due to a missing dependency @k@. Otherwise, the
