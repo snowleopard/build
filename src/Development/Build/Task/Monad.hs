@@ -41,9 +41,6 @@ acyclic task fetch = fmap isJust . transitiveDependencies task fetch
 isInput :: Task Monad k v -> k -> Bool
 isInput task = isNothing . task (const Proxy)
 
-closure :: Eq a => (a -> [a]) -> a -> [a]
-closure = undefined
-
 inputs :: Eq k => Task Monad k v -> Store i k v -> k -> [k]
 inputs task store key = filter (isInput task) (closure deps key)
   where

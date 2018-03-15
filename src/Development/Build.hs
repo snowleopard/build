@@ -1,7 +1,10 @@
 {-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes #-}
 module Development.Build (
     -- * Build
-    Build, dumb, busy, memo,
+    Build, dumb, busy, memo, make,
+
+    -- * Algorithms
+    topological,
 
     -- * MultiBuild
     MultiBuild, sequentialMultiBuild,
@@ -13,7 +16,8 @@ module Development.Build (
 import Control.Monad.State
 
 import Development.Build.Task
-import Development.Build.Task.Monad
+import Development.Build.Task.Applicative
+import Development.Build.Task.Monad hiding (dependencies)
 import Development.Build.Store
 import Development.Build.Utilities
 
@@ -50,6 +54,34 @@ memo task key store = fst $ execState (compute key) (store, [])
                 modify $ \(s, built) -> (putValue s k v, k : built)
             s <- fst <$> get
             return (getValue s k)
+
+topological :: Eq k
+            => (k -> [k] -> State (Store i k v) v -> State (Store i k v) ())
+            -> Build Applicative i k v
+topological step task key = execState $ forM_ chain $ \k -> do
+    let fetch k = do { store <- get; return (getValue store k) }
+    case task fetch k of
+        Nothing  -> return ()
+        Just act -> step k (deps k) act
+  where
+    deps  = dependencies task
+    chain = topSort deps (closure deps key)
+
+type Time = Integer
+type MakeInfo k = (k -> Time, Time)
+
+make :: (Eq k, Hashable v) => Build Applicative (MakeInfo k) k v
+make = topological $ \key deps act -> do
+    (modTime, now) <- getInfo <$> get
+    let dirty = or [ modTime dep > modTime key | dep <- deps ]
+    when dirty $ do
+        v <- act
+        let newModTime k = if k == key then now else modTime k
+        modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
+
+
+-- f :: k -> [k] -> State (Store (k -> Time, Time) k v) a -> State (Store (k -> Time, Time) k v) ()
+-- f _ _ _ = return ()
 
 type MultiBuild c i k v = Task c k v -> [k] -> Store i k v -> Store i k v
 

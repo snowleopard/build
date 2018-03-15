@@ -1,6 +1,6 @@
 module Development.Build.Utilities (
     -- * Graph operations
-    reach, reachM,
+    closure, topSort, reach, reachM,
 
     -- * Transformers
     AltConst (..),
@@ -11,6 +11,13 @@ module Development.Build.Utilities (
 
 import Control.Applicative
 import Data.Functor.Identity
+
+-- TODO: Implement
+closure :: Eq a => (a -> [a]) -> a -> [a]
+closure = undefined
+
+topSort :: Eq a => (a -> [a]) -> [a] -> [a]
+topSort = undefined
 
 -- TODO: Just switch to a proper graph library for reachability analysis.
 -- | Given a function to compute successors of a vertex, apply it recursively
