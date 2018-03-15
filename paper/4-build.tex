@@ -113,31 +113,48 @@ with only the ability to update to the latest modification time.
 
 \subsubsection{Verifying traces}\label{sec-verifying-traces}
 
-An alternative way to determine if a key is dirty is to record what state the values/hashes of dependencies were used at last time, and if something has changed, the key is dirty and must be recomputed - in essence a trace with which we can use to \textit{verify} existing values. We can describe a trace as:
+An alternative way to determine if a key is dirty is to record what state the
+values/hashes of dependencies were used at last time, and if something has
+changed, the key is dirty and must be recomputed -- in essence a \emph{trace}
+which we can use to \textit{verify} existing values. We can describe a trace as:
+
+\todo{AM/NM}{Change from \hs{[Trace k v]} to \hs{Map k (Trave k v)} or something
+similar, so that it's obvious we have one trace per key .}
 
 \begin{minted}{haskell}
 data Trace k v = Trace
-    {key :: k
-    ,dependencies :: [(k, Hash v)]
-    ,result :: Hash v
-    }
+    { key          :: k
+    , dependencies :: [(k, Hash)]
+    , result       :: Hash }
 \end{minted}
 
-We assume that \hs{Hash v} is a small constant size, constructed from hashing the underlying \hs{v} rather than storing it directly. Checking a trace requires ensuring all the dependencies are up-to-date (using whatever ordering strategy as per \S\ref{sec-dependency-orderings}), then comparing if the dependencies are same as the current value and that the result is the same. After computing a fresh value we add its \hs{Trace} to the list. Therefore the information stored by a build system that verifies traces is \hs{[Trace k v]}.
+We assume that \hs{Hash} is a small constant size, constructed from hashing the
+underlying \hs{v} rather than storing it directly. Checking a trace requires
+ensuring all the dependencies are up-to-date (using whatever ordering strategy
+as per \S\ref{sec-dependency-orderings}), then comparing if the dependencies are
+same as the current value and that the result is the same. After computing a
+fresh value we add its \hs{Trace} to the list. Therefore the information stored
+by a build system that verifies traces is \hs{[Trace k v]}.
 
 \subsubsection{Constructive traces}\label{sec-constructive-traces}
 
 A verifying trace allows us to mark a key dirty and rebuild it. Extending that information we can store a \textit{constructive} trace which is the trace plus the actual result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality. We can represent that as:
 
+\todo{AM/NM}{Traces -- why the indirection (first get the hash, then look it up)?
+Can we drop it? Can we switch to a more efficient/explicit data structure than a list?}
+
 \begin{minted}{haskell}
 data Traces k v = Traces
-    {traces :: [Trace k v]
-    ,contents :: Map (Hash v) v
-    }
+    { traces :: [Trace k v]
+    , cache  :: Map Hash v }
 \end{minted}
 
-We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{contents} \textit{without} recomputing it.
+We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{cache} \textit{without} recomputing it.
 
 For both verifying and constructive choices it is possible to choose smarter data structures than simply a list of \hs{Trace}, which we discuss in \S\ref{sec-smart-traces}.
 
-\todo{AM}{AM: I would also like to see an actual \hs{upToDate} function for verifying, and a \hs{recreate} for `recreating'. NM: It actually gets a bit more confusing than that - since you end up needing to pass functions to get yourself, your dependencies etc. Unclear there is a win. The functions would occur in the next section anyway.}
+\todo{AM}{AM: I would also like to see actual \hs{verify} and \hs{construct} functions.
+
+NM: It actually gets a bit more confusing than that - since you end up needing to pass functions to get yourself, your dependencies etc. Unclear there is a win. The functions would occur in the next section anyway.
+
+AM: Now, after we've switched to \hs{Store i k v} it might work better?}
