@@ -5,9 +5,6 @@ module Development.Build.Utilities (
     -- * Transformers
     AltConst (..),
 
-    -- * Helpers
-    agree,
-
     -- * Logic combinators
     forall, forallM, exists, existsM, (==>)
     ) where
@@ -35,11 +32,6 @@ reachM successors a = fmap (filter (/= a)) <$> go [] a
     go xs x | x `elem` xs = return Nothing -- A cycle is detected
             | otherwise   = do res <- traverse (go (x:xs)) =<< successors x
                                return $ ((x:xs)++) . concat <$> sequence res
-
-agree :: Eq v => [k -> v] -> [k] -> Bool
-agree fs = all same
-  where
-    same k = let vs = map ($k) fs in and $ zipWith (==) vs (drop 1 vs)
 
 -- TODO: We can probably achieve the same effect using Compose [] Const.
 newtype AltConst a b = AltConst { getAltConst :: [[a]] }

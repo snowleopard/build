@@ -11,9 +11,10 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
 import Data.Functor.Identity
 import Data.Maybe
+import Data.Proxy
 
 import Development.Build.Store
-import Development.Build.Task
+import Development.Build.Task hiding (isInput)
 import Development.Build.Utilities
 
 -- TODO: Does this always terminate? It's not obvious!
@@ -22,8 +23,8 @@ dependencies task store = execWriterT . sequenceA . task fetch
   where
     fetch k = tell [k] >> lift (store k)
 
-track :: Task Monad k v -> (k -> v) -> k -> Maybe (v, [k])
-track task store = fmap runWriter . task (\k -> writer (store k, [k]))
+track :: Task Monad k v -> Store i k v -> k -> Maybe (v, [k])
+track task store = fmap runWriter . task (\k -> writer (getValue store k, [k]))
 
 trackM :: Monad m => Task Monad k v -> (k -> m v) -> k -> Maybe (m (v, [k]))
 trackM task store = fmap runWriterT . task fetch
@@ -37,35 +38,38 @@ transitiveDependencies task fetch = reachM (dependencies task fetch)
 acyclic :: (Eq k, Monad m) => Task Monad k v -> (k -> m v) -> k -> m Bool
 acyclic task fetch = fmap isJust . transitiveDependencies task fetch
 
-inputs :: (Eq k, Monad m) => Task Monad k v -> (k -> m v) -> k -> m (Maybe [k])
-inputs task fetch key = do
-    deps <- transitiveDependencies task fetch key
-    return $ filter (isInput task) <$> deps
+isInput :: Task Monad k v -> k -> Bool
+isInput task = isNothing . task (const Proxy)
 
-pureInputs :: Eq k => Task Monad k v -> (k -> v) -> k -> Maybe [k]
-pureInputs task fetch = runIdentity . inputs task (Identity . fetch)
+closure :: Eq a => (a -> [a]) -> a -> [a]
+closure = undefined
+
+inputs :: Eq k => Task Monad k v -> Store i k v -> k -> [k]
+inputs task store key = filter (isInput task) (closure deps key)
+  where
+    deps k = maybe [] snd (track task store k)
 
 -- | Check that a task is /consistent/ with a pure lookup function @f@, i.e.
 -- if it returns @Just v@ for some key @k@ then @f k == v@.
-consistent :: Eq v => Task Monad k v -> (k -> v) -> Bool
-consistent task fetch =
-    forall $ \k -> maybe True (fetch k ==) $ execute task fetch k
+consistent :: Eq v => Task Monad k v -> Store i k v -> Bool
+consistent task store =
+    forall $ \k -> case execute task (getValue store) k of
+        Nothing -> True
+        Just v  -> getValue store k == v
 
 -- | Given a @task@, a pair of key-value maps describing the contents of a
--- store @before@ and @after@ a build system was executed to build a given @key@,
--- determine if @after@ is a correct build outcome.
--- Specifically, there must exist a @magic@ key-value map, such that:
--- * @before@, @after@ and @magic@ agree on the values of all inputs.
--- * @after@ and @magic@ agree on the value of the output @key@.
--- * @magic@ is 'consistent' with the @task@.
+-- store @store@ and @result@ a build system was executed to build a given @key@,
+-- determine if @result@ is a correct build outcome.
+-- Specifically, there must exist a @ideal@ key-value map, such that:
+-- * @store@, @result@ and @ideal@ agree on the values of all inputs.
+-- * @result@ and @ideal@ agree on the value of the output @key@.
+-- * @ideal@ is 'consistent' with the @task@.
 -- We assume that @task@ is acyclic. If it is not, the function returns @True@.
-correctBuild :: (Eq k, Eq v) => Task Monad k v -> (k -> v) -> (k -> v) -> k -> Bool
-correctBuild task before after key =
-    case pureInputs task after key of
-        Nothing     -> True -- We assumed that task is acyclic, but it is not
-        Just inputs -> exists $ \magic -> agree [before, after, magic] inputs
-                                       && agree [        after, magic] [key]
-                                       && consistent task magic
+correctBuild :: (Eq k, Eq v) => Task Monad k v -> Store i k v -> Store i k v -> k -> Bool
+correctBuild task store result key =
+    exists $ \ideal -> agree [store, result, ideal] (inputs task result key)
+                    && agree [       result, ideal] [key]
+                    && consistent task ideal
 
 -- | Run a task with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.

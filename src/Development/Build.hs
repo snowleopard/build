@@ -74,7 +74,7 @@ busy task key store = execState (go key) store
 -- We assume that @task@ is acyclic. If it is not, the function returns @True@.
 correct :: (Eq k, Eq v) => Build Monad i k v -> Task Monad k v -> Bool
 correct build task = forall $ \(key, store) ->
-    correctBuild task (getValue store) (getValue $ build task key store) key
+    correctBuild task store (build task key store) key
 
 -- TODO: Switch to getHash
 -- | Check that a build system is /idempotent/, i.e. running it once or twice in

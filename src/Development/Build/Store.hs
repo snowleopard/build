@@ -4,7 +4,8 @@ module Development.Build.Store (
     Hash, Hashable (..),
 
     -- * Store
-    Store, getValue, putValue, getHash, getInfo, putInfo, initialise, checkHashes
+    Store, getValue, putValue, getHash, getInfo, putInfo, initialise,
+    checkHashes, agree
 
     -- * The store monad
     -- Store (..), Snapshot (..), checkHashes, PureStore, runPureStore,
@@ -39,11 +40,17 @@ putValue s k v = s { getValue = \key -> if key == k then v else getValue s key }
   where
     _ = hash v
 
+initialise :: i -> (k -> v) -> Store i k v
+initialise = Store
+
 checkHashes :: Hashable v => Store m k v -> [(k, Hash)] -> Bool
 checkHashes store = all (\(k, h) -> getHash store k == h)
 
-initialise :: i -> (k -> v) -> Store i k v
-initialise = Store
+agree :: Eq v => [Store i k v] -> [k] -> Bool
+agree ss = all same
+  where
+    same k = let vs = [getValue s k | s <- ss] in and $ zipWith (==) vs (drop 1 vs)
+
 
 -- | A key-value store monad that in addition to usual 'getValue' and 'putValue'
 -- queries supports 'getHash', which can in some cases be implemented more
