@@ -62,11 +62,11 @@ memo task key store = fst $ execState (fetch key) (store, [])
 topological :: Eq k
             => (k -> [k] -> State (Store i k v) v -> State (Store i k v) ())
             -> Build Applicative i k v
-topological step task key = execState $ forM_ chain $ \k -> do
-    let fetch k = do { store <- get; return (getValue store k) }
+topological process task key = execState $ forM_ chain $ \k -> do
+    let fetch k = do store <- get; return (getValue store k)
     case task fetch k of
         Nothing  -> return ()
-        Just act -> step k (deps k) act
+        Just act -> process k (deps k) act
   where
     deps  = dependencies task
     chain = topSort deps (closure deps key)
@@ -75,13 +75,15 @@ type Time = Integer
 type MakeInfo k = (k -> Time, Time)
 
 make :: Eq k => Build Applicative (MakeInfo k) k v
-make = topological $ \key deps act -> do
-    (modTime, now) <- getInfo <$> get
-    let dirty = or [ modTime dep > modTime key | dep <- deps ]
-    when dirty $ do
-        v <- act
-        let newModTime k = if k == key then now else modTime k
-        modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
+make = topological process
+  where
+    process key deps act = do
+        (modTime, now) <- getInfo <$> get
+        let dirty = or [ modTime dep > modTime key | dep <- deps ]
+        when dirty $ do
+            v <- act
+            let newModTime k = if k == key then now else modTime k
+            modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
 
 reordering :: forall i k v. Ord k
             => (k -> State (Store i k v) (Either k (v, [k])) -> State (Store i k v) (Maybe k))
