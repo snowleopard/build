@@ -1,10 +1,10 @@
 {-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 module Development.Build (
     -- * Build
-    Build, dumb, busy, memo, make,
+    Build, dumb, busy, memo, make, excel,
 
     -- * Algorithms
-    topological,
+    topological, reordering,
 
     -- * MultiBuild
     MultiBuild, sequentialMultiBuild,
@@ -78,6 +78,27 @@ make = topological $ \key deps act -> do
         v <- act
         let newModTime k = if k == key then now else modTime k
         modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
+
+reordering :: Eq k
+            => (k -> [k] -> State (Store i k v) (Either k v) -> State (Store i k v) (Either k ()))
+            -> Build Monad (i, [k]) k v
+reordering step task key = undefined
+
+type ExcelInfo k = (k -> Bool, [k])
+
+excel :: Eq k => Build Monad (ExcelInfo k) k v
+excel = reordering $ \key deps act -> do
+    dirty <- getInfo <$> get
+    if (dirty key || any dirty deps)
+    then do
+        v <- act
+        case v of
+            Left k  -> return (Left k)
+            Right v -> Right <$> do
+                let newDirty k = if k == key then True else dirty k
+                modify $ \s -> putInfo (putValue s key v) newDirty
+    else
+        return (Right ())
 
 type MultiBuild c i k v = Task c k v -> [k] -> Store i k v -> Store i k v
 
