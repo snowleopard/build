@@ -25,6 +25,7 @@
       "mempty",
       "newtype",
       "poss",
+      "racey",
       "sigplanproc",
       "sprsh",
       "topmatter",

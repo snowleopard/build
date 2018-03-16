@@ -1,65 +1,57 @@
-\clearpage
 \section{Build systems, concretely}\label{sec-implementations}
 
-In the previous sections we discussed the types of build system, and how they broken down. But these divisions were not obvious to us, and only by concretely implementing and refactoring each build system did we determine the underlying commonalities. In this section we share some of the code that got us there, but full code is available in the supporting material and at \url{url-hidden-for-anonymous-submission}. Our code comprises a framework, utility functions implementing the various dependency orderings as per \S\ref{sec-dependency-orderings}, and actual implementations.
+In the previous sections we discussed the types of build system, and how they
+can be broken down. But these divisions were not obvious to us, and only by
+concretely implementing and refactoring each build system did we determine the
+underlying commonalities. In this section we share some of the code that got us
+there. Our code comprises a framework, utility functions implementing the
+various dependency orderings as per~\S\ref{sec-dependency-orderings}, and
+actual implementations.
 
-\subsection{Framework}
+% \subsection{Framework}
 
-todo{SLPJ}{I think this entire section, including the mysterious M, can be deleted.  Or is
-there anything that remains?}
+% todo{SLPJ}{I think this entire section, including the mysterious M, can be deleted.  Or is
+% there anything that remains?}
 
-As we saw in \S\ref{sec-build}, a build system can be defined as:
+% \begin{figure}
+% \begin{minted}{haskell}
+% type M i k v r = State (i, k -> v, ...) r
+% runM :: Default i => M i k v a -> Maybe i -> (k -> v) -> (i, k -> v)
 
-\begin{minted}{haskell}
-type Build c i k v = Compute c k v -> k -> Maybe i -> (k -> v) -> (i, k -> v)
-\end{minted}
+% getStore :: k -> M i k v v
+% putStore :: k -> v -> M i k v ()
+% getInfo :: M i k v i
+% modifyInfo :: (i -> i) -> M i k v ()
+% \end{minted}
+% Note: we have omitted the context on \hs{k}, things like \hs{Eq} (to implement the store).
+% \caption{API with which to implement build systems}
+% \label{fig-M-api}
+% \end{figure}
 
-Using the framework we build in this section, we can express a dumb build system as:
-
-\begin{minted}{haskell}
-dumb :: Build Monad () k v
-dumb compute k = runM (f k)
-    where
-        f k = case compute f k of
-            Nothing -> getStore k
-            Just act -> do
-                v <- act
-                putStore k v
-                return v
-\end{minted}
-
-The \hs{dumb} build system can build with monadic computes, using a function \hs{f} which given a key returns the associated value. To do so, \hs{f} calls \hs{compute} passing \hs{f} itself as an argument. If the result is \hs{Nothing} (this key is an input) it simply reads from the store. Otherwise it runs the action to produce a value, stores it and returns it.
-
-\begin{figure}
-\begin{minted}{haskell}
-type M i k v r = State (i, k -> v, ...) r
-runM :: Default i => M i k v a -> Maybe i -> (k -> v) -> (i, k -> v)
-
-getStore :: k -> M i k v v
-putStore :: k -> v -> M i k v ()
-getInfo :: M i k v i
-modifyInfo :: (i -> i) -> M i k v ()
-\end{minted}
-Note: we have omitted the context on \hs{k}, things like \hs{Eq} (to implement the store).
-\caption{API with which to implement build systems}
-\label{fig-M-api}
-\end{figure}
-
-We use \hs{runM} to switch between the pure world of \hs{Build} and a state monad \hs{M} which lets us more precisely express the ideas behind the build system without threading the state manually - the types of important operations are given in Figure~\ref{fig-M-api}. We provide functions like \hs{getStore} to load from the store and \hs{putStore} to write to the store. We'll introduce the other functions in in the monad \hs{M} as we need them while exploring the build systems.
+% We use \hs{runM} to switch between the pure world of \hs{Build} and a state monad \hs{M} which lets us more precisely express the ideas behind the build system without threading the state manually - the types of important operations are given in Figure~\ref{fig-M-api}. We provide functions like \hs{getStore} to load from the store and \hs{putStore} to write to the store. We'll introduce the other functions in in the monad \hs{M} as we need them while exploring the build systems.
 
 \subsection{\Make}\label{sec-implementation-make}
 
+\todo{AM}{Explain the new implementation. Most of the explanations below will
+need to be adapted.}
+
 The \Make build system builds files in a linear order based on a topological sort.
-(See \S\ref{sec-concurrency} for parallel \Make.)
-For each file, it builds it if the output file is older than any of the inputs. We can express this in our framework with:
+(See \S\ref{sec-concurrency} for parallel \Make.) For each file, it builds it if
+the output file is older than any of the inputs. We can express this in our
+framework with:
 
 \begin{minted}{haskell}
-make :: Eq v => Build Applicative (Changed k v, ()) k v
-make = withChanged $ topological $ \k dk act -> do
-    t <- getStoreTime k
-    dt <- mapM getStoreTime dk
-    let dirty = any (>= t) dt
-    when dirty (putStore k =<< act)
+type Time = Integer
+type MakeInfo k = (k -> Time, Time)
+
+make :: Eq k => Build Applicative (MakeInfo k) k v
+make = topological $ \key deps act -> do
+    (modTime, now) <- getInfo <$> get
+    let dirty = or [ modTime dep > modTime key | dep <- deps ]
+    when dirty $ do
+        v <- act
+        let newModTime k = if k == key then now else modTime k
+        modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
 \end{minted}
 
 We'll come back to \hs{withChanged} afterwards, but ignoring that, reading the rest of the implementation you can see the underlying essence of \Make. We use the helper function \hs{topological} which gets called with each file in a dependency-respecting order given the file (\hs{k}), the dependencies (\hs{dk}) and an action to generate the result (\hs{act}). With those three things in hand, the implementation first gets the timestamp of the key being built, then the timestamps of the dependencies (which must have been rebuilt if necessary, thanks to the guarantees on \hs{topological}), and considers it dirty if any dependency was built after \hs{k}. If it is dirty, it rebuilds and stores the result.
@@ -67,31 +59,24 @@ We'll come back to \hs{withChanged} afterwards, but ignoring that, reading the r
 The implementation of \hs{topological} encodes the dependency strategy that \Make has chosen to use. The function itself is defined as:
 
 \begin{minted}{haskell}
-topological
-    :: (m ~ M i k v, Default i)
-    => (k -> [k] -> m v -> m ())
-    -> Build Applicative i k v
-topological step compute k = runM $ do
-    let depends = dependencies compute
-    forM_ (topSort depends $ transitiveClosure depends k) $ \k ->
-        case compute getStore k of
-            Nothing -> return ()
-            Just act -> step k (depends k) act
+topological :: Eq k
+            => (k -> [k] -> State (Store i k v) v -> State (Store i k v) ())
+            -> Build Applicative i k v
+topological step task key = execState $ forM_ chain $ \k -> do
+    let fetch k = do { store <- get; return (getValue store k) }
+    case task fetch k of
+        Nothing  -> return ()
+        Just act -> step k (deps k) act
+  where
+    deps  = dependencies task
+    chain = topSort deps (closure deps key)
 \end{minted}
 
 It uses a \hs{dependencies} on the computation function, takes the transitive-closure and topological-sort to provide an order in which to build the keys. For each key, if it is an input it does nothing, otherwise it calls the supplied \hs{step} function. Note that \hs{dependencies} is only defined for \hs{Applicative} computes, which is what restricts \Make to Applicative build systems. Moreover, anyone following the same topological-sort approach will also have the \hs{Applicative} restriction.
 
 The greatest impedance mismatch between our framework and this implementation is the notion of \hs{Time} in \hs{getStoreTime}, which is missing from \hs{Build}. However, as we discussed in \S\ref{sec-dirty-bit}, \Make is really using modification-time to encode a dirty bit with specific properties. We model the dirty bit and time with the following API on \hs{M}:
 
-\begin{minted}{haskell}
-getChanged :: Eq v => k -> M (Changed k v, i) k v Bool
-withChanged :: Build c (Changed k v, i) k v -> Build c (Changed k v, i) k v
-
-data Time = LastBuild | AfterLastBuild
-getStoreTime :: Eq v => k -> M (Changed k v, i) k v Time
-\end{minted}
-
-To model a dirty bit we extend the \hs{i} information with \hs{Changed} to capture the \hs{k -> v} store at the end of the previous run, and extend \hs{M} to record which files have been written to during this \hs{runM}. A file is considered dirty if either the current value as per \hs{getStore} has changed since the last run, or if it has had \hs{putStore} called on it\footnote{It would be reasonable to declare files unchanged if they have \hs{putStore} called at their previous value, but \Excel does not and \Make cannot using modification times, so we ignore this option.}. To track the values at the last run we use \hs{withChanged} to copy the resultant \hs{k -> v} store into the info after the build completes\footnote{For tedious reasons our implementation requires \hs{withChangedApplicative} and \hs{withChangedMonad} which are variants of \hs{withChanged} for concrete constraints \hs{c} - but with identical implementations.}
+To model a dirty bit we extend the \hs{i} information with \hs{Changed} to capture the \hs{k -> v} store at the end of the previous run, and extend \hs{M} to record which files have been written to during this \hs{runM}. A file is considered dirty if either the current value as per \hs{getStore} has changed since the last run, or if it has had \hs{putStore} called on it\footnote{It would be reasonable to declare files unchanged if they have \hs{putStore} called at their previous value, but \Excel does not and \Make cannot using modification times, so we ignore this option.}. To track the values at the last run we use \hs{withChanged} to copy the resultant \hs{k -> v} store into the info after the build completes.
 
 On top of a dirty bit we can encode a time with a very small domain, concretely if the file was last changed before the last build ended, or afterwards. That domain is sufficient for the \Make system. At first the fact that this domain is sufficient surprised us, until we realised \Make is only interested in the dirty bit anyway! If we strip back the modification time and directly implement \Make in terms of \hs{getChanged} we obtain:
 
@@ -103,6 +88,9 @@ makeDirtyBit = withChanged $ topological $ \k dk act -> do
 \end{minted}
 
 \subsection{\Excel}\label{sec-implementation-excel}
+
+\todo{AM}{I might do some simplification of this tomorrow. Neil: I guess it's best
+for you to focus on nailing traces and associated \Shake and \Bazel sections.}
 
 As a programming exercise, \Excel is the most challenging, due to the complicated reordering dependency scheme, which requires retrying out-of-order operations. The complete implementation is:
 
@@ -147,6 +135,8 @@ Dynamic requires a function that takes takes 4 arguments (we use \hs{m} to elide
 The implementation of \hs{dynamic} is 15 lines, but is substantially complicated by the requirement to ensure newly discovered keys are added to the list - something an actual spreadsheet with a fixed universe of cells need not do.
 
 \subsection{\Shake}\label{sec-implementation-shake}
+
+\todo{NM}{Remove the intermediate \hs{M} layer, as done in \Make.}
 
 The Shake approach for dependency tracking involves recording traces and verifying them. Using the \hs{Trace} type defined in \ref{sec-verifying-traces} we can implement:
 
@@ -195,6 +185,8 @@ The required \hs{step} function gets given the \hs{k} to build, the dependencies
 
 \subsection{\Bazel}\label{sec-implementation-bazel}
 
+\todo{NM}{Remove the intermediate \hs{M} layer, as done in \Make.}
+
 Now we have seen the three dependency schemes, we can directly reuse \hs{topological} to define \Bazel. Furthermore, as \Bazel is a tracing build system, we can reuse \hs{Trace} and \hs{traceMatch}, as part of the \hs{Traces} type. We define \Bazel as:
 
 \begin{minted}{haskell}
@@ -218,6 +210,8 @@ We execute keys in a topological order. For each key we first get a list of the 
 
 \subsection{Cloud \Shake}\label{sec-implementation-cloud-shake}
 
+\todo{NM}{Remove the intermediate \hs{M} layer, as done in \Make.}
+
 Using the abstractions and approaches built thus far, we have shown how to combine dependency scheme and change approach to reproduce existing build systems. In the attached materials we have implemented 9 build systems corresponding to all three dependency schemes, matched with all three change approaches. To us, the most interesting build system as yet unavailable would matching recursive ordering with constructive traces - providing a cloud-capable build system with minimality, cut-off and monadic dependencies. Using our framework it is possible to define and test such a system:
 
 \begin{minted}{haskell}
@@ -240,6 +234,7 @@ cloudShake = recursive $ \k _ fetch act -> do
 The differences from \hs{bazel} are minor - the dependency scheme has changed from \hs{topological} to \hs{recursive}, and thus the dependency keys \hs{dk} are captured from the action rather than in advance, and the checking calls \hs{fetch} to get the result instead of accessing the store directly. We believe this accurately captures and can be used to reason about how to make \Shake work with a cloud-based cache -- a challenge we intend to attempt in the future.
 
 \subsection{Smarter \hs{[Trace]} Structures}\label{sec-smart-traces}
+\todo{NM}{Remove the intermediate \hs{M} layer, as done in \Make.}
 
 In the examples above, we have used \hs{[Trace]} to capture a list of traces stored in the info field, which accurately models the data and operations. However, using a list necessarily means that finding the right trace takes $O(n)$. For each of the \hs{Trace} based systems it is possible to devise a smarter representation, which we sketch below. Note that these implementations do not avoid calls to \hs{compute}, merely overheads in the build system itself.
 
