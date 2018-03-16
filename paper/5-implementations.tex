@@ -36,10 +36,13 @@ there.
 
 \Make processes keys in a linear order based on a topological sort
 (see~\S\ref{sec-concurrency} for parallel \Make). For each key, it builds it if
-it is older than any of its dependencies. We can express this in our framework
-as follows. We capture the persistent information stored by \Make as a pair
+it is older than any of its dependencies. To express \Make in our framework,
+we capture the persistent information it stores by a pair
 \hs{(@@modTime,}~\hs{now)} comprising the \emph{file modification time} function
-\hs{modTime}~\hs{::}~\hs{k}~\hs{->}~\hs{Time} and the current time \hs{now}.
+\hs{modTime}~\hs{::}~\hs{k}~\hs{->}~\hs{Time} and the \emph{current time} \hs{now}.
+Setting aside the explicit manipulation of file modification times, which in
+reality is taken care of by the file system, the \hs{make} build system defined
+below captures the essence of \Make in a clear and precise manner.
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Time = Integer
@@ -59,15 +62,14 @@ make = topological process
             modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
 \end{minted}
 
-The helper function \hs{topological}, which we describe later, calls
+\noindent
+The helper function \hs{topological}, which we describe below, calls
 \hs{process} on every \hs{key} in the topological order, providing the list of
 its dependencies \hs{deps} and the action \hs{act} to compute the resulting
 value if it needs to be rebuilt. To determine if the \hs{key} is \hs{dirty},
 \hs{process} compares its modification time with those of its dependencies. If
-\hs{key} needs to be rebuilt, the associated action \hs{act} is executed and
-the obtained result is stored, along with an updated file modification
-timestamp. The \hs{make} build system, as described, captures the essence of
-\Make in a clear and precise manner.
+the \hs{key} needs to be rebuilt, the action \hs{act} is executed and the
+obtained result is stored, along with an updated file modification timestamp.
 
 The implementation of \hs{topological} encodes the dependency strategy that
 \Make has chosen to use. The function itself is defined as:
