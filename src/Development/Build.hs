@@ -1,4 +1,5 @@
-{-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables, TupleSections #-}
 module Development.Build (
     -- * Build
     Build, dumb, busy, memo, make, excel,
@@ -14,12 +15,15 @@ module Development.Build (
     ) where
 
 import Control.Monad.State
+import Data.Set (Set)
 
 import Development.Build.Task
-import Development.Build.Task.Applicative
+import Development.Build.Task.Applicative hiding (exceptional)
 import Development.Build.Task.Monad hiding (dependencies)
 import Development.Build.Store
 import Development.Build.Utilities
+
+import qualified Data.Set as Set
 
 -- | A build system takes a 'Task', a key to build, some information from
 -- the previous build @i@ (which can be missing if this is the first build),
@@ -79,26 +83,49 @@ make = topological $ \key deps act -> do
         let newModTime k = if k == key then now else modTime k
         modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
 
-reordering :: Eq k
-            => (k -> [k] -> State (Store i k v) (Either k v) -> State (Store i k v) (Either k ()))
+reordering :: forall i k v. Ord k
+            => (k -> State (Store i k v) (Either k v) -> State (Store i k v) (Maybe k))
             -> Build Monad (i, [k]) k v
-reordering step task key = undefined
+reordering step task key = execState $ do
+    chain    <- snd . getInfo <$> get
+    newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
+    modify $ \s -> putInfo s (fst (getInfo s), newChain)
+  where
+    go :: Set k -> [k] -> State (Store (i, [k]) k v) [k]
+    go _    []     = return []
+    go done (k:ks) = case exceptional task fetch k of
+        Nothing  -> (k :) <$> go (Set.insert k done) ks
+        Just act -> do
+            store <- get
+            let (res, newStore) = runState (step k act) (mapInfo fst store)
+            put $ mapInfo (,[]) newStore
+            case res of
+                Nothing  -> (k :) <$> go (Set.insert k done) ks
+                Just dep -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
+      where
+        fetch :: k -> State (Store i k v) (Either k v)
+        fetch k | k `Set.member` done = do s <- get; return (Right $ getValue s k)
+                | otherwise           = return (Left k)
 
-type ExcelInfo k = (k -> Bool, [k])
+data DependencyApproximation k = Universe | SubsetOf [k]
 
-excel :: Eq k => Build Monad (ExcelInfo k) k v
-excel = reordering $ \key deps act -> do
-    dirty <- getInfo <$> get
-    if (dirty key || any dirty deps)
-    then do
-        v <- act
-        case v of
-            Left k  -> return (Left k)
-            Right v -> Right <$> do
-                let newDirty k = if k == key then True else dirty k
-                modify $ \s -> putInfo (putValue s key v) newDirty
-    else
-        return (Right ())
+type ExcelInfo k = ((k -> Bool, DependencyApproximation k), [k])
+
+excel :: Ord k => Build Monad (ExcelInfo k) k v
+excel = reordering $ \key act -> do
+    (dirty, deps) <- getInfo <$> get
+    let rebuild = dirty key || case deps of Universe    -> True
+                                            SubsetOf ks -> any dirty ks
+    if not rebuild
+        then return Nothing
+        else do
+            v <- act
+            case v of
+                Left k  -> return (Just k)
+                Right v -> do
+                    let newDirty k = if k == key then True else dirty k
+                    modify $ \s -> putInfo (putValue s key v) (newDirty, deps)
+                    return Nothing
 
 type MultiBuild c i k v = Task c k v -> [k] -> Store i k v -> Store i k v
 

@@ -4,7 +4,7 @@ module Development.Build.Store (
     Hash, Hashable (..),
 
     -- * Store
-    Store, getValue, putValue, getHash, getInfo, putInfo, initialise,
+    Store, getValue, putValue, getHash, getInfo, putInfo, initialise, mapInfo,
     checkHashes, agree
 
     -- * The store monad
@@ -40,6 +40,9 @@ putValue s k v = s { getValue = \key -> if key == k then v else getValue s key }
 
 initialise :: i -> (k -> v) -> Store i k v
 initialise = Store
+
+mapInfo :: (i -> j) -> Store i k v -> Store j k v
+mapInfo f (Store i kv) = Store (f i) kv
 
 checkHashes :: Hashable v => Store m k v -> [(k, Hash v)] -> Bool
 checkHashes store = all (\(k, h) -> getHash store k == h)
