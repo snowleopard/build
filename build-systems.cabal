@@ -51,6 +51,7 @@ test-suite test-expression
     main-is:            Main.hs
     build-depends:      build-systems,
                         base         >= 4.7     && < 5,
+                        extra,
                         containers   >= 0.5.7.1,
                         mtl          >= 2.2.1,
                         transformers >= 0.5.2.0

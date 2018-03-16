@@ -22,7 +22,7 @@ type Result k v = (Hash v, [(k, Hash v)])
 
 checkResult :: Hashable v => Store i k v -> k -> Result k v -> Bool
 checkResult store key (keyHash, deps) =
-    and [ getHash store k == h | (k, h) <- (key, keyHash) : deps ]
+    and [ getHash k store == h | (k, h) <- (key, keyHash) : deps ]
 
 type VerifyingTrace k v = Map k [Result k v]
 
@@ -36,7 +36,7 @@ data ConstructiveTrace k v = ConstructiveTrace (VerifyingTrace k v) (Hash v -> v
 construct :: (Ord k, Hashable v) => ConstructiveTrace k v -> Store i k v -> k -> Maybe v
 construct (ConstructiveTrace trace cache) store key
     | verify trace store key == False = Nothing
-    | otherwise                       = Just $ cache (getHash store key)
+    | otherwise                       = Just $ cache (getHash key store)
 
 ------------------------ Old plan stuff (to be deleted) ------------------------
 
