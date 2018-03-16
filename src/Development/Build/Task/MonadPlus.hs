@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes #-}
 module Development.Build.Task.MonadPlus (
-    dependencies, transitiveDependencies, acyclic, inputs, isInput, consistent,
-    pure
+    random, dependencies, transitiveDependencies, acyclic, inputs, isInput,
+    consistent, pure
     ) where
 
 import Control.Monad
@@ -12,6 +12,9 @@ import Data.Maybe
 
 import Development.Build.Task
 import Development.Build.Utilities
+
+random :: (Int, Int) -> Task MonadPlus k Int
+random (low, high) _ _ = Just $ foldr mplus mzero $ map pure [low..high]
 
 -- Can we have something like this instead?
 -- dependencies :: c m => Task c k v -> (k -> m v) -> k -> m [k]

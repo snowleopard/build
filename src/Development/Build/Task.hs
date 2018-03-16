@@ -108,6 +108,10 @@ sprsh2 fetch "B2" = Just $ do c1 <- fetch "C1"
                               if c1 == 1 then fetch "A1" else fetch "B1"
 sprsh2 _     _    = Nothing
 
+sprsh3 :: Task MonadPlus String Integer
+sprsh3 fetch "B1" = Just $ (+) <$> fetch "A1" <*> pure 1 `mplus` pure 2
+sprsh3 _     _    = Nothing
+
 -- These type synonyms are not very useful, but enumerate all interesting cases.
 type FunctorialTask  k v = forall f. Functor     f => (k -> f v) -> k -> Maybe (f v)
 type ApplicativeTask k v = forall f. Applicative f => (k -> f v) -> k -> Maybe (f v)

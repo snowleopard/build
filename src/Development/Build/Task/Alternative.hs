@@ -4,7 +4,6 @@ module Development.Build.Task.Alternative (
     ) where
 
 import Control.Applicative
-import Data.Foldable
 import Data.Maybe
 
 import Development.Build.Task
@@ -19,7 +18,7 @@ failingTask _ _ = Just empty
 (|||) task1 task2 fetch key = task1 fetch key <|> task2 fetch key
 
 random :: (Int, Int) -> Task Alternative k Int
-random (low, high) _ _ = asum $ map (Just . pure) [low..high]
+random (low, high) _ _ = Just $ foldr (<|>) empty $ map pure [low..high]
 
 dependencies :: Task Alternative k v -> k -> [[k]]
 dependencies task = getAltConst . sequenceA . task (\k -> AltConst [[k]])
