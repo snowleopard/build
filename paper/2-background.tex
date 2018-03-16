@@ -11,7 +11,7 @@ very close indeed.}.
 We have carefully chosen these four to illustrate the various axes on which build systems
 differ; we discuss many other notable examples
 of build systems, and their relationships,
-in~\S\ref{sec-related}-\S\ref{sec-conclusions}.
+in~\S\ref{sec-related}.
 
 \subsection{The venerable \Make: static dependencies and file modification times}
 \label{sec-background-make}
@@ -161,12 +161,11 @@ will recompute \cmd{B1}, potentially triggering further unnecessary
 recalculation even though \cmd{B1} does not transitively depend on \cmd{A2}.
 
 \Excel's build algorithm~\cite{excel_recalc} is significantly different from
-\Make. Since it is impossible to construct the full dependency graph upfront in
-the presence of dynamic dependencies, \Excel uses the \emph{calculation chain}
+\Make. \Excel uses the \emph{calculation chain}
 produced by the previous build as an approximation to the correct topological
 order. During recalculation, \Excel processes cells in this order, but can
 \emph{defer recalculation of a cell} by moving it down the chain if a newly
-discovered dependency has not yet been rebuilt. We further refer to this
+discovered dependency has not yet been rebuilt. We refer to this
 algorithm as \emph{reordering}, and will discuss it in more detail
 in~\S\ref{sec-implementation-excel}.
 
@@ -198,14 +197,14 @@ list of release documents \cmd{docs.txt}.\label{fig-shake}}
 \label{sec-background-shake}
 
 \Shake was developed to solve the issue of dynamic
-dependencies~\cite{mitchell2012shake} and it excels at them without sacrificing
-the minimality requirement. To demonstrate this, we elaborate the \Make example
-from~\S\ref{sec-background-make} by adding the following files whose
+dependencies~\cite{mitchell2012shake} without sacrificing
+the minimality requirement. Building on the \Make example
+from~\S\ref{sec-background-make}, we add the following files whose
 dependencies are shown in Fig.~\ref{fig-shake}(a):
 
 \begin{itemize}
     \item \cmd{LICENSE} is an input text file containing the project license.
-    \item \cmd{release.txt} is a text file listing all release files. This file
+    \item \cmd{release.txt} is a text file listing all files that should be in the release. This file
     is produced by concatenating input files \cmd{bins.txt} and \cmd{docs.txt}
     that list all binary and documentation files of the project.
     \item \cmd{release.tar} is the release archive built by executing the
@@ -214,9 +213,9 @@ dependencies are shown in Fig.~\ref{fig-shake}(a):
 
 The dependencies of \cmd{release.tar} are not known statically: they are
 determined by the content of \cmd{release.txt}, which might not even exist
-before the build. Makefiles cannot express such dependencies, requiring ad hoc
-workarounds such as \emph{build phases}, which are problematic~\cite{hadrian}.
-Here is how one can express the task for producing \cmd{release.tar} using \Shake.
+before the build. Makefiles cannot express such dependencies, requiring problematic
+workarounds such as \emph{build phases} \cite{hadrian}.
+In \Shake we can express the rule for \cmd{release.tar} as:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -230,7 +229,7 @@ Here is how one can express the task for producing \cmd{release.tar} using \Shak
 
 \noindent
 We first declare the static dependency on \cmd{release.txt}, then read its
-content (a list of files) and depend on it, dynamically. Finally, we specify the
+content (a list of files) and depend on each listed file, dynamically. Finally, we specify the
 command to produce the resulting archive. Crucially, the archive will only be
 rebuilt if one of the dependencies (static or dynamic) has changed. For example,
 if we create another documentation file \cmd{README} and add it to
@@ -261,7 +260,7 @@ rebuilt.\label{fig-cutoff}}
 \vspace{-2mm}
 \end{figure}
 
-\Shake also supports the following \emph{early cutoff optimisation}. When it
+\Shake also supports the \emph{early cutoff optimisation}. When it
 executes a task and the result is unchanged from the previous build, it is
 unnecessary to execute the dependent tasks, and hence \Shake can stop a build
 earlier, as illustrated in Fig.~\ref{fig-cutoff}. Not all build systems support
