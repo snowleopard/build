@@ -34,22 +34,26 @@ there.
 
 \subsection{\Make}\label{sec-implementation-make}
 
-\Make processes keys in a linear order based on a topological sort
-(see~\S\ref{sec-concurrency} for parallel \Make). For each key, it builds it if
-it is older than any of its dependencies. To express \Make in our framework,
-we capture the persistent information it stores by a pair
+We provide the complete implementation of \Make in our framework in
+Fig.~\ref{fig-make-implementation}. \Make processes keys in a linear order based
+on the topological sort (see~\S\ref{sec-concurrency} for parallel \Make). For
+each key, it builds it if it is older than any of its dependencies. We capture
+the persistent build information that \Make stores by a pair
 \hs{(@@modTime,}~\hs{now)} comprising the \emph{file modification time} function
 \hs{modTime}~\hs{::}~\hs{k}~\hs{->}~\hs{Time} and the \emph{current time} \hs{now}.
 Setting aside the explicit manipulation of file modification times, which in
-reality is taken care of by the file system, the \hs{make} build system defined
-below captures the essence of \Make in a clear and precise manner.
+reality is taken care of by the file system, the function \hs{make} captures
+the essence of \Make in a clear and precise manner.
 
-\begin{minted}[xleftmargin=10pt]{haskell}
-type Time = Integer
+\begin{figure}
+\begin{minted}[fontsize=\small]{haskell}
+-- Persistent build information
+type Time       = Integer
 type MakeInfo k = (k -> Time, Time)
 \end{minted}
 \vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
+\begin{minted}[fontsize=\small]{haskell}
+-- Make build system
 make :: Eq k => Build Applicative (MakeInfo k) k v
 make = topological process
   where
@@ -61,22 +65,16 @@ make = topological process
             let newModTime k = if k == key then now else modTime k
             modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
 \end{minted}
-
-\noindent
-The helper function \hs{topological}, which we describe below, calls
-\hs{process} on every \hs{key} in the topological order, providing the list of
-its dependencies \hs{deps} and the action \hs{act} to compute the resulting
-value if it needs to be rebuilt. To determine if the \hs{key} is \hs{dirty},
-\hs{process} compares its modification time with those of its dependencies. If
-the \hs{key} needs to be rebuilt, the action \hs{act} is executed and the
-obtained result is stored, along with an updated file modification timestamp.
-
-The implementation of \hs{topological} encodes the dependency strategy that
-\Make has chosen to use. The function itself is defined as:
-
 \vspace{1mm}
-\begin{minted}{haskell}
-topological :: Eq@\,\blk{k}@ => (k -> [k] -> State@\,@(Store i k v)@\,\blk{v}@ -> State@\,@(Store i k v)@\,@(@@))
+\begin{minted}[fontsize=\small]{haskell}
+-- Standard graph algorithms (implementation omitted)
+transitiveClosure :: Eq a => (a -> [a]) ->  a  -> [a]
+topologicalSort   :: Eq a => (a -> [a]) -> [a] -> [a]
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Topological dependency strategy
+topological :: Eq k => (k -> [k] -> State (Store i k v) v -> State (Store i k v) (@@))
             -> Build Applicative i k v
 topological process task key = execState $ forM_ chain $ \k -> do
     let fetch k = do store <- get; return (getValue store k)
@@ -87,16 +85,28 @@ topological process task key = execState $ forM_ chain $ \k -> do
     deps  = dependencies task
     chain = topologicalSort deps (transitiveClosure deps key)
 \end{minted}
-\vspace{1mm}
+\vspace{-2mm}
+\caption{An implementation of \Make using our framework.}\label{fig-make-implementation}
+\vspace{-2mm}
+\end{figure}
 
-\noindent
-The \hs{where} clause corresponds to the pre-processing step, which uses the
-function \hs{dependencies}, defined in~\S\ref{sec-deps}, to extract static
-dependencies from the provided applicative \hs{task}. We compute the linear
-processing \hs{chain} by taking the \hs{transitiveClosure} of \hs{key}'s
-dependencies, and performing the \hs{topologicalSort} of the result. We omit
-implementation of textbook graph algorithms \hs{transitiveClosure} and
-\hs{topologicalSort}~\cite{cormen2001introduction}.
+The helper function \hs{topological} calls \hs{process} on every \hs{key} in
+the topological order, providing the list of its dependencies \hs{deps} and the
+action \hs{act} to compute the resulting value if it needs to be rebuilt. To
+determine if the \hs{key} is \hs{dirty}, \hs{process} compares its modification
+time with those of its dependencies. If the \hs{key} needs to be rebuilt, the
+action \hs{act} is executed and the obtained result is stored, along with an
+updated file modification timestamp.
+
+The implementation of \hs{topological} encodes the dependency strategy that
+\Make has chosen to use. The \hs{where} clause corresponds to the pre-processing
+stage, which uses the function \hs{dependencies}, defined in~\S\ref{sec-deps},
+to extract static dependencies from the provided applicative \hs{task}. We
+compute the linear processing \hs{chain} by taking the \hs{transitiveClosure}
+of \hs{key}'s dependencies, and performing the \hs{topologicalSort} of the
+result. We omit implementation of textbook graph algorithms
+\hs{transitiveClosure} and \hs{topologicalSort}, e.g.
+see~\cite{cormen2001introduction}.
 
 The \hs{chain} is processed in the \hs{State} monad, with each non-input key
 \hs{k} in the chain passed to the provided \hs{process} function, along with
@@ -110,50 +120,95 @@ the same \hs{topological} approach will also inherit the same restriction.
 
 \subsection{\Excel}\label{sec-implementation-excel}
 
-\todo{AM}{I might do some simplification of this tomorrow. Neil: I guess it's best
-for you to focus on nailing traces and associated \Shake and \Bazel sections.}
+As a programming exercise, \Excel is the most challenging, due to the
+complicated reordering dependency strategy that requires retrying out-of-order
+operations, see Fig.~\ref{fig-excel-implementation}.
 
-As a programming exercise, \Excel is the most challenging, due to the complicated reordering dependency scheme, which requires retrying out-of-order operations. The complete implementation is:
+\Excel's persistently stored information is a triple: (i) the dirty bit
+function \hs{k}~\hs{->}~\hs{Bool}, (ii) an approximation of key dependencies
+\hs{k}~\hs{->}~\hs{DependencyApproximation}~\hs{k} that \Excel uses to handle
+dynamic dependencies, and (iii) the calculation chain \hs{[@@k]} recorded in the
+previous build (\S\ref{sec-background-excel}).
 
-\begin{minted}{haskell}
-excel :: Eq v => Build Monad (Changed k v, [k]) k v
-excel = withChanged $ reordering $ \k dk _ act -> do
-    dirty <- getChanged k ||^ maybe (return True) (anyM getChanged) dk
-    if not dirty
-       then return Nothing
-       else act >>= \case
-              Left e -> return $ Just e
-              Right (_, v) -> do putStore k v
-                                 return Nothing
+\begin{figure}
+\begin{minted}[fontsize=\small]{haskell}
+-- Approximation of task dependencies
+data DependencyApproximation k = SubsetOf [k] | Unknown
 \end{minted}
-
-We use the helper function \hs{reordering} which provides the key to build (\hs{k}), the dependencies of \hs{k} (\hs{dk}) and an action to build \hs{k} (\hs{act}). The dirty check is the same as \hs{makeDirtyBit}, with the added complication that because the \hs{Task} is monadic it may not be possible to statically get a list of dependencies - if \hs{dk} is \hs{Nothing} then the action uses the monadic power and we conservatively rebuild anyway. If the check determines that the key is dirty, and needs rebuilding, we run \hs{act}, giving two possibilities:
-
-\begin{enumerate}
-\item The key cannot be built at this time because it depends on a key which has not yet been computed - and thus \hs{act} returns \hs{Left e}, where \hs{e} is the key that we are waiting for. In response we return \hs{e} as the result of step - asking \hs{reordering} to requeue this key after \hs{e}.
-\item The key builds successfully, so we store it and return \hs{Nothing} to indicate \hs{reordering} can move on to the next key.
-\end{enumerate}
-
-The astute reader may notice that \hs{reordering} supplies extra information that is ignored with \hs{_} patterns. While not required for \Excel, we have implemented build systems using \hs{reordering} which use verifying and constructive traces, effectively turning \Excel into a cloud build system and ensuring \hs{reordering} is not overly fitted to \Excel alone (additional implementations available in the supplementary material). The definition of \hs{reordering} is:
-
-\begin{minted}{haskell}
-reordering
-    :: (m ~ M (i, [k]) k v, Default i)
-    => (k -> Maybe [k] -> (k -> m (Maybe v)) -> m (Either k ([k], v)) -> m (Maybe k))
-    -> Build Monad (i, [k]) k v
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Persistent build information
+type CalcChain k = [k]
+type ExcelInfo k = ((k -> Bool, k -> DependencyApproximation k), CalcChain k)
 \end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Result of speculative task execution
+data Result k v = MissingDependency k | Result v [k]
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Reordering dependency strategy (implementation omitted)
+reordering :: Ord k
+    => (k -> State (Store i k v) (Result k v) -> State (Store i k v) (Maybe (Result k v)))
+    -> Build Monad (i, CalcChain k) k v
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Excel build system
+excel :: Ord k => Build Monad (ExcelInfo k) k v
+excel = reordering process
+  where
+    process key act = do
+        (dirty, deps) <- getInfo <$> get
+        let rebuild = dirty key || case deps key of SubsetOf ks -> any dirty ks
+                                                    Unknown     -> True
+        if not rebuild
+            then return Nothing
+            else do
+                result <- act
+                case result of
+                    MissingDependency _ -> return (Just result)
+                    Result v dynamicDependencies -> do
+                        let newDirty k = if k == key then True else dirty k
+                        modify $ \s -> putInfo (putValue s key v) (newDirty, deps)
+                        return (Just result)
+\end{minted}
+\vspace{-2mm}
+\caption{An implementation of \Excel using our framework.}\label{fig-excel-implementation}
+\vspace{-2mm}
+\end{figure}
 
-Dynamic requires a function that takes takes 4 arguments (we use \hs{m} to elide \hs{M (i, [k]) k v} from all the signatures):
+The helper function \hs{reordering}, whose implementation we omit since it is
+technical and not particularly enlightening, calls the function \hs{process} to
+\emph{try to build} a \hs{key} by executing the action \hs{act}, in the order
+determined by the calculation chain. To decide whether to \hs{rebuild} the
+\hs{key}, \hs{process} checks if the \hs{key} itself is marked dirty or the
+approximation of its dependencies contains a dirty key. Notice that if the
+dependencies of the \hs{key} are \hs{Unknown}, e.g. when it uses the
+\cmd{INDIRECT} function, the \hs{key} is always rebuilt. If a \hs{rebuild} is
+not needed, \hs{process} returns \hs{Nothing} to indicate this. Otherwise, it
+executes \hs{act} leading to two possible \hs{result}s:
 
-\begin{enumerate}
-\item \hs{k} - the key that is being built.
-\item \hs{Maybe [k]} - the list of dependencies, or \hs{Nothing} if the step makes use of monadic dependencies. Note that above if a step is truly monadic it is always rebuilt. In the case of spreadsheets such steps are very rare, so a very conservative approximation can be used.\footnote{In truth, many spreadsheets take the alternative approximation of always assuming monadic steps \textit{did not} change - trading correctness for performance.}
-\item \hs{k -> m (Maybe v)} - a function that looks up a key - it returns \hs{Nothing} if that key has not yet been built (and thus there is a dependency violation).
-\item \hs{m (Either k ([k], v))} - an action to produce either the \hs{k} which is required but not yet computed (the reason you fail your dependency order check), or a list of the keys used and value produced.
-\item It returns \hs{m (Maybe k)}, with a \hs{Nothing} to indicate the the build succeeded, or \hs{Just k} to indicate that the given key \hs{k} has not been built, and thus this key should be moved after \hs{k}.
-\end{enumerate}
+\begin{itemize}
+    \item \hs{MissingDependency}~\hs{k} indicates that the execution of \hs{act} has
+    failed, because one of its dependencies \hs{k} was out-of-date, i.e. the
+    calculation chain from the previous build was incorrect and therefore needs
+    to be reordered, deferring the \hs{key} to be rebuilt later.
+    \item \hs{Result}~\hs{v}~\hs{dynamicDependencies} indicates that the
+    execution has succeeded producing the value~\hs{v} and the list of the
+    \hs{key}'s dynamic dependencies. We store the value, and mark it dirty to
+    trigger the rebuilding of keys that depend on it.
+\end{itemize}
 
-The implementation of \hs{dynamic} is 15 lines, but is substantially complicated by the requirement to ensure newly discovered keys are added to the list - something an actual spreadsheet with a fixed universe of cells need not do.
+In both of the above cases, we notify the parent \hs{reordering} function about
+the outcome by returning \hs{Just}~\hs{result}. The astute reader may notice
+that \hs{process} ignores \hs{dynamicDependencies} available in the \hs{result}.
+While not required for \Excel, we have implemented build systems using
+\hs{reordering} which use verifying and constructive traces, effectively turning
+\Excel into a cloud build system and ensuring \hs{reordering} is not overly
+fitted to \Excel alone (additional implementations will be submitted to the
+Artefact Evaluation).
 
 \subsection{\Shake}\label{sec-implementation-shake}
 
