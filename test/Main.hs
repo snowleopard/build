@@ -52,7 +52,7 @@ memoResult = sequentialMultiBuild memo task outputs inputs
 
 printOutputs :: Store () Cell Int -> IO ()
 printOutputs store = forM_ outputs $
-    \key -> putStrLn (show (name key) ++ " = " ++ show (getValue store key))
+    \key -> putStrLn (show (name key) ++ " = " ++ show (getValue key store))
 
 main :: IO ()
 main = do

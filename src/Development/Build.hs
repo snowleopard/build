@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables, TupleSections #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 module Development.Build (
     -- * Build
     Build, dumb, busy, memo, make, excel, shake,

@@ -29,9 +29,9 @@ track :: Task Monad k v -> (k -> v) -> k -> Maybe (v, [k])
 track task fetch = fmap runWriter . task (\k -> writer (fetch k, [k]))
 
 trackM :: Monad m => Task Monad k v -> (k -> m v) -> k -> Maybe (m (v, [k]))
-trackM task store = fmap runWriterT . task fetch
+trackM task fetch key = runWriterT <$> task trackingFetch key
   where
-    fetch k = tell [k] >> lift (store k)
+    trackingFetch k = tell [k] >> lift (fetch k)
 
 transitiveDependencies :: (Eq k, Monad m) => Task Monad k v
                                           -> (k -> m v) -> k -> m (Maybe [k])
