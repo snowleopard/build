@@ -342,8 +342,8 @@ from the cloud and skip intermediate files (only their hashes are needed),
 \label{sec-background-summary}
 
 We summarise differences between four discussed build systems in
-Table~\ref{tab-summary}. The `Metadata' column refers to the \emph{auxiliary
-build information} persistently stored between builds by all build systems:
+Table~\ref{tab-summary}. The column \emph{`persistent build information'} refers
+to the information that build systems persistently store between builds:
 \begin{itemize}
     \item \Make stores file modification times, or rather, it relies on the file
     system to do that. In principle a single \emph{dirty bit} per file is
@@ -362,7 +362,7 @@ build information} persistently stored between builds by all build systems:
 \centering
 \begin{tabular}{l||l|l||l|c|c|c}
 \hline
-$\!$Build system$\!$& Metadata                       & Algorithm    & Dependencies & Minimal & Cutoff & Cloud$\!$\\\hline
+$\!$Build system$\!$& Persistent build information   & Algorithm    & Dependencies & Minimal & Cutoff & Cloud$\!$\\\hline
 $\!$\Make       $\!$& File modification times        & Topological  & Static       & Yes     & No     & No   $\!$\\
 $\!$\Excel      $\!$& Dirty cells, calculation chain & Reordering   & Dynamic      & No      & No     & No   $\!$\\
 $\!$\Shake      $\!$& Previous dependency graph      & Recursive    & Dynamic      & Yes     & Yes    & No   $\!$\\

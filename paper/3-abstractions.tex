@@ -65,25 +65,16 @@ instance Monoid m => Applicative (Const m) where
 \caption{Signatures of main data types and library functions.}\label{fig-types}
 \vspace{-4mm}
 \end{figure}
-We begin by establishing a common vocabulary for build systems.
-% that allows us to abstract away from specific application domains, such as
-% software development or spreadsheets.
-Fig.~\ref{fig-types} provides a Haskell encoding of our main definitions,
-and gives types of the library functions we use in this paper.
-
-\vspace{1mm}
-A \emph{build system} takes a \emph{task description}, a target \emph{key},
-and a \emph{store}, and returns a new store in which the target key is
-up to date. The store is a key/value map, together with \emph{persistent build
-information} that is maintained by the build system itself.
+We  begin by establishing a common vocabulary for build systems.
 
 \vspace{-2mm}
-\paragraph{Keys and values.} In software build systems, keys are typically filenames,
-e.g.~\cmd{main.c}, and values are file contents (a C program source
-code in this case). In spreadsheets, keys are cell names,
-e.g. \cmd{A1}, and values are numbers, text, etc. that are typically
-displayed inside cells. In our Haskell code, we will use type
-variables \hs{k} and \hs{v} to denote keys and values, respectively.
+\paragraph{Keys, values, and the store} The goal of any build system is to
+bring up to date a \emph{store} that implements a mapping from \emph{keys} to
+\emph{values}. In software build systems the store is the file system, the
+keys are filenames, and the values are file contents. In \Excel, the store is
+the worksheets, the keys are cell names (such as \cmd{A2}) and the values are
+numbers, strings etc, displayed as the cell contents. Many systems use
+\emph{hashes} of values as compact summaries with a fast equality check.
 
 \vspace{-2mm}
 \paragraph{Input, output, and intermediate values}
@@ -94,31 +85,30 @@ such as \cmd{main.exe}, are \emph{output} values. All other values (in this case
 \cmd{main.o}) are \emph{intermediate}; they are not interesting for the user
 but are produced in the process of turning inputs into outputs.
 
-% \vspace{-2mm}
-% \paragraph{The store.}
-A \emph{store}, of type \hs{Store}~\hs{i}~\hs{k}~\hs{v}, associates keys to
-values. It is convenient to assume that a store is total, i.e. it contains a
-value for every possible key. We therefore also assume that the type of values
-is capable of encoding values corresponding to non-existent keys (missing files
-or empty cells). The store also holds a value of type \hs{i},
-representing the persistent build information maintained by the build
-system~--~its ``memory''.
-% Given an \hs{i} and a key/value map \store, we can \hs{initialise} a store.
+\vspace{-2mm}
+\paragraph{Persistent build information} As well as the key/value mapping, the store
+also contains information maintained by the build system itself, which persists
+from one invocation of the build system to the next -- its ``memory''.
+
+\paragraph{Task description} Any build system requires the user to specify how to
+compute the new value for one key, using the (up to date) values of its
+dependencies. We call this specification the \emph{task description}.  For
+example, in \Excel, the formulae of the spreadsheet constitute the task
+description; in \Make the rules in the makefile are the task description.
 
 \vspace{-2mm}
-\paragraph{Hashes.}
-We use a cryptographic \emph{hash function}
-\hs{hash}~\hs{::}~\hs{Hashable}~\hs{v}~\hs{=>}~\hs{v}~\hs{->}~\hs{Hash}~\hs{v}
-for efficient tracking and sharing of build results, where \hs{Hash}~\hs{v} is
-an abstract data type equipped with~the~equality test.
-In addition to usual \hs{getValue} and \hs{putValue} operations,
-some stores support a dedicated \hs{getHash} operation, which is implemented
-more efficiently than by hashing the result of \hs{getValue}\footnote{For
-example, Git Virtual File System~\cite{gvfs} stores file hashes and downloads
-file contents only on demand.}.
+\paragraph{Build system} A \emph{build system} takes a task description, a target
+key, and a store, and returns a new store in which the target key has an
+up to date value.
 
-% This, in particular, suggests that it is possible to \emph{depend on the
-% absence of a value}, which is a useful feature for build systems.
+\vspace{-2mm}
+\paragraph{Modelling in Haskell} We will model all our build systems concretely,
+as Haskell programs. To that end, Fig.~\ref{fig-types} gives the type
+declarations and function signatures of the library functions. For example,
+\hs{Store}~\hs{i}~\hs{k}~\hs{v} is the type of stores, with several associate
+functions (\hs{getValue}, etc.). We use \hs{k} as a type
+variable ranging over keys, \hs{v} for values, and \hs{i} for the persistent
+build information.
 
 \subsection{The Task abstraction}\label{sec-task}
 
