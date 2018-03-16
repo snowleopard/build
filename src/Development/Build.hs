@@ -138,11 +138,11 @@ excel = reordering process
             else do
                 result <- act
                 case result of
-                    MissingDependency _ -> return (Just result)
+                    MissingDependency _ -> return ()
                     Result v _dynamicDependencies -> do
                         let newDirty k = if k == key then True else dirty k
                         modify $ \s -> putInfo (putValue s key v) (newDirty, deps)
-                        return (Just result)
+                return (Just result)
 
 type MultiBuild c i k v = Task c k v -> [k] -> Store i k v -> Store i k v
 

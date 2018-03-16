@@ -168,11 +168,11 @@ excel = reordering process
             else do
                 result <- act
                 case result of
-                    MissingDependency _ -> return (Just result)
-                    Result v dynamicDependencies -> do
+                    MissingDependency _ -> return ()
+                    Result v _dynamicDependencies -> do
                         let newDirty k = if k == key then True else dirty k
                         modify $ \s -> putInfo (putValue s key v) (newDirty, deps)
-                        return (Just result)
+                return (Just result)
 \end{minted}
 \vspace{-2mm}
 \caption{An implementation of \Excel using our framework.}\label{fig-excel-implementation}
