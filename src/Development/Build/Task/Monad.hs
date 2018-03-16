@@ -25,8 +25,8 @@ dependencies task store = execWriterT . sequenceA . task fetch
   where
     fetch k = tell [k] >> lift (store k)
 
-track :: Task Monad k v -> Store i k v -> k -> Maybe (v, [k])
-track task store = fmap runWriter . task (\k -> writer (getValue store k, [k]))
+track :: Task Monad k v -> (k -> v) -> k -> Maybe (v, [k])
+track task fetch = fmap runWriter . task (\k -> writer (fetch k, [k]))
 
 trackM :: Monad m => Task Monad k v -> (k -> m v) -> k -> Maybe (m (v, [k]))
 trackM task store = fmap runWriterT . task fetch
@@ -46,15 +46,15 @@ isInput task = isNothing . task (const Proxy)
 inputs :: Eq k => Task Monad k v -> Store i k v -> k -> [k]
 inputs task store key = filter (isInput task) (closure deps key)
   where
-    deps k = maybe [] snd (track task store k)
+    deps k = maybe [] snd (track task (\k -> getValue k store) k)
 
 -- | Check that a task is /consistent/ with a pure lookup function @f@, i.e.
 -- if it returns @Just v@ for some key @k@ then @f k == v@.
 consistent :: Eq v => Task Monad k v -> Store i k v -> Bool
 consistent task store =
-    forall $ \k -> case compute task (getValue store) k of
+    forall $ \k -> case compute task (flip getValue store) k of
         Nothing -> True
-        Just v  -> getValue store k == v
+        Just v  -> getValue k store == v
 
 -- | Given a @task@, a pair of key-value maps describing the contents of a
 -- store @store@ and @result@ a build system was executed to build a given @key@,
@@ -77,7 +77,7 @@ compute task fetch = fmap runIdentity . task (pure . fetch)
 
 -- The version used in the paper
 compute' :: Task Monad k v -> Store i k v -> k -> Maybe v
-compute' task store key = runIdentity <$> task (Identity . getValue store) key
+compute' task store key = runIdentity <$> task (Identity . flip getValue store) key
 
 -- | Run a task with a partial lookup function. The result @Left k@ indicates
 -- that the task failed due to a missing dependency @k@. Otherwise, the

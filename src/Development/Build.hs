@@ -2,10 +2,10 @@
 {-# LANGUAGE ScopedTypeVariables, TupleSections #-}
 module Development.Build (
     -- * Build
-    Build, dumb, busy, memo, make, excel,
+    Build, dumb, busy, memo, make, excel, shake,
 
     -- * Algorithms
-    topological, reordering,
+    topological, reordering, recursive,
 
     -- * MultiBuild
     MultiBuild, sequentialMultiBuild,
@@ -16,6 +16,7 @@ module Development.Build (
 
 import Control.Monad.State
 import Data.Set (Set)
+import Control.Monad.Extra
 
 import Development.Build.Task
 import Development.Build.Task.Applicative hiding (exceptional)
@@ -33,37 +34,36 @@ import qualified Data.Set as Set
 type Build c i k v = Task c k v -> k -> Store i k v -> Store i k v
 
 dumb :: Eq k => Build Monad i k v
-dumb task key store = case compute task (getValue store) key of
+dumb task key store = case compute task (\k -> getValue k store) key of
     Nothing    -> store
-    Just value -> putValue store key value
+    Just value -> putValue key value store
 
 busy :: forall k v. Eq k => Build Monad () k v
 busy task key store = execState (fetch key) store
   where
     fetch :: k -> State (Store () k v) v
     fetch k = case task fetch k of
-        Nothing  -> do s <- get; return (getValue s k)
-        Just act -> do v <- act; modify (\s -> putValue s k v); return v
+        Nothing  -> gets (getValue k)
+        Just act -> do v <- act; modify (putValue k v); return v
 
 memo :: forall k v. Eq k => Build Monad () k v
 memo task key store = fst $ execState (fetch key) (store, [])
   where
     fetch :: k -> State (Store () k v, [k]) v
     fetch k = case task fetch k of
-        Nothing  -> do { s <- fst <$> get; return (getValue s k) }
+        Nothing  -> gets (getValue k . fst)
         Just act -> do
             built <- snd <$> get
             when (k `notElem` built) $ do
                 v <- act
-                modify $ \(s, built) -> (putValue s k v, k : built)
-            s <- fst <$> get
-            return (getValue s k)
+                modify $ \(s, built) -> (putValue k v s, k : built)
+            gets (getValue k . fst)
 
 topological :: Eq k
             => (k -> [k] -> State (Store i k v) v -> State (Store i k v) ())
             -> Build Applicative i k v
 topological process task key = execState $ forM_ chain $ \k -> do
-    let fetch k = do store <- get; return (getValue store k)
+    let fetch k = gets (getValue k)
     case task fetch k of
         Nothing  -> return ()
         Just act -> process k (deps k) act
@@ -83,7 +83,7 @@ make = topological process
         when dirty $ do
             v <- act
             let newModTime k = if k == key then now else modTime k
-            modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
+            modify $ putInfo (newModTime, now + 1) . putValue key v
 
 -- Add constructor Exact [k]?
 data DependencyApproximation k = SubsetOf [k] | Unknown
@@ -105,7 +105,7 @@ reordering :: forall i k v. Ord k
 reordering step task key = execState $ do
     chain    <- snd . getInfo <$> get
     newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
-    modify $ \s -> putInfo s (fst (getInfo s), newChain)
+    modify $ \s -> putInfo (fst (getInfo s), newChain) s
   where
     go :: Set k -> CalcChain k -> State (Store (i, [k]) k v) (CalcChain k)
     go _    []     = return []
@@ -121,7 +121,7 @@ reordering step task key = execState $ do
                     _                          -> (k :) <$> go (Set.insert k done) ks
       where
         fetch :: k -> State (Store i k v) (Maybe v)
-        fetch k | k `Set.member` done = do s <- get; return (Just $ getValue s k)
+        fetch k | k `Set.member` done = gets (Just . getValue k)
                 | otherwise           = return Nothing
 
 type ExcelInfo k = ((k -> Bool, k -> DependencyApproximation k), CalcChain k)
@@ -130,7 +130,7 @@ excel :: Ord k => Build Monad (ExcelInfo k) k v
 excel = reordering process
   where
     process key act = do
-        (dirty, deps) <- getInfo <$> get
+        (dirty, deps) <- gets getInfo
         let rebuild = dirty key || case deps key of SubsetOf ks -> any dirty ks
                                                     Unknown     -> True
         if not rebuild
@@ -141,7 +141,7 @@ excel = reordering process
                     MissingDependency _ -> return ()
                     Result v _dynamicDependencies -> do
                         let newDirty k = if k == key then True else dirty k
-                        modify $ \s -> putInfo (putValue s key v) (newDirty, deps)
+                        modify $ putInfo (newDirty, deps) . putValue key v
                 return (Just result)
 
 type MultiBuild c i k v = Task c k v -> [k] -> Store i k v -> Store i k v
@@ -170,4 +170,45 @@ idempotent :: Eq v => Build Monad i k v -> Task Monad k v -> Bool
 idempotent build task = forall $ \(key, store1) ->
     let store2 = build task key store1
         store3 = build task key store2
-    in forall $ \k -> getValue store2 k == getValue store3 k
+    in forall $ \k -> getValue k store2 == getValue k store3
+
+
+data Trace k v = Trace
+    { key          :: k
+    , depends :: [(k, Hash v)]
+    , result       :: Hash v }
+
+
+-- Determine whether a trace is relevant to the current state
+traceMatch :: (Monad m, Eq k) => (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
+traceMatch check key ts = mapMaybeM f ts
+    where f (Trace k dkv v) = do
+                b <- return (key == k) &&^ allM (uncurry check) dkv
+                return $ if b then Just v else Nothing
+
+-- Recursive dependency strategy
+recursive
+    :: Eq k => (k -> (k -> State (Store i k v, [k]) v) -> State (Store i k v, [k]) (v, [k]) -> State (Store i k v, [k]) ())
+    -> Build Monad i k v
+recursive step task key store = fst $ execState (ensure key) (store, [])
+    where
+        ensure key = do
+            let fetch k = do ensure k; gets (getValue k . fst)
+            s <- get
+            when (key `notElem` snd s) $ do
+                modify $ \(s, done) -> (s, key:done)
+                case trackM task fetch key of
+                    Nothing -> return ()
+                    Just act -> step key fetch act
+
+-- Shake build system
+shake :: (Eq k, Hashable v) => Build Monad [Trace k v] k v
+shake = recursive $ \key fetch act -> do
+    traces <- gets (getInfo . fst)
+    poss <- traceMatch (\k v -> (==) v . hash <$> fetch k) key traces
+    current <- gets (getHash key . fst)
+    when (current `notElem` poss) $ do
+        (v, ds) <- act
+        modify $ \(s, done) ->
+            let t = Trace key [(d, getHash d s) | d <- ds] (getHash key s)
+            in (putInfo (t : getInfo s) (putValue key v s), done)

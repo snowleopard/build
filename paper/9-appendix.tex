@@ -45,7 +45,7 @@ build system correctness in \S\ref{sec-build-correctness}:
 inputs :: Eq k => Task Monad k v -> Store i k v -> k -> [k]
 inputs task store key = filter (isInput task) (closure deps key)
   where
-    deps k = maybe [] snd (track task store k)
+    deps k = maybe [] snd (track task (\k -> getValue k store) k)
 
 closure :: Eq a => (a -> [a]) -> a -> [a] -- Standard graph transitive closure
 

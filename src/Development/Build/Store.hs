@@ -27,16 +27,22 @@ instance Hashable Int where
 instance Hashable Integer where
     hash = Hash . fromIntegral
 
-data Store i k v = Store { getInfo :: i, getValue :: k -> v }
+data Store i k v = Store { info :: i, values :: k -> v }
 
-getHash :: Hashable v => Store i k v -> k -> Hash v
-getHash s = hash . getValue s
+getInfo :: Store i k v -> i
+getInfo = info
 
-putInfo :: Store i k v -> i -> Store i k v
-putInfo s i = s { getInfo = i }
+getValue :: k -> Store i k v -> v
+getValue = flip values
 
-putValue :: Eq k => Store i k v -> k -> v -> Store i k v
-putValue s k v = s { getValue = \key -> if key == k then v else getValue s key }
+getHash :: Hashable v => k -> Store i k v -> Hash v
+getHash k = hash . getValue k
+
+putInfo :: i -> Store i k v -> Store i k v
+putInfo i s = s { info = i }
+
+putValue :: Eq k => k -> v -> Store i k v -> Store i k v
+putValue k v s = s { values = \key -> if key == k then v else values s key }
 
 initialise :: i -> (k -> v) -> Store i k v
 initialise = Store
@@ -45,12 +51,12 @@ mapInfo :: (i -> j) -> Store i k v -> Store j k v
 mapInfo f (Store i kv) = Store (f i) kv
 
 checkHashes :: Hashable v => Store m k v -> [(k, Hash v)] -> Bool
-checkHashes store = all (\(k, h) -> getHash store k == h)
+checkHashes store = all (\(k, h) -> getHash k store == h)
 
 agree :: Eq v => [Store i k v] -> [k] -> Bool
 agree ss = all same
   where
-    same k = let vs = [getValue s k | s <- ss] in and $ zipWith (==) vs (drop 1 vs)
+    same k = let vs = [getValue k s | s <- ss] in and $ zipWith (==) vs (drop 1 vs)
 
 
 -- | A key-value store monad that in addition to usual 'getValue' and 'putValue'

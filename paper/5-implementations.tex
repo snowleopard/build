@@ -118,6 +118,9 @@ restricts \Make to static dependencies, as reflected in the
 type~\hs{Build}~\hs{Applicative}. Moreover, any other build system following
 the same \hs{topological} approach will also inherit the same restriction.
 
+\todo{AM}{Note that anything updating input files must also update Make's info.}
+\todo{AM}{Say that in reality that build rules mutate the state themselves.}
+
 \subsection{\Excel}\label{sec-implementation-excel}
 
 As a programming exercise, \Excel is the most challenging, due to the
@@ -212,50 +215,57 @@ Artefact Evaluation).
 
 \subsection{\Shake}\label{sec-implementation-shake}
 
-\todo{NM}{Remove the intermediate \hs{M} layer, as done in \Make.}
+The \Shake approach for dependency tracking involves recording traces and verifying them, for which we use the \hs{Trace} type defined in \ref{sec-verifying-traces}. Complete code is given in \S\ref{fig-shake-implementation}.
 
-The Shake approach for dependency tracking involves recording traces and verifying them. Using the \hs{Trace} type defined in \ref{sec-verifying-traces} we can implement:
-
-\begin{minted}{haskell}
-shake :: Hashable v => Build Monad [Trace k v] k v
-shake = recursive $ \k _ fetch act -> do
-    poss <- traceMatch (\k v -> (==) v . getHash <$> fetch k) k =<< getInfo
-    h <- getStoreHash k
-    when (h `notElem` poss) $ do
-        (dk, v) <- act
-        putStore k v
-        dh <- mapM getStoreHash dk
-        modifyInfo (Trace k (zip dk dh) (getHash v) :)
+\begin{figure}
+\begin{minted}[fontsize=\small]{haskell}
+-- Determine whether a trace is relevant to the current state
+traceMatch :: (Monad m, Eq k) => (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
+traceMatch check key ts = mapMaybeM f ts
+    where f (Trace k dkv v) = do
+                b <- return (key == k) &&^ allM (uncurry check) dkv
+                return $ if b then Just v else Nothing
 \end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Recursive dependency strategy
+recursive
+    :: Eq k => (k -> (k -> State (Store i k v, [k]) v) -> State (Store i k v, [k]) (v, [k]) -> State (Store i k v, [k]) ())
+    -> Build Monad i k v
+recursive step task key store = fst $ execState (ensure key) (store, [])
+    where
+        ensure key = do
+            let fetch k = do ensure k; gets (getValue k . fst)
+            s <- get
+            when (key `notElem` snd s) $ do
+                modify $ \(s, done) -> (s, key:done)
+                case trackM task fetch key of
+                    Nothing -> return ()
+                    Just act -> step key fetch act
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Shake build system
+shake :: (Eq k, Hashable v) => Build Monad [Trace k v] k v
+shake = recursive $ \key fetch act -> do
+    traces <- gets (getInfo . fst)
+    poss <- traceMatch (\k v -> (==) v . hash <$> fetch k) key traces
+    current <- gets (getHash key . fst)
+    when (current `notElem` poss) $ do
+        (v, ds) <- act
+        modify $ \(s, done) ->
+            let t = Trace key [(d, getHash d s) | d <- ds] (getHash key s)
+            in (putInfo (t : getInfo s) (putValue key v s), done)
+
+\end{minted}
+\vspace{-2mm}
+\caption{An implementation of \Shake using our framework.}\label{fig-shake-implementation}
+\vspace{-2mm}
+\end{figure}
 
 This implementation uses the \hs{recursive} function which requires a function which gets the key to build (\hs{k}), a way to fetch the result of a dependency (\hs{fetch}), and a way to build \hs{k} (\hs{act}). The code first looks up the traces that match the current situation, creating a list of possible results as \hs{poss}, using the helper \hs{traceMatch}. We check if the current value for the key is one of the possible results, and it not, build the key and store it in the trace. We can implement \hs{traceMatch}, which is used in all build systems working with \hs{Trace}, as:
 
-\begin{minted}{haskell}
-traceMatch :: (Monad m, Eq k) => (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
-traceMatch check k ts = mapMaybeM f ts
-    where f (Trace k2 dkv v) = do
-                b <- return (k == k2) &&^ allM (uncurry check) dkv
-                return $ if b then Just v else Nothing
-\end{minted}
-
 The function \hs{traceMatch} requires a way to check a dependency, and the key, and the traces. We return the \hs{result} field from all traces where the key and dependencies match. We define the recursive combinator as:
-
-\begin{minted}{haskell}
-recursive
-    :: (m ~ M i k v, Default i)
-    => (k -> Maybe [k] -> (k -> m v) -> m ([k], v) -> m ())
-    -> Build Monad i k v
-recursive step compute = runM . ensure
-    where
-        ensure k = do
-            let fetch x = ensure x >> getStore x
-            done <- getTemp
-            when (k `Set.notMember` done) $ do
-                modifyTemp $ Set.insert k set
-                case track compute fetch k of
-                    Nothing -> return ()
-                    Just act -> step k (getDependenciesMaybe compute k) fetch act
-\end{minted}
 
 The required \hs{step} function gets given the \hs{k} to build, the dependencies as \hs{Maybe [k]} (where they are \hs{Nothing} if the rule is truly monadic), a function to demand the result of a dependent key, and a function to compute the current value and return the actual dependencies. To ensure each file is only visited once in a single execution a piece of temporary state is used with \hs{getTemp} and \hs{modifyTemp} to record which files were visited - this state is not persisted to the \hs{i} info parameter and is reset on each fresh execution of \hs{M}.
 
@@ -327,3 +337,8 @@ Here the \hs{Choice} effectively encodes a tree, asking successive questions abo
 \end{enumerate}
 
 As an aside we note that the optimal cloud structure for applicative and monadic constructive systems has a resemblance to the free dependency structures described in \S\ref{sec-free-build}.
+
+
+\subsection{Other build systems}
+
+We have implemented the complete product, reusing the \hs{topological} functions etc.

@@ -490,12 +490,14 @@ import Control.Monad.Writer
 \end{minted}
 \vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-track :: Task Monad k v -> Store i k v -> k -> Maybe (v, [k])
-track task store = runWriter . task (\k -> writer (getValue store k, [k]))
+track :: Task Monad k v -> (k -> v) -> k -> Maybe (v, [k])
+track task fetch = fmap runWriter . task (\k -> writer (fetch k, [k]))
 \end{minted}
 \vspace{1mm}
 
 \noindent
+\todo{AM}{Type of track has changed - we no longer supply the Store, just an access fuction}
+\todo{AM}{trackM is essential for Shake, what do we do there?}
 The implementation uses the standard Haskell \hs{Writer} monad, which allows us
 to record addition information -- a list of keys of type \hs{[@@k]} -- when
 computing a task. We instantiate \hs{f} to \hs{Writer}~\hs{[@@k]}~\hs{v}, and feed
