@@ -84,7 +84,7 @@ make = topological $ \key deps act -> do
         modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
 
 reordering :: forall i k v. Ord k
-            => (k -> State (Store i k v) (Either k v) -> State (Store i k v) (Maybe k))
+            => (k -> State (Store i k v) (Either k (v, [k])) -> State (Store i k v) (Maybe k))
             -> Build Monad (i, [k]) k v
 reordering step task key = execState $ do
     chain    <- snd . getInfo <$> get
@@ -93,19 +93,20 @@ reordering step task key = execState $ do
   where
     go :: Set k -> [k] -> State (Store (i, [k]) k v) [k]
     go _    []     = return []
-    go done (k:ks) = case exceptional task fetch k of
-        Nothing  -> (k :) <$> go (Set.insert k done) ks
-        Just act -> do
-            store <- get
-            let (res, newStore) = runState (step k act) (mapInfo fst store)
-            put $ mapInfo (,[]) newStore
-            case res of
-                Nothing  -> (k :) <$> go (Set.insert k done) ks
-                Just dep -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
+    go done (k:ks) = do
+        case trackExceptions task fetch k of
+            Nothing  -> (k :) <$> go (Set.insert k done) ks
+            Just act -> do
+                store <- get
+                let (res, newStore) = runState (step k act) (mapInfo fst store)
+                put $ mapInfo (,[]) newStore
+                case res of
+                    Nothing  -> (k :) <$> go (Set.insert k done) ks
+                    Just dep -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
       where
-        fetch :: k -> State (Store i k v) (Either k v)
-        fetch k | k `Set.member` done = do s <- get; return (Right $ getValue s k)
-                | otherwise           = return (Left k)
+        fetch :: k -> State (Store i k v) (Maybe v)
+        fetch k | k `Set.member` done = do s <- get; return (Just $ getValue s k)
+                | otherwise           = return Nothing
 
 data DependencyApproximation k = Universe | SubsetOf [k]
 
@@ -121,8 +122,8 @@ excel = reordering $ \key act -> do
         else do
             v <- act
             case v of
-                Left k  -> return (Just k)
-                Right v -> do
+                Left k -> return (Just k)
+                Right (v, _dynamicDependencies) -> do
                     let newDirty k = if k == key then True else dirty k
                     modify $ \s -> putInfo (putValue s key v) (newDirty, deps)
                     return Nothing

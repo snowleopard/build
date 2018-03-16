@@ -1,8 +1,10 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Development.Build.Task.Monad (
     dependencies, track, trackM, transitiveDependencies, inputs, acyclic,
     consistent, correctBuild, compute, compute', debugPartial, partial,
-    exceptional, staticDependencies, Script (..), getScript, runScript, isStatic
+    trackExceptions, exceptional, staticDependencies, Script (..), getScript,
+    runScript, isStatic
     ) where
 
 import Control.Monad.Trans
@@ -101,6 +103,19 @@ partial task fetch = fmap runMaybeT . task (MaybeT . fetch)
 -- failed dependency lookup, and @Right v@ yeilds the value otherwise.
 exceptional :: Task Monad k v -> Task Monad k (Either e v)
 exceptional task fetch = fmap runExceptT . task (ExceptT . fetch)
+
+-- Yuck!
+trackExceptions :: forall m k v. Monad m => Task Monad k v -> (k -> m (Maybe v))
+                           -> k -> Maybe (m (Either k (v, [k])))
+trackExceptions task partialFetch = fmap (fmap fix . runWriterT) . debugPartial task fetch
+  where
+    fetch :: k -> WriterT [k] m (Maybe v)
+    fetch k = do
+        mv <- lift (partialFetch k)
+        writer (mv, [k])
+    fix :: (Either k v, [k]) -> Either k (v, [k])
+    fix (Left  k, _ ) = Left k
+    fix (Right v, ks) = Right (v, ks)
 
 -- TODO: Does this always terminate? It's not obvious!
 staticDependencies :: Task Monad k v -> k -> [k]
