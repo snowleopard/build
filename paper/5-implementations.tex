@@ -182,7 +182,7 @@ excel = reordering process
 \vspace{-2mm}
 \end{figure}
 
-The helper function \hs{reordering}, whose implementation we omit since it is
+The helper function \hs{reordering}, whose 21-line implementation we omit since it is
 technical and not particularly enlightening, calls the function \hs{process} to
 \emph{try to build} a \hs{key} by executing the action \hs{act}, in the order
 determined by the calculation chain. To decide whether to \hs{rebuild} the
@@ -215,8 +215,6 @@ Artefact Evaluation).
 
 \subsection{\Shake}\label{sec-implementation-shake}
 
-The \Shake approach for dependency tracking involves recording traces and verifying them, for which we use the \hs{Trace} type defined in \ref{sec-verifying-traces}. Complete code is given in \S\ref{fig-shake-implementation}.
-
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
 -- Determine whether a trace is relevant to the current state
@@ -232,16 +230,16 @@ traceMatch check key ts = mapMaybeM f ts
 recursive
     :: Eq k => (k -> (k -> State (Store i k v, [k]) v) -> State (Store i k v, [k]) (v, [k]) -> State (Store i k v, [k]) ())
     -> Build Monad i k v
-recursive step task key store = fst $ execState (ensure key) (store, [])
+recursive process task key store = fst $ execState (ensure key) (store, [])
     where
         ensure key = do
             let fetch k = do ensure k; gets (getValue k . fst)
-            s <- get
-            when (key `notElem` snd s) $ do
+            done <- gets snd
+            when (key `notElem` done) $ do
                 modify $ \(s, done) -> (s, key:done)
                 case trackM task fetch key of
                     Nothing -> return ()
-                    Just act -> step key fetch act
+                    Just act -> process key fetch act
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
@@ -263,34 +261,40 @@ shake = recursive $ \key fetch act -> do
 \vspace{-2mm}
 \end{figure}
 
-This implementation uses the \hs{recursive} function which requires a function which gets the key to build (\hs{k}), a way to fetch the result of a dependency (\hs{fetch}), and a way to build \hs{k} (\hs{act}). The code first looks up the traces that match the current situation, creating a list of possible results as \hs{poss}, using the helper \hs{traceMatch}. We check if the current value for the key is one of the possible results, and it not, build the key and store it in the trace. We can implement \hs{traceMatch}, which is used in all build systems working with \hs{Trace}, as:
+The \Shake approach for dependency tracking involves recording traces and verifying them, for which we use the \hs{Trace} type defined in \ref{sec-verifying-traces}. Complete code is given in \S\ref{fig-shake-implementation}, split into three functions:
 
-The function \hs{traceMatch} requires a way to check a dependency, and the key, and the traces. We return the \hs{result} field from all traces where the key and dependencies match. We define the recursive combinator as:
-
-The required \hs{step} function gets given the \hs{k} to build, the dependencies as \hs{Maybe [k]} (where they are \hs{Nothing} if the rule is truly monadic), a function to demand the result of a dependent key, and a function to compute the current value and return the actual dependencies. To ensure each file is only visited once in a single execution a piece of temporary state is used with \hs{getTemp} and \hs{modifyTemp} to record which files were visited - this state is not persisted to the \hs{i} info parameter and is reset on each fresh execution of \hs{M}.
+\begin{description}
+\item[\hs{traceMatch}] takes a list of all recorded \hs{Trace} values, the \hs{key} you are currently building, and a function \hs{check} which checks a specified dependency. It returns the \hs{result} field of all traces that match. Since \hs{check} is in an arbitrary monad, the function has to use \hs{allM}/\hs{&&^} instead of the more usual \hs{all}/\hs{&&} functions\footnote{These functions are all available in the \cmd{extra} library on Hackage.}.
+\item[\hs{recursive}] defines the dependency ordering pattern. It requires a \hs{process} function that builds a key given a way to build a dependency, and a way to build the result. The main purpose of \hs{recursive} is to ensure that in a single run any key is not built twice -- for which it extends the \hs{State} monad with a list of \hs{done} keys.
+\item[\hs{shake}] ties everything together. First it tests if the traces allow the current state of the target key. If not, it builds the key and updates the store. The only subtlty is that Shake calls \hs{fetch} on the keys while checking them -- building the last-recorded dependencies before checking them.
+\end{description}
 
 \subsection{\Bazel}\label{sec-implementation-bazel}
 
-\todo{NM}{Remove the intermediate \hs{M} layer, as done in \Make.}
-
-Now we have seen the three dependency schemes, we can directly reuse \hs{topological} to define \Bazel. Furthermore, as \Bazel is a tracing build system, we can reuse \hs{Trace} and \hs{traceMatch}, as part of the \hs{Traces} type. We define \Bazel as:
-
-\begin{minted}{haskell}
-bazel :: Hashable v => Build Applicative (Traces k v) k v
-bazel = topological $ \k dk act -> do
-    poss <- traceMatch (\k v -> (== v) <$> getStoreHash k) k . traces =<< getInfo
+\begin{figure}
+\begin{minted}[fontsize=\small]{haskell}
+bazel :: (Eq k, Hashable v) => Build Applicative (Traces k v) k v
+bazel = topological $ \key ds act -> do
+    s <- get
+    let Traces traces contents = getInfo s
+    poss <- traceMatch (\k v -> return $ getHash k s == v) key traces
     if null poss then do
         v <- act
-        dh <- mapM getStoreHash dk
-        modifyInfo $ \i -> i
-            {traces = Trace k (zip dk dh) (getHash v) : traces i
-            ,contents = Map.insert (getHash v) v $ contents i}
-        putStore k v
+        modify $ \s ->
+            let t = Trace key [(d, getHash d s) | d <- ds] (getHash key s)
+                ts = Traces (t : traces) (Map.insert (hash v) v contents)
+            in putInfo ts (putValue key v s)
     else do
-        h <- getStoreHash k
-        when (h `notElem` poss) $
-            putStore k . (Map.! head poss) . contents =<< getInfo
+        when (getHash key s `notElem` poss) $
+            modify $ putValue key (contents Map.! head poss)
 \end{minted}
+\vspace{-2mm}
+\caption{An implementation of \Bazel using our framework.}\label{fig-bazel-implementation}
+\vspace{-2mm}
+\end{figure}
+
+Now we have seen all three dependency schemes, we can reuse , we can directly reuse \hs{topological} to define \Bazel. Furthermore, as \Bazel is a tracing build system, we can reuse \hs{Trace} and \hs{traceMatch}, as part of the \hs{Traces} type. We define \Bazel as:
+
 
 We execute keys in a topological order. For each key we first get a list of the traces that match. If there are none we rebuild and record the trace, much like \Shake, but also recording the value of the result. If there are some matching traces, and the current value of \hs{k} is not compatible, we grab the first possibility and grab its value from \hs{contents}.
 

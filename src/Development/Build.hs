@@ -16,6 +16,7 @@ module Development.Build (
 
 import Control.Monad.State
 import Data.Set (Set)
+import Data.Map (Map)
 import Control.Monad.Extra
 
 import Development.Build.Task
@@ -25,6 +26,7 @@ import Development.Build.Store
 import Development.Build.Utilities
 
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 
 -- | A build system takes a 'Task', a key to build, some information from
 -- the previous build @i@ (which can be missing if this is the first build),
@@ -190,16 +192,16 @@ traceMatch check key ts = mapMaybeM f ts
 recursive
     :: Eq k => (k -> (k -> State (Store i k v, [k]) v) -> State (Store i k v, [k]) (v, [k]) -> State (Store i k v, [k]) ())
     -> Build Monad i k v
-recursive step task key store = fst $ execState (ensure key) (store, [])
+recursive process task key store = fst $ execState (ensure key) (store, [])
     where
         ensure key = do
             let fetch k = do ensure k; gets (getValue k . fst)
-            s <- get
-            when (key `notElem` snd s) $ do
+            done <- gets snd
+            when (key `notElem` done) $ do
                 modify $ \(s, done) -> (s, key:done)
                 case trackM task fetch key of
                     Nothing -> return ()
-                    Just act -> step key fetch act
+                    Just act -> process key fetch act
 
 -- Shake build system
 shake :: (Eq k, Hashable v) => Build Monad [Trace k v] k v
@@ -212,3 +214,22 @@ shake = recursive $ \key fetch act -> do
         modify $ \(s, done) ->
             let t = Trace key [(d, getHash d s) | d <- ds] (getHash key s)
             in (putInfo (t : getInfo s) (putValue key v s), done)
+
+data Traces k v = Traces
+    { traces :: [Trace k v]
+    , contents  :: Map (Hash v) v }
+
+bazel :: (Eq k, Hashable v) => Build Applicative (Traces k v) k v
+bazel = topological $ \key ds act -> do
+    s <- get
+    let Traces traces contents = getInfo s
+    poss <- traceMatch (\k v -> return $ getHash k s == v) key traces
+    if null poss then do
+        v <- act
+        modify $ \s ->
+            let t = Trace key [(d, getHash d s) | d <- ds] (getHash key s)
+                ts = Traces (t : traces) (Map.insert (hash v) v contents)
+            in putInfo ts (putValue key v s)
+    else do
+        when (getHash key s `notElem` poss) $
+            modify $ putValue key (contents Map.! head poss)

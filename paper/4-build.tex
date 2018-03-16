@@ -144,10 +144,10 @@ A verifying trace allows us to mark a key dirty and rebuild it. Extending that i
 \begin{minted}{haskell}
 data Traces k v = Traces
     { traces :: [Trace k v]
-    , cache  :: Map (Hash v) v }
+    , contents  :: Map (Hash v) v }
 \end{minted}
 
-We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{cache} \emph{without} recomputing it. We split the traces and caches as in cloud interactions to a remote server the checking system may have to examine many traces/hashes, but only at most one complete file.
+We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{contents} \emph{without} recomputing it. We split the traces and contents as in cloud interactions to a remote server the checking system may have to examine many traces/hashes, but only at most one complete file.
 
 \subsection{Build Systems \`a la Carte}\label{sec-design-space}
 

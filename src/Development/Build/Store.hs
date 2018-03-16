@@ -14,7 +14,7 @@ module Development.Build.Store (
 
 -- | A 'Hash' is used for efficient tracking and sharing of build results. We
 -- use @newtype Hash a = Hash Int@ for prototyping.
-newtype Hash a = Hash Int deriving Eq
+newtype Hash a = Hash Int deriving (Eq,Ord)
 
 class Hashable a where
     -- | Compute the hash of a given value. We typically assume cryptographic
