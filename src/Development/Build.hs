@@ -85,8 +85,20 @@ make = topological process
             let newModTime k = if k == key then now else modTime k
             modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
 
+-- Add constructor Exact [k]?
+data DependencyApproximation k = SubsetOf [k] | Unknown
+
+data Result k v = MissingDependency k | Result v [k]
+
+try :: forall m k v. Monad m => Task Monad k v -> (k -> m (Maybe v))
+                           -> k -> Maybe (m (Result k v))
+try task partialFetch = fmap (fmap toResult) . trackExceptions task partialFetch
+  where
+    toResult (Left k       ) = MissingDependency k
+    toResult (Right (v, ks)) = Result v ks
+
 reordering :: forall i k v. Ord k
-            => (k -> State (Store i k v) (Either k (v, [k])) -> State (Store i k v) (Maybe k))
+            => (k -> State (Store i k v) (Result k v) -> State (Store i k v) (Maybe (Result k v)))
             -> Build Monad (i, [k]) k v
 reordering step task key = execState $ do
     chain    <- snd . getInfo <$> get
@@ -96,39 +108,37 @@ reordering step task key = execState $ do
     go :: Set k -> [k] -> State (Store (i, [k]) k v) [k]
     go _    []     = return []
     go done (k:ks) = do
-        case trackExceptions task fetch k of
-            Nothing  -> (k :) <$> go (Set.insert k done) ks
+        case try task fetch k of
+            Nothing -> (k :) <$> go (Set.insert k done) ks
             Just act -> do
                 store <- get
                 let (res, newStore) = runState (step k act) (mapInfo fst store)
                 put $ mapInfo (,[]) newStore
                 case res of
-                    Nothing  -> (k :) <$> go (Set.insert k done) ks
-                    Just dep -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
+                    Just (MissingDependency d) -> go done $ [ d | d `notElem` ks ] ++ ks ++ [k]
+                    _                          -> (k :) <$> go (Set.insert k done) ks
       where
         fetch :: k -> State (Store i k v) (Maybe v)
         fetch k | k `Set.member` done = do s <- get; return (Just $ getValue s k)
                 | otherwise           = return Nothing
-
-data DependencyApproximation k = Universe | SubsetOf [k]
 
 type ExcelInfo k = ((k -> Bool, DependencyApproximation k), [k])
 
 excel :: Ord k => Build Monad (ExcelInfo k) k v
 excel = reordering $ \key act -> do
     (dirty, deps) <- getInfo <$> get
-    let rebuild = dirty key || case deps of Universe    -> True
-                                            SubsetOf ks -> any dirty ks
+    let rebuild = dirty key || case deps of SubsetOf ks -> any dirty ks
+                                            Unknown     -> True
     if not rebuild
         then return Nothing
         else do
-            v <- act
-            case v of
-                Left k -> return (Just k)
-                Right (v, _dynamicDependencies) -> do
+            result <- act
+            case result of
+                MissingDependency _ -> return (Just result)
+                Result v _dynamicDependencies -> do
                     let newDirty k = if k == key then True else dirty k
                     modify $ \s -> putInfo (putValue s key v) (newDirty, deps)
-                    return Nothing
+                    return (Just result)
 
 type MultiBuild c i k v = Task c k v -> [k] -> Store i k v -> Store i k v
 
