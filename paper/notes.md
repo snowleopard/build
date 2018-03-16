@@ -60,31 +60,3 @@ from the input cell \textsf{A1}. Now if the user changes the \textsf{A1} to 5,
 XXX will recompute both \textsf{A2 = 4}, which is necessary, but also
 \textsf{A3 = 2}, which is unnecessary since its only dependency (\textsf{A1})
 has not changed since the previous build.
-
-
-\Bazel is a cloud build system developed by Google, which supports caching of
-build results. To achieve that, it maintains two partial maps:
-
-\begin{minted}{haskell}
-type Cache =  Hash  -> Maybe v
-type Known = [Hash] -> Maybe Hash
-\end{minted}
-
-\hs{Cache} is a conventional \emph{content-addressable store}, that can be used
-to fetch a previously computed value given its hash.
-
-\hs{Known} records a known outcome of a computation that took a list of values
-as input (represented by their hashes) and produced a resulting value (also
-represented by its hash). Now, a build system has the following two options to
-recompute a value:
-
-\begin{itemize}
-    \item Call the compute function on the store containing all up-to-date
-    dependencies and put the computed value to the store.
-    \item Collect hashes of all up-to-date dependencies \hs{hs} and query the
-    \hs{Known} map. If this computation has been performed before, the map will
-    contain the hash \hs{h} of one valid result (recall that the compute function
-    may be non-deterministic). It is now possible to lookup \hs{h} in the
-    \hs{Cache} and if it contains a value \hs{v} it can be downloaded to the
-    local store instead of running the compute.
-\end{itemize}

@@ -1,30 +1,20 @@
 \section{Build Systems \`a la Carte}\label{sec-build}
 
-The focus of this paper is on a variety of implementations of \hs{Build}, given
-a \emph{client-supplied} implementation of \hs{Task}. That is, we are going to take
-\hs{Task} as given from now on, and explore variants of \hs{Build}: first
-abstractly (in this section) and then concretely in~\S\ref{sec-implementations}.
+The focus of this paper is on a variety of implementations of
+\hs{Build}~\hs{c}~\hs{i}~\hs{k}~\hs{v}, given
+a \emph{client-supplied} implementation of \hs{Task}~\hs{c}~\hs{k}~\hs{v}. That
+is, we are going to take \hs{Task} as given from now on, and explore variants of
+\hs{Build}: first abstractly (in this section) and then concretely
+in~\S\ref{sec-implementations}.
 
-\todo{SLPJ}{What does this para add?}
-Let \hs{result}~\hs{=}~\hs{build}~\hs{task}~\hs{key}~\hs{store}. The build
-system \hs{build} is responsible for ensuring that \hs{key} and its dependencies
-are up to date in \hs{result} starting from \hs{store} (\S\ref{sec-build-correctness}). As part of that work,
-\hs{build} \emph{may} store auxiliary information \hs{info} of type \hs{i} in
-the \hs{store}, which will be provided to future calls of \hs{build}.
+As per the definition of minimality~\ref{def-minimal}, a minimal build
+system must \underline{rebuild only out-of-date keys} and at most once. The only
+way to achieve the ``at most once'' requirement while producing a correct build
+result (\S\ref{sec-build-correctness}) is to \underline{build all keys in the
+order that respects their dependencies}.
 
-\todo{SLPJ}{What does this para add?}
-All the build systems we define are polymorphic in both \hs{k} and \hs{v}
-(perhaps adding constraints to them), and have specific instantiations of \hs{c}
-and \hs{i}. As an example, recall that the \hs{busy} build system defined
-in~\S\ref{sec-general-build}, has \hs{c}~\hs{=}~\hs{Monad}, i.e. it supports
-monadic tasks, and \hs{i = ()}, i.e. it does not store any build information.
-
-According to the definition of minimality~\ref{def-minimal}, a minimal build
-system must \textbf{rebuild only out-of-date keys} and at most once. The only
-way to achieve the ``at most once'' requirement is to \textbf{build all keys in
-the order that respects their dependencies}.
-
-We have emphasised two different phrases above, and tackle each aspect separately.
+\vspace{1mm}
+We have underlined two different phrases above, and tackle each aspect separately.
 
 \subsection{Respecting the dependency order}
 \label{sec-dependency-orderings}
@@ -61,7 +51,7 @@ that work is zero.
 \subsubsection{Recursive}
 
 An alternative approach, utilised by the \hs{busy} build system
-(\S\ref{sec-general-build}) is to simply build dependencies when they are
+(\S\ref{sec-general-build}), is to simply build dependencies when they are
 requested. By combining that with a transient log of which keys have already
 been built, you can obtain a minimal build system.
 
@@ -81,20 +71,18 @@ fundamental ways, with a number of tweaks and variations within them.
 The idea of a dirty bit is to have one piece of persistent
 information per key, saying whether the key is
 \emph{dirty} or \emph{clean}. After a build, all bits are set to clean. When the
-next build starts anything that changed between the two states is marked
+next build starts, anything that changed between the two states is marked
 dirty.
 % ; and by marking additional things dirty/clean the build system can track
 % what needs to rebuild.
-When reaching a key, if it and all its dependencies are
-clean, the key does not need recomputing.
+When reaching a key, if it and all its transitive dependencies are clean, the
+key does not need recomputing.
 
 \Excel models the dirty bit approach most directly, having an actual dirty bit
-associated with each cell, marking the cell it (and its dependencies) dirty
-if the user modifies it.
-When rebuilding,
-if a cell only depends on clean cells it is skipped, otherwise it is rebuilt and
-marked dirty itself.
-\todo{SLPJ}{What does ``marked dirty itself'' mean?}
+associated with each cell, marking the cell dirty if the user modifies it.
+When rebuilding, if a cell only depends on clean cells it is skipped, otherwise
+it is rebuilt and is marked dirty so that the cells that depend on it are
+subsequently rebuilt too.
 
 % AM: I didn't understand this bit, so commented it out.
 % The only wrinkle in this scheme is that \Excel supports
@@ -113,43 +101,44 @@ time -- something that can be violated by backup software.
 
 With a dirty bit it is possible to achieve minimality. To achieve early cutoff
 (\S\ref{sec-background-shake}) it would be important to not set the dirty bit
-after a computation that did not change the value. \Excel could model this
-approach, but does not. In contrast, \Make cannot model early cutoff -- to do so
-it would have to mark the node clean (so it didn't rebuild in the next run) and
-at the same time not mark the things it depends on dirty -- an impossible task
-with only the ability to update to the latest modification time.
+after a computation that did not change the value. \Excel could use this
+approach, but does not. In contrast, \Make cannot implement early cutoff -- to
+do so it would have to mark the node clean (so it would not rebuild in the next
+run) and at the same time not mark the things it depends on dirty -- an
+impossible task with only the ability to update to the latest modification time.
+
+\todo{NM}{I stopped here, as the traces seem not finalised yet.}
 
 \subsubsection{Verifying traces}\label{sec-verifying-traces}
 
 An alternative way to determine if a key is dirty is to record what state the
 values/hashes of dependencies were used at last time, and if something has
 changed, the key is dirty and must be recomputed -- in essence a \emph{trace}
-which we can use to \textit{verify} existing values. We can describe a trace as:
-
-\todo{AM/NM}{Change from \hs{[Trace k v]} to \hs{Map k (Trave k v)} or something
-similar, so that it's obvious we have one trace per key .}
+which we can use to \emph{verify} existing values. We can describe a trace as:
 
 \begin{minted}{haskell}
 data Trace k v = Trace
     { key          :: k
-    , dependencies :: [(k, Hash)]
-    , result       :: Hash }
+    , dependencies :: [(k, Hash v)]
+    , result       :: Hash v }
 \end{minted}
 
-We assume that \hs{Hash} is a small constant size, constructed from hashing the
+We assume that \hs{Hash v} is a small constant size, constructed from hashing the
 underlying \hs{v} rather than storing it directly. Checking a trace requires
 ensuring all the dependencies are up to date (using whatever ordering strategy
 as per \S\ref{sec-dependency-orderings}), then comparing if the dependencies are
 same as the current value and that the result is the same. After computing a
-fresh value we add its \hs{Trace} to the list. Therefore the information stored
+fresh value we add its \hs{Trace k v} to the list. Therefore the information stored
 by a build system that verifies traces is \hs{[Trace k v]}.
+
+\todo{NM}{We need to emphasise that lists are convenient for expressing the semantics,
+but actual implementation uses a data structure optimised for a specific build system.}
 
 \subsubsection{Constructive traces}\label{sec-constructive-traces}
 
-A verifying trace allows us to mark a key dirty and rebuild it. Extending that information we can store a \textit{constructive} trace which is the trace plus the actual result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality. We can represent that as:
+A verifying trace allows us to mark a key dirty and rebuild it. Extending that information we can store a \emph{constructive} trace which is the trace plus the actual result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality. We can represent that as:
 
-\todo{AM/NM}{Traces -- why the indirection (first get the hash, then look it up)?
-Can we drop it? Can we switch to a more efficient/explicit data structure than a list?}
+\todo{NM}{Clarify why the indirection (first get the hash, then look it up)?}
 
 \begin{minted}{haskell}
 data Traces k v = Traces
@@ -157,19 +146,13 @@ data Traces k v = Traces
     , cache  :: Map Hash v }
 \end{minted}
 
-We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{cache} \textit{without} recomputing it.
+We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{cache} \emph{without} recomputing it.
 
 For both verifying and constructive choices it is possible to choose smarter data structures than simply a list of \hs{Trace}, which we discuss in \S\ref{sec-smart-traces}.
 
-\todo{AM}{AM: I would also like to see actual \hs{verify} and \hs{construct} functions.
+\subsection{Summary}\label{sec-design-space}
 
-NM: It actually gets a bit more confusing than that - since you end up needing to pass functions to get yourself, your dependencies etc. Unclear there is a win. The functions would occur in the next section anyway.
-
-AM: Now, after we've switched to \hs{Store i k v} it might work better?}
-
-\subsection{Summary} \label{sec-design-space}
-
-\todo{AM/NM/SLPJ}{Add a decription for the table.}
+\todo{NM}{Check the table and add a decription.}
 
 \begin{table}[h]
 \smaller
