@@ -10,7 +10,7 @@ in~\S\ref{sec-implementations}.
 As per the definition of minimality~\ref{def-minimal}, a minimal build
 system must \underline{rebuild only out-of-date keys} and at most once. The only
 way to achieve the ``at most once'' requirement while producing a correct build
-result (\S\ref{sec-build-correctness}) is to \underline{build all keys in the
+result (\S\ref{sec-build-correctness}) is to \underline{build all keys in an
 order that respects their dependencies}.
 
 \vspace{1mm}
@@ -55,7 +55,9 @@ An alternative approach, utilised by the \hs{busy} build system
 requested. By combining that with a transient log of which keys have already
 been built, you can obtain a minimal build system.
 
-This approach requires a way to suspend a running task, which can be done with cheap
+This approach requires that a task may be started, then during that execution
+another task will have to be run. Assuming a an IO-driven task structure,
+that requires suspend a running task, which can be done with cheap
 green threads and blocking (the original approach of \Shake) or with a
 continuation-passing style (what \Shake does now). An alternative approach to
 suspending a task is to abort it and restart it again later, at the cost
@@ -99,15 +101,17 @@ automatically sets the dirty bit of the nodes depending on it. One
 thing \Make does require is that file timestamps only go forward in
 time -- something that can be violated by backup software.
 
-When using a dirty bit, it is necessary to check all the dependencies of a key. For applicative build systems that list is simple to obtain, but for monadic build systems there is no general way to get all dependencies. Instead \Excel computes a \textit{static approximation} of the dependencies. For applicative rules that approximation is correct. For functions such as \textsf{IF} it marks the cell dirty if \textit{any} potential dependency has changed, even on the untaken \textif{if} branch. For functions such as \textsf{INDIRECT} whose dependencies cannot be guessed, it conservatively assumes the dependencies have always changed.
+When using a dirty bit, it is necessary to check all the dependencies of a key. For applicative build systems that list is simple to obtain, but for monadic build systems there is no general way to get all dependencies. Instead \Excel computes a \textit{static approximation} of the dependencies. For applicative rules that approximation is correct. For functions such as \textsf{IF} it marks the cell dirty if \textit{any} potential dependency has changed, even on the untaken \textsf{IF} branch. For functions such as \textsf{INDIRECT} whose dependencies cannot be guessed, it conservatively assumes the dependencies have always changed.
 
 With a dirty bit it is simple to achieve minimality. However, to achieve early cutoff
 (\S\ref{sec-background-shake}) it would be important to not set the dirty bit
 after a computation that did not change the value. \Excel could use this
-approach, but does not. In contrast, \Make cannot implement early cutoff -- to
+approach, but does not. In contrast, \Make cannot implement early cutoff nicely -- to
 do so it would have to mark the node clean (so it would not rebuild in the next
 run) and at the same time not mark the things it depends on dirty -- an
 impossible task with only the ability to update to the latest modification time.
+It can approximate early cutoff by not touching the result file, and not marking it clean,
+but then it reruns in every subsequent build.
 
 \subsubsection{Verifying traces}\label{sec-verifying-traces}
 

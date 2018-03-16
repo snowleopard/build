@@ -39,11 +39,11 @@ four carefully-chosen build systems.
 our abstractions to describe the essence of a variety of different
 real-life build systems, including \Make, \Shake, \Bazel, and \Excel, each in
 a dozen lines of code or so (\S\ref{sec-implementations}).
-Doing this in a single setting allows
+Doing this modelling in a single setting allows
 the differences and similarities between these huge systems to be
 brought out clearly.
 
-\item Moreover, we can readily mix the ingredients differently to produce the first
+\item Moreover, we can readily remix the ingredients to produce the first
   build system that supports both \emph{dynamic dependencies}
   and \emph{cloud build} (\S\ref{sec-implementation-cloud-shake}).
 
@@ -58,6 +58,4 @@ work in \S\ref{sec-related}.
 
 Papers about ``frameworks'' are often fuzzy.  This one is not: all our
 abstractions are defined in Haskell, and we have (freely-available)
-executable models of all the build systems we describe.  An unusual
-feature is that we include \Excel in our line-up because, looked at
-in the right way, it certainly is a build system.
+executable models of all the build systems we describe.
