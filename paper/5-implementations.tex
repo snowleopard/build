@@ -237,7 +237,7 @@ recursive process task key store = fst $ execState (ensure key) (store, [])
             done <- gets snd
             when (key `notElem` done) $ do
                 modify $ \(s, done) -> (s, key:done)
-                case trackM task fetch key of
+                case track task fetch key of
                     Nothing -> return ()
                     Just act -> process key fetch act
 \end{minted}
@@ -293,7 +293,14 @@ bazel = topological $ \key ds act -> do
 \vspace{-2mm}
 \end{figure}
 
-Now we have seen all three dependency schemes, we can reuse , we can directly reuse \hs{topological} to define \Bazel. Furthermore, as \Bazel is a tracing build system, we can reuse \hs{Trace} and \hs{traceMatch}, as part of the \hs{Traces} type. We define \Bazel as:
+Now we have seen all three dependency schemes, we can directly reuse \hs{topological} to define \Bazel. Furthermore, as \Bazel is a tracing build system, we can reuse \hs{Trace} and \hs{traceMatch}, along with the \hs{Traces} type from \S\ref{sec-constructive-traces}. With these pieces in place, the implementation of \Bazel is given in Figure~\ref{fig-bazel-implementation}. We first figure out the possible results given the current state. If there are no recorded traces for the current dependencies we run it and record the results, otherwise grab a result from the \hs{contents} cache.
+
+The program presented above captures certain aspects of \Bazel, but the real implementation makes one important additional assumption on \hs{Task} -- namely that it is \textit{deterministic}. With that assumption \Bazel is able to create the result hash in a trace by hashing together the result hashes of the dependencies and the key -- as the mapping between dependencies and results is deterministic. That change can be reflected in the code above by storing an additional \hs{Map k (Hash v)} which records the single most-recent 
+
+
+ rather than adding \hs{getHash key s} to the trace, \Bazel adds a hash of the dependencies hashes
+
+more accurately describes \CloudBuild \cite{cloudbuild} - both \Bazel and the closely related \Buck make the assumption that builds are \textit{deterministic}, and thus that 
 
 
 We execute keys in a topological order. For each key we first get a list of the traces that match. If there are none we rebuild and record the trace, much like \Shake, but also recording the value of the result. If there are some matching traces, and the current value of \hs{k} is not compatible, we grab the first possibility and grab its value from \hs{contents}.
