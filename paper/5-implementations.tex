@@ -1,12 +1,14 @@
 \section{Build systems, concretely}\label{sec-implementations}
 
-In the previous sections we discussed the types of build system, and how they
+In the previous sections we discussed the types of build systems, and how they
 can be broken down. But these divisions were not obvious to us, and only by
 concretely implementing and refactoring each build system did we determine the
 underlying commonalities. In this section we share some of the code that got us
-there. Our code comprises a framework, utility functions implementing the
-various dependency orderings as per~\S\ref{sec-dependency-orderings}, and
-actual implementations.
+there.
+
+% Our code comprises a framework, utility functions implementing the
+% various dependency orderings as per~\S\ref{sec-dependency-orderings}, and
+% actual implementations.
 
 % \subsection{Framework}
 
@@ -32,60 +34,77 @@ actual implementations.
 
 \subsection{\Make}\label{sec-implementation-make}
 
-\todo{AM}{Explain the new implementation. Most of the explanations below will
-need to be adapted.}
+\Make processes keys in a linear order based on a topological sort
+(see~\S\ref{sec-concurrency} for parallel \Make). For each key, it builds it if
+it is older than any of its dependencies. We can express this in our framework
+as follows. We capture the persistent information stored by \Make as a pair
+\hs{(@@modTime,}~\hs{now)} comprising the \emph{file modification time} function
+\hs{modTime}~\hs{::}~\hs{k}~\hs{->}~\hs{Time} and the current time \hs{now}.
 
-The \Make build system builds files in a linear order based on a topological sort.
-(See \S\ref{sec-concurrency} for parallel \Make.) For each file, it builds it if
-the output file is older than any of the inputs. We can express this in our
-framework with:
-
-\begin{minted}{haskell}
+\begin{minted}[xleftmargin=10pt]{haskell}
 type Time = Integer
 type MakeInfo k = (k -> Time, Time)
-
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
 make :: Eq k => Build Applicative (MakeInfo k) k v
-make = topological $ \key deps act -> do
-    (modTime, now) <- getInfo <$> get
-    let dirty = or [ modTime dep > modTime key | dep <- deps ]
-    when dirty $ do
-        v <- act
-        let newModTime k = if k == key then now else modTime k
-        modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
+make = topological process
+  where
+    process key deps act = do
+        (modTime, now) <- getInfo <$> get
+        let dirty = or [ modTime dep > modTime key | dep <- deps ]
+        when dirty $ do
+            v <- act
+            let newModTime k = if k == key then now else modTime k
+            modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
 \end{minted}
 
-We'll come back to \hs{withChanged} afterwards, but ignoring that, reading the rest of the implementation you can see the underlying essence of \Make. We use the helper function \hs{topological} which gets called with each file in a dependency-respecting order given the file (\hs{k}), the dependencies (\hs{dk}) and an action to generate the result (\hs{act}). With those three things in hand, the implementation first gets the timestamp of the key being built, then the timestamps of the dependencies (which must have been rebuilt if necessary, thanks to the guarantees on \hs{topological}), and considers it dirty if any dependency was built after \hs{k}. If it is dirty, it rebuilds and stores the result.
+The helper function \hs{topological}, which we describe later, calls
+\hs{process} on every \hs{key} in the topological order, providing the list of
+its dependencies \hs{deps} and the action \hs{act} to compute the resulting
+value if it needs to be rebuilt. To determine if the \hs{key} is \hs{dirty},
+\hs{process} compares its modification time with those of its dependencies. If
+\hs{key} needs to be rebuilt, the associated action \hs{act} is executed and
+the obtained result is stored, along with an updated file modification
+timestamp. The \hs{make} build system, as described, captures the essence of
+\Make in a clear and precise manner.
 
-The implementation of \hs{topological} encodes the dependency strategy that \Make has chosen to use. The function itself is defined as:
+The implementation of \hs{topological} encodes the dependency strategy that
+\Make has chosen to use. The function itself is defined as:
 
+\vspace{1mm}
 \begin{minted}{haskell}
-topological :: Eq k
-            => (k -> [k] -> State (Store i k v) v -> State (Store i k v) ())
+topological :: Eq@\,\blk{k}@ => (k -> [k] -> State@\,@(Store i k v)@\,\blk{v}@ -> State@\,@(Store i k v)@\,@(@@))
             -> Build Applicative i k v
-topological step task key = execState $ forM_ chain $ \k -> do
-    let fetch k = do { store <- get; return (getValue store k) }
+topological process task key = execState $ forM_ chain $ \k -> do
+    let fetch k = do store <- get; return (getValue store k)
     case task fetch k of
         Nothing  -> return ()
-        Just act -> step k (deps k) act
+        Just act -> process k (deps k) act
   where
     deps  = dependencies task
-    chain = topSort deps (closure deps key)
+    chain = topologicalSort deps (transitiveClosure deps key)
 \end{minted}
+\vspace{1mm}
 
-It uses a \hs{dependencies} on the computation function, takes the transitive-closure and topological-sort to provide an order in which to build the keys. For each key, if it is an input it does nothing, otherwise it calls the supplied \hs{step} function. Note that \hs{dependencies} is only defined for \hs{Applicative} computes, which is what restricts \Make to Applicative build systems. Moreover, anyone following the same topological-sort approach will also have the \hs{Applicative} restriction.
+\noindent
+The \hs{where} clause corresponds to the pre-processing step, which uses the
+function \hs{dependencies}, defined in~\S\ref{sec-deps}, to extract static
+dependencies from the provided applicative \hs{task}. We compute the linear
+processing \hs{chain} by taking the \hs{transitiveClosure} of \hs{key}'s
+dependencies, and performing the \hs{topologicalSort} of the result. We omit
+implementation of textbook graph algorithms \hs{transitiveClosure} and
+\hs{topologicalSort}~\cite{cormen2001introduction}.
 
-The greatest impedance mismatch between our framework and this implementation is the notion of \hs{Time} in \hs{getStoreTime}, which is missing from \hs{Build}. However, as we discussed in \S\ref{sec-dirty-bit}, \Make is really using modification-time to encode a dirty bit with specific properties. We model the dirty bit and time with the following API on \hs{M}:
+The \hs{chain} is processed in the \hs{State} monad, with each non-input key
+\hs{k} in the chain passed to the provided \hs{process} function, along with
+\hs{k}'s dependencies and the action \hs{act}, which when executed recomputes
+the \hs{k}'s value by fetching its dependencies from the store.
 
-To model a dirty bit we extend the \hs{i} information with \hs{Changed} to capture the \hs{k -> v} store at the end of the previous run, and extend \hs{M} to record which files have been written to during this \hs{runM}. A file is considered dirty if either the current value as per \hs{getStore} has changed since the last run, or if it has had \hs{putStore} called on it\footnote{It would be reasonable to declare files unchanged if they have \hs{putStore} called at their previous value, but \Excel does not and \Make cannot using modification times, so we ignore this option.}. To track the values at the last run we use \hs{withChanged} to copy the resultant \hs{k -> v} store into the info after the build completes.
-
-On top of a dirty bit we can encode a time with a very small domain, concretely if the file was last changed before the last build ended, or afterwards. That domain is sufficient for the \Make system. At first the fact that this domain is sufficient surprised us, until we realised \Make is only interested in the dirty bit anyway! If we strip back the modification time and directly implement \Make in terms of \hs{getChanged} we obtain:
-
-\begin{minted}{haskell}
-makeDirtyBit :: Eq v => Build Applicative (Changed k v, ()) k v
-makeDirtyBit = withChanged $ topological $ \k dk act -> do
-    dirty <- getChanged k ||^ anyM getChanged dk
-    when dirty (putStore k =<< act)
-\end{minted}
+Note that \hs{dependencies} is only defined for applicative tasks, which is what
+restricts \Make to static dependencies, as reflected in the
+type~\hs{Build}~\hs{Applicative}. Moreover, any other build system following
+the same \hs{topological} approach will also inherit the same restriction.
 
 \subsection{\Excel}\label{sec-implementation-excel}
 
