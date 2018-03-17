@@ -101,7 +101,14 @@ automatically sets the dirty bit of the nodes depending on it. One
 thing \Make does require is that file timestamps only go forward in
 time -- something that can be violated by backup software.
 
-When using a dirty bit, it is necessary to check all the dependencies of a key. For applicative build systems that list is simple to obtain, but for monadic build systems there is no general way to get all dependencies. Instead \Excel computes a \emph{static approximation} of the dependencies. For applicative rules that approximation is correct. For functions such as \cmd{IF} it marks the cell dirty if \emph{any} potential dependency has changed, even on the untaken \emph{if} branch. For functions such as \cmd{INDIRECT} whose dependencies cannot be guessed, it conservatively assumes the dependencies have always changed.
+When using a dirty bit, it is necessary to check all the dependencies of a key.
+For applicative build systems that list is easy to obtain, but for monadic
+build systems there is no general way to get all dependencies. Instead \Excel
+computes a \emph{static approximation} of the dependencies. For applicative
+tasks that approximation is correct. For functions such as \cmd{IF} it marks the
+cell dirty if \emph{any} potential dependency has changed, even on the untaken
+\emph{if} branch. For functions such as \cmd{INDIRECT} whose dependencies cannot
+be guessed, it conservatively assumes the dependencies have always changed.
 
 With a dirty bit it is simple to achieve minimality. However, to achieve early cutoff
 (\S\ref{sec-background-shake}) it would be important to not set the dirty bit
@@ -127,15 +134,19 @@ data Trace k v = Trace
     , result       :: Hash v }
 \end{minted}
 
-We assume that \hs{Hash v} is a small constant size, constructed from hashing the
+We assume that \hs{Hash}~\hs{v} is a small constant size, constructed from hashing the
 underlying \hs{v} rather than storing it directly. Checking a trace requires
 ensuring all the dependencies are up to date (using whatever ordering strategy
 as per \S\ref{sec-dependency-orderings}), then comparing if the dependencies are
 same as the current value and that the result is the same.
 
-A verifying trace build system needs to maintain a set of traces. After computing a
-fresh value we add its \hs{Trace k v} to the set. Therefore the information stored
-by a build system that verifies traces can be stored as a list or set - we chose \hs{[Trace k v]} for simplicity. In practice, different build systems can optimise the data structures used by traces for their specific use cases, which we discuss in \S\ref{sec-smart-traces}.
+A build system that uses verifying traces needs to persistently maintain a set
+of traces. After computing a fresh value we add its \hs{Trace}~\hs{k}~\hs{v} to
+the set. Therefore the information stored by a build system that verifies
+traces can be stored as a list or set~--~we chose \hs{[Trace}~\hs{k}~\hs{v]}
+for simplicity. In practice, different build systems can optimise the data
+structures used by traces for their specific use cases, which we discuss
+in~\S\ref{sec-smart-traces}.
 
 \subsubsection{Constructive traces}\label{sec-constructive-traces}
 
@@ -143,7 +154,7 @@ A verifying trace allows us to mark a key dirty and rebuild it. Extending that i
 
 \begin{minted}{haskell}
 data Traces k v = Traces
-    { traces :: [Trace k v]
+    { traces    :: [Trace k v]
     , contents  :: Map (Hash v) v }
 \end{minted}
 
@@ -156,14 +167,27 @@ We have a list of traces, plus a \hs{Map} from the hash to the actual contents. 
 \centering
 \begin{tabular}{l||c|c|c}
 \hline
-Property           & Topological \S\ref{sec-topological} & Reordering \S\ref{sec-reordering} & Recursive \S\ref{sec-recursive}    \\\hline
+Property           & Topological\hspace{2mm}\S\ref{sec-topological} & Reordering\hspace{2mm}\S\ref{sec-reordering} & Recursive\hspace{2mm}\S\ref{sec-recursive}    \\\hline
 \hline
-Dirty bit \S\ref{sec-dirty-bit}                    & \Make    & \Excel                   & Approximate \Shake*  \\\hline
-Verifying trace \S\ref{sec-verifying-traces}       & \Ninja   & Traced \Excel*            & \Shake                      \\\hline
-Constructive trace \S\ref{sec-constructive-traces} & \Bazel   & Cloud \Excel*             & Cloud \Shake*                \\\hline
+Dirty bit\hfill\S\ref{sec-dirty-bit}                    & \Make    & \Excel                   & Approximate \Shake*  \\\hline
+Verifying trace\hfill\S\ref{sec-verifying-traces}       & \Ninja   & Traced \Excel*            & \Shake                      \\\hline
+Constructive trace\hspace{2mm}\hfill\S\ref{sec-constructive-traces} & \Bazel   & Cloud \Excel*             & Cloud \Shake*                \\\hline
 \end{tabular}
-\vspace{0.5mm}
-\caption{Build systems \`a la Carte, systems marked * are hypothetical systems that do not currently exist.\label{tab-build-systems}}
+\vspace{2mm}
+\caption{Build systems \`a la carte. Systems marked * are hypothetical systems that do not currently exist.\label{tab-build-systems}}
+\vspace{-2mm}
 \end{table}
 
-With the information in this section we can build a table comparing the dependency order strategy with the out-of-date keys strategy, providing 9 possible build systems, 5 of which are actually inhabited by existing build systems (we discuss \Ninja \cite{ninja} in \S\ref{sec-related-build}). Of the remaining 4 spots, we believe neither Traced or Cloud \Excel make sense - the \Excel approach of reordering combined with static approximations reduces the memory usage significantly. However, as soon as you are paying the cost of storing traces, that benefit is gone. The advantage of Approximate \Shake over \Shake would be that it could avoid storing traces and having a separate information database, but that advantage is minor compared to the technical restrictions and approximations it would provide, so we consider it unlikely to be built. The Cloud \Shake system seems like an interesting and important point in the design space, which we explore further in \S\ref{sec-implementation-cloud-shake}.
+With the information in this section we can build a table comparing the
+dependency order strategy with the out-of-date keys strategy, providing 9~possible
+build systems, 5~of which are actually inhabited by existing build systems
+(we discuss \Ninja \cite{ninja} in \S\ref{sec-related-build}). Of the
+remaining 4~spots, we believe neither Traced or Cloud \Excel make sense~--~the
+\Excel approach of reordering combined with static approximations reduces
+the memory usage significantly. However, as soon as you are paying the cost of
+storing traces, that benefit is gone. The advantage of Approximate \Shake over
+\Shake would be that it could avoid storing traces and having a separate
+information database, but that advantage is minor compared to the technical
+restrictions and approximations it would provide, so we consider it unlikely
+to be built. The Cloud \Shake system is an interesting and important point in
+the design space, which we explore further in~\S\ref{sec-implementation-cloud-shake}.
