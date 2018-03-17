@@ -126,10 +126,10 @@ editDistance fetch (D i j) = Just $ do
     if ai == bj
         then fetch (D (i - 1) (j - 1))
         else do
-            x <- fetch (D (i - 1)  j     )
-            y <- fetch (D  i      (j - 1))
-            z <- fetch (D (i - 1) (j - 1))
-            return (1 + minimum [x, y, z])
+            insert  <- fetch (D  i      (j - 1))
+            delete  <- fetch (D (i - 1)  j     )
+            replace <- fetch (D (i - 1) (j - 1))
+            return (1 + minimum [insert, delete, replace])
 editDistance _ _ = Nothing
 
 -- These type synonyms are not very useful, but enumerate all interesting cases.
