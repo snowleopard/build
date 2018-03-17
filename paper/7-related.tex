@@ -24,9 +24,9 @@ rechecking the entire graph, and with automatic deleting of stale results.
 given here, differing only on aspects like polymorphic
 dependencies~\S\ref{sec-polymorphism}.
 
-\item \Buck~\cite{buck} and \CloudBuild~\cite{esfahani2016cloudbuild} are both
-fundamentally similar to \Bazel, differing around areas such as
-non-determinism~\S\ref{sec-non-determinism}.
+\item \Buck~\cite{buck} is very similar to \Bazel. \CloudBuild~\cite{esfahani2016cloudbuild}
+differs by allowing non-determinism~\S\ref{sec-non-determinism}, thus more closely modelling
+our original definition of \Bazel from \S\ref{sec-implementation-bazel}.
 
 \item \Nix~\cite{dolstra2004nix} has coarse-grained dependencies, with precise
 hashing of dependencies and downloading of precomputed build products. When
