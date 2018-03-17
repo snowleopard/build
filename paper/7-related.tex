@@ -106,7 +106,7 @@ distance}~\cite{levenshtein1966binary}: given two input strings $a$ and
 $b$, find the minimum-weight series of edit operations that transforms $a$
 to $b$. The edit operations are typically \emph{inserting}, \emph{deleting} or
 \emph{replacing} a symbol. The dynamic programming solution of this problem is
-widely known (e.g., see~\cite{cormen2001introduction}) that we provide its
+so widely known (e.g., see~\cite{cormen2001introduction}) that we provide its
 encoding in our \hs{Task} abstraction without further explanation.
 We address elements of strings $a_i$ and $b_i$ by keys \hs{A}~$i$ and \hs{B}~$i$,
 respectively, while the cost of a subproblem $d_{ij}$ is identified by
@@ -126,17 +126,18 @@ editDistance fetch (D i j) = Just $ do
     if ai == bj
         then fetch (D (i - 1) (j - 1))
         else do
-            x <- fetch (D (i - 1)  j     )
-            y <- fetch (D  i      (j - 1))
-            z <- fetch (D (i - 1) (j - 1))
-            return (1 + minimum [x, y, z])
+            insert  <- fetch (D  i      (j - 1))
+            delete  <- fetch (D (i - 1)  j     )
+            replace <- fetch (D (i - 1) (j - 1))
+            return (1 + minimum [insert, delete, replace])
 editDistance _ _ = Nothing
 \end{minted}
 
 \noindent
 When asked to build \hs{D}~$n$~$m$, a minimal build system will calculate the
 result using memoization. Furthermore, when an input symbol $a_i$ is changed,
-only necessary, incremental recomputation will be performed.
+only necessary, incremental recomputation will be performed~--~an optimisation
+that cannot be achieved just with memoization.
 
 \subsection{Profunctor Optics}\label{sec-related-optics}
 
