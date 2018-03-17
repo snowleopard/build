@@ -58,7 +58,7 @@ Some examples of impure tasks include:
 
 \begin{description}
 \item[Untracked state] Some tasks depend on untracked state -- for example
-your C compilation may explicitly list the \cmd{source.c} file as a dependency,
+C compilation will explicitly list the \cmd{source.c} file as a dependency,
 but it may not record that the version of \cmd{gcc} is also a dependency.
 
 \item[Non-determinism] Some tasks are \emph{non-deterministic}, producing a
@@ -81,7 +81,7 @@ volatile, a technique \Excel takes with the \cmd{INDIRECT} function, removing th
 untracked state at the cost of minimality.
 
 Most of the implementations in \S\ref{sec-implementations} can deal with non-determinism,
-apart from \Bazel and \Buck, which require deterministic execution, and in turn can
+apart from \Bazel, which requires deterministic execution, and in turn can
 optimise the number of roundtrips required to the server.
 
 One tempting way of modelling non-determinism is to enrich \hs{Task} from
@@ -240,7 +240,7 @@ setting that defaults to 100).
 
 For examples like \LaTeX~we consider the proper encoding to not be with circular
 tasks, but with a series of iterative steps, as described
-in~\cite{shake-fixed-point}. It is important that the number of executions is
+by~\citet{shake-fixed-point}. It is important that the number of executions is
 bounded, otherwise the build system may not terminate (a legitimate concern
 with \LaTeX, which can be put into a situation where it is bistable or diverging
 over multiple executions).
