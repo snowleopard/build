@@ -77,9 +77,10 @@ topological process task key = execState $ forM_ chain $ \k -> do
 type Time = Integer
 type MakeInfo k = (k -> Time, Time)
 
-make :: Eq k => Build Applicative (MakeInfo k) k v
+make :: forall k v. Eq k => Build Applicative (MakeInfo k) k v
 make = topological process
   where
+    process :: k -> [k] -> State (Store (MakeInfo k) k v) v -> State (Store (MakeInfo k) k v) ()
     process key deps act = do
         (modTime, now) <- gets getInfo
         let dirty = or [ modTime dep > modTime key | dep <- deps ]
