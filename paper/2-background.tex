@@ -190,7 +190,7 @@ self-tracking further in~\S\ref{sec-tracking-aspects}.
 \vspace{-2mm}
 \caption{Dynamic dependencies example: create \cmd{README} and add it to the
 list of release documents \cmd{docs.txt}.\label{fig-shake}}
-\vspace{-2mm}
+\vspace{-3mm}
 \end{figure}
 
 \subsection{\Shake: dynamic dependencies with no remorse}
@@ -217,7 +217,6 @@ before the build. Makefiles cannot express such dependencies, requiring problema
 workarounds such as \emph{build phases} \cite{hadrian}.
 In \Shake we can express the rule for \cmd{release.tar} as:
 
-\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 "release.tar" %> \_ -> do
     need ["release.txt"]
@@ -225,7 +224,6 @@ In \Shake we can express the rule for \cmd{release.tar} as:
     need files
     system "tar" $ ["-cf", "result.tar"] ++ files
 \end{minted}
-\vspace{1mm}
 
 \noindent
 We first declare the static dependency on \cmd{release.txt}, then read its
@@ -234,8 +232,7 @@ command to produce the resulting archive. Crucially, the archive will only be
 rebuilt if one of the dependencies (static or dynamic) has changed. For example,
 if we create another documentation file \cmd{README} and add it to
 \cmd{docs.txt}, \Shake will appropriately rebuild \cmd{release.txt} and
-\cmd{release.tar}, discovering the new dependency, as illustrated in
-Fig.~\ref{fig-shake}(b).
+\cmd{release.tar}, discovering the new dependency, see Fig.~\ref{fig-shake}(b).
 
 \Shake's implementation is different from both \Make and \Excel in two aspects.
 First, it uses the dependency graph from the previous build to decide which
@@ -315,27 +312,23 @@ in~\S\ref{sec-implementations}.
 \begin{figure}[t]
 \begin{subfigure}[b]{0.25\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-checkout.pdf}}
-\vspace{-1mm}
 \caption{Checkout source files}
 \end{subfigure}
 \begin{subfigure}[b]{0.40\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-build.pdf}}
-\vspace{-1mm}
 \caption{Build \cmd{main.exe}}
 \end{subfigure}
 \begin{subfigure}[b]{0.31\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-rebuild.pdf}}
-\vspace{-1mm}
 \caption{Modify \cmd{util.c} and rebuild}
 \end{subfigure}
-\vspace{-2mm}
 \caption{A cloud build example: (a)~checkout sources, (b)~download \cmd{main.exe}
 from the cloud and skip intermediate files (only their hashes are needed),
 (c)~modify \cmd{util.c} and rebuild \cmd{main.exe}, which requires building
 \cmd{util.o} (since nobody has compiled \cmd{util.c} before) and downloading
 \cmd{main.o}. File hashes are shown inside circles.
 \label{fig-bazel}}
-\vspace{-1mm}
+\vspace{2mm}
 \end{figure}
 
 \subsection{Summary}
