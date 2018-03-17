@@ -17,9 +17,10 @@ model the values inside the store and the \hs{Task}, but because \hs{v} is
 polymorphic for builds, it does not let the build system apply special behaviour
 for errors, e.g. early aborting.
 
-\todo{NM}{Isn't ``early aborting'' automatically handled by short-circuiting
-withing monads, i.e. \hs{Nothing} or \hs{Left e} cancel out all subsequent
-computation?}
+% Q: {Isn't ``early aborting'' automatically handled by short-circuiting
+% withing monads, i.e. \hs{Nothing} or \hs{Left e} cancel out all subsequent
+% computation?}
+% NM says: The build system could chose an early abort monad, but the tasks are free in the monad, so you can't get the encoding to cross between them.
 
 \subsection{Concurrency}\label{sec-concurrency}
 
@@ -128,9 +129,6 @@ steps may be large, so some cloud builds can execute the graph \emph{without}
 downloading or \emph{materialising} the results of intermediate tasks -- only
 the final result. Some build systems can go even further, integrating with the
 file system to only materialise the file when the user accesses it \cite{gvfs}.
-
-\todo{NM}{I cited GVFS above, and could not find a proper reference to Google's
-internal equivalent. There are some mentions online of Piper, but not citable.}
 
 \item[Eviction] The store of traces as shown grows indefinitely, but often
 resource constraints require evicting old items from the store. One option is

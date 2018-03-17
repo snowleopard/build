@@ -158,12 +158,12 @@ We have a list of traces, plus a \hs{Map} from the hash to the actual contents. 
 \hline
 Property           & Topological \S\ref{sec-topological} & Reordering \S\ref{sec-reordering} & Recursive \S\ref{sec-recursive}    \\\hline
 \hline
-Dirty bit \S\ref{sec-dirty-bit}                    & \Make    & \Excel                   & Approximate \Shake  \\\hline
-Verifying trace \S\ref{sec-verifying-traces}       & \Ninja   & Traced \Excel            & \Shake                      \\\hline
-Constructive trace \S\ref{sec-constructive-traces} & \Bazel   & Cloud \Excel             & Cloud \Shake                \\\hline
+Dirty bit \S\ref{sec-dirty-bit}                    & \Make    & \Excel                   & Approximate \Shake*  \\\hline
+Verifying trace \S\ref{sec-verifying-traces}       & \Ninja   & Traced \Excel*            & \Shake                      \\\hline
+Constructive trace \S\ref{sec-constructive-traces} & \Bazel   & Cloud \Excel*             & Cloud \Shake*                \\\hline
 \end{tabular}
 \vspace{0.5mm}
-\caption{Build systems \`a la Carte.\label{tab-build-systems}}
+\caption{Build systems \`a la Carte, systems marked * are hypothetical systems that do not currently exist.\label{tab-build-systems}}
 \end{table}
 
 With the information in this section we can build a table comparing the dependency order strategy with the out-of-date keys strategy, providing 9 possible build systems, 5 of which are actually inhabited by existing build systems (we discuss \Ninja \cite{ninja} in \S\ref{sec-related-build}). Of the remaining 4 spots, we believe neither Traced or Cloud \Excel make sense - the \Excel approach of reordering combined with static approximations reduces the memory usage significantly. However, as soon as you are paying the cost of storing traces, that benefit is gone. The advantage of Approximate \Shake over \Shake would be that it could avoid storing traces and having a separate information database, but that advantage is minor compared to the technical restrictions and approximations it would provide, so we consider it unlikely to be built. The Cloud \Shake system seems like an interesting and important point in the design space, which we explore further in \S\ref{sec-implementation-cloud-shake}.

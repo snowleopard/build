@@ -6,37 +6,11 @@ concretely implementing and refactoring each build system did we determine the
 underlying commonalities. In this section we share some of the code that got us
 there.
 
-% Our code comprises a framework, utility functions implementing the
-% various dependency orderings as per~\S\ref{sec-dependency-orderings}, and
-% actual implementations.
-
-% \subsection{Framework}
-
-% todo{SLPJ}{I think this entire section, including the mysterious M, can be deleted.  Or is
-% there anything that remains?}
-
-% \begin{figure}
-% \begin{minted}{haskell}
-% type M i k v r = State (i, k -> v, ...) r
-% runM :: Default i => M i k v a -> Maybe i -> (k -> v) -> (i, k -> v)
-
-% getStore :: k -> M i k v v
-% putStore :: k -> v -> M i k v ()
-% getInfo :: M i k v i
-% modifyInfo :: (i -> i) -> M i k v ()
-% \end{minted}
-% Note: we have omitted the context on \hs{k}, things like \hs{Eq} (to implement the store).
-% \caption{API with which to implement build systems}
-% \label{fig-M-api}
-% \end{figure}
-
-% We use \hs{runM} to switch between the pure world of \hs{Build} and a state monad \hs{M} which lets us more precisely express the ideas behind the build system without threading the state manually - the types of important operations are given in Figure~\ref{fig-M-api}. We provide functions like \hs{getStore} to load from the store and \hs{putStore} to write to the store. We'll introduce the other functions in in the monad \hs{M} as we need them while exploring the build systems.
-
 \subsection{\Make}\label{sec-implementation-make}
 
-We provide the complete implementation of \Make in our framework in
+We provide an implementation of \Make using our framework in
 Fig.~\ref{fig-make-implementation}. \Make processes keys in a linear order based
-on the topological sort (see~\S\ref{sec-concurrency} for parallel \Make). For
+on a topological sort (see~\S\ref{sec-concurrency} for parallel \Make). For
 each key, it builds it if it is older than any of its dependencies. We capture
 the persistent build information that \Make stores by a pair
 \hs{(@@modTime,}~\hs{now)} comprising the \emph{file modification time} function
@@ -58,12 +32,12 @@ make :: Eq k => Build Applicative (MakeInfo k) k v
 make = topological process
   where
     process key deps act = do
-        (modTime, now) <- getInfo <$> get
+        (modTime, now) <- gets getInfo
         let dirty = or [ modTime dep > modTime key | dep <- deps ]
         when dirty $ do
             v <- act
             let newModTime k = if k == key then now else modTime k
-            modify $ \s -> putInfo (putValue s key v) (newModTime, now + 1)
+            modify $ putInfo (newModTime, now + 1) . putValue key v
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
@@ -74,16 +48,16 @@ topologicalSort   :: Eq a => (a -> [a]) -> [a] -> [a]
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Topological dependency strategy
-topological :: Eq k => (k -> [k] -> State (Store i k v) v -> State (Store i k v) (@@))
+topological :: Eq k => (k -> [k] -> State (Store i k v) v -> State (Store i k v) ())
             -> Build Applicative i k v
 topological process task key = execState $ forM_ chain $ \k -> do
-    let fetch k = do store <- get; return (getValue store k)
+    let fetch k = gets (getValue k)
     case task fetch k of
         Nothing  -> return ()
         Just act -> process k (deps k) act
   where
-    deps  = dependencies task
-    chain = topologicalSort deps (transitiveClosure deps key)
+    deps  = dependencies task -- dependencies is defined in @\S\ref{secdeps}@
+    chain = topSort deps (reachable deps key)
 \end{minted}
 \vspace{-2mm}
 \caption{An implementation of \Make using our framework.}\label{fig-make-implementation}
@@ -91,7 +65,7 @@ topological process task key = execState $ forM_ chain $ \k -> do
 \end{figure}
 
 The helper function \hs{topological} calls \hs{process} on every \hs{key} in
-the topological order, providing the list of its dependencies \hs{deps} and the
+a topological order, providing the list of its dependencies \hs{deps} and the
 action \hs{act} to compute the resulting value if it needs to be rebuilt. To
 determine if the \hs{key} is \hs{dirty}, \hs{process} compares its modification
 time with those of its dependencies. If the \hs{key} needs to be rebuilt, the
@@ -102,10 +76,10 @@ The implementation of \hs{topological} encodes the dependency strategy that
 \Make has chosen to use. The \hs{where} clause corresponds to the pre-processing
 stage, which uses the function \hs{dependencies}, defined in~\S\ref{sec-deps},
 to extract static dependencies from the provided applicative \hs{task}. We
-compute the linear processing \hs{chain} by taking the \hs{transitiveClosure}
-of \hs{key}'s dependencies, and performing the \hs{topologicalSort} of the
+compute the linear processing \hs{chain} by taking the keys \hs{reachable}
+from \hs{key} via dependencies, and performing the topological sort of the
 result. We omit implementation of textbook graph algorithms
-\hs{transitiveClosure} and \hs{topologicalSort}, e.g.
+\hs{reachable} and \hs{topSort}, e.g.
 see~\cite{cormen2001introduction}.
 
 The \hs{chain} is processed in the \hs{State} monad, with each non-input key
@@ -118,15 +92,9 @@ restricts \Make to static dependencies, as reflected in the
 type~\hs{Build}~\hs{Applicative}. Moreover, any other build system following
 the same \hs{topological} approach will also inherit the same restriction.
 
-\todo{AM}{Note that anything updating input files must also update Make's info.}
-\todo{AM}{Say that in reality that build rules mutate the state themselves.}
-
 \subsection{\Excel}\label{sec-implementation-excel}
 
-As a programming exercise, \Excel is the most challenging, due to the
-complicated reordering dependency strategy that requires retrying out-of-order
-operations, see Fig.~\ref{fig-excel-implementation}.
-
+We define \Excel, with it's reordering dependency strategy, in  Fig.~\ref{fig-excel-implementation}.
 \Excel's persistently stored information is a triple: (i) the dirty bit
 function \hs{k}~\hs{->}~\hs{Bool}, (ii) an approximation of key dependencies
 \hs{k}~\hs{->}~\hs{DependencyApproximation}~\hs{k} that \Excel uses to handle
@@ -151,7 +119,7 @@ data Result k v = MissingDependency k | Result v [k]
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Reordering dependency strategy (implementation omitted)
+-- Reordering dependency strategy (implementation omitted, 21 lines)
 reordering :: Ord k
     => (k -> State (Store i k v) (Result k v) -> State (Store i k v) (Maybe (Result k v)))
     -> Build Monad (i, CalcChain k) k v
@@ -163,7 +131,7 @@ excel :: Ord k => Build Monad (ExcelInfo k) k v
 excel = reordering process
   where
     process key act = do
-        (dirty, deps) <- getInfo <$> get
+        (dirty, deps) <- gets getInfo
         let rebuild = dirty key || case deps key of SubsetOf ks -> any dirty ks
                                                     Unknown     -> True
         if not rebuild
@@ -174,7 +142,7 @@ excel = reordering process
                     MissingDependency _ -> return ()
                     Result v _dynamicDependencies -> do
                         let newDirty k = if k == key then True else dirty k
-                        modify $ \s -> putInfo (putValue s key v) (newDirty, deps)
+                        modify $ putInfo (newDirty, deps) . putValue key v
                 return (Just result)
 \end{minted}
 \vspace{-2mm}
@@ -182,7 +150,7 @@ excel = reordering process
 \vspace{-2mm}
 \end{figure}
 
-The helper function \hs{reordering}, whose 21-line implementation we omit since it is
+The helper function \hs{reordering}, whose implementation we omit since it is
 technical and not particularly enlightening, calls the function \hs{process} to
 \emph{try to build} a \hs{key} by executing the action \hs{act}, in the order
 determined by the calculation chain. To decide whether to \hs{rebuild} the
@@ -190,8 +158,8 @@ determined by the calculation chain. To decide whether to \hs{rebuild} the
 approximation of its dependencies contains a dirty key. Notice that if the
 dependencies of the \hs{key} are \hs{Unknown}, e.g. when it uses the
 \cmd{INDIRECT} function, the \hs{key} is always rebuilt. If a \hs{rebuild} is
-not needed, \hs{process} returns \hs{Nothing} to indicate this. Otherwise, it
-executes \hs{act} leading to two possible \hs{result}s:
+not needed, \hs{process} returns \hs{Nothing} to indicate that. Otherwise, it
+executes \hs{act} leading to one of two possible \hs{result}s:
 
 \begin{itemize}
     \item \hs{MissingDependency}~\hs{k} indicates that the execution of \hs{act} has
@@ -204,7 +172,7 @@ executes \hs{act} leading to two possible \hs{result}s:
     trigger the rebuilding of keys that depend on it.
 \end{itemize}
 
-In both of the above cases, we notify the parent \hs{reordering} function about
+In both of the above cases, we notify the parent \hs{reordering} function of
 the outcome by returning \hs{Just}~\hs{result}. The astute reader may notice
 that \hs{process} ignores \hs{dynamicDependencies} available in the \hs{result}.
 While not required for \Excel, we have implemented build systems using
@@ -213,12 +181,16 @@ While not required for \Excel, we have implemented build systems using
 fitted to \Excel alone (additional implementations will be submitted to the
 Artefact Evaluation).
 
+In reality \Excel works slightly differently (as far as we are able to ascertain) --
+on a change it propagates the dirty bits forward using the \hs{dynamicDependencies}, then only checks if the current \hs{key} is dirty. While both methods are equivalent, merely changing the interleaving, our approach allows us to model more of the behaviour of \Excel.
+
 \subsection{\Shake}\label{sec-implementation-shake}
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
 -- Determine whether a trace is relevant to the current state
-traceMatch :: (Monad m, Eq k) => (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
+traceMatch :: (Monad m, Eq k) =>
+    (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
 traceMatch check key ts = mapMaybeM f ts
     where f (Trace k dkv v) = do
                 b <- return (key == k) &&^ allM (uncurry check) dkv
@@ -227,8 +199,10 @@ traceMatch check key ts = mapMaybeM f ts
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Recursive dependency strategy
-recursive
-    :: Eq k => (k -> (k -> State (Store i k v, [k]) v) -> State (Store i k v, [k]) (v, [k]) -> State (Store i k v, [k]) ())
+recursive :: Eq k =>
+    (k -> (k -> State (Store i k v, [k]) v)
+       -> State (Store i k v, [k]) (v, [k])
+       -> State (Store i k v, [k]) ())
     -> Build Monad i k v
 recursive process task key store = fst $ execState (ensure key) (store, [])
     where
@@ -265,7 +239,7 @@ The \Shake approach for dependency tracking involves recording traces and verify
 
 \begin{description}
 \item[\hs{traceMatch}] takes a list of all recorded \hs{Trace} values, the \hs{key} you are currently building, and a function \hs{check} which checks a specified dependency. It returns the \hs{result} field of all traces that match. Since \hs{check} is in an arbitrary monad, the function has to use \hs{allM}/\hs{&&^} instead of the more usual \hs{all}/\hs{&&} functions\footnote{These functions are all available in the \cmd{extra} library on Hackage.}.
-\item[\hs{recursive}] defines the dependency ordering pattern. It requires a \hs{process} function that builds a key given a way to build a dependency, and a way to build the result. The main purpose of \hs{recursive} is to ensure that in a single run any key is not built twice -- for which it extends the \hs{State} monad with a list of \hs{done} keys.
+\item[\hs{recursive}] defines the dependency ordering pattern. It requires a \hs{process} function that builds a key given a way to recursively build a dependency, and a way to run task to produce result. The main purpose of \hs{recursive} is to ensure that in a single run any key is not built twice -- for which it extends the \hs{State} monad with a list of \hs{done} keys.
 \item[\hs{shake}] ties everything together. First it tests if the traces allow the current state of the target key. If not, it builds the key and updates the store. The only subtlty is that Shake calls \hs{fetch} on the keys while checking them -- building the last-recorded dependencies before checking them. One minor annoyance is that the \hs{State} has been extended and thus needs to be projected using \hs{fst} before it is used.
 \end{description}
 
@@ -340,7 +314,7 @@ In the examples above, we have used \hs{[Trace k v]} to capture a list of traces
 \item Any system using verifying traces, e.g. \Shake, is unlikely to see significant benefit from storing more than one \hs{Trace} per key\footnote{There is a small chance of a benefit if the dependencies change but the result does not, and then the dependencies change back to what they were before.}. Therefore, such systems can store \hs{Map k (Trace k v)}, where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
 \item Any system using \hs{Applicative} dependencies can omit the dependency keys from the \hs{Trace} as they can be recovered from the \hs{key} field.
 \item Any \hs{Applicative} system storing constructive traces, e.g. \Bazel, can index directly from the key and results to the output result - i.e. \hs{Map (k, [Hash v]) (Hash v)}. Importantly, assuming the traces are stored on a central server, the client can compute the key and the hashes of its dependencies, then make a single call to the server to retrieve the result hash. In this formulation we have removed the possibility for a single key/dependency state to map to multiple different hashes, e.g. on a non-deterministic build - something \Bazel already prohibits which is discussed more in \S\ref{sec-non-determinism}.
-\item Finally, a \hs{Monad} system with constructive traces can be efficiently encoded as \hs{Map k (Choice k v)}, assuming a definition of \hs{Choice} as:
+\item Finally, a \hs{Monad} system with constructive traces can be represented as \hs{Map k (Choice k v)}, assuming a definition of \hs{Choice} as:
 \begin{minted}{haskell}
 data Choice k v = Choice k (Map (Hash v) Choice)
                 | Result (Hash v)
