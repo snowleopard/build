@@ -97,9 +97,9 @@ example, in \Excel, the formulae of the spreadsheet constitute the task
 description; in \Make the rules in the makefile are the task description.
 
 \vspace{-2mm}
-\paragraph{Build system} A \emph{build system} takes a task description, a target
-key, and a store, and returns a new store in which the target key has an
-up to date value.
+\paragraph{Build system} A \emph{build system} takes a task description, a
+\emph{target} key, and a store, and returns a new store in which the target key
+and all its dependencies have an up to date value.
 
 \vspace{-2mm}
 \paragraph{Modelling in Haskell} We will model all our build systems concretely,
@@ -377,7 +377,7 @@ result = @@build @@task @@key @@store
 \vspace{1mm}
 
 \noindent
-The keys that belong to the transitive closure of \hs{key}'s dependencies fall
+The keys that are reachable from the target \hs{key} via dependencies fall
 into two classes: input keys and non-input keys, which we will denote by $I$ and
 $O$, respectively. Note that \hs{key} may be in either of these sets, although
 the case when \hs{key} is an input is degenerate: we have $I=\{$\hs{key}$\}$ and
@@ -413,6 +413,10 @@ only under the assumption that the given task description is acyclic. This
 includes the \hs{busy} build system introduced earlier: it will loop
 indefinitely given a cyclic \hs{task}. Some build systems provide a limited
 support for cyclic tasks, see~\S\ref{sec-iterative-compute}.
+
+The above definition of correctness needs to be adjusted to accommodate
+non-deterministic tasks and shallow cloud builds; we address this
+in sections~\S\ref{sec-non-determinism} and~\S\ref{sec-cloud-aspects}, respectively.
 
 \subsection{Computing dependencies}\label{sec-deps}
 
@@ -466,7 +470,8 @@ the application of the function \hs{dependencies} to a \hs{Task}~\hs{Monad} will
 not typecheck. We need to run a monadic task on a store with concrete values,
 which will determine the discovered dependencies. Accordingly, we introduce
 the function \hs{track}: a combination of \hs{compute} and \hs{dependencies}
-that computes both the resulting value and the list of its dependencies:
+that computes both the resulting value and the list of its dependencies in an
+arbitrary monadic context~\hs{m}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -474,41 +479,46 @@ import Control.Monad.Writer
 \end{minted}
 \vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-track :: Task Monad k v -> (k -> v) -> k -> Maybe (v, [k])
-track task fetch = fmap runWriter . task (\k -> writer (fetch k, [k]))
+track :: Monad m => Task Monad k v -> (k -> m v) -> k -> Maybe (m (v, [k]))
+track task fetch = fmap runWriterT . task trackingFetch
+  where
+    trackingFetch :: k -> WriterT [k] m v
+    trackingFetch k = tell [k] >> lift (fetch k)
 \end{minted}
 \vspace{1mm}
 
 \noindent
-\todo{AM}{Type of track has changed - we no longer supply the Store, just an access fuction}
-\todo{AM}{trackM is essential for Shake, what do we do there?}
-The implementation uses the standard Haskell \hs{Writer} monad, which allows us
+The implementation uses the standard Haskell \hs{WriterT} \emph{monad
+transformer}~\cite{liang1995monad}, which allows us
 to record addition information -- a list of keys of type \hs{[@@k]} -- when
-computing a task. We instantiate \hs{f} to \hs{Writer}~\hs{[@@k]}~\hs{v}, and feed
-\hs{fetch}~\hs{k}~\hs{=}~\hs{writer}~\hs{(@@getValue}~\hs{store}~\hs{k,}~\hs{[@@k])}
-to the task, which in addition to fetching a value from the store, tracks the
-corresponding key. Here is an example of \hs{track}ing monadic tasks:
+computing a task in an arbitrary monad~\hs{m}. We substitute the given \hs{fetch}
+with a \hs{trackingFetch} that, in addition to fetching a value, tracks the
+corresponding key. The \hs{task} returns the value of type
+\hs{Maybe}~\hs{(@@WriterT}~\hs{[@@k]}~\hs{m}~\hs{v)}, which we unwrap by applying
+\hs{runWriterT} to the contents of \hs{Maybe}.
 
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ store1 = initialise () (\key -> if key == "A1" then 10 else 1)
-@\ghci@ track sprsh2 store1 "B1"
-Just (1,["C1","B2"])
-\end{minted}
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ store2 = initialise () (\key -> if key == "A1" then 10 else 20)
-@\ghci@ track sprsh2 store2 "B2"
-Just (20,["C1","B1"])
-\end{minted}
-\vspace{1mm}
+% Here is an example of \hs{track}ing monadic tasks:
 
-\noindent
-As expected, the dependencies of \hs{sprsh2} (see the spreadsheet
-in~\S\ref{sec-task-monad}) are determined by the contents of the store.
-Furthermore, the above example highlights the static cycle between cells
-\cmd{B1} and \cmd{B2}: in \hs{store1}, we have \cmd{B1 = B2 = A1 = 10},
-whereas in \hs{store2}, we have \cmd{B2 = B1 = A2 = 20}.
+% \vspace{1mm}
+% \begin{minted}[xleftmargin=10pt]{haskell}
+% @\ghci@ store1 = initialise () (\key -> if key == "A1" then 10 else 1)
+% @\ghci@ track sprsh2 store1 "B1"
+% Just (1,["C1","B2"])
+% \end{minted}
+% \vspace{1mm}
+% \begin{minted}[xleftmargin=10pt]{haskell}
+% @\ghci@ store2 = initialise () (\key -> if key == "A1" then 10 else 20)
+% @\ghci@ track sprsh2 store2 "B2"
+% Just (20,["C1","B1"])
+% \end{minted}
+% \vspace{1mm}
+
+% \noindent
+% As expected, the dependencies of \hs{sprsh2} (see the spreadsheet
+% in~\S\ref{sec-task-monad}) are determined by the contents of the store.
+% Furthermore, the above example highlights the static cycle between cells
+% \cmd{B1} and \cmd{B2}: in \hs{store1}, we have \cmd{B1 = B2 = A1 = 10},
+% whereas in \hs{store2}, we have \cmd{B2 = B1 = A2 = 20}.
 
 % \subsection{Free tasks}
 % \todo{AM}{Introduce free constructions \hs{TaskA} and \hs{TaskM} giving
