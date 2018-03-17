@@ -320,7 +320,7 @@ In the examples above, we have used \hs{[Trace}~\hs{k}~\hs{v]} to capture a list
 of traces~--~however, using a list necessarily means that finding the right trace
 takes $O(n)$. For each of the \hs{Trace} based systems it is possible to devise
 a smarter representation, which we sketch below. Note that these implementations
-do not avoid calls to \hs{compute}, merely overheads in the build system itself.
+do not reduce calls to \hs{compute}, merely overheads in the build system itself.
 
 \begin{enumerate}
 \item Any system using verifying traces, e.g. \Shake, is unlikely to see significant benefit from storing more than one \hs{Trace} per key\footnote{There is a small chance of a benefit if the dependencies change but the result does not, and then the dependencies change back to what they were before.}. Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v)}, where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
