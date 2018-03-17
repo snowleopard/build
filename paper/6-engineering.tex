@@ -129,13 +129,6 @@ changed between every run.
 Our model of cloud builds provides a basic framework to discuss and reason about them, but lacks a number of important engineering corners:
 
 \begin{description}
-\item[Materialisation] Sometimes input files will involve many intermediate tasks
-before producing the end result, e.g. an installer package. These intermediate
-steps may be large, so some cloud builds can execute the graph \emph{without}
-downloading or \emph{materialising} the results of intermediate tasks -- only
-the final result. Some build systems can go even further, integrating with the
-file system to only materialise the file when the user accesses it \cite{gvfs}.
-
 \item[Eviction] The store of traces as shown grows indefinitely, but often
 resource constraints require evicting old items from the store. One option is
 to evict the contents and any trace that mentions the now-defunct
@@ -162,7 +155,33 @@ invariants~--~see~\S\ref{sec-smart-traces} for some possible optimisations.
 possible for the cloud to also contain dedicated workers that can execute tasks
 remotely~--~offloading some of the computation and potentially running vastly
 more commands in parallel.
+
+\item[Shallow builds] Sometimes input files will involve many intermediate tasks
+before producing the end result, e.g. an installer package. These intermediate
+steps may be large, so some cloud build systems are designed to build end
+products \emph{without} downloading or \emph{materialising} the results of
+intermediate tasks~--~only the final result~--~a so-called \emph{shallow build}.
+Some build systems can go even further, integrating with the file system to only
+materialise the file when the user accesses it \cite{gvfs}.
 \end{description}
+
+To legitimise shallow builds, we need to relax the correctness
+Definition~\ref{def-correct} as follows. Let the \hs{shallow} store correspond
+to the result of a shallow build. Then \hs{shallow} is correct, if \emph{there
+exists} \hs{result} which satisfies all requirements of
+Definition~\ref{def-correct}, \emph{such that} \hs{shallow} agrees with
+\hs{result} on the input keys \hs{k}~$\in$~$I$:
+\[
+\hs{getValue}~\hs{k}~\hs{shallow}~\hs{==}~\hs{getValue}~\hs{k}~\hs{result}
+\]
+and on the target \hs{key}:
+\[
+\hs{getValue}~\hs{key}~\hs{shallow}~\hs{==}~\hs{getValue}~\hs{key}~\hs{result}.
+\]
+
+\noindent
+This relaxes the requirements on shallow builds by dropping the constraints on
+the \hs{shallow} store for all intermediate keys \hs{k}~$\in$~$O\setminus \{\hs{key}\}$.
 
 \subsection{Tracking and self-tracking}\label{sec-tracking-aspects}
 
