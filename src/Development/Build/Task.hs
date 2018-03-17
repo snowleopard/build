@@ -122,7 +122,7 @@ editDistance _     (D i 0) = Just $ pure i
 editDistance _     (D 0 j) = Just $ pure j
 editDistance fetch (D i j) = Just $ do
     ai <- fetch (A i)
-    bj <- fetch (B i)
+    bj <- fetch (B j)
     if ai == bj
         then fetch (D (i - 1) (j - 1))
         else do
