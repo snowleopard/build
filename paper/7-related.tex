@@ -70,16 +70,28 @@ can model \Fabricate{}-like build systems~--~see \hs{Development.Shake.Forward}
 in the \Shake library.}. However, in our pure model the mapping is not perfect
 as \cmd{gcc} writes to arbitrary files whose locations are not known in advance.
 
-\todo{AM}{Write a short section about memoization if enough time.}
+% \todo{AM}{Write a short section about memoization if enough time.}
 % \subsection{Memoization}\label{sec-related-memo}
 
 \subsection{Self-adjusting computation}
 
 While not typically considered build systems, self-adjusting computation is a
 well studied area, and in particular the contrast between different formulations
-has been well studied.
+has been well studied~\cite{acar2007selfadjusting}.
 
-\todo{AM}{Write this section.}
+Self-adjusting computations can automatically adjust to an external change
+to their inputs. A classic example is a self-adjusting sorting algorithm, which
+can efficiently (in $O(\log{n})$ time where $n$ is the length of the input)
+recalculate the result given an incremental change of the input. While very
+close to build systems in spirit, self-adjusting computations are mostly used
+for in-memory computation and rely on the ability to dynamically allocate new
+keys in the store for sharing intermediate computations~--~an intriguing feature
+rarely seen in build systems (\Shake's oracles~\S\ref{sec-polymorphism} can be
+used to model this to a limited degree).
+
+A lot of research has been dedicated to finding efficient data structures and
+algorithms for self-adjusting computations~--~we plan to explore this
+untapped (by build systems) resource in~future.
 
 \subsection{Profunctor Optics}\label{sec-related-optics}
 
