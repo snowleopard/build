@@ -45,7 +45,7 @@ isInput :: Task Monad k v -> k -> Bool
 isInput task = isNothing . task (const Proxy)
 
 inputs :: Eq k => Task Monad k v -> Store i k v -> k -> [k]
-inputs task store key = filter (isInput task) (closure deps key)
+inputs task store key = filter (isInput task) (reachable deps key)
   where
     deps k = maybe [] snd (track task (\k -> getValue k store) k)
 
