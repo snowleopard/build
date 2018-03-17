@@ -4,14 +4,14 @@ Build systems (such as \Make) are big, complicated, and used by every
 software developer on the planet.  But they are a sadly unloved part
 of the software ecosystem, very much a means to an end, and seldom the
 focus of attention.
-Seldom do people ask questions like ``What does it mean for my build
+Rarely do people ask questions like ``What does it mean for my build
 system to be correct?'' or ``What are the trade-offs between different
 approaches?''.  Moreover, complex build systems use subtle algorithms, but they
 are often hidden away, and not the object of study.
-
 Recently, the challenges of scale have driven large software firms
 like Microsoft, Facebook, and Google to develop their own build
-systems, each with its own choices and idiosyncrasies.
+systems, exploring new points in the design space.
+
 In this paper we offer a general framework in which to understand
 and compare build systems,
 in a way that is both abstract (omitting incidental detail)
@@ -29,7 +29,7 @@ four carefully-chosen build systems.
   allowing us, for example, to speak about what it means for a build system to be correct.
 
 \item We identify two key design choices
-  that are typically deeply built into any build system:
+  that are typically deeply wired into any build system:
   \emph{the order in which dependencies are built} (\S\ref{sec-dependency-orderings})
   and \emph{whether or not a dependency is (re-)built} (\S\ref{sec-out-of-date}).
   These choices turn out to be orthogonal, which leads us to a new
@@ -43,14 +43,14 @@ Doing this modelling in a single setting allows
 the differences and similarities between these huge systems to be
 brought out clearly.
 
-\item Moreover, we can readily remix the ingredients to produce the first
+\item Moreover, we can readily remix the ingredients to describe the first
   build system that supports both \emph{dynamic dependencies}
   and \emph{cloud build} (\S\ref{sec-implementation-cloud-shake}).
 
 \end{itemize}
 In short, instead of seeing build systems as unrelated
 points in space, we now see them as locations in a landscape,
-leading to better understanding of what they do and how they compare,
+leading to a better understanding of what they do and how they compare,
 and suggesting exploration of other (as yet unoccupied points) in the
 landscape.
 We discuss engineering aspects in \S\ref{sec-engineering}, and related
