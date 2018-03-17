@@ -75,8 +75,8 @@ Modified inputs and files that are rebuilt are highlighted.
 \end{figure}
 
 If the user runs \Make specifying \cmd{main.exe} as the desired output, \Make
-will first build \cmd{util.o} and \cmd{main.o}, in any order since the
-corresponding tasks are independent, and then build \cmd{main.exe}. If the
+will first build \cmd{util.o} and \cmd{main.o}, in any order since these
+tasks are independent, and then build \cmd{main.exe}. If the
 user modifies the sources of \cmd{util.h} and runs \Make again, it will
 perform a \emph{full rebuild}, because all three tasks transitively depend on
 \cmd{util.h}, as illustrated in Fig.~\ref{fig-make}(b). On the other hand, if
@@ -134,13 +134,13 @@ A2: 20
 \noindent
 Here the cell \cmd{C1} controls which branch of the \cmd{IF} function is used
 to compute \cmd{B1}. When \cmd{C1=1}, the dependencies of \cmd{B1} are
-$\{\cmd{C1},\cmd{A1}\}$, otherwise they are $\{\cmd{C1},\cmd{A2}\}$, and which is
+$\{\cmd{C1},\cmd{A1}\}$, otherwise they are $\{\cmd{C1},\cmd{A2}\}$, which is
 not known statically\footnote{One might say that the value of \cmd{C1} is statically
 known in this particular example, but imagine that it is the result of a long computation
 chain -- its value will only become available during the build.}.
 
 \Excel handles this example correctly: if \cmd{C1=1} and the user changes
-\cmd{A2}, \Excel will not recompute the result \cmd{B1}. Alas, other forms of
+\cmd{A2}, \Excel will not require \cmd{B1} to be computed in advance. Alas, other forms of
 dynamic dependencies can force \Excel to perform unnecessary computation.
 Consider the following modification of the above example:
 
@@ -155,7 +155,7 @@ A2: 20
 The new version uses the \cmd{INDIRECT} function, which allows us to reference a
 cell indirectly by a text string that is not necessarily known in advance. The
 current implementation of \Excel recomputes indirect references in every
-build~\cite{excel_recalc}. This clearly violates the minimality
+build~\cite{excel_recalc}. This approach clearly violates the minimality
 property~\ref{def-minimal}: if \cmd{C1=1} and the user modifies \cmd{A2}, \Excel
 will recompute \cmd{B1}, potentially triggering further unnecessary
 recalculation even though \cmd{B1} does not transitively depend on \cmd{A2}.
@@ -174,8 +174,8 @@ systems only track changes of inputs and intermediate results, but \Excel can
 also track changes in the tasks themselves: if a formula is modified, \Excel
 will recompute it and propagate the changes. Self-tracking is uncommon in
 software build systems, where one often needs to manually initiate a full
-rebuild even if just a single build task has changed. We further discuss
-self-tracking in~\S\ref{sec-tracking-aspects}.
+rebuild even if just a single build task has changed. We discuss
+self-tracking further in~\S\ref{sec-tracking-aspects}.
 
 \begin{figure}[h]
 \begin{subfigure}[b]{0.90\linewidth}
@@ -272,11 +272,11 @@ below) do.
 
 When build systems are used by large teams, different team members often end up
 executing exactly the same tasks on their local machines. A \emph{cloud build
-system} can speed up builds dramatically by transparently sharing build results
+system} can speed up builds dramatically by sharing build results
 among team members. Furthermore, cloud build systems allow one to perform
 \emph{shallow builds} that materialise only end build products locally, leaving
 all intermediates in the cloud. We illustrate shallow cloud builds by an example
-(see~Fig.~\ref{fig-bazel}).
+in Fig.~\ref{fig-bazel}.
 
 The user starts by checking out the project sources, whose hashes are (for
 simplicity)~1,~2~and~3, and requests to build \cmd{main.exe}, see
@@ -294,11 +294,11 @@ In the second scenario, shown in Fig.~\ref{fig-bazel}(c), the user modifies the
 source \cmd{util.c}, thereby changing its hash from~1~to~7. The build system
 finds that nobody has ever compiled the new $\{\cmd{util.c}, \cmd{util.h}\}$
 combination and must therefore build \cmd{util.o}, which results in changing its
-hash from~4~to~8. The obtained combination of hashes of \cmd{util.o} and
+hash from~4~to~8. The combination of hashes of \cmd{util.o} and
 \cmd{main.o} has not been encountered before either, therefore the build system
 first downloads \cmd{main.o} from the cloud and then builds \cmd{main.exe} by
-linking the two object files. When the build is complete, the obtained results
-may be uploaded to the cloud for future reuse by other team members.
+linking the two object files. When the build is complete, the results
+can be uploaded to the cloud for future reuse by other team members.
 
 \Bazel is one of the first examples of openly available cloud build systems.
 Like \Make, it does not support dynamic dependencies and can therefore benefit
@@ -307,7 +307,7 @@ It is minimal and supports the early cutoff optimisation. To support cloud
 builds, \Bazel maintains a \emph{content-addressable cache} that can be used to
 fetch a previously built file given the hash of its content, and
 \emph{dependency graphs from all previous builds}, annotated with observed file
-hashes. The latter allows to bypass the execution of a task, by predicting the
+hashes. The latter allows builds to bypass the execution of a task, by predicting the
 hash of the result from the hashes of its dependencies, and subsequently
 fetch the result from the cache. A concrete implementation is provided
 in~\S\ref{sec-implementations}.
@@ -346,8 +346,7 @@ Table~\ref{tab-summary}. The column \emph{`persistent build information'} refers
 to the information that build systems persistently store between builds:
 \begin{itemize}
     \item \Make stores file modification times, or rather, it relies on the file
-    system to do that. In principle a single \emph{dirty bit} per file is
-    sufficient, as will be demonstrated in~\S\ref{sec-implementations}.
+    system to do that.
     \item \Excel stores one dirty bit per cell and the calculation chain from
     the previous build.
     \item \Shake stores the dependency graph discovered in the previous build,
@@ -377,6 +376,6 @@ $\!$\Bazel      $\!$& All dependency graphs, cache   & Topological  & Static    
 In this paper we elucidate which build system properties are consequences of
 specific implementation choices (metadata and algorithm), and how one can obtain
 new build systems with desired properties by recombining parts of existing
-implementations. As a compelling example, we demonstrate how to combine
+implementations. As a compelling example, we demonstrate how to combine the
 advantages of \Shake and \Bazel in a cloud build system with dynamic
 dependencies, see~\S\ref{sec-implementation-cloud-shake}.
