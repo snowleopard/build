@@ -1,8 +1,8 @@
 \section{Build systems, abstractly}\label{sec-abstractions}
 
 This section presents purely functional abstractions that allow us to express
-all the intricacies of build systems discussed in the previous
-section~\S\ref{sec-background} and design complex build systems from simple
+all the intricacies of build systems discussed previously in \S\ref{sec-background},
+and design complex build systems from simple
 primitives. Specifically, we present the \emph{task} and \emph{build}
 abstractions in~\S\ref{sec-task} and~\S\ref{sec-general-build}, respectively.
 Sections~\S\ref{sec-build} and~\S\ref{sec-implementations} scrutinise the
@@ -65,7 +65,7 @@ instance Monoid m => Applicative (Const m) where
 \caption{Signatures of main data types and library functions.}\label{fig-types}
 \vspace{-4mm}
 \end{figure}
-We  begin by establishing a common vocabulary for build systems.
+We begin by establishing a common vocabulary for build systems:
 
 \vspace{-2mm}
 \paragraph{Keys, values, and the store} The goal of any build system is to
@@ -126,7 +126,7 @@ A1: 10     B1: A1 + A2
 A2: 20     B2: B1 * 2
 \end{minted}
 \vspace{1mm}
-Here cell \cmd{A1} contains the value \cmd{10}, the cell \cmd{B1} contains
+Here cell \cmd{A1} contains the value \cmd{10}, cell \cmd{B1} contains
 the formula \cmd{A1+A2}, etc. We can represent the formulae of this spreadsheet
 with the following task description:
 \vspace{1mm}
@@ -137,7 +137,7 @@ sprsh1 fetch "B2" = Just ((* 2) <$> fetch "B1")
 sprsh1 _     _    = Nothing
 \end{minted}
 \vspace{1mm}
-Here we instantiate keys \hs{k} with \hs{String}, and values \hs{v} with \hs{Integer}.
+We instantiate keys \hs{k} with \hs{String}, and values \hs{v} with \hs{Integer}.
 (Real spreadsheet cells would contain a wider range of values, of course.)
 The task description \hs{sprsh1} embodies all the \emph{formulae} of the spreadsheet,
 but not the input values.  Like every \hs{Task}, \hs{sprsh1} is given a
@@ -221,17 +221,17 @@ initialise the store with \cmd{A1} set to 10 and all other cells set to 20.
 \end{minted}
 
 \noindent
-As one can see, \hs{busy} built both \cmd{B2} and its dependency \cmd{B1} in the
+As we can see, \hs{busy} built both \cmd{B2} and its dependency \cmd{B1} in the
 right order (if it had built \cmd{B2} before building \cmd{B1}, the result would
 have been $20 * 2 = 40$ instead of $(10 + 20) * 2 = 60$). As an example showing
 that \hs{busy} is not minimal, imagine that the formula in cell \cmd{B2} was
 \cmd{B1~+~B1} instead of \cmd{B1~*~2}. This would lead to calling
-\hs{fetch}~\hs{"B1"} twice -- once per each occurrence of \cmd{B1} in the
+\hs{fetch}~\hs{"B1"} twice -- once per occurrence of \cmd{B1} in the
 formula.
 
 \subsection{The need for polymorphism in \hs{Task}}\label{sec-why-polymorphism}
 
-Now we can see why the \hs{Task} abstraction is polymorphic in \hs{f}:
+The previous example shows why the \hs{Task} abstraction is polymorphic in \hs{f}, recall the definition:
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Task c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
 \end{minted}
@@ -298,9 +298,9 @@ A2: 20      B2: IF(C1=1,A1,B1)
 \end{minted}
 
 \noindent
-Here, \cmd{B1} and \cmd{B2} statically depend on each other, but \Excel (which
-uses dynamic dependencies) is perfectly happy. We can express this using
-our task abstraction as follows:
+Note that \cmd{B1} and \cmd{B2} statically form a dependency cycle, but \Excel (which
+uses dynamic dependencies) is perfectly happy. We can express these rules using
+our task abstraction as:
 
 % The spreadsheet example that uses
 % the \hs{INDIRECT} function can be expressed very similarly: simply replace the
@@ -319,13 +319,13 @@ sprsh2 _     _    = Nothing
 
 \noindent
 The big difference compared to \hs{sprsh1} is that the computation now takes
-place in a \hs{Monad}, which allows us to extract the value of \hs{c1} \emph{and
-\hs{fetch} different keys depending on whether or not \hs{c1}~\hs{==}~\hs{1}}.
+place in a \hs{Monad}, which allows us to extract the value of \hs{c1} and
+\hs{fetch} \emph{different keys depending on whether or not \hs{c1}~\hs{==}~\hs{1}}.
 
 Since the \hs{busy} build system introduced in~\S\ref{sec-general-build} always
 rebuilds every dependency it encounters, it is easy for it to handle dynamic
 dependencies. For minimal build systems, however, dynamic dependencies, and hence
-monadic tasks, are much more challenging, as we will see
+monadic tasks, are much more challenging, as we shall see
 in~\S\ref{sec-implementations}.
 
 \subsection{Correctness of a build system} \label{sec-build-correctness}
@@ -486,7 +486,7 @@ track task fetch = fmap runWriterT . task trackingFetch
 \vspace{1mm}
 
 \noindent
-The implementation uses the standard Haskell \hs{WriterT} \emph{monad
+This implementation uses the standard Haskell \hs{WriterT} \emph{monad
 transformer}~\cite{liang1995monad}, which allows us
 to record additional information -- a list of keys of type \hs{[@@k]} -- when
 computing a task in an arbitrary monad~\hs{m}. We substitute the given \hs{fetch}
