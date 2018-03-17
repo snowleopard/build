@@ -115,6 +115,23 @@ sprsh3 _     _    = Nothing
 fetchIO :: String -> IO Integer
 fetchIO k = do putStr (k ++ ": "); read <$> getLine
 
+data Key = A Integer | B Integer | D Integer Integer
+
+editDistance :: Task Monad Key Integer
+editDistance _     (D i 0) = Just $ pure i
+editDistance _     (D 0 j) = Just $ pure j
+editDistance fetch (D i j) = Just $ do
+    ai <- fetch (A i)
+    bj <- fetch (B i)
+    if ai == bj
+        then fetch (D (i - 1) (j - 1))
+        else do
+            x <- fetch (D (i - 1)  j     )
+            y <- fetch (D  i      (j - 1))
+            z <- fetch (D (i - 1) (j - 1))
+            return (1 + minimum [x, y, z])
+editDistance _ _ = Nothing
+
 -- These type synonyms are not very useful, but enumerate all interesting cases.
 type FunctorialTask  k v = forall f. Functor     f => (k -> f v) -> k -> Maybe (f v)
 type ApplicativeTask k v = forall f. Applicative f => (k -> f v) -> k -> Maybe (f v)
