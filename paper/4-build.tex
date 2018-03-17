@@ -143,7 +143,7 @@ same as the current value and that the result is the same.
 A build system that uses verifying traces needs to persistently maintain a set
 of traces. After computing a fresh value we add its \hs{Trace}~\hs{k}~\hs{v} to
 the set. Therefore the information stored by a build system that verifies
-traces can be stored as a list or set~--~we chose \hs{[Trace}~\hs{k}~\hs{v]}
+traces can be modelled as a list or set~--~we chose \hs{[Trace}~\hs{k}~\hs{v]}
 for simplicity. In practice, different build systems can optimise the data
 structures used by traces for their specific use cases, which we discuss
 in~\S\ref{sec-smart-traces}.
@@ -158,7 +158,7 @@ data Traces k v = Traces
     , contents  :: Map (Hash v) v }
 \end{minted}
 
-We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{contents} \emph{without} recomputing it. We split the traces and contents as in cloud interactions to a remote server the checking system may have to examine many traces/hashes, but only at most one complete file.
+We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{contents} \emph{without} recomputing it. We split the traces and contents because in cloud interactions to a remote server the checking system may have to examine many traces/hashes, but only retrieve at most one complete file per key.
 
 \subsection{Build Systems \`a la Carte}\label{sec-design-space}
 
