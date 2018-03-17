@@ -112,6 +112,9 @@ sprsh3 :: Task MonadPlus String Integer
 sprsh3 fetch "B1" = Just $ (+) <$> fetch "A1" <*> pure 1 `mplus` pure 2
 sprsh3 _     _    = Nothing
 
+fetchIO :: String -> IO Integer
+fetchIO k = do putStr (k ++ ": "); read <$> getLine
+
 -- These type synonyms are not very useful, but enumerate all interesting cases.
 type FunctorialTask  k v = forall f. Functor     f => (k -> f v) -> k -> Maybe (f v)
 type ApplicativeTask k v = forall f. Applicative f => (k -> f v) -> k -> Maybe (f v)
