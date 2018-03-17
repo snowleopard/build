@@ -8,13 +8,13 @@ is, we are going to take \hs{Task} as given from now on, and explore variants of
 in~\S\ref{sec-implementations}.
 
 As per the definition of minimality~\ref{def-minimal}, a minimal build
-system must \underline{rebuild only out-of-date keys} and at most once. The only
+system must \textbf{rebuild only out-of-date keys} and at most once. The only
 way to achieve the ``at most once'' requirement while producing a correct build
-result (\S\ref{sec-build-correctness}) is to \underline{build all keys in an
+result (\S\ref{sec-build-correctness}) is to \textbf{build all keys in an
 order that respects their dependencies}.
 
 \vspace{1mm}
-We have underlined two different phrases above, and tackle each aspect separately.
+We have bolded two different phrases above, and tackle each aspect separately.
 
 \subsection{Respecting the dependency order}
 \label{sec-dependency-orderings}
@@ -28,8 +28,8 @@ their properties and possible implementations.
 The topological approach pre-computes a linear order, which when followed, ensures
 the \hs{build} is correct regardless of the initial \hs{store}. Given a function
 from a key to its dependencies, and the output \hs{key}, you can compute the
-linear order by first taking the transitive closure of \hs{key}'s dependencies,
-and then computing its topological sort. However, as we have seen
+linear order by first finding the reachable dependencies of \hs{key},
+and then computing a topological sort. However, as we have seen
 in~\S\ref{sec-deps}, we can only extract dependencies from an applicative task,
 which requires the build system to choose \hs{c}~\hs{=}~\hs{Applicative}, ruling
 out dynamic dependencies.
@@ -39,9 +39,9 @@ out dynamic dependencies.
 The topological approach has two downsides: it is limited to \hs{Applicative}
 build systems and requires a fresh topological sort each time.  So, while the
 actions themselves may be incremental (i.e. unnecessary tasks will not be performed),
-the pre-processing is not. We may try to incrementalise the topological sort by
+the pre-processing is not. We can try to incrementalise the topological sort by
 storing the topological order between build runs and assume it to
-be correct, but if the build determines it is wrong, fix it up.
+be correct, but if the build discovers it is wrong, fix it up.
 
 This approach requires a way to abort tasks that have failed due to out-of-date
 dependencies. It is also not minimal in the sense that a task may start, do some
@@ -52,14 +52,14 @@ that work is zero.
 
 An alternative approach, utilised by the \hs{busy} build system
 (\S\ref{sec-general-build}), is to simply build dependencies when they are
-requested. By combining that with a transient log of which keys have already
+requested. By combining that with a transient set of which keys have already
 been built, you can obtain a minimal build system.
 
 This approach requires that a task may be started, then during that execution
 another task will have to be run. Assuming a an IO-driven task structure,
-that requires suspend a running task, which can be done with cheap
-green threads and blocking (the original approach of \Shake) or with a
-continuation-passing style (what \Shake does now). An alternative approach to
+that requires suspending a running task, which can be done with cheap
+green threads and blocking (the original approach of \Shake) or using
+continuation-passing style (what \Shake does currently). An alternative approach to
 suspending a task is to abort it and restart it again later, at the cost
 of doing additional work.
 
@@ -83,7 +83,7 @@ key does not need recomputing.
 \Excel models the dirty bit approach most directly, having an actual dirty bit
 associated with each cell, marking the cell dirty if the user modifies it.
 When rebuilding, if a cell only depends on clean cells it is skipped, otherwise
-it is rebuilt and is marked dirty so that the cells that depend on it are
+it is rebuilt and marked dirty so that the cells that depend on it are
 subsequently rebuilt too.
 
 % AM: I didn't understand this bit, so commented it out.
@@ -94,9 +94,9 @@ subsequently rebuilt too.
 \Make uses file modification times, and compares files to their
 dependencies, which can be thought of as a dirty bit which is set when
 a file is newer than its dependencies. The interesting property of
-this dirty bit is that it is not under control of \Make; rather it is
-existing file-system information that is repurposed. In particular,
-rebuilding a file automatically clears its dirty bit, and
+this dirty bit is that it is not under the control of \Make; rather it is
+existing file-system information that has been repurposed. In particular,
+modifying a file automatically clears its dirty bit, and
 automatically sets the dirty bit of the nodes depending on it. One
 thing \Make does require is that file timestamps only go forward in
 time -- something that can be violated by backup software.
@@ -117,8 +117,8 @@ approach, but does not. In contrast, \Make cannot implement early cutoff nicely 
 do so it would have to mark the node clean (so it would not rebuild in the next
 run) and at the same time not mark the things it depends on dirty -- an
 impossible task with only the ability to update to the latest modification time.
-It can approximate early cutoff by not touching the result file, and not marking it clean,
-but then it reruns in every subsequent build.
+\Make can approximate early cutoff by not modifying the result file, and not marking it clean,
+but then it will rerun in every subsequent build.
 
 \subsubsection{Verifying traces}\label{sec-verifying-traces}
 

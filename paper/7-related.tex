@@ -74,7 +74,7 @@ as \cmd{gcc} writes to arbitrary files whose locations are not known in advance.
 
 While not typically considered build systems, self-adjusting computation is a
 well studied area, and in particular the contrast between different formulations
-has been well studied~\cite{acar2007selfadjusting}.
+has been thoroughly investigated~\cite{acar2007selfadjusting}.
 
 Self-adjusting computations can automatically adjust to an external change
 to their inputs. A classic example is a self-adjusting sorting algorithm, which
@@ -84,11 +84,11 @@ close to build systems in spirit, self-adjusting computations are mostly used
 for in-memory computation and rely on the ability to dynamically allocate new
 keys in the store for sharing intermediate computations~--~an intriguing feature
 rarely seen in build systems (\Shake's oracles~\S\ref{sec-polymorphism} can be
-used to model this to a limited degree).
+used to model this feature to a limited degree).
 
 A lot of research has been dedicated to finding efficient data structures and
-algorithms for self-adjusting computations~--~we plan to explore this
-untapped (by build systems) resource in~future.
+algorithms for self-adjusting computations~--~we plan to investigate how these
+insights can be utilised by build systems as future work.
 
 \subsection{Memoization}\label{sec-related-memo}
 
