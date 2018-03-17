@@ -10,7 +10,7 @@ there.
 
 We provide an implementation of \Make using our framework in
 Fig.~\ref{fig-make-implementation}. \Make processes keys in a linear order based
-on a topological sort (see~\S\ref{sec-concurrency} for parallel \Make). For
+on a topological sort (see~\S\ref{sec-parallelism} for parallel \Make). For
 each key, it builds it if it is older than any of its dependencies. We capture
 the persistent build information that \Make stores by a pair
 \hs{(@@modTime,}~\hs{now)} comprising the \emph{file modification time} function
@@ -19,6 +19,9 @@ Setting aside the explicit manipulation of file modification times, which in
 reality is taken care of by the file system, the function \hs{make} captures
 the essence of \Make in a clear and precise manner.
 
+% Type signature for process. Not sure we really want this, as it's quite long
+% and is repeated in topological.
+% process :: k -> [k] -> State@\,@(Store@\,@(MakeInfo@\,\blk{k}@)@\,\blk{k}@@\,\blk{v}@)@\,\blk{v}@ -> State@\,@(Store@\,@(MakeInfo@\,\blk{k}@)@\,\blk{k}@@\,\blk{v}@)@\,@(@@)
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
 -- Persistent build information
@@ -42,8 +45,8 @@ make = topological process
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Standard graph algorithms (implementation omitted)
-transitiveClosure :: Eq a => (a -> [a]) ->  a  -> [a]
-topologicalSort   :: Eq a => (a -> [a]) -> [a] -> [a]
+reachable :: Eq a => (a -> [a]) ->  a  -> [a]
+topSort   :: Eq a => (a -> [a]) -> [a] -> [a]
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
@@ -140,7 +143,7 @@ excel = reordering process
                 result <- act
                 case result of
                     MissingDependency _ -> return ()
-                    Result v _dynamicDependencies -> do
+                    Result v dynamicDependencies -> do
                         let newDirty k = if k == key then True else dirty k
                         modify $ putInfo (newDirty, deps) . putValue key v
                 return (Just result)
@@ -186,11 +189,19 @@ on a change it propagates the dirty bits forward using the \hs{dynamicDependenci
 
 \subsection{\Shake}\label{sec-implementation-shake}
 
+The \Shake approach for dependency tracking involves recording traces and verifying them, for which we use the \hs{Trace} type defined in \ref{sec-verifying-traces}. Complete code is given in \S\ref{fig-shake-implementation}, split into three functions:
+
+\begin{description}
+\item[\hs{traceMatch}] takes a list of all recorded \hs{Trace} values, the \hs{key} you are currently building, and a function \hs{check} which checks a specified dependency. It returns the \hs{result} field of all traces that match. Since \hs{check} is in an arbitrary monad, the function has to use \hs{allM}/\hs{&&^} instead of the more usual \hs{all}/\hs{&&} functions\footnote{These functions are all available in the \cmd{extra} library on Hackage.}.
+\item[\hs{recursive}] defines the dependency ordering pattern. It requires a \hs{process} function that builds a key given a way to recursively build a dependency, and a way to run task to produce result. The main purpose of \hs{recursive} is to ensure that in a single run no key is built twice~--~for which it extends the \hs{State} monad with a list of \hs{done} keys.
+\item[\hs{shake}] ties everything together. First it tests if the traces allow the current state of the target key. If not, it builds the key and updates the store. The only subtlety is that Shake calls \hs{fetch} on the keys while checking them~--~building the last-recorded dependencies before checking them. One minor annoyance is that the \hs{State} has been extended and thus needs to be projected using \hs{fst} before it is used.
+\end{description}
+
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
 -- Determine whether a trace is relevant to the current state
-traceMatch :: (Monad m, Eq k) =>
-    (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
+traceMatch :: (Monad m, Eq k)
+    => (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
 traceMatch check key ts = mapMaybeM f ts
     where f (Trace k dkv v) = do
                 b <- return (key == k) &&^ allM (uncurry check) dkv
@@ -199,12 +210,11 @@ traceMatch check key ts = mapMaybeM f ts
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Recursive dependency strategy
-recursive :: Eq k =>
-    (k -> (k -> State (Store i k v, [k]) v)
-       -> State (Store i k v, [k]) (v, [k])
-       -> State (Store i k v, [k]) ())
-    -> Build Monad i k v
-recursive process task key store = fst $ execState (ensure key) (store, [])
+recursive :: Eq k => (k -> (k -> State (Store i k v, [k]) v)
+                  -> State (Store i k v, [k]) (v, [k])
+                  -> State (Store i k v, [k]) ())
+                  -> Build Monad i k v
+recursive process task key store = fst $ execState (ensure key) (store, [@@])
     where
         ensure key = do
             let fetch k = do ensure k; gets (getValue k . fst)
@@ -230,18 +240,10 @@ shake = recursive $ \key fetch act -> do
             in (putInfo (t : getInfo s) (putValue key v s), done)
 
 \end{minted}
-\vspace{-2mm}
+\vspace{-3mm}
 \caption{An implementation of \Shake using our framework.}\label{fig-shake-implementation}
-\vspace{-2mm}
+\vspace{1mm}
 \end{figure}
-
-The \Shake approach for dependency tracking involves recording traces and verifying them, for which we use the \hs{Trace} type defined in \ref{sec-verifying-traces}. Complete code is given in \S\ref{fig-shake-implementation}, split into three functions:
-
-\begin{description}
-\item[\hs{traceMatch}] takes a list of all recorded \hs{Trace} values, the \hs{key} you are currently building, and a function \hs{check} which checks a specified dependency. It returns the \hs{result} field of all traces that match. Since \hs{check} is in an arbitrary monad, the function has to use \hs{allM}/\hs{&&^} instead of the more usual \hs{all}/\hs{&&} functions\footnote{These functions are all available in the \cmd{extra} library on Hackage.}.
-\item[\hs{recursive}] defines the dependency ordering pattern. It requires a \hs{process} function that builds a key given a way to recursively build a dependency, and a way to run task to produce result. The main purpose of \hs{recursive} is to ensure that in a single run any key is not built twice -- for which it extends the \hs{State} monad with a list of \hs{done} keys.
-\item[\hs{shake}] ties everything together. First it tests if the traces allow the current state of the target key. If not, it builds the key and updates the store. The only subtlty is that Shake calls \hs{fetch} on the keys while checking them -- building the last-recorded dependencies before checking them. One minor annoyance is that the \hs{State} has been extended and thus needs to be projected using \hs{fst} before it is used.
-\end{description}
 
 \subsection{\Bazel}\label{sec-implementation-bazel}
 
@@ -263,23 +265,25 @@ bazel = topological $ \key ds act -> do
             modify $ putValue key (contents Map.! head poss)
 \end{minted}
 \vspace{-2mm}
-\caption{An implementation of \Bazel using our framework.}\label{fig-bazel-implementation}
+\caption{An implementation of \Bazel using our framework; \hs{topological} is
+defined in Fig.~\ref{fig-make-implementation}.}\label{fig-bazel-implementation}
 \vspace{-2mm}
 \end{figure}
 
-Now we have seen all three dependency schemes, we can directly reuse \hs{topological} to define \Bazel. Furthermore, as \Bazel is a tracing build system, we can reuse \hs{Trace} and \hs{traceMatch}, along with the \hs{Traces} type from \S\ref{sec-constructive-traces}. With these pieces in place, the implementation of \Bazel is given in Figure~\ref{fig-bazel-implementation}. We first figure out the possible results given the current state. If there are no recorded traces for the current dependencies we run it and record the results, otherwise grab a suitable result from the \hs{contents} cache.
+Now we have seen all three dependency schemes, we can directly reuse \hs{topological} to define \Bazel. Furthermore, as \Bazel is a tracing build system, we can reuse \hs{Trace} and \hs{traceMatch}, along with the \hs{Traces} type from \S\ref{sec-constructive-traces}. With these pieces in place, the implementation of \Bazel is given in Fig.~\ref{fig-bazel-implementation}. We first figure out the possible results given the current state. If there are no recorded traces for the current dependencies we run it and record the results, otherwise grab a suitable result from the \hs{contents} cache.
 
-The program presented above captures certain aspects of \Bazel, but the real implementation makes one important additional assumption on \hs{Task} -- namely that it is \textit{deterministic}. With that assumption \Bazel is able to create the result hash in a trace by hashing together the result hashes of the dependencies and the key -- as the mapping between dependencies and results is deterministic. As a consequence \Bazel can compute the results of traces locally, without looking at \hs{Traces} (potentially saving a roundtrip to the server). To model this change in the code would require storing an additional transient piece of information \hs{done} of type \hs{Map k (Hash v)}, storing the computed hashes so far this run. With that available, \hs{getHash key s} would become:
+The program presented above captures certain aspects of \Bazel, but the real implementation makes one important additional assumption on \hs{Task} -- namely that it is \textit{deterministic}. With that assumption \Bazel is able to create the result hash in a trace by hashing together the result hashes of the dependencies and the key -- as the mapping between dependencies and results is deterministic. As a consequence \Bazel can compute the results of traces locally, without looking at \hs{Traces} (potentially saving a roundtrip to the server). To model this change in the code would require storing an additional transient piece of information \hs{done} of type \hs{Map}~\hs{k}~\hs{(Hash}~\hs{v)}, storing the computed hashes so far this run. With that available, \hs{getHash}~\hs{key}~\hs{s} would become:
 
-\begin{minted}{haskell}
+\begin{minted}[xleftmargin=10pt]{haskell}
 hash (key, [ done Map.! d | d <- ds])
 \end{minted}
 
+\noindent
 And that new hash would have to be stored in \hs{done}.
 
 \subsection{Cloud \Shake}\label{sec-implementation-cloud-shake}
 
-Using the abstractions and approaches built thus far, we have shown how to combine dependency scheme and change approach to reproduce existing build systems. In the attached materials we have implemented 9 build systems corresponding to all three dependency schemes, matched with all three change approaches. To us, the most interesting build system as yet unavailable would matching recursive ordering with constructive traces - providing a cloud-capable build system with minimality, cut-off and monadic dependencies. Using our framework it is possible to define and test such a system as per Figure~\ref{fig-cloudshake-implementation}.
+Using the abstractions and approaches built thus far, we have shown how to combine dependency scheme and change approach to reproduce existing build systems. In the attached materials we have implemented 9~build systems corresponding to all three dependency schemes, matched with all three change approaches. To us, the most interesting build system as yet unavailable would matching recursive ordering with constructive traces~--~providing a cloud-capable build system with minimality, cutoff and monadic dependencies. Using our framework it is possible to define and test such a system as per Fig.~\ref{fig-cloudshake-implementation}.
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -306,18 +310,18 @@ cloudShake = recursive $ \key fetch act -> do
 
 The differences from \hs{bazel} are minor - the dependency scheme has changed from \hs{topological} to \hs{recursive}, and thus the dependency keys \hs{dk} are captured from the action rather than in advance, the transient state has gained a list of keys, and the checking calls \hs{fetch} to get the result instead of accessing the store directly.
 
-\subsection{Smarter \hs{[Trace]} Structures}\label{sec-smart-traces}
+\subsection{Smarter \hs{[Trace]} data structures}\label{sec-smart-traces}
 
-In the examples above, we have used \hs{[Trace k v]} to capture a list of traces -- however, using a list necessarily means that finding the right trace takes $O(n)$. For each of the \hs{Trace} based systems it is possible to devise a smarter representation, which we sketch below. Note that these implementations do not avoid calls to \hs{compute}, merely overheads in the build system itself.
+In the examples above, we have used \hs{[Trace}~\hs{k}~\hs{v]} to capture a list of traces -- however, using a list necessarily means that finding the right trace takes $O(n)$. For each of the \hs{Trace} based systems it is possible to devise a smarter representation, which we sketch below. Note that these implementations do not avoid calls to \hs{compute}, merely overheads in the build system itself.
 
 \begin{enumerate}
-\item Any system using verifying traces, e.g. \Shake, is unlikely to see significant benefit from storing more than one \hs{Trace} per key\footnote{There is a small chance of a benefit if the dependencies change but the result does not, and then the dependencies change back to what they were before.}. Therefore, such systems can store \hs{Map k (Trace k v)}, where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
+\item Any system using verifying traces, e.g. \Shake, is unlikely to see significant benefit from storing more than one \hs{Trace} per key\footnote{There is a small chance of a benefit if the dependencies change but the result does not, and then the dependencies change back to what they were before.}. Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v)}, where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
 \item Any system using \hs{Applicative} dependencies can omit the dependency keys from the \hs{Trace} as they can be recovered from the \hs{key} field.
-\item Any \hs{Applicative} system storing constructive traces, e.g. \Bazel, can index directly from the key and results to the output result - i.e. \hs{Map (k, [Hash v]) (Hash v)}. Importantly, assuming the traces are stored on a central server, the client can compute the key and the hashes of its dependencies, then make a single call to the server to retrieve the result hash. In this formulation we have removed the possibility for a single key/dependency state to map to multiple different hashes, e.g. on a non-deterministic build - something \Bazel already prohibits which is discussed more in \S\ref{sec-non-determinism}.
-\item Finally, a \hs{Monad} system with constructive traces can be represented as \hs{Map k (Choice k v)}, assuming a definition of \hs{Choice} as:
-\begin{minted}{haskell}
+\item Any \hs{Applicative} build system storing constructive traces, e.g. \Bazel, can index directly from the key and results to the output result~--~i.e. \hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{(Hash}~\hs{v)}. Importantly, assuming the traces are stored on a central server, the client can compute the key and the hashes of its dependencies, then make a single call to the server to retrieve the result hash. In this formulation we have removed the possibility for a single key/dependency state to map to multiple different hashes, e.g. on a non-deterministic build~--~something \Bazel already prohibits which is discussed more in~\S\ref{sec-non-determinism}.
+\item Finally, a \hs{Monad} build system with constructive traces can be represented as \hs{Map}~\hs{k}~\hs{(Choice}~\hs{k}~\hs{v)}, assuming a definition of \hs{Choice} as:
+\begin{minted}[xleftmargin=10pt]{haskell}
 data Choice k v = Choice k (Map (Hash v) Choice)
                 | Result (Hash v)
 \end{minted}
-Here the \hs{Choice} effectively encodes a tree, asking successive questions about keys, and taking different branches based on the resulting value, until it reaches a final result. Implementing this structure over client-server communication requires either a chatty interface with lots of round-trips per \hs{Choice} step, or sending over a part of the tree that is not subsequently explored.
+Here the \hs{Choice} encodes a tree, asking successive questions about keys, and taking different branches based on the answers, until it reaches a final result. Implementing this structure over client-server communication requires either a chatty interface with lots of round-trips per \hs{Choice} step, or sending over a part of the tree that is not subsequently explored.
 \end{enumerate}

@@ -397,7 +397,7 @@ The build \hs{result} is~\emph{correct} if the following two conditions hold:
     for all non-input keys \hs{k}~$\in$~$O$, the result of recomputing the
     \hs{task} matches the value stored in the \hs{result}:
     \[
-    \hs{Just}~\hs{(}\hs{getValue}~\hs{result}~\hs{k)}~\hs{==}~\hs{compute}~\hs{task}~\hs{result}~\hs{k}.
+    \hs{Just}~\hs{(}\hs{getValue}~\hs{k}~\hs{result)}~\hs{==}~\hs{compute}~\hs{task}~\hs{result}~\hs{k}.
     \]
 \end{itemize}
 A build system is \emph{correct} if it produces a correct \hs{result} for any

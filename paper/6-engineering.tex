@@ -20,13 +20,14 @@ for errors, e.g. early aborting.
 % Q: {Isn't ``early aborting'' automatically handled by short-circuiting
 % withing monads, i.e. \hs{Nothing} or \hs{Left e} cancel out all subsequent
 % computation?}
-% NM says: The build system could chose an early abort monad, but the tasks are free in the monad, so you can't get the encoding to cross between them.
+% NM says: The build system could chose an early abort monad, but the tasks are
+% free in the monad, so you can't get the encoding to cross between them.
 
-\subsection{Concurrency}\label{sec-concurrency}
+\subsection{Parallelism}\label{sec-parallelism}
 
 While we have given simple implementations assuming a single thread of execution,
-all the build systems we address are actually concurrent. While it complicates
-the model to add concurrency, the complications can be restricted exclusively
+all the build systems we address can actually build independent keys in parallel.
+While it complicates the model, the complications can be restricted exclusively
 to the dependency strategy:
 
 \begin{enumerate}
@@ -99,15 +100,14 @@ sprsh3 _     _    = Nothing
 \noindent
 Handling such tasks is possible in our framework, but requires an adjustment of
 the correctness definition (\S\ref{sec-build-correctness}): instead of requiring
-that the result of recomputing the \hs{task} matches the value in the \hs{ideal}
-store:
+that the result of recomputing the \hs{task} matches the value stored in the \hs{result}:
 \[
-\hs{Just}~\hs{(}\hs{getValue}~\hs{ideal}~\hs{k)}~\hs{==}~\hs{compute}~\hs{task}~\hs{ideal}~\hs{k}\]
+\hs{Just}~\hs{(}\hs{getValue}~\hs{k}~\hs{result)}~\hs{==}~\hs{compute}~\hs{task}~\hs{result}~\hs{k}\]
 \noindent
-we now require that \hs{ideal} contains \emph{one possible result of recomputing}
+we now require that \hs{result} contains \emph{one possible result of recomputing}
 the \hs{task}:
 \[
-\hs{Just}~\hs{(}\hs{getValue}~\hs{ideal}~\hs{k)}~\hs{`elem`}~\hs{compute}~\hs{task}~\hs{ideal}~\hs{k}
+\hs{Just}~\hs{(}\hs{getValue}~\hs{k}~\hs{result)}~\hs{`elem`}~\hs{compute}~\hs{task}~\hs{result}~\hs{k}
 \]
 
 Note that \hs{Task}~\hs{MonadPlus} is powerful enough to model dependency-level
