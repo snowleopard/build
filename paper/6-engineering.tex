@@ -79,9 +79,9 @@ model and microcode version. Rules that do have untracked state can be marked as
 volatile, a technique \Excel takes with the \cmd{INDIRECT} function, removing the
 untracked state at the cost of minimality.
 
-We note that while all the simple implementations presented in
-\S\ref{sec-implementations} can deal with non-determinism, some real build
-systems, e.g. \Buck and \Bazel, rely on task determinism.
+Most of the implementations in \S\ref{sec-implementations} can deal with non-determinism,
+apart from \Bazel and \Buck, which require deterministic execution, and in turn can
+optimise the number of roundtrips required to the server.
 
 One tempting way of modelling non-determinism is to enrich \hs{Task} from
 \hs{Applicative} or \hs{Monad} to \hs{Alternative} or \hs{MonadPlus},
