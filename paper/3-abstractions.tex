@@ -359,14 +359,13 @@ has the type \hs{k}~\hs{->}~\hs{Identity}~\hs{v}, and can now be passed to a
 need to get rid of the \hs{Identity} wrapper by applying \hs{runIdentity} to the
 contents of \hs{Maybe}.
 
-\vspace{1mm}
+\vspace{-1mm}
 \definition[Correctness]{Suppose \hs{build} is a build system, \hs{task} is a
 build task description, \hs{key} is a target key, \hs{store} is an initial
 store, and \hs{result} is the store produced by running the build system with
 parameters \hs{task}, \hs{key} and \hs{store}. Or, using the precise language of
 our abstractions:
 
-\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 build         :: Build c i k v
 task          :: Task c k v
@@ -374,7 +373,6 @@ key           :: k
 store, @@result :: Store i k v
 result = @@build @@task @@key @@store
 \end{minted}
-\vspace{1mm}
 
 \noindent
 The keys that are reachable from the target \hs{key} via dependencies fall
@@ -392,7 +390,8 @@ The build \hs{result} is~\emph{correct} if the following two conditions hold:
     \hs{getValue}~\hs{k}~\hs{store}~\hs{==}~\hs{getValue}~\hs{k}~\hs{result}.
     \]
     In other words, no inputs were corrupted during the
-    build\footnote{\todo{SLPJ}{Add the joke that GHC used to delete inputs?}}.
+    build.
+    %\footnote{\todo{SLPJ}{Add the joke that GHC used to delete inputs?}}.
 
     \item The \hs{result} is \emph{consistent} with the \hs{task}, i.e.
     for all non-input keys \hs{k}~$\in$~$O$, the result of recomputing the
@@ -405,7 +404,7 @@ A build system is \emph{correct} if it produces a correct \hs{result} for any
 given \hs{task}, \hs{key} and \hs{store}.
 }
 \label{def-correct}
-\vspace{3mm}
+\vspace{2mm}
 
 It is hard to satisfy the above definition of correctness given a task
 description with cycles. All build systems discussed in this paper are correct
@@ -414,9 +413,9 @@ includes the \hs{busy} build system introduced earlier: it will loop
 indefinitely given a cyclic \hs{task}. Some build systems provide a limited
 support for cyclic tasks, see~\S\ref{sec-iterative-compute}.
 
-The above definition of correctness needs to be adjusted to accommodate
-non-deterministic tasks and shallow cloud builds; we address this
-in sections~\S\ref{sec-non-determinism} and~\S\ref{sec-cloud-aspects}, respectively.
+% The above definition of correctness needs to be adjusted to accommodate
+% non-deterministic tasks and shallow cloud builds; we address this
+% in sections~\S\ref{sec-non-determinism} and~\S\ref{sec-cloud-aspects}, respectively.
 
 \subsection{Computing dependencies}\label{sec-deps}\label{secdeps}
 
@@ -426,14 +425,13 @@ of \Excel) looking at the syntax tree of the formula.  But a task description
 has no such syntax tree. Yet, remarkably, we can use the polymorphism of a
 \hs{Task}~\hs{Applicative} to find its dependencies \emph{without doing any of
 the actual work}. Here is the code:
-\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 dependencies :: Task Applicative k v -> k -> [k]
 dependencies task key = case task (\k -> Const [k]) key of
                             Nothing         -> []
                             Just (Const ks) -> ks
 \end{minted}
-\vspace{1mm}
+
 Here \hs{Const} is a standard Haskell type defined in Fig.~\ref{fig-types}. We
 instantiate \hs{f} to \hs{Const}~\hs{[@@k]}.  So a value of type \hs{f}~\hs{v},
 or in this case \hs{Const}~\hs{[@@k]}~\hs{v}, contains no value \hs{v}, but does
@@ -490,32 +488,36 @@ track task fetch = fmap runWriterT . task trackingFetch
 \noindent
 The implementation uses the standard Haskell \hs{WriterT} \emph{monad
 transformer}~\cite{liang1995monad}, which allows us
-to record addition information -- a list of keys of type \hs{[@@k]} -- when
+to record additional information -- a list of keys of type \hs{[@@k]} -- when
 computing a task in an arbitrary monad~\hs{m}. We substitute the given \hs{fetch}
 with a \hs{trackingFetch} that, in addition to fetching a value, tracks the
 corresponding key. The \hs{task} returns the value of type
 \hs{Maybe}~\hs{(@@WriterT}~\hs{[@@k]}~\hs{m}~\hs{v)}, which we unwrap by applying
 \hs{runWriterT} to the contents of \hs{Maybe}.
+Here is an example of \hs{track}ing monadic tasks when \hs{m}~\hs{=}~\hs{IO}:
 
-% Here is an example of \hs{track}ing monadic tasks:
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ fetchIO k = do putStr (k ++ ": "); read <$> getLine
+@\ghci@ fromJust $ track sprsh2 fetchIO "B1"
+C1: 1
+B2: 10
+(10,["C1","B2"])
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ fromJust $ track sprsh2 fetchIO "B1"
+C1: 2
+A2: 20
+(20,["C1","A2"])
+\end{minted}
+\vspace{1mm}
 
-% \vspace{1mm}
-% \begin{minted}[xleftmargin=10pt]{haskell}
-% @\ghci@ store1 = initialise () (\key -> if key == "A1" then 10 else 1)
-% @\ghci@ track sprsh2 store1 "B1"
-% Just (1,["C1","B2"])
-% \end{minted}
-% \vspace{1mm}
-% \begin{minted}[xleftmargin=10pt]{haskell}
-% @\ghci@ store2 = initialise () (\key -> if key == "A1" then 10 else 20)
-% @\ghci@ track sprsh2 store2 "B2"
-% Just (20,["C1","B1"])
-% \end{minted}
-% \vspace{1mm}
+\noindent
+As expected, the dependencies of the cell \cmd{B1} from \hs{sprsh2} (see the
+spreadsheet in~\S\ref{sec-task-monad}) are determined by the value of \cmd{C1},
+which in this case is obtained by reading from the standard input.
 
-% \noindent
-% As expected, the dependencies of \hs{sprsh2} (see the spreadsheet
-% in~\S\ref{sec-task-monad}) are determined by the contents of the store.
 % Furthermore, the above example highlights the static cycle between cells
 % \cmd{B1} and \cmd{B2}: in \hs{store1}, we have \cmd{B1 = B2 = A1 = 10},
 % whereas in \hs{store2}, we have \cmd{B2 = B1 = A2 = 20}.
