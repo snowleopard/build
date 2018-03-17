@@ -275,7 +275,7 @@ Now we have seen all three dependency schemes, we can directly reuse \hs{topolog
 The program presented above captures certain aspects of \Bazel, but the real implementation makes one important additional assumption on \hs{Task} -- namely that it is \textit{deterministic}. With that assumption \Bazel is able to create the result hash in a trace by hashing together the result hashes of the dependencies and the key -- as the mapping between dependencies and results is deterministic. As a consequence \Bazel can compute the results of traces locally, without looking at \hs{Traces} (potentially saving a roundtrip to the server). To model this change in the code would require storing an additional transient piece of information \hs{done} of type \hs{Map}~\hs{k}~\hs{(Hash}~\hs{v)}, storing the computed hashes so far this run. With that available, \hs{getHash}~\hs{key}~\hs{s} would become:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
-hash (key, [ done Map.! d | d <- ds])
+hash (key, [ done Map.! d | d <- ds ])
 \end{minted}
 
 \noindent
