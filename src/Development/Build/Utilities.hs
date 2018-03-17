@@ -1,6 +1,6 @@
 module Development.Build.Utilities (
     -- * Graph operations
-    closure, topSort, reach, reachM,
+    reachable, topSort, reach, reachM,
 
     -- * Transformers
     AltConst (..),
@@ -13,8 +13,8 @@ import Control.Applicative
 import Data.Functor.Identity
 
 -- TODO: Implement
-closure :: Eq a => (a -> [a]) -> a -> [a]
-closure = undefined
+reachable :: Eq a => (a -> [a]) -> a -> [a]
+reachable = undefined
 
 topSort :: Eq a => (a -> [a]) -> [a] -> [a]
 topSort = undefined
