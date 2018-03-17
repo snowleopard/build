@@ -15,10 +15,10 @@ systems.
 -- An abstract store
 data Store i k v
 getInfo    :: Store i k v -> i
-putInfo    :: Store i k v -> i -> Store i k v
-getValue   :: Store i k v -> k -> v
-putValue   :: Eq k => Store i k v -> k -> v -> Store i k v
-getHash    :: Hashable v => Store i k v -> k -> Hash v
+putInfo    :: i -> Store i k v -> Store i k v
+getValue   :: k -> Store i k v -> v
+putValue   :: Eq k => k -> v -> Store i k v -> Store i k v
+getHash    :: Hashable v => k -> Store i k v -> Hash v
 initialise :: i -> (k -> v) -> Store i k v
 \end{minted}
 \vspace{1mm}
@@ -40,7 +40,7 @@ data State s a
 instance Applicative (State s)
 instance Monad       (State s)
 get       :: State s s
-put       :: s -> State s ()
+gets      :: (s -> a) -> State s a
 modify    :: (s -> s) -> State s ()
 execState :: State s a -> s -> s
 \end{minted}
@@ -179,10 +179,10 @@ Here is a simple build system:
 busy :: Eq k => Build Monad () k v
 busy task key store = execState (fetch key) store
   where
-    fetch :: k -> State (Store i k v) v
+    fetch :: k -> State (Store () k v) v
     fetch k = case task fetch k of
-        Nothing  -> do s <- get; return (getValue s k)
-        Just act -> do v <- act; modify (\s -> putValue s k v); return v
+        Nothing  -> gets (getValue k)
+        Just act -> do v <- act; modify (putValue k v); return v
 \end{minted}
 \vspace{1mm}
 
@@ -332,7 +332,7 @@ in~\S\ref{sec-implementations}.
 
 We can now say what it means for a build system to be \emph{correct}, something
 that is seldom stated formally. Our intuition is this: \emph{when the build
-system completes, the specified key, and all its dependencies, should be up to
+system completes, the target key, and all its dependencies, should be up to
 date}. What does ``up to date'' mean? It means that if we recompute the value of
 the key (using the task description, and the final store), we should get exactly
 the same value as we see in the final store.
@@ -340,29 +340,28 @@ the same value as we see in the final store.
 To express this formally we need an auxiliary function \hs{compute}, that
 computes the value of a key in a given store \emph{without attempting to update
 any dependencies}:
-\begin{minted}[xleftmargin=10pt]{haskell}
+\begin{minted}[xleftmargin=5pt]{haskell}
 compute :: Task Monad k v -> Store i k v -> k -> Maybe v
-compute task store key = runIdentity <$> task (Identity . getValue store) key
+compute task store = fmap runIdentity@\,@.@\,\blk{task}@ (\k -> Identity (getValue k store))
 \end{minted}
 
 \noindent
 Here we do not need any effects in the \hs{fetch} callback to \hs{task}, so
 we can use the standard Haskell \hs{Identity} monad (Fig.~\ref{fig-types}).
-The use of \hs{Identity} just fixes the `impedance mismatch' between the pure
-function \hs{getValue}~\hs{store}, whose type is \store, and the \hs{fetch}
-argument of the \hs{task}, whose type must be \hs{k}~\hs{->}~\hs{f}~\hs{v} for
-some \hs{f}. To fix the mismatch, we wrap the result of the pure function in the
-\hs{Identity} monad: the function \hs{Identity}~\hs{.}~\hs{getValue}~\hs{store}
+The use of \hs{Identity} just fixes the `impedance mismatch' between the
+function \hs{getValue}, which returns a pure value~\hs{v}, and the \hs{fetch}
+argument of the \hs{task}, which must return an \hs{f}~\hs{v} for some \hs{f}.
+To fix the mismatch, we wrap the result of \hs{getValue} in the \hs{Identity}
+monad: the function
+\hs{\@@k}~\hs{->}~\hs{Identity}~\hs{(@@getValue}~\hs{k}~\hs{store)}
 has the type \hs{k}~\hs{->}~\hs{Identity}~\hs{v}, and can now be passed to a
 \hs{task}. The result comes as \hs{Maybe}~\hs{(Identity}~\hs{v)}, hence we now
 need to get rid of the \hs{Identity} wrapper by applying \hs{runIdentity} to the
 contents of \hs{Maybe}.
 
-\vspace{-1mm}
-\noindent\rule{\textwidth}{0.4pt}
-\vspace{-7mm}
+\vspace{1mm}
 \definition[Correctness]{Suppose \hs{build} is a build system, \hs{task} is a
-build task description, \hs{key} is an output key, \hs{store} is an initial
+build task description, \hs{key} is a target key, \hs{store} is an initial
 store, and \hs{result} is the store produced by running the build system with
 parameters \hs{task}, \hs{key} and \hs{store}. Or, using the precise language of
 our abstractions:
@@ -378,40 +377,35 @@ result = @@build @@task @@key @@store
 \vspace{1mm}
 
 \noindent
-Then the \hs{result} is~\emph{correct} if there exists an \hs{ideal} store, such
-that:
+The keys that belong to the transitive closure of \hs{key}'s dependencies fall
+into two classes: input keys and non-input keys, which we will denote by $I$ and
+$O$, respectively. Note that \hs{key} may be in either of these sets, although
+the case when \hs{key} is an input is degenerate: we have $I=\{$\hs{key}$\}$ and
+$O=\emptyset$.
+
+The build \hs{result} is~\emph{correct} if the following two conditions hold:
 
 \begin{itemize}
-    \item The \hs{ideal} store is \emph{consistent} with the \hs{task}, i.e.
-    for all possible non-input keys \hs{k}, the result of recomputing the
-    \hs{task} matches the value in the \hs{ideal} store:
-    \vspace{-1mm}
+    \item \hs{store} and \hs{result} \emph{agree on inputs}, that is, for all
+    input keys \hs{k}~$\in$~$I$:
     \[
-    \hs{Just}~\hs{(}\hs{getValue}~\hs{ideal}~\hs{k)}~\hs{==}~\hs{compute}~\hs{task}~\hs{ideal}~\hs{k}.
+    \hs{getValue}~\hs{k}~\hs{store}~\hs{==}~\hs{getValue}~\hs{k}~\hs{result}.
     \]
-    \item The \hs{result} and \hs{ideal} agree on the output \hs{key}, i.e.:
-    \vspace{-1mm}
+    In other words, no inputs were corrupted during the
+    build\footnote{\todo{SLPJ}{Add the joke that GHC used to delete inputs?}}.
+
+    \item The \hs{result} is \emph{consistent} with the \hs{task}, i.e.
+    for all non-input keys \hs{k}~$\in$~$O$, the result of recomputing the
+    \hs{task} matches the value stored in the \hs{result}:
     \[
-    \hs{getValue}~\hs{result}~\hs{key}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{key}.
+    \hs{Just}~\hs{(}\hs{getValue}~\hs{result}~\hs{k)}~\hs{==}~\hs{compute}~\hs{task}~\hs{result}~\hs{k}.
     \]
-    In other words, we require that the output \hs{key} has the correct value,
-    but do not impose any restrictions on intermediate keys, therefore
-    permitting shallow cloud builds.
-    \item The \hs{store}, \hs{result} and \hs{ideal} agree on all input keys
-    \hs{k} that belong to the transitive closure of \hs{key}'s dependencies:
-    \[
-    \,\,\,\,\,\,\,\hs{getValue}~\hs{store}~\hs{k}~\hs{==}~\hs{getValue}~\hs{result}~\hs{k}~\hs{&&}~\hs{getValue}~\hs{store}~\hs{k}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{k}
-    \]
-    This requirement asserts that (i) no inputs were corrupted during the
-    build, and (ii)~the \hs{ideal} store has constraints not only on the output,
-    but also on the inputs.
 \end{itemize}
 A build system is \emph{correct} if it produces a correct \hs{result} for any
 given \hs{task}, \hs{key} and \hs{store}.
 }
 \label{def-correct}
-\vspace{-2mm}
-\rule{\textwidth}{0.4pt}
+\vspace{3mm}
 
 It is hard to satisfy the above definition of correctness given a task
 description with cycles. All build systems discussed in this paper are correct
@@ -529,3 +523,52 @@ whereas in \hs{store2}, we have \cmd{B2 = B1 = A2 = 20}.
 % small fraction of all dependencies. One can exploit this in a build system by
 % recognising applicative tasks even though they have the type
 % \hs{Task}~\hs{Monad} and treating them specially.
+
+%------------------------- Old correctness definition -------------------------%
+
+% \definition[Correctness]{Suppose \hs{build} is a build system, \hs{task} is a
+% build task description, \hs{key} is an output key, \hs{store} is an initial
+% store, and \hs{result} is the store produced by running the build system with
+% parameters \hs{task}, \hs{key} and \hs{store}. Or, using the precise language of
+% our abstractions:
+% \vspace{1mm}
+% \begin{minted}[xleftmargin=10pt]{haskell}
+% build         :: Build c i k v
+% task          :: Task c k v
+% key           :: k
+% store, @@result :: Store i k v
+% result = @@build @@task @@key @@store
+% \end{minted}
+% \vspace{1mm}
+% \noindent
+% Then the \hs{result} is~\emph{correct} if there exists an \hs{ideal} store, such
+% that:
+% \begin{itemize}
+%     \item The \hs{ideal} store is \emph{consistent} with the \hs{task}, i.e.
+%     for all possible non-input keys \hs{k}, the result of recomputing the
+%     \hs{task} matches the value in the \hs{ideal} store:
+%     \vspace{-1mm}
+%     \[
+%     \hs{Just}~\hs{(}\hs{getValue}~\hs{ideal}~\hs{k)}~\hs{==}~\hs{compute}~\hs{task}~\hs{ideal}~\hs{k}.
+%     \]
+%     \item The \hs{result} and \hs{ideal} agree on the output \hs{key}, i.e.:
+%     \vspace{-1mm}
+%     \[
+%     \hs{getValue}~\hs{result}~\hs{key}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{key}.
+%     \]
+%     In other words, we require that the output \hs{key} has the correct value,
+%     but do not impose any restrictions on intermediate keys, therefore
+%     permitting shallow cloud builds.
+%     \item The \hs{store}, \hs{result} and \hs{ideal} agree on all input keys
+%     \hs{k} that belong to the transitive closure of \hs{key}'s dependencies:
+%     \[
+%     \,\,\,\,\,\,\,\hs{getValue}~\hs{store}~\hs{k}~\hs{==}~\hs{getValue}~\hs{result}~\hs{k}~\hs{&&}~\hs{getValue}~\hs{store}~\hs{k}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{k}
+%     \]
+%     This requirement asserts that (i) no inputs were corrupted during the
+%     build, and (ii)~the \hs{ideal} store has constraints not only on the output,
+%     but also on the inputs.
+% \end{itemize}
+% A build system is \emph{correct} if it produces a correct \hs{result} for any
+% given \hs{task}, \hs{key} and \hs{store}.
+% }
+% \label{def-correct}
