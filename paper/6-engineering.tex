@@ -107,8 +107,14 @@ that the result of recomputing the \hs{task} matches the value stored in the \hs
 we now require that \hs{result} contains \emph{one possible result of recomputing}
 the \hs{task}:
 \[
-\hs{Just}~\hs{(}\hs{getValue}~\hs{k}~\hs{result)}~\hs{`elem`}~\hs{compute}~\hs{task}~\hs{result}~\hs{k}
+\hs{Just}~\hs{(}\hs{getValue}~\hs{k}~\hs{result)}~\hs{`elem`}~\hs{computeND}~\hs{task}~\hs{result}~\hs{k}
 \]
+where
+\hs{computeND}~\hs{::}~\hs{Task}~\hs{MonadPlus}~\hs{k}~\hs{v}~\hs{->}~\hs{Store}~\hs{i}~\hs{k}~\hs{v}~\hs{->}~\hs{k}~\hs{->}~\hs{Maybe}~\hs{[@@v]}
+returns the list of all possible results of the \hs{task} instead of just one
+value (`ND' stands for `non-deterministic').
+% (a possible implementation chooses
+% \hs{f}~\hs{=}~\hs{ListT}~\hs{Identity}~\hs{[@@v]}).
 
 Note that \hs{Task}~\hs{MonadPlus} is powerful enough to model dependency-level
 non-determinism, for example, \cmd{INDIRECT("A" \& RANDBETWEEN(1,2))}, whereas
