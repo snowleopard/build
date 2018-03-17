@@ -181,13 +181,16 @@ that \hs{process} ignores \hs{dynamicDependencies} available in the \hs{result}.
 While not required for \Excel, we have implemented build systems using
 \hs{reordering} which use verifying and constructive traces, effectively turning
 \Excel into a cloud build system and ensuring \hs{reordering} is not overly
-fitted to \Excel alone (additional implementations will be submitted to the
-Artefact Evaluation).
+fitted to \Excel alone.
+%  (additional implementations will be submitted to the
+% Artefact Evaluation).
 
 In reality \Excel works slightly differently (as far as we are able to ascertain) --
 on a change it propagates the dirty bits forward using the \hs{dynamicDependencies}, then only checks if the current \hs{key} is dirty. While both methods are equivalent, merely changing the interleaving, our approach allows us to model more of the behaviour of \Excel.
 
+\vspace{-2mm}
 \subsection{\Shake}\label{sec-implementation-shake}
+\vspace{-1mm}
 
 The \Shake approach for dependency tracking involves recording traces and verifying them, for which we use the \hs{Trace} type defined in \ref{sec-verifying-traces}. Complete code is given in \S\ref{fig-shake-implementation}, split into three functions:
 
@@ -245,7 +248,9 @@ shake = recursive $ \key fetch act -> do
 \vspace{1mm}
 \end{figure}
 
+\vspace{-2mm}
 \subsection{\Bazel}\label{sec-implementation-bazel}
+\vspace{-1mm}
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -273,12 +278,9 @@ defined in Fig.~\ref{fig-make-implementation}.}\label{fig-bazel-implementation}
 Now we have seen all three dependency schemes, we can directly reuse \hs{topological} to define \Bazel. Furthermore, as \Bazel is a tracing build system, we can reuse \hs{Trace} and \hs{traceMatch}, along with the \hs{Traces} type from \S\ref{sec-constructive-traces}. With these pieces in place, the implementation of \Bazel is given in Fig.~\ref{fig-bazel-implementation}. We first figure out the possible results given the current state. If there are no recorded traces for the current dependencies we run it and record the results, otherwise grab a suitable result from the \hs{contents} cache.
 
 The program presented above captures certain aspects of \Bazel, but the real implementation makes one important additional assumption on \hs{Task} -- namely that it is \textit{deterministic}. With that assumption \Bazel is able to create the result hash in a trace by hashing together the result hashes of the dependencies and the key -- as the mapping between dependencies and results is deterministic. As a consequence \Bazel can compute the results of traces locally, without looking at \hs{Traces} (potentially saving a roundtrip to the server). To model this change in the code would require storing an additional transient piece of information \hs{done} of type \hs{Map}~\hs{k}~\hs{(Hash}~\hs{v)}, storing the computed hashes so far this run. With that available, \hs{getHash}~\hs{key}~\hs{s} would become:
-
 \begin{minted}[xleftmargin=10pt]{haskell}
 hash (key, [ done Map.! d | d <- ds ])
 \end{minted}
-
-\noindent
 And that new hash would have to be stored in \hs{done}.
 
 \subsection{Cloud \Shake}\label{sec-implementation-cloud-shake}
@@ -305,7 +307,7 @@ cloudShake = recursive $ \key fetch act -> do
 \end{minted}
 \vspace{-2mm}
 \caption{An implementation of Cloud \Shake using our framework.}\label{fig-cloudshake-implementation}
-\vspace{-2mm}
+\vspace{-4mm}
 \end{figure}
 
 The differences from \hs{bazel} are minor~--~the dependency scheme has changed
@@ -314,13 +316,15 @@ are captured from the action rather than in advance, the transient state has
 gained a list of keys, and the checking calls \hs{fetch} to get the result
 instead of accessing the store directly.
 
+\vspace{-1mm}
 \subsection{Smarter \hs{[Trace]} data structures}\label{sec-smart-traces}
+\vspace{-1mm}
 
 In the examples above, we have used \hs{[Trace}~\hs{k}~\hs{v]} to capture a list
 of traces~--~however, using a list necessarily means that finding the right trace
 takes $O(n)$. For each of the \hs{Trace} based systems it is possible to devise
 a smarter representation, which we sketch below. Note that these implementations
-do not reduce calls to \hs{compute}, merely overheads in the build system itself.
+do not avoid calls to \hs{compute}, merely overheads in the build system itself.
 
 \begin{enumerate}
 \item Any system using verifying traces, e.g. \Shake, is unlikely to see significant benefit from storing more than one \hs{Trace} per key\footnote{There is a small chance of a benefit if the dependencies change but the result does not, and then the dependencies change back to what they were before.}. Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v)}, where the initial \hs{k} is the \hs{key} field of \hs{Trace}.

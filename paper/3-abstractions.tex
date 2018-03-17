@@ -90,6 +90,7 @@ but are produced in the process of turning inputs into outputs.
 also contains information maintained by the build system itself, which persists
 from one invocation of the build system to the next -- its ``memory''.
 
+\vspace{-2mm}
 \paragraph{Task description} Any build system requires the user to specify how to
 compute the new value for one key, using the (up to date) values of its
 dependencies. We call this specification the \emph{task description}.  For
@@ -170,10 +171,8 @@ type Build c i k v = Task c k v -> k -> Store i k v -> Store i k v
 The signature is very straightforward.  Given a task description, a target key,
 and a store, the build system returns a new store in which the value of the
 target key is up to date. What exactly does ``up to date'' mean?  We answer
-that precisely in \S\ref{sec-build-correctness}.
+that precisely in \S\ref{sec-build-correctness}. Here is a simple build system:
 
-\noindent
-Here is a simple build system:
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 busy :: Eq k => Build Monad () k v
@@ -413,9 +412,10 @@ includes the \hs{busy} build system introduced earlier: it will loop
 indefinitely given a cyclic \hs{task}. Some build systems provide a limited
 support for cyclic tasks, see~\S\ref{sec-iterative-compute}.
 
-% The above definition of correctness needs to be adjusted to accommodate
-% non-deterministic tasks and shallow cloud builds; we address this
-% in sections~\S\ref{sec-non-determinism} and~\S\ref{sec-cloud-aspects}, respectively.
+The presented definition of correctness needs to be adjusted to accommodate
+non-deterministic tasks and shallow cloud builds, as will be discussed
+in sections~\S\ref{sec-non-determinism} and~\S\ref{sec-cloud-aspects},
+respectively.
 
 \subsection{Computing dependencies}\label{sec-deps}\label{secdeps}
 
@@ -425,12 +425,15 @@ of \Excel) looking at the syntax tree of the formula.  But a task description
 has no such syntax tree. Yet, remarkably, we can use the polymorphism of a
 \hs{Task}~\hs{Applicative} to find its dependencies \emph{without doing any of
 the actual work}. Here is the code:
+
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 dependencies :: Task Applicative k v -> k -> [k]
 dependencies task key = case task (\k -> Const [k]) key of
                             Nothing         -> []
                             Just (Const ks) -> ks
 \end{minted}
+\vspace{1mm}
 
 Here \hs{Const} is a standard Haskell type defined in Fig.~\ref{fig-types}. We
 instantiate \hs{f} to \hs{Const}~\hs{[@@k]}.  So a value of type \hs{f}~\hs{v},
@@ -494,7 +497,7 @@ with a \hs{trackingFetch} that, in addition to fetching a value, tracks the
 corresponding key. The \hs{task} returns the value of type
 \hs{Maybe}~\hs{(@@WriterT}~\hs{[@@k]}~\hs{m}~\hs{v)}, which we unwrap by applying
 \hs{runWriterT} to the contents of \hs{Maybe}.
-Here is an example of \hs{track}ing monadic tasks when \hs{m}~\hs{=}~\hs{IO}:
+Below we give an example of \hs{track}ing monadic tasks when \hs{m}~\hs{=}~\hs{IO}.
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}

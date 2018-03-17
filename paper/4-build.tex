@@ -23,6 +23,7 @@ The build systems overview (\S\ref{sec-background-summary}) highlighted three
 distinct approaches to respecting the dependency order. This subsection explores
 their properties and possible implementations.
 
+\vspace{-2mm}
 \subsubsection{Topological}\label{sec-topological}
 
 The topological approach pre-computes a linear order, which when followed, ensures
@@ -34,6 +35,7 @@ in~\S\ref{sec-deps}, we can only extract dependencies from an applicative task,
 which requires the build system to choose \hs{c}~\hs{=}~\hs{Applicative}, ruling
 out dynamic dependencies.
 
+\vspace{-2mm}
 \subsubsection{Reordering}\label{sec-reordering}
 
 The topological approach has two downsides: it is limited to \hs{Applicative}
@@ -48,6 +50,7 @@ dependencies. It is also not minimal in the sense that a task may start, do some
 meaningful work, then abort. However, in the case of an \hs{Applicative} system,
 that work is zero.
 
+\vspace{-2mm}
 \subsubsection{Recursive}\label{sec-recursive}
 
 An alternative approach, utilised by the \hs{busy} build system
@@ -56,7 +59,7 @@ requested. By combining that with a transient set of which keys have already
 been built, you can obtain a minimal build system.
 
 This approach requires that a task may be started, then during that execution
-another task will have to be run. Assuming a an IO-driven task structure,
+another task will have to be run. Assuming an IO-driven task structure,
 that requires suspending a running task, which can be done with cheap
 green threads and blocking (the original approach of \Shake) or using
 continuation-passing style (what \Shake does currently). An alternative approach to
@@ -68,6 +71,7 @@ of doing additional work.
 The second aspect, determining what to rebuild, can be addressed in one of three
 fundamental ways, with a number of tweaks and variations within them.
 
+\vspace{-2mm}
 \subsubsection{A dirty bit}\label{sec-dirty-bit}
 
 The idea of a dirty bit is to have one piece of persistent
@@ -120,6 +124,7 @@ impossible task with only the ability to update to the latest modification time.
 \Make can approximate early cutoff by not modifying the result file, and not marking it clean,
 but then it will rerun in every subsequent build.
 
+\vspace{-2mm}
 \subsubsection{Verifying traces}\label{sec-verifying-traces}
 
 An alternative way to determine if a key is dirty is to record what state the
