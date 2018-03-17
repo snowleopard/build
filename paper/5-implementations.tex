@@ -6,32 +6,6 @@ concretely implementing and refactoring each build system did we determine the
 underlying commonalities. In this section we share some of the code that got us
 there.
 
-% Our code comprises a framework, utility functions implementing the
-% various dependency orderings as per~\S\ref{sec-dependency-orderings}, and
-% actual implementations.
-
-% \subsection{Framework}
-
-% todo{SLPJ}{I think this entire section, including the mysterious M, can be deleted.  Or is
-% there anything that remains?}
-
-% \begin{figure}
-% \begin{minted}{haskell}
-% type M i k v r = State (i, k -> v, ...) r
-% runM :: Default i => M i k v a -> Maybe i -> (k -> v) -> (i, k -> v)
-
-% getStore :: k -> M i k v v
-% putStore :: k -> v -> M i k v ()
-% getInfo :: M i k v i
-% modifyInfo :: (i -> i) -> M i k v ()
-% \end{minted}
-% Note: we have omitted the context on \hs{k}, things like \hs{Eq} (to implement the store).
-% \caption{API with which to implement build systems}
-% \label{fig-M-api}
-% \end{figure}
-
-% We use \hs{runM} to switch between the pure world of \hs{Build} and a state monad \hs{M} which lets us more precisely express the ideas behind the build system without threading the state manually - the types of important operations are given in Figure~\ref{fig-M-api}. We provide functions like \hs{getStore} to load from the store and \hs{putStore} to write to the store. We'll introduce the other functions in in the monad \hs{M} as we need them while exploring the build systems.
-
 \subsection{\Make}\label{sec-implementation-make}
 
 We provide an implementation of \Make using our framework in
