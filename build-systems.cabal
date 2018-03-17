@@ -32,6 +32,7 @@ library
                         Development.Build.Utilities
   build-depends:        base         >= 4.7 && < 5,
                         containers   >= 0.5.7.1,
+                        extra        >= 1.5.3,
                         filepath     >= 1.4.1.0,
                         mtl          >= 2.2.1,
                         random       >= 1.1,
@@ -51,7 +52,7 @@ test-suite test-expression
     main-is:            Main.hs
     build-depends:      build-systems,
                         base         >= 4.7     && < 5,
-                        extra,
+                        extra        >= 1.5.3,
                         containers   >= 0.5.7.1,
                         mtl          >= 2.2.1,
                         transformers >= 0.5.2.0
