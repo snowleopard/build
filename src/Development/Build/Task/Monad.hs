@@ -28,9 +28,10 @@ dependencies task store = execWriterT . sequenceA . task fetch
 track :: Task Monad k v -> (k -> v) -> k -> Maybe (v, [k])
 track task fetch = fmap runWriter . task (\k -> writer (fetch k, [k]))
 
-trackM :: Monad m => Task Monad k v -> (k -> m v) -> k -> Maybe (m (v, [k]))
-trackM task fetch key = runWriterT <$> task trackingFetch key
+trackM :: forall m k v. Monad m => Task Monad k v -> (k -> m v) -> k -> Maybe (m (v, [k]))
+trackM task fetch = fmap runWriterT . task trackingFetch
   where
+    trackingFetch :: k -> WriterT [k] m v
     trackingFetch k = tell [k] >> lift (fetch k)
 
 transitiveDependencies :: (Eq k, Monad m) => Task Monad k v
