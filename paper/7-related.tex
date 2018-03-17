@@ -70,9 +70,6 @@ can model \Fabricate{}-like build systems~--~see \hs{Development.Shake.Forward}
 in the \Shake library.}. However, in our pure model the mapping is not perfect
 as \cmd{gcc} writes to arbitrary files whose locations are not known in advance.
 
-% \todo{AM}{Write a short section about memoization if enough time.}
-% \subsection{Memoization}\label{sec-related-memo}
-
 \subsection{Self-adjusting computation}
 
 While not typically considered build systems, self-adjusting computation is a
@@ -92,6 +89,54 @@ used to model this to a limited degree).
 A lot of research has been dedicated to finding efficient data structures and
 algorithms for self-adjusting computations~--~we plan to explore this
 untapped (by build systems) resource in~future.
+
+\subsection{Memoization}\label{sec-related-memo}
+
+\emph{Memoization} is a classic optimisation technique for storing values of a
+function instead of recomputing them each time the function is called. Minimal
+build systems (see the Definition~\ref{def-minimal}) certainly perform
+memoization: they \emph{store values instead of recomputing them each time}.
+Memoization can therefore be reduced to a minimal build system (as we
+demonstrate below), but not vice versa, since minimal build systems solve a more
+complex optimisation problem.
+
+As a simple example of using a build system for memoization, we solve a textbook
+dynamic programming problem~--~Levenshtein's \emph{edit
+distance}~\cite{levenshtein1966binary}: given two input strings $a$ and
+$b$, find the minimum-weight series of edit operations that transforms $a$
+to $b$. The edit operations are typically \emph{inserting}, \emph{deleting} or
+\emph{replacing} a symbol. The dynamic programming solution of this problem is
+widely known (e.g., see~\cite{cormen2001introduction}) that we provide its
+encoding in our \hs{Task} abstraction without further explanation.
+We address elements of strings $a_i$ and $b_i$ by keys \hs{A}~$i$ and \hs{B}~$i$,
+respectively, while the cost of a subproblem $d_{ij}$ is identified by
+\hs{D}~$i$~$j$.
+
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Key = A Integer | B Integer | D Integer Integer deriving Ord
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+editDistance :: Task Monad Key Integer
+editDistance _     (D i 0) = Just $ pure i
+editDistance _     (D 0 j) = Just $ pure j
+editDistance fetch (D i j) = Just $ do
+    ai <- fetch (A i)
+    bj <- fetch (B i)
+    if ai == bj
+        then fetch (D (i - 1) (j - 1))
+        else do
+            x <- fetch (D (i - 1)  j     )
+            y <- fetch (D  i      (j - 1))
+            z <- fetch (D (i - 1) (j - 1))
+            return (1 + minimum [x, y, z])
+editDistance _ _ = Nothing
+\end{minted}
+
+\noindent
+When asked to build \hs{D}~$n$~$m$, a minimal build system will calculate the
+result using memoization. Furthermore, when an input symbol $a_i$ is changed,
+only necessary, incremental recomputation will be performed.
 
 \subsection{Profunctor Optics}\label{sec-related-optics}
 
