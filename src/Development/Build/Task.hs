@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-module Development.Build.Task (Task, inputTask, isInput, sprsh1, sprsh2) where
+module Development.Build.Task (Task, inputTask, isInput, compose, sprsh1, sprsh2) where
 
 import Control.Applicative
 import Control.Monad
@@ -19,6 +19,9 @@ inputTask _ _ = Nothing
 -- TODO: How do we express this in terms of Task? Drop forall in Task?
 isInput :: ((k -> Proxy v) -> k -> Maybe (Proxy v)) -> k -> Bool
 isInput task = isNothing . task (const Proxy)
+
+compose :: Task Monad k v -> Task Monad k v -> Task Monad k v
+compose t1 t2 fetch key = t1 fetch key <|> t2 fetch key
 
 --------------------------- Task Functor: Collatz ---------------------------
 -- Collatz sequence:
@@ -48,9 +51,9 @@ collatz get (Collatz k) | k <= 0    = Nothing
 data Fibonacci = Fibonacci Int
 
 fibonacci :: Task Applicative Fibonacci Int
-fibonacci get (Fibonacci k) | k <= 1    = Nothing
-                            | otherwise = Just $ (+) <$> get (Fibonacci (k - 1))
-                                                     <*> get (Fibonacci (k - 2))
+fibonacci fetch (Fibonacci k)
+    | k >= 2 = Just $ (+) <$> fetch (Fibonacci (k - 1)) <*> fetch (Fibonacci (k - 2))
+    | otherwise = Nothing
 
 -- Fibonacci numbers are a classic example of memoization: a non-minimal build
 -- system will take ages to compute f[100], doing O(f[100]) recursive calls.
@@ -96,9 +99,14 @@ indirect fetch key | key /= "B1" = Nothing
                        c1 <- fetch "C1"
                        fetch ("A" ++ show c1)
 
+staticIF :: Bool -> Task Applicative String Int
+staticIF b fetch "B1" = Just $ if b then fetch "A1"
+                                    else (+) <$> fetch "A2" <*> fetch "A3"
+staticIF _ _     _    = Nothing
+
 sprsh1 :: Task Applicative String Integer
-sprsh1 fetch "B1" = Just ((+) <$> fetch "A1" <*> fetch "A2")
-sprsh1 fetch "B2" = Just ((* 2) <$> fetch "B1")
+sprsh1 fetch "B1" = Just ((+)  <$> fetch "A1" <*> fetch "A2")
+sprsh1 fetch "B2" = Just ((*2) <$> fetch "B1")
 sprsh1 _     _    = Nothing
 
 sprsh2 :: Task Monad String Integer
