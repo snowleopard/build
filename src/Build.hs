@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables, TupleSections #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-module Development.Build (
+module Build (
     -- * Build
     Build, dumb, busy, memo, make, excel, shake,
 
@@ -20,11 +20,11 @@ import Data.Set (Set)
 import Data.Map (Map)
 import Control.Monad.Extra
 
-import Development.Build.Task
-import Development.Build.Task.Applicative hiding (exceptional)
-import Development.Build.Task.Monad hiding (dependencies)
-import Development.Build.Store
-import Development.Build.Utilities
+import Build.Task
+import Build.Task.Applicative hiding (exceptional)
+import Build.Task.Monad hiding (dependencies)
+import Build.Store
+import Build.Utilities
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map

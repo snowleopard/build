@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
-module Development.Build.Task.Applicative (
+module Build.Task.Applicative (
     pureTask, dependencies, transitiveDependencies, acyclic, debugPartial,
     partial, exceptional
     ) where
@@ -8,8 +8,8 @@ import Control.Applicative
 import Data.Functor.Compose
 import Data.Maybe
 
-import Development.Build.Task
-import Development.Build.Utilities
+import Build.Task
+import Build.Utilities
 
 -- | Lift a pure function to an applicative task.
 pureTask :: (k -> v) -> Task Applicative k v

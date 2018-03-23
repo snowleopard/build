@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, DefaultSignatures, FunctionalDependencies #-}
-module Development.Build.Store (
+module Build.Store (
     -- * Hashing
     Hash, Hashable (..),
 

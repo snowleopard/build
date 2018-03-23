@@ -1,35 +1,35 @@
-name:                build-systems
+name:                build
 version:             0.0.1
-synopsis:            Experimenting with build systems
-homepage:            https://github.com/snowleopard/build-systems
+synopsis:            Build systems à la carte
+homepage:            https://github.com/snowleopard/build
 license:             MIT
 license-file:        LICENSE
 author:              Andrey Mokhov <andrey.mokhov@gmail.com>, github: @snowleopard
 maintainer:          Andrey Mokhov <andrey.mokhov@gmail.com>, github: @snowleopard
 copyright:           Andrey Mokhov, 2018
-category:            Development
+category:            Algorithms, Data Structures
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
 source-repository head
   type:     git
-  location: https://github.com/snowleopard/build-systems
+  location: https://github.com/snowleopard/build
 
 library
   hs-source-dirs:       src
-  exposed-modules:      Development.Build,
-                        Development.Build.Task,
-                        Development.Build.Task.Alternative,
-                        Development.Build.Task.Applicative,
-                        Development.Build.Task.Functor,
-                        Development.Build.Task.Monad,
-                        Development.Build.Task.MonadPlus,
-                        Development.Build.Example.Spreadsheet,
-                        Development.Build.NonDeterministic,
-                        Development.Build.Plan,
-                        Development.Build.Store,
-                        Development.Build.Utilities
+  exposed-modules:      Build,
+                        Build.Task,
+                        Build.Task.Alternative,
+                        Build.Task.Applicative,
+                        Build.Task.Functor,
+                        Build.Task.Monad,
+                        Build.Task.MonadPlus,
+                        Build.Example.Spreadsheet,
+                        Build.NonDeterministic,
+                        Build.Plan,
+                        Build.Store,
+                        Build.Utilities
   build-depends:        base         >= 4.7 && < 5,
                         containers   >= 0.5.7.1,
                         extra        >= 1.5.3,
@@ -50,7 +50,7 @@ test-suite test-expression
     hs-source-dirs:     test
     type:               exitcode-stdio-1.0
     main-is:            Main.hs
-    build-depends:      build-systems,
+    build-depends:      build,
                         base         >= 4.7     && < 5,
                         extra        >= 1.5.3,
                         containers   >= 0.5.7.1,

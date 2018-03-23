@@ -1,4 +1,4 @@
-module Development.Build.Plan (
+module Build.Plan (
     -- Traces
     Result, checkResult, VerifyingTrace, verify, ConstructiveTrace, construct,
 
@@ -11,8 +11,8 @@ module Development.Build.Plan (
 
 import Data.Maybe
 import Data.Map (Map)
-import Development.Build.Store
-import Development.Build.Utilities
+import Build.Store
+import Build.Utilities
 
 import qualified Data.Map as Map
 

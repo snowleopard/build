@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-module Development.Build.Task (Task, inputTask, isInput, compose, sprsh1, sprsh2) where
+module Build.Task (Task, inputTask, isInput, compose, sprsh1, sprsh2) where
 
 import Control.Applicative
 import Control.Monad

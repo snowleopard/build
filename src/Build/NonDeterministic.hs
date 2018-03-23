@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
-module Development.Build.NonDeterministic (NonDeterministic (..)) where
+module Build.NonDeterministic (NonDeterministic (..)) where
 
 import Data.Functor.Identity
 import Control.Monad

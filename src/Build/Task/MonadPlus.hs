@@ -1,5 +1,5 @@
 {-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes #-}
-module Development.Build.Task.MonadPlus (
+module Build.Task.MonadPlus (
     random, dependencies, transitiveDependencies, acyclic, inputs, isInput,
     consistent, pure
     ) where
@@ -10,8 +10,8 @@ import Control.Monad.Writer
 import Data.Functor.Identity
 import Data.Maybe
 
-import Development.Build.Task
-import Development.Build.Utilities
+import Build.Task
+import Build.Utilities
 
 random :: (Int, Int) -> Task MonadPlus k Int
 random (low, high) _ _ = Just $ foldr mplus mzero $ map pure [low..high]

@@ -1,10 +1,10 @@
 {-# LANGUAGE RankNTypes #-}
-module Development.Build.Example.Spreadsheet where
+module Build.Example.Spreadsheet where
 
 import Data.Char
 import Data.Maybe
 import Data.String
-import Development.Build.Task
+import Build.Task
 import Text.Read
 
 -- | A 'Cell' is described by a pair integers: 'row' and 'column'. We provide

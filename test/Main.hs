@@ -2,11 +2,11 @@
 import Control.Monad
 import Data.Maybe
 
-import Development.Build
-import Development.Build.Task
-import Development.Build.Store
+import Build
+import Build.Task
+import Build.Store
 
-import Development.Build.Example.Spreadsheet
+import Build.Example.Spreadsheet
 
 inputs :: Store () Cell Int
 inputs = initialise () $ \cell -> fromMaybe (cellNotFoundValue cell) $ lookup cell

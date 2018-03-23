@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Development.Build.Task.Monad (
+module Build.Task.Monad (
     dependencies, track, trackM, transitiveDependencies, inputs, acyclic,
     consistent, correctBuild, compute, compute', debugPartial, partial,
     trackExceptions, exceptional, staticDependencies, Script (..), getScript,
@@ -15,9 +15,9 @@ import Data.Functor.Identity
 import Data.Maybe
 import Data.Proxy
 
-import Development.Build.Store
-import Development.Build.Task hiding (isInput)
-import Development.Build.Utilities
+import Build.Store
+import Build.Task hiding (isInput)
+import Build.Utilities
 
 -- TODO: Does this always terminate? It's not obvious!
 dependencies :: Monad m => Task Monad k v -> (k -> m v) -> k -> m [k]

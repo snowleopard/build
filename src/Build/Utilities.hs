@@ -1,4 +1,4 @@
-module Development.Build.Utilities (
+module Build.Utilities (
     -- * Graph operations
     reachable, topSort, reach, reachM,
 

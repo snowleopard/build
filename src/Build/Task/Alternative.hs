@@ -1,13 +1,13 @@
 {-# LANGUAGE RankNTypes #-}
-module Development.Build.Task.Alternative (
+module Build.Task.Alternative (
     failingTask, (|||), random, dependencies, transitiveDependencies, acyclic
     ) where
 
 import Control.Applicative
 import Data.Maybe
 
-import Development.Build.Task
-import Development.Build.Utilities
+import Build.Task
+import Build.Utilities
 
 -- | The task that fails for any key by returning 'empty'.
 failingTask :: Task Alternative k v
