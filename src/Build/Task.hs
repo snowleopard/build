@@ -55,6 +55,12 @@ fibonacci fetch (Fibonacci k)
     | k >= 2 = Just $ (+) <$> fetch (Fibonacci (k - 1)) <*> fetch (Fibonacci (k - 2))
     | otherwise = Nothing
 
+-- Or, with simple Integer keys
+fib :: Task Applicative Integer Integer
+fib fetch n
+    | n >= 2 = Just $ (+) <$> fetch (n-1) <*> fetch (n-2)
+    | otherwise = Nothing
+
 -- Fibonacci numbers are a classic example of memoization: a non-minimal build
 -- system will take ages to compute f[100], doing O(f[100]) recursive calls.
 -- The right approach is to build the dependency graph and execute computations
