@@ -37,7 +37,7 @@ import qualified Data.Map as Map
 type Build c i k v = Task c k v -> k -> Store i k v -> Store i k v
 
 dumb :: Eq k => Build Monad i k v
-dumb task key store = case compute task (\k -> getValue k store) key of
+dumb task key store = case compute task (flip getValue store) key of
     Nothing    -> store
     Just value -> putValue key value store
 

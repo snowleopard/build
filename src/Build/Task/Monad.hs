@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Build.Task.Monad (
     dependencies, track, trackM, transitiveDependencies, inputs, acyclic,
-    consistent, correctBuild, compute, compute', debugPartial, partial,
+    consistent, correctBuild, compute, debugPartial, partial,
     trackExceptions, exceptional, staticDependencies, Script (..), getScript,
     runScript, isStatic
     ) where
@@ -74,11 +74,7 @@ correctBuild task store result key =
 -- | Run a task with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
 compute :: Task Monad k v -> (k -> v) -> k -> Maybe v
-compute task fetch = fmap runIdentity . task (pure . fetch)
-
--- The version used in the paper
-compute' :: Task Monad k v -> Store i k v -> k -> Maybe v
-compute' task store = fmap runIdentity . task (\k -> Identity (getValue k store))
+compute task store = fmap runIdentity . task (Identity . store)
 
 -- | Run a task with a partial lookup function. The result @Left k@ indicates
 -- that the task failed due to a missing dependency @k@. Otherwise, the
