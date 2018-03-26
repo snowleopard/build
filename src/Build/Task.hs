@@ -1,9 +1,10 @@
-{-# LANGUAGE ConstraintKinds, RankNTypes #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 module Build.Task (Task, inputTask, isInput, compose, sprsh1, sprsh2) where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Reader
 import Data.Maybe
 import Data.Proxy
 
@@ -22,6 +23,14 @@ isInput task = isNothing . task (const Proxy)
 
 compose :: Task Monad k v -> Task Monad k v -> Task Monad k v
 compose t1 t2 fetch key = t1 fetch key <|> t2 fetch key
+
+type Task' c k v = forall f. c f => k -> Maybe ((k -> f v) -> f v)
+
+toTask :: Task' Monad k v -> Task Monad k v
+toTask task' fetch key = ($fetch) <$> task' key
+
+fromTask :: forall k v. Task Monad k v -> Task' Monad k v
+fromTask task key = runReaderT <$> task (\k -> ReaderT ($k)) key
 
 --------------------------- Task Functor: Collatz ---------------------------
 -- Collatz sequence:
