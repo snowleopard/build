@@ -1,13 +1,11 @@
 {-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes #-}
 module Build.Task.MonadPlus (
     random, dependencies, transitiveDependencies, acyclic, inputs, isInput,
-    consistent, pure
+    consistent, pure, computeND
     ) where
 
 import Control.Monad
-import Control.Monad.List
 import Control.Monad.Writer
-import Data.Functor.Identity
 import Data.Maybe
 
 import Build.Task
@@ -47,15 +45,7 @@ consistent task store = forall $ \k -> case computeND task store k of
 -- | Run a non-deterministic task with a pure lookup function, listing all
 -- possible results, including @Nothing@ indicating that a given key is an input.
 computeND :: Task MonadPlus k v -> (k -> v) -> k -> Maybe [v]
-computeND task store = fmap runList . task (list . pure . store)
-
-type List a = ListT Identity a
-
-runList :: List a -> [a]
-runList = runIdentity . runListT
-
-list :: [a] -> List a
-list = ListT . Identity
+computeND task store = task (return . store)
 
 -- pureInputs :: Eq k => Task MonadPlus k v -> (k -> v) -> k -> [Maybe [k]]
 -- pureInputs task f = runIdentity . runListT . inputs task (ListT . return . pure . f)

@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-module Build.Task (Task, inputTask, isInput, compose, sprsh1, sprsh2) where
+module Build.Task (Task, inputTask, isInput, compose, sprsh1, sprsh2, sprsh3) where
 
 import Control.Applicative
 import Control.Monad
@@ -18,33 +18,35 @@ inputTask :: (k -> f v) -> k -> Maybe (f v)
 inputTask _ _ = Nothing
 
 -- TODO: How do we express this in terms of Task? Drop forall in Task?
+-- isInput :: Task MonadPlus k v -> k -> Bool
 isInput :: ((k -> Proxy v) -> k -> Maybe (Proxy v)) -> k -> Bool
 isInput task = isNothing . task (const Proxy)
 
 compose :: Task Monad k v -> Task Monad k v -> Task Monad k v
 compose t1 t2 fetch key = t1 fetch key <|> t2 fetch key
 
-type Task' c k v = forall f. c f => k -> Maybe ((k -> f v) -> f v)
+type Task2 c k v = forall f. c f => k -> Maybe ((k -> f v) -> f v)
 
-toTask :: Task' Monad k v -> Task Monad k v
-toTask task' fetch key = ($fetch) <$> task' key
+toTask :: Task2 Monad k v -> Task Monad k v
+toTask task2 fetch key = ($fetch) <$> task2 key
 
-fromTask :: forall k v. Task Monad k v -> Task' Monad k v
+fromTask :: Task Monad k v -> Task2 Monad k v
 fromTask task key = runReaderT <$> task (\k -> ReaderT ($k)) key
+
+compose2 :: Task2 Monad k v -> Task2 Monad k v -> Task2 Monad k v
+compose2 t1 t2 key = t1 key <|> t2 key
 
 --------------------------- Task Functor: Collatz ---------------------------
 -- Collatz sequence:
 -- c[0] = n
 -- c[k] = f(c[k - 1]) where
 -- For example, if n = 12, the sequence is 3, 10, 5, 16, 8, 4, 2, 1, ...
-data Collatz = Collatz Int
-
-collatz :: Task Functor Collatz Int
-collatz get (Collatz k) | k <= 0    = Nothing
-                        | otherwise = Just $ f <$> get (Collatz (k - 1))
+collatz :: Task Functor Integer Integer
+collatz fetch n | n <= 0    = Nothing
+                | otherwise = Just $ f <$> fetch (n - 1)
   where
-    f n | even n    = n `div` 2
-        | otherwise = 3 * n + 1
+    f k | even k    = k `div` 2
+        | otherwise = 3 * k + 1
 
 -- A good demonstration of early cut-off:
 -- * Task Collatz sequence from n = 6: 6, 3, 10, 5, 16, 8, 4, 2, 1, ...
@@ -57,16 +59,8 @@ collatz get (Collatz k) | k <= 0    = Nothing
 -- f[k] = f[k - 1] + f[k - 2]
 -- For example, with (n, m) = (0, 1) we get usual Fibonacci sequence, and if
 -- (n, m) = (2, 1) we get Lucas sequence: 2, 1, 3, 4, 7, 11, 18, 29, 47, ...
-data Fibonacci = Fibonacci Int
-
-fibonacci :: Task Applicative Fibonacci Int
-fibonacci fetch (Fibonacci k)
-    | k >= 2 = Just $ (+) <$> fetch (Fibonacci (k - 1)) <*> fetch (Fibonacci (k - 2))
-    | otherwise = Nothing
-
--- Or, with simple Integer keys
-fib :: Task Applicative Integer Integer
-fib fetch n
+fibonacci :: Task Applicative Integer Integer
+fibonacci fetch n
     | n >= 2 = Just $ (+) <$> fetch (n-1) <*> fetch (n-2)
     | otherwise = Nothing
 
@@ -81,17 +75,13 @@ fib fetch n
 -- a[m, n] = a[m - 1, a[m, n - 1]]
 -- Formally, it has no inputs, but we return Nothing for negative inputs.
 -- For example, a[m, 1] = 2, 3, 5, 13, 65535, ...
-
-data Ackermann = Ackermann Int Int
-
-ackermann :: Task Monad Ackermann Int
-ackermann get (Ackermann m n)
+ackermann :: Task Monad (Integer, Integer) Integer
+ackermann fetch (n, m)
+    | m == 0    = Just $ pure (n + 1)
+    | n == 0    = Just $ fetch (m - 1, 1)
+    | otherwise = Just $ do index <- fetch (m, n - 1)
+                            fetch (m - 1, index)
     | m < 0 || n < 0 = Nothing
-    | m == 0    = Just $ return (n + 1)
-    | n == 0    = Just $ get (Ackermann (m - 1) 1)
-    | otherwise = Just $ do
-        index <- get (Ackermann m (n - 1))
-        get (Ackermann (m - 1) index)
 
 -- Unlike Collatz and Fibonacci computations, the Ackermann computation cannot
 -- be statically analysed for dependencies. We can only find the first dependency
@@ -126,13 +116,15 @@ sprsh1 _     _    = Nothing
 
 sprsh2 :: Task Monad String Integer
 sprsh2 fetch "B1" = Just $ do c1 <- fetch "C1"
-                              if c1 == 1 then fetch "B2" else fetch "A2"
+                              if c1 == 1 then fetch "B2"
+                                         else fetch "A2"
 sprsh2 fetch "B2" = Just $ do c1 <- fetch "C1"
-                              if c1 == 1 then fetch "A1" else fetch "B1"
+                              if c1 == 1 then fetch "A1"
+                                         else fetch "B1"
 sprsh2 _     _    = Nothing
 
-sprsh3 :: Task MonadPlus String Integer
-sprsh3 fetch "B1" = Just $ (+) <$> fetch "A1" <*> pure 1 `mplus` pure 2
+sprsh3 :: Task Alternative String Integer
+sprsh3 fetch "B1" = Just $ (+) <$> fetch "A1" <*> (pure 1 <|> pure 2)
 sprsh3 _     _    = Nothing
 
 fetchIO :: String -> IO Integer
