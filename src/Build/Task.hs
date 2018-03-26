@@ -77,11 +77,11 @@ fibonacci fetch n
 -- For example, a[m, 1] = 2, 3, 5, 13, 65535, ...
 ackermann :: Task Monad (Integer, Integer) Integer
 ackermann fetch (n, m)
+    | m < 0 || n < 0 = Nothing
     | m == 0    = Just $ pure (n + 1)
     | n == 0    = Just $ fetch (m - 1, 1)
     | otherwise = Just $ do index <- fetch (m, n - 1)
                             fetch (m - 1, index)
-    | m < 0 || n < 0 = Nothing
 
 -- Unlike Collatz and Fibonacci computations, the Ackermann computation cannot
 -- be statically analysed for dependencies. We can only find the first dependency
