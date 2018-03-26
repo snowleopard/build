@@ -40,12 +40,22 @@ inputs task fetch key = do
 -- function @f@, i.e. for all keys @k@, if @f k == v@ then @Just v@ is a possible
 -- result of the task.
 consistent :: Eq v => Task MonadPlus k v -> (k -> v) -> Bool
-consistent task store = forall $ \k -> Just (store k) `elem` runPure task store k
+consistent task store = forall $ \k -> case computeND task store k of
+    Nothing -> True
+    Just vs -> store k `elem` vs
 
 -- | Run a non-deterministic task with a pure lookup function, listing all
 -- possible results, including @Nothing@ indicating that a given key is an input.
-runPure :: Task MonadPlus k v -> (k -> v) -> k -> [Maybe v]
-runPure task store = runIdentity . runListT . sequenceA . task (ListT . Identity . pure . store)
+computeND :: Task MonadPlus k v -> (k -> v) -> k -> Maybe [v]
+computeND task store = fmap runList . task (list . pure . store)
+
+type List a = ListT Identity a
+
+runList :: List a -> [a]
+runList = runIdentity . runListT
+
+list :: [a] -> List a
+list = ListT . Identity
 
 -- pureInputs :: Eq k => Task MonadPlus k v -> (k -> v) -> k -> [Maybe [k]]
 -- pureInputs task f = runIdentity . runListT . inputs task (ListT . return . pure . f)
