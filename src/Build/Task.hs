@@ -4,6 +4,7 @@ module Build.Task (Task, inputTask, isInput, compose, sprsh1, sprsh2, sprsh3) wh
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Fail (MonadFail)
 import Control.Monad.Reader
 import Data.Maybe
 import Data.Proxy
@@ -126,6 +127,13 @@ sprsh2 _     _    = Nothing
 sprsh3 :: Task Alternative String Integer
 sprsh3 fetch "B1" = Just $ (+) <$> fetch "A1" <*> (pure 1 <|> pure 2)
 sprsh3 _     _    = Nothing
+
+sprsh4 :: Task MonadFail String Integer
+sprsh4 fetch "B1" = Just $ do
+    a1 <- fetch "A1"
+    a2 <- fetch "A2"
+    if a2 == 0 then fail "division by 0" else return (a1 `div` a2)
+sprsh4 _ _ = Nothing
 
 fetchIO :: String -> IO Integer
 fetchIO k = do putStr (k ++ ": "); read <$> getLine
