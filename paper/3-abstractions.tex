@@ -191,9 +191,9 @@ key, it brings the key up to date in the store, and returns its value.
 The function \hs{fetch} runs in the standard Haskell \hs{State} monad -- see
 Fig.~\ref{fig-types} -- initialised with the incoming \hs{store} by \hs{execState}.
 To bring a key up to date, \hs{fetch} asks the task description \hs{task} how
-to compute \hs{k}. If \hs{task} returns \hs{Nothing} the key is an input, so
-\hs{fetch} simply reads the result from the store. Otherwise \hs{fetch} runs
-the action \hs{act} returned by the \hs{task} to produce a resulting
+to compute the value of \hs{k}. If \hs{task} returns \hs{Nothing} the key is an
+input, so \hs{fetch} simply reads the result from the store. Otherwise \hs{fetch}
+runs the action \hs{act} returned by the \hs{task} to produce a resulting
 value~\hs{v}, records the new key/value mapping in the store, and returns \hs{v}.
 Notice that \hs{fetch} passes itself to \hs{task} as an argument, so that the
 latter can use \hs{fetch} to recursively find the values of \hs{k}'s dependencies.
