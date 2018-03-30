@@ -2,9 +2,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Build.Task.Monad (
     dependencies, track, trackM, transitiveDependencies, inputs, acyclic,
-    consistent, correctBuild, compute, debugPartial, partial,
-    trackExceptions, exceptional, staticDependencies, Script (..), getScript,
-    runScript, isStatic
+    correctBuild, compute, debugPartial, partial, trackExceptions, exceptional,
+    staticDependencies, Script (..), getScript, runScript, isStatic
     ) where
 
 import Control.Monad.Trans
@@ -49,27 +48,21 @@ inputs task store key = filter (isInput task) (reachable deps key)
   where
     deps k = maybe [] snd (track task (\k -> getValue k store) k)
 
--- | Check that a task is /consistent/ with a pure lookup function @f@, i.e.
--- if it returns @Just v@ for some key @k@ then @f k == v@.
-consistent :: Eq v => Task Monad k v -> Store i k v -> Bool
-consistent task store =
-    forall $ \k -> case compute task (flip getValue store) k of
-        Nothing -> True
-        Just v  -> getValue k store == v
-
--- | Given a @task@, a pair of key-value maps describing the contents of a
--- store @store@ and @result@ a build system was executed to build a given @key@,
--- determine if @result@ is a correct build outcome.
--- Specifically, there must exist a @ideal@ key-value map, such that:
--- * @store@, @result@ and @ideal@ agree on the values of all inputs.
--- * @result@ and @ideal@ agree on the value of the output @key@.
--- * @ideal@ is 'consistent' with the @task@.
--- We assume that @task@ is acyclic. If it is not, the function returns @True@.
+-- | Given a task description @task@, a target @key@, an initial @store@, and a
+-- @result@ produced by running a build system with parameters @task@, @key@ and
+-- @store@, this function returns 'True' if @result@ is a correct build outcome.
+-- Specifically:
+-- * @result@ and @store@ must agree on the values of all inputs. In other words,
+--   no inputs were corrupted during the build.
+-- * @result@ is /consistent/ with the @task@, i.e. for all non-input keys, the
+--   result of recomputing the @task@ matches the value stored in the @result@.
 correctBuild :: (Eq k, Eq v) => Task Monad k v -> Store i k v -> Store i k v -> k -> Bool
-correctBuild task store result key =
-    exists $ \ideal -> agree [store, result, ideal] (inputs task result key)
-                    && agree [       result, ideal] [key]
-                    && consistent task ideal
+correctBuild task store result key = all correct (reachable deps key)
+  where
+    deps    k = maybe [] snd (track task (\k -> getValue k store) k)
+    correct k = case compute task (flip getValue store) k of
+        Nothing -> getValue k result == getValue k store
+        Just v  -> getValue k result == v
 
 -- | Run a task with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
