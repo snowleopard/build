@@ -332,7 +332,7 @@ do not avoid calls to \hs{compute}, merely overheads in the build system itself.
 \item Any \hs{Applicative} build system storing constructive traces, e.g. \Bazel, can index directly from the key and results to the output result~--~i.e. \hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{(Hash}~\hs{v)}. Importantly, assuming the traces are stored on a central server, the client can compute the key and the hashes of its dependencies, then make a single call to the server to retrieve the result hash. In this formulation we have removed the possibility for a single key/dependency state to map to multiple different hashes, e.g. on a non-deterministic build~--~something \Bazel already prohibits which is discussed more in~\S\ref{sec-non-determinism}.
 \item Finally, a \hs{Monad} build system with constructive traces can be stored as \hs{Map}~\hs{k}~\hs{(Choice}~\hs{k}~\hs{v)}, assuming a definition of \hs{Choice} as:
 \begin{minted}[xleftmargin=10pt]{haskell}
-data Choice k v = Choice k (Map (Hash v) Choice)
+data Choice k v = Choice k (Map (Hash v) (Choice k v))
                 | Result (Hash v)
 \end{minted}
 Here the \hs{Choice} encodes a tree, asking successive questions about keys, and taking different branches based on the answers, until it reaches a final result. Implementing this structure over client-server communication requires either a chatty interface with lots of round-trips per \hs{Choice} step, or sending over a part of the tree that is not subsequently explored.

@@ -383,10 +383,10 @@ $O=\emptyset$.
 The build \hs{result} is~\emph{correct} if the following two conditions hold:
 
 \begin{itemize}
-    \item \hs{store} and \hs{result} \emph{agree on inputs}, that is, for all
+    \item \hs{result} and \hs{store} \emph{agree on inputs}, that is, for all
     input keys \hs{k}~$\in$~$I$:
     \[
-    \hs{getValue}~\hs{k}~\hs{store}~\hs{==}~\hs{getValue}~\hs{k}~\hs{result}.
+    \hs{getValue}~\hs{k}~\hs{result}~\hs{==}~\hs{getValue}~\hs{k}~\hs{store}.
     \]
     In other words, no inputs were corrupted during the
     build.
@@ -396,7 +396,7 @@ The build \hs{result} is~\emph{correct} if the following two conditions hold:
     for all non-input keys \hs{k}~$\in$~$O$, the result of recomputing the
     \hs{task} matches the value stored in the \hs{result}:
     \[
-    \hs{Just}~\hs{(}\hs{getValue}~\hs{k}~\hs{result)}~\hs{==}~\hs{compute}~\hs{task}~\hs{result}~\hs{k}.
+    \hs{getValue}~\hs{k}~\hs{result}~\hs{==}~\hs{@\std{fromJust}@}~\hs{(}\hs{compute}~\hs{task}~\hs{result}~\hs{k)}
     \]
 \end{itemize}
 A build system is \emph{correct} if it produces a correct \hs{result} for any
