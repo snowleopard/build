@@ -4,9 +4,9 @@ synopsis:            Build systems à la carte
 homepage:            https://github.com/snowleopard/build
 license:             MIT
 license-file:        LICENSE
-author:              Andrey Mokhov <andrey.mokhov@gmail.com>, github: @snowleopard
+author:              Andrey Mokhov, Neil Mitchell, Simon Peyton Jones
 maintainer:          Andrey Mokhov <andrey.mokhov@gmail.com>, github: @snowleopard
-copyright:           Andrey Mokhov, 2018
+copyright:           Andrey Mokhov, Neil Mitchell, Simon Peyton Jones, 2018
 category:            Algorithms, Data Structures
 build-type:          Simple
 extra-source-files:  README.md
@@ -46,7 +46,7 @@ library
                         -Wincomplete-uni-patterns
                         -Wredundant-constraints
 
-test-suite test-expression
+test-suite test
     hs-source-dirs:     test
     type:               exitcode-stdio-1.0
     main-is:            Main.hs
