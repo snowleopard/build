@@ -25,6 +25,7 @@ library
                         Build.Task.Functor,
                         Build.Task.Monad,
                         Build.Task.MonadPlus,
+                        Build.Task.Typed,
                         Build.Example.Spreadsheet,
                         Build.NonDeterministic,
                         Build.Plan,
