@@ -43,7 +43,7 @@ acyclic task fetch = fmap isJust . transitiveDependencies task fetch
 isInput :: Task Monad k v -> k -> Bool
 isInput task = isNothing . task (const Proxy)
 
-inputs :: Eq k => Task Monad k v -> Store i k v -> k -> [k]
+inputs :: Ord k => Task Monad k v -> Store i k v -> k -> [k]
 inputs task store key = filter (isInput task) (reachable deps key)
   where
     deps k = maybe [] snd (track task (\k -> getValue k store) k)
@@ -56,7 +56,7 @@ inputs task store key = filter (isInput task) (reachable deps key)
 --   no inputs were corrupted during the build.
 -- * @result@ is /consistent/ with the @task@, i.e. for all non-input keys, the
 --   result of recomputing the @task@ matches the value stored in the @result@.
-correctBuild :: (Eq k, Eq v) => Task Monad k v -> Store i k v -> Store i k v -> k -> Bool
+correctBuild :: (Ord k, Eq v) => Task Monad k v -> Store i k v -> Store i k v -> k -> Bool
 correctBuild task store result key = all correct (reachable deps key)
   where
     deps    k = maybe [] snd (track task (\k -> getValue k store) k)

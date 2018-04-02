@@ -62,7 +62,7 @@ memo task key store = fst $ execState (fetch key) (store, [])
                 modify $ \(s, built) -> (putValue k v s, k : built)
             gets (getValue k . fst)
 
-topological :: Eq k
+topological :: Ord k
             => (k -> [k] -> State (Store i k v) v -> State (Store i k v) ())
             -> Build Applicative i k v
 topological process task key = execState $ forM_ chain $ \k -> do
@@ -72,12 +72,14 @@ topological process task key = execState $ forM_ chain $ \k -> do
         Just act -> process k (deps k) act
   where
     deps  = dependencies task
-    chain = topSort deps (reachable deps key)
+    chain = case topSort (graph deps key) of
+        Nothing -> error "Cannot build tasks with cyclic dependencies"
+        Just xs -> xs
 
 type Time = Integer
 type MakeInfo k = (k -> Time, Time)
 
-make :: forall k v. Eq k => Build Applicative (MakeInfo k) k v
+make :: forall k v. Ord k => Build Applicative (MakeInfo k) k v
 make = topological process
   where
     process :: k -> [k] -> State (Store (MakeInfo k) k v) v -> State (Store (MakeInfo k) k v) ()
@@ -163,7 +165,7 @@ sequentialMultiBuild build task outputs store = case outputs of
 -- * @after@ and @magic@ agree on the values of all outputs.
 -- * @magic@ is 'consistent' with the @task@.
 -- We assume that @task@ is acyclic. If it is not, the function returns @True@.
-correct :: (Eq k, Eq v) => Build Monad i k v -> Task Monad k v -> Bool
+correct :: (Ord k, Eq v) => Build Monad i k v -> Task Monad k v -> Bool
 correct build task = forall $ \(key, store) ->
     correctBuild task store (build task key store) key
 
@@ -221,7 +223,7 @@ data Traces k v = Traces
     { traces :: [Trace k v]
     , contents  :: Map (Hash v) v }
 
-bazel :: (Eq k, Hashable v) => Build Applicative (Traces k v) k v
+bazel :: (Ord k, Hashable v) => Build Applicative (Traces k v) k v
 bazel = topological $ \key ds act -> do
     s <- get
     let Traces traces contents = getInfo s

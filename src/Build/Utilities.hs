@@ -1,6 +1,6 @@
 module Build.Utilities (
     -- * Graph operations
-    reachable, topSort, reach, reachM,
+    graph, reachable, topSort, reach, reachM,
 
     -- * Transformers
     AltConst (..),
@@ -9,15 +9,30 @@ module Build.Utilities (
     forall, forallM, exists, existsM, (==>)
     ) where
 
+import Algebra.Graph hiding (graph)
+import qualified Algebra.Graph.AdjacencyMap as AM
+import qualified Algebra.Graph.Class        as C
+
 import Control.Applicative
 import Data.Functor.Identity
+import qualified Data.Set as Set
 
--- TODO: Implement
-reachable :: Eq a => (a -> [a]) -> a -> [a]
-reachable = undefined
+-- | Build a dependency graph given a function for computing dependencies of a
+-- key and a target key.
+graph :: Ord k => (k -> [k]) -> k -> Graph k
+graph deps key = transpose $ overlays [ star k (deps k) | k <- keys Set.empty [key] ]
+  where
+    keys seen []   = Set.toList seen
+    keys seen (x:xs)
+        | x `Set.member` seen = keys seen xs
+        | otherwise           = keys (Set.insert x seen) (deps x ++ xs)
 
-topSort :: Eq a => (a -> [a]) -> [a] -> [a]
-topSort = undefined
+-- | Compute all keys reachable via dependecies from a target key.
+reachable :: Ord k => (k -> [k]) -> k -> [k]
+reachable deps key = vertexList (graph deps key)
+
+topSort :: Ord k => Graph k -> Maybe [k]
+topSort = AM.topSort . C.toGraph
 
 -- TODO: Just switch to a proper graph library for reachability analysis.
 -- | Given a function to compute successors of a vertex, apply it recursively
