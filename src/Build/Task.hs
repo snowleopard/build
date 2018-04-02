@@ -1,6 +1,8 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-module Build.Task (Task, inputTask, isInput, compose, sprsh1, sprsh2, sprsh3) where
+module Build.Task (
+    Task, inputTask, isInput, compose, fetchIO, sprsh1, sprsh2, sprsh3
+    ) where
 
 import Control.Applicative
 import Control.Monad
@@ -135,8 +137,8 @@ sprsh4 fetch "B1" = Just $ do
     if a2 == 0 then fail "division by 0" else return (a1 `div` a2)
 sprsh4 _ _ = Nothing
 
-fetchIO :: String -> IO Integer
-fetchIO k = do putStr (k ++ ": "); read <$> getLine
+fetchIO :: (Show k, Read v) => k -> IO v
+fetchIO k = do putStr (show k ++ ": "); read <$> getLine
 
 data Key = A Integer | B Integer | D Integer Integer
 
