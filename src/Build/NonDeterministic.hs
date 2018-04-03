@@ -10,6 +10,7 @@ import System.Random
 -- of an 'Alternative' of 'MonadPlus' task, chooses either to fail or return
 -- a random result. Note the parametericity guarantees that if a @Just value@ is
 -- returned it is indeed a possible result.
+-- TODO: Switch to class Monad m => RandomMonad m where rand :: m Bool?
 class Monad m => NonDeterministic m where
     choose :: (forall f. MonadPlus f => f a) -> m (Maybe a)
 

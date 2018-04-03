@@ -1,3 +1,21 @@
+# Meeting with Simon Marlow
+
+* Make:
+
+  - Expand the description of the workaround used to deal with the lack of
+    early cutoff. Explain why we chose not to model this (easier to just
+    implement early cutoff).
+
+* Buck:
+
+  - Has `contents :: Map RuleKey v` instead of `Map (Hash v) v` where `RuleKey`
+    is the hash of all inputs of a particular key. This relies on determinism:
+    inputs fully determine the build outcome. If this assumption is violated,
+    the result can be a frankenbuild (i.e. the executable will segfault).
+  - Has no early cutoff. Impossible to support early cutoff using this approach.
+  - Relies on applicative tasks to compute `RuleKey` from a key. How do we
+    adapt this to dynamic dependencies?
+
 # Feedback on the draft
 
 ## Graydon Hoare (Apple)
