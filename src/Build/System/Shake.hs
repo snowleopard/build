@@ -10,16 +10,15 @@ import Build.Trace
 import qualified Data.Map as Map
 
 -- Shake build system
-shake :: (Eq k, Hashable v) => Build Monad [Trace k v] k v
+shake :: (Eq k, Hashable v) => Build Monad (VT k v) k v
 shake = recursive $ \key fetch act -> do
-    traces <- gets (getInfo . fst)
-    poss <- traceMatch (\k v -> (==) v . hash <$> fetch k) key traces
-    current <- gets (getHash key . fst)
-    when (current `notElem` poss) $ do
-        (v, ds) <- act
-        modify $ \(s, done) ->
-            let t = Trace key [(d, getHash d s) | d <- ds] (getHash key s)
-            in (putInfo (t : getInfo s) (putValue key v s), done)
+    vt <- gets (getInfo . fst)
+    dirty <- not <$> verify (fmap hash . fetch) key vt
+    when dirty $ do
+        (value, deps) <- act
+        modify $ \(s, t) ->
+            let newS = putValue key value s
+            in (updateInfo (record newS key deps) newS, t)
 
 cloudShake :: (Eq k, Hashable v) => Build Monad (Traces k v) k v
 cloudShake = recursive $ \key fetch act -> do
