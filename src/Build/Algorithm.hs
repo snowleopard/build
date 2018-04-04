@@ -1,5 +1,9 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
-module Build.Algorithm where
+module Build.Algorithm(
+    recursive,
+    topological,
+    reordering, CalcChain, Result(..)
+    ) where
 
 import Control.Monad.State
 import Data.Set (Set)
@@ -13,10 +17,12 @@ import Build.Utilities
 
 import qualified Data.Set as Set
 
-topological :: Ord k => (k -> [k]
-                           -> State (Store i k v) v
-                           -> State (Store i k v) ())
-                     -> Build Applicative i k v
+topological :: Ord k =>
+    (      k                        -- ^ Key to build @k@
+        -> [k]                      -- ^ Dependencies of @k@
+        -> State (Store i k v) v    -- ^ Action to calculate the value of @k@
+        -> State (Store i k v) ()
+    ) -> Build Applicative i k v
 topological process task key = execState $ forM_ chain $ \k -> do
     let fetch k = gets (getValue k)
     case task fetch k of
@@ -65,10 +71,13 @@ reordering process task key = execState $ do
                 | otherwise           = return Nothing
 
 -- Recursive dependency strategy
-recursive :: forall i k v. Eq k => (forall t. k -> (k -> State (Store i k v, t) v)
-                                                -> State (Store i k v, t) (v, [k])
-                                                -> State (Store i k v, t) ())
-                                -> Build Monad i k v
+recursive :: forall i k v. Eq k =>
+    (forall t.
+        k                                   -- ^ Key to build @k@
+        -> (k -> State (Store i k v, t) v)  -- ^ Action to look up (and build if necessary) a key.
+        -> State (Store i k v, t) (v, [k])  -- ^ Action to compute the value of @k@ and its direct dependencies.
+        -> State (Store i k v, t) ()
+    ) -> Build Monad i k v
 recursive process task key store = fst $ execState (fetch key) (store, [])
   where
     fetch :: k -> State (Store i k v, [k]) v
