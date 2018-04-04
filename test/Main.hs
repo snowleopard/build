@@ -5,6 +5,7 @@ import Data.Maybe
 import Build
 import Build.Task
 import Build.Store
+import Build.System.Busy
 
 import Build.Example.Spreadsheet
 

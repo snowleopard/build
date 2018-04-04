@@ -19,6 +19,11 @@ source-repository head
 library
   hs-source-dirs:       src
   exposed-modules:      Build,
+                        Build.Algorithm,
+                        Build.Example.Spreadsheet,
+                        Build.NonDeterministic,
+                        Build.Plan,
+                        Build.Store,
                         Build.Task,
                         Build.Task.Alternative,
                         Build.Task.Applicative,
@@ -26,10 +31,11 @@ library
                         Build.Task.Monad,
                         Build.Task.MonadPlus,
                         Build.Task.Typed,
-                        Build.Example.Spreadsheet,
-                        Build.NonDeterministic,
-                        Build.Plan,
-                        Build.Store,
+                        Build.System.Busy,
+                        Build.System.Bazel,
+                        Build.System.Excel,
+                        Build.System.Make,
+                        Build.System.Shake,
                         Build.Utilities
   build-depends:        algebraic-graphs >= 0.0.5,
                         base             >= 4.7 && < 5,
