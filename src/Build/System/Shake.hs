@@ -7,8 +7,6 @@ import Build.Algorithm
 import Build.Store
 import Build.Trace
 
-import qualified Data.Map as Map
-
 -- Shake build system
 shake :: (Eq k, Hashable v) => Build Monad (VT k v) k v
 shake = recursive $ \key fetch act -> do
@@ -20,18 +18,16 @@ shake = recursive $ \key fetch act -> do
             let newS = putValue key value s
             in (updateInfo (recordVT newS key deps) newS, t)
 
-cloudShake :: (Eq k, Hashable v) => Build Monad (Traces k v) k v
+cloudShake :: (Eq k, Hashable v) => Build Monad (CT k v) k v
 cloudShake = recursive $ \key fetch act -> do
-    s <- gets fst
-    let Traces traces contents = getInfo s
-    poss <- traceMatch (\k v -> (==) v . hash <$> fetch k) key traces
-    if null poss then do
-        (v, ds) <- act
-        modify $ \(s,done) ->
-            let t = Trace key [(d, getHash d s) | d <- ds] (getHash key s)
-                ts = Traces (t : traces) (Map.insert (hash v) v contents)
-            in (putInfo ts (putValue key v s), done)
-    else do
-        s <- gets fst
-        when (getHash key s `notElem` poss) $
-            modify $ \(s, done) -> (putValue key (contents Map.! head poss) s, done)
+    ct <- gets (getInfo . fst)
+    dirty <- not <$> verifyCT (fmap hash . fetch) key ct
+    when dirty $ do
+        maybeValue <- constructCT (fmap hash . fetch) key ct
+        case maybeValue of
+            Just value -> modify $ \(s, t) -> (putValue key value s, t)
+            Nothing -> do
+                (value, deps) <- act
+                modify $ \(s, t) ->
+                    let newS = putValue key value s
+                    in (updateInfo (recordCT newS key deps) newS, t)
