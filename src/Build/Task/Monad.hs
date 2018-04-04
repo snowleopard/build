@@ -59,8 +59,8 @@ inputs task store key = filter (isInput task) (reachable deps key)
 correctBuild :: (Ord k, Eq v) => Task Monad k v -> Store i k v -> Store i k v -> k -> Bool
 correctBuild task store result key = all correct (reachable deps key)
   where
-    deps    k = maybe [] snd (track task (\k -> getValue k store) k)
-    correct k = case compute task (flip getValue store) k of
+    deps    k = maybe [] snd (track task (flip getValue result) k)
+    correct k = case compute task (flip getValue result) k of
         Nothing -> getValue k result == getValue k store
         Just v  -> getValue k result == v
 
