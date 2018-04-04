@@ -5,6 +5,7 @@ import Control.Monad.State
 import Build
 import Build.Algorithm
 import Build.Store
+import Build.Trace
 
 import qualified Data.Map as Map
 

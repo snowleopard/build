@@ -31,6 +31,7 @@ library
                         Build.Task.Monad,
                         Build.Task.MonadPlus,
                         Build.Task.Typed,
+                        Build.Trace,
                         Build.System.Busy,
                         Build.System.Bazel,
                         Build.System.Excel,

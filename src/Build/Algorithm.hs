@@ -11,30 +11,12 @@ import Build.Task.Monad hiding (dependencies)
 import Build.Store
 import Build.Utilities
 
-import Data.Map (Map)
-import Control.Monad.Extra
-
 import qualified Data.Set as Set
 
-data Trace k v = Trace
-    { key          :: k
-    , depends :: [(k, Hash v)]
-    , result       :: Hash v }
-
--- Determine whether a trace is relevant to the current state
-traceMatch :: (Monad m, Eq k) => (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
-traceMatch check key ts = mapMaybeM f ts
-    where f (Trace k dkv v) = do
-                b <- return (key == k) &&^ allM (uncurry check) dkv
-                return $ if b then Just v else Nothing
-
-data Traces k v = Traces
-    { traces :: [Trace k v]
-    , contents  :: Map (Hash v) v }
-
-topological :: Ord k
-            => (k -> [k] -> State (Store i k v) v -> State (Store i k v) ())
-            -> Build Applicative i k v
+topological :: Ord k => (k -> [k]
+                           -> State (Store i k v) v
+                           -> State (Store i k v) ())
+                     -> Build Applicative i k v
 topological process task key = execState $ forM_ chain $ \k -> do
     let fetch k = gets (getValue k)
     case task fetch k of
@@ -57,10 +39,10 @@ try task partialFetch = fmap (fmap toResult) . trackExceptions task partialFetch
 
 type CalcChain k = [k]
 
-reordering :: forall i k v. Ord k
-            => (k -> State (Store i k v) (Result k v) -> State (Store i k v) (Maybe (Result k v)))
-            -> Build Monad (i, CalcChain k) k v
-reordering step task key = execState $ do
+reordering :: forall i k v. Ord k => (k -> State (Store i k v) (Result k v)
+                                        -> State (Store i k v) (Maybe (Result k v)))
+                                  -> Build Monad (i, CalcChain k) k v
+reordering process task key = execState $ do
     chain    <- snd . getInfo <$> get
     newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
     modify $ \s -> putInfo (fst (getInfo s), newChain) s
@@ -72,7 +54,7 @@ reordering step task key = execState $ do
             Nothing -> (k :) <$> go (Set.insert k done) ks
             Just act -> do
                 store <- get
-                let (res, newStore) = runState (step k act) (mapInfo fst store)
+                let (res, newStore) = runState (process k act) (mapInfo fst store)
                 put $ mapInfo (,[]) newStore
                 case res of
                     Just (MissingDependency d) -> go done $ [ d | d `notElem` ks ] ++ ks ++ [k]
@@ -83,11 +65,10 @@ reordering step task key = execState $ do
                 | otherwise           = return Nothing
 
 -- Recursive dependency strategy
-recursive :: forall i k v. Eq k
-          => (forall t. k -> (k -> State (Store i k v, t) v)
-                -> State (Store i k v, t) (v, [k])
-                -> State (Store i k v, t) ())
-          -> Build Monad i k v
+recursive :: forall i k v. Eq k => (forall t. k -> (k -> State (Store i k v, t) v)
+                                                -> State (Store i k v, t) (v, [k])
+                                                -> State (Store i k v, t) ())
+                                -> Build Monad i k v
 recursive process task key store = fst $ execState (fetch key) (store, [])
   where
     fetch :: k -> State (Store i k v, [k]) v
