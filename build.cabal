@@ -22,7 +22,6 @@ library
                         Build.Algorithm,
                         Build.Example.Spreadsheet,
                         Build.NonDeterministic,
-                        Build.Plan,
                         Build.Store,
                         Build.Task,
                         Build.Task.Alternative,
