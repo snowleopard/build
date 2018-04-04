@@ -1,5 +1,7 @@
 # Build Systems à la Carte
 
+[![Linux & OS X status](https://img.shields.io/travis/snowleopard/build/master.svg?label=Linux%20%26%20OS%20X)](https://travis-ci.org/snowleopard/build) [![Windows status](https://img.shields.io/appveyor/ci/snowleopard/build/master.svg?label=Windows)](https://ci.appveyor.com/project/snowleopard/build)
+
 This paper provides a detailed introduction to this project:
 [[PDF](https://github.com/snowleopard/build-systems/releases/download/icfp-submission/build-systems.pdf),
 [sources](https://github.com/snowleopard/build-systems/tree/master/paper)].
