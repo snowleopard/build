@@ -55,8 +55,6 @@ printOutputs store = do
     forM_ outputs $
         \key -> putStrLn (show (name key) ++ " = " ++ show (getValue key store))
 
-    -- putStrLn $ "Final info = " ++ show (getInfo store)
-
 test :: i -> Build Monad i Cell Int -> Store i Cell Int
 test i build = sequentialMultiBuild build task outputs (inputs i)
 
@@ -72,7 +70,7 @@ main = do
     putStrLn "======== memo ========"
     printOutputs (test () memo)
     putStrLn "======== make ========"
-    printOutputs (testA (const 0, 0) make)
+    printOutputs (testA (const (-1), 0) make)
     putStrLn "======== excel ========"
     printOutputs (test ((const True, mempty), mempty) excel)
     putStrLn "======== shake ========"

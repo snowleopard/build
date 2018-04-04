@@ -33,7 +33,7 @@ memo = recursive $ \key _fetch act -> do
     modify $ \(store, t) -> (putValue key value store, t)
 
 ------------------------------------- Make -------------------------------------
-type Time = Integer
+type Time = Integer -- A negative time value means a key was never built
 type MakeInfo k = (k -> Time, Time)
 
 make :: forall k v. Ord k => Build Applicative (MakeInfo k) k v
@@ -43,7 +43,7 @@ make = topological process
     process key deps act = do
         (modTime, now) <- gets getInfo
         let dirty = or [ modTime dep > modTime key | dep <- deps ]
-        when dirty $ do
+        when (dirty || modTime key < 0) $ do
             v <- act
             let newModTime k = if k == key then now else modTime k
             modify $ putInfo (newModTime, now + 1) . putValue key v
