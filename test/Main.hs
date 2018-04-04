@@ -1,9 +1,13 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 import Control.Monad
+import Data.Bool
+import Data.List.Extra
 import Data.Maybe
+import System.Exit
 
 import Build
 import Build.Task
+import Build.Task.Monad (correctBuild)
 import Build.Store
 import Build.System
 
@@ -41,8 +45,8 @@ acyclicSpreadsheet cell = case name cell of
     'F':_ -> Just $ rel (-1) 0 + rel (-2) 0 --          Fn = F(n - 1) + F(n - 2)
     _     -> Nothing
 
-outputs :: [Cell]
-outputs = [ "B1", "B2", "B3", "C1", "C2", "F30" ]
+targets :: [Cell]
+targets = [ "A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "F0", "F1", "F30" ]
 
 task :: Task Monad Cell Int
 task = spreadsheetTask spreadsheet
@@ -50,32 +54,37 @@ task = spreadsheetTask spreadsheet
 taskA :: Task Applicative Cell Int
 taskA = spreadsheetTaskA acyclicSpreadsheet
 
-printOutputs :: Store i Cell Int -> IO ()
-printOutputs store = do
-    forM_ outputs $
-        \key -> putStrLn (show (name key) ++ " = " ++ show (getValue key store))
+test :: String -> Build Monad i Cell Int -> i -> IO Bool
+test name build i = do
+    let store   = inputs i
+        result  = sequentialMultiBuild build task targets store
+        correct = all (correctBuild task store result) targets
+    putStr $ name ++ " is "
+    case (trim name, correct) of
+        ("dumb", False) -> do putStr "incorrect, which is [OK]\n"; return True
+        (_     , False) -> do putStr "incorrect: [FAIL]\n"       ; return False
+        (_     , True ) -> do putStr "correct: [OK]\n"           ; return True
 
-test :: i -> Build Monad i Cell Int -> Store i Cell Int
-test i build = sequentialMultiBuild build task outputs (inputs i)
+testA :: String -> Build Applicative i Cell Int -> i -> IO Bool
+testA name build i = do
+    let store   = inputs i
+        result  = sequentialMultiBuildA build taskA targets store
+        correct = all (correctBuild task store result) targets
+    putStrLn $ name ++ " is " ++ bool "incorrect: [FAIL]" "correct: [OK]" correct
+    return correct
 
-testA :: i -> Build Applicative i Cell Int -> Store i Cell Int
-testA i build = sequentialMultiBuildA build taskA outputs (inputs i)
+testSuite :: IO Bool
+testSuite = and <$> sequence
+    [ test  "dumb      " dumb       ()
+    , test  "busy      " busy       ()
+    , test  "memo      " memo       ()
+    , testA "make      " make       (const (-1), 0)
+    , test  "excel     " excel      ((const True, mempty), mempty)
+    , test  "shake     " shake      mempty
+    , test  "cloudShake" cloudShake mempty
+    , testA "bazel     " bazel      mempty ]
 
 main :: IO ()
 main = do
-    putStrLn "======== dumb ========"
-    printOutputs (test () dumb)
-    putStrLn "======== busy ========"
-    printOutputs (test () busy)
-    putStrLn "======== memo ========"
-    printOutputs (test () memo)
-    putStrLn "======== make ========"
-    printOutputs (testA (const (-1), 0) make)
-    putStrLn "======== excel ========"
-    printOutputs (test ((const True, mempty), mempty) excel)
-    putStrLn "======== shake ========"
-    printOutputs (test mempty shake)
-    putStrLn "======== cloudShake ========"
-    printOutputs (test mempty cloudShake)
-    putStrLn "======== bazel ========"
-    printOutputs (testA mempty bazel)
+    success <- testSuite
+    unless success $ die "\n========== At least one test failed! ==========\n"
