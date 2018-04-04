@@ -84,18 +84,18 @@ reordering step task key = execState $ do
 
 -- Recursive dependency strategy
 recursive :: forall i k v. Eq k
-          => (k -> (k -> State (Store i k v, [k]) v)
-                -> State (Store i k v, [k]) (v, [k])
-                -> State (Store i k v, [k]) ())
+          => (forall t. k -> (k -> State (Store i k v, t) v)
+                -> State (Store i k v, t) (v, [k])
+                -> State (Store i k v, t) ())
           -> Build Monad i k v
-recursive process task key store = fst $ execState (ensure key) (store, [])
+recursive process task key store = fst $ execState (fetch key) (store, [])
   where
-    ensure :: k -> State (Store i k v, [k]) ()
-    ensure key = do
-        let fetch k = do ensure k; gets (getValue k . fst)
-        done <- gets snd
-        when (key `notElem` done) $ do
-            modify $ \(s, done) -> (s, key:done)
-            case trackM task fetch key of
-                Nothing -> return ()
-                Just act -> process key fetch act
+    fetch :: k -> State (Store i k v, [k]) v
+    fetch key = case trackM task fetch key of
+        Nothing  -> gets (getValue key . fst)
+        Just act -> do
+            done <- gets snd
+            when (key `notElem` done) $ do
+                modify $ \(s, done) -> (s, key : done)
+                process key fetch act
+            gets (getValue key . fst)

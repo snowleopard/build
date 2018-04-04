@@ -16,6 +16,6 @@ busy task key store = execState (fetch key) store
         Just act -> do v <- act; modify (putValue k v); return v
 
 memo :: Eq k => Build Monad () k v
-memo = recursive $ \key _ act -> do
+memo = recursive $ \key _fetch act -> do
     (value, _deps) <- act
-    modify $ \(store, done) -> (putValue key value store, done)
+    modify $ \(store, t) -> (putValue key value store, t)
