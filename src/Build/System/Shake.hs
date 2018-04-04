@@ -13,12 +13,12 @@ import qualified Data.Map as Map
 shake :: (Eq k, Hashable v) => Build Monad (VT k v) k v
 shake = recursive $ \key fetch act -> do
     vt <- gets (getInfo . fst)
-    dirty <- not <$> verify (fmap hash . fetch) key vt
+    dirty <- not <$> verifyVT (fmap hash . fetch) key vt
     when dirty $ do
         (value, deps) <- act
         modify $ \(s, t) ->
             let newS = putValue key value s
-            in (updateInfo (record newS key deps) newS, t)
+            in (updateInfo (recordVT newS key deps) newS, t)
 
 cloudShake :: (Eq k, Hashable v) => Build Monad (Traces k v) k v
 cloudShake = recursive $ \key fetch act -> do
