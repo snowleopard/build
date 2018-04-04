@@ -4,8 +4,8 @@ module Build.Store (
     Hash, Hashable (..),
 
     -- * Store
-    Store, getValue, putValue, getHash, getInfo, putInfo, initialise, mapInfo,
-    checkHashes, agree
+    Store, getValue, putValue, getHash, getInfo, putInfo, updateInfo,
+    initialise, mapInfo, checkHashes, agree
 
     -- * The store monad
     -- Store (..), Snapshot (..), checkHashes, PureStore, runPureStore,
@@ -40,6 +40,9 @@ getHash k = hash . getValue k
 
 putInfo :: i -> Store i k v -> Store i k v
 putInfo i s = s { info = i }
+
+updateInfo :: (i -> i) -> Store i k v -> Store i k v
+updateInfo f s = s { info = f (info s) }
 
 putValue :: Eq k => k -> v -> Store i k v -> Store i k v
 putValue k v s = s { values = \key -> if key == k then v else values s key }
