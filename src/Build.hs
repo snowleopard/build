@@ -1,10 +1,10 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes #-}
 module Build (
     -- * Build
-    Build, dumb,
+    Build,
 
     -- * MultiBuild
-    MultiBuild, sequentialMultiBuild,
+    MultiBuild, sequentialMultiBuild, sequentialMultiBuildA,
 
     -- * Properties
     correct, idempotent
@@ -22,17 +22,17 @@ import Build.Utilities
 -- has no way of updating the map.
 type Build c i k v = Task c k v -> k -> Store i k v -> Store i k v
 
-dumb :: Eq k => Build Monad i k v
-dumb task key store = case compute task (flip getValue store) key of
-    Nothing    -> store
-    Just value -> putValue key value store
-
 type MultiBuild c i k v = Task c k v -> [k] -> Store i k v -> Store i k v
 
 sequentialMultiBuild :: Build Monad i k v -> MultiBuild Monad i k v
 sequentialMultiBuild build task outputs store = case outputs of
     []     -> store
     (k:ks) -> sequentialMultiBuild build task ks (build task k store)
+
+sequentialMultiBuildA :: Build Applicative i k v -> MultiBuild Applicative i k v
+sequentialMultiBuildA build task outputs store = case outputs of
+    []     -> store
+    (k:ks) -> sequentialMultiBuildA build task ks (build task k store)
 
 -- | Given a @build@ and @task@, check that for any key-value map describing
 -- the contents of a store @before@ the build system is executed to build a list

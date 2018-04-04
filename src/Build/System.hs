@@ -1,13 +1,23 @@
 {-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
-module Build.System (busy, memo, make, excel, shake, cloudShake, bazel) where
+module Build.System (dumb, busy, memo, make, excel, shake, cloudShake, bazel) where
 
 import Control.Monad.State
+import Data.List
+import Data.Semigroup
 
 import Build
 import Build.Algorithm
 import Build.Store
+import Build.Task.Monad
 import Build.Trace
 
+-- Not a correct build system
+dumb :: Eq k => Build Monad i k v
+dumb task key store = case compute task (flip getValue store) key of
+    Nothing    -> store
+    Just value -> putValue key value store
+
+-- Not a minimal build system
 busy :: forall k v. Eq k => Build Monad () k v
 busy task key store = execState (fetch key) store
   where
@@ -16,6 +26,7 @@ busy task key store = execState (fetch key) store
         Nothing  -> gets (getValue k)
         Just act -> do v <- act; modify (putValue k v); return v
 
+-- Not a minimal build system, but never builds a key twice
 memo :: Eq k => Build Monad () k v
 memo = recursive $ \key _fetch act -> do
     (value, _deps) <- act
@@ -39,6 +50,15 @@ make = topological process
 
 ------------------------------------- Excel ------------------------------------
 data DependencyApproximation k = SubsetOf [k] | Unknown -- Add Exact [k]?
+
+instance Ord k => Semigroup (DependencyApproximation k) where
+    Unknown <> x = x
+    x <> Unknown = x
+    SubsetOf xs <> SubsetOf ys = SubsetOf (sort xs `intersect` sort ys)
+
+instance Ord k => Monoid (DependencyApproximation k) where
+    mempty  = Unknown
+    mappend = (<>)
 
 type ExcelInfo k = ((k -> Bool, k -> DependencyApproximation k), CalcChain k)
 

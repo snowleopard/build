@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 module Build.Example.Spreadsheet where
 
+import Data.Bool
 import Data.Char
 import Data.Maybe
 import Data.String
@@ -72,14 +73,14 @@ rel = RelativeReference
 type Spreadsheet = Cell -> Maybe Formula
 
 -- TODO: Implement 'Random'.
--- | Spreadsheet computation.
+-- | Monadic spreadsheet computation.
 spreadsheetTask :: Spreadsheet -> Task Monad Cell Int
 spreadsheetTask spreadsheet get cell@(Cell r c) = case spreadsheet cell of
     Nothing      -> Nothing -- This is an input
     Just formula -> Just $ evaluate formula
   where
     evaluate formula = case formula of
-        Constant x              -> return x
+        Constant x              -> pure x
         Reference cell          -> get cell
         RelativeReference dr dc -> get (Cell (r + dr) (c + dc))
         Unary  op fx            -> op <$> evaluate fx
@@ -87,4 +88,21 @@ spreadsheetTask spreadsheet get cell@(Cell r c) = case spreadsheet cell of
         IfZero fx fy fz         -> do
             x <- evaluate fx
             if x == 0 then evaluate fy else evaluate fz
+        Random _ _      -> error "Random not implemented"
+
+-- | Applicative spreadsheet computation.
+spreadsheetTaskA :: Spreadsheet -> Task Applicative Cell Int
+spreadsheetTaskA spreadsheet get cell@(Cell r c) = case spreadsheet cell of
+    Nothing      -> Nothing -- This is an input
+    Just formula -> Just $ evaluate formula
+  where
+    evaluate formula = case formula of
+        Constant x              -> pure x
+        Reference cell          -> get cell
+        RelativeReference dr dc -> get (Cell (r + dr) (c + dc))
+        Unary  op fx            -> op <$> evaluate fx
+        Binary op fx fy         -> op <$> evaluate fx <*> evaluate fy
+        IfZero fx fy fz         -> bool <$> evaluate fz
+                                        <*> evaluate fy
+                                        <*> ((==0) <$> evaluate fx)
         Random _ _      -> error "Random not implemented"
