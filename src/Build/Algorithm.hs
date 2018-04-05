@@ -23,22 +23,21 @@ topological :: Ord k =>
         -> State (Store i k v) v    -- ^ Action to calculate the value of @k@
         -> State (Store i k v) ()
     ) -> Build Applicative i k v
-topological process task key = execState $ forM_ chain $ \k -> do
+topological process tasks key = execState $ forM_ chain $ \k -> do
     let fetch k = gets (getValue k)
-    case task fetch k of
-        Nothing  -> return ()
-        Just act -> process k (deps k) act
+    case tasks k of
+        Nothing   -> return ()
+        Just task -> process k (deps k) (run task fetch)
   where
-    deps  = dependencies task
+    deps  = maybe [] dependencies . tasks
     chain = case topSort (graph deps key) of
         Nothing -> error "Cannot build tasks with cyclic dependencies"
         Just xs -> xs
 
 data Result k v = MissingDependency k | Result v [k]
 
-try :: forall m k v. Monad m => Task Monad k v -> (k -> m (Maybe v))
-                           -> k -> Maybe (m (Result k v))
-try task partialFetch = fmap (fmap toResult) . trackExceptions task partialFetch
+try :: forall m k v. Monad m => Task Monad k v -> (k -> m (Maybe v)) -> m (Result k v)
+try task partialFetch = toResult <$> trackExceptions task partialFetch
   where
     toResult (Left k       ) = MissingDependency k
     toResult (Right (v, ks)) = Result v ks
@@ -48,7 +47,7 @@ type CalcChain k = [k]
 reordering :: forall i k v. Ord k => (k -> State (Store i k v) (Result k v)
                                         -> State (Store i k v) (Maybe (Result k v)))
                                   -> Build Monad (i, CalcChain k) k v
-reordering process task key = execState $ do
+reordering process tasks key = execState $ do
     chain    <- snd . getInfo <$> get
     newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
     modify . mapInfo $ \(i, _) -> (i, newChain)
@@ -56,11 +55,12 @@ reordering process task key = execState $ do
     go :: Set k -> CalcChain k -> State (Store (i, [k]) k v) (CalcChain k)
     go _    []     = return []
     go done (k:ks) = do
-        case try task fetch k of
+        case tasks k of
             Nothing -> (k :) <$> go (Set.insert k done) ks
-            Just act -> do
+            Just task -> do
                 store <- get
-                let (res, newStore) = runState (process k act) (mapInfo fst store)
+                let act = try task fetch
+                    (res, newStore) = runState (process k act) (mapInfo fst store)
                 put $ mapInfo (,[]) newStore
                 case res of
                     Just (MissingDependency d) -> go done $ [ d | d `notElem` ks ] ++ ks ++ [k]
@@ -78,14 +78,14 @@ recursive :: forall i k v. Eq k =>
         -> State (Store i k v, t) (v, [k])  -- ^ Action to compute the value of @k@ and its direct dependencies.
         -> State (Store i k v, t) ()
     ) -> Build Monad i k v
-recursive process task key store = fst $ execState (fetch key) (store, [])
+recursive process tasks key store = fst $ execState (fetch key) (store, [])
   where
     fetch :: k -> State (Store i k v, [k]) v
-    fetch key = case trackM task fetch key of
-        Nothing  -> gets (getValue key . fst)
-        Just act -> do
+    fetch key = case tasks key of
+        Nothing -> gets (getValue key . fst)
+        Just task -> do
             done <- gets snd
             when (key `notElem` done) $ do
                 modify $ \(s, done) -> (s, key : done)
-                process key fetch act
+                process key fetch (trackM fetch task)
             gets (getValue key . fst)

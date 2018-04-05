@@ -17,23 +17,24 @@ import Data.Semigroup
 import Build
 import Build.Algorithm
 import Build.Store
+import Build.Task
 import Build.Task.Monad
 import Build.Trace
 
 -- Not a correct build system
 dumb :: Eq k => Build Monad i k v
-dumb task key store = case compute task (flip getValue store) key of
-    Nothing    -> store
-    Just value -> putValue key value store
+dumb tasks key store = case tasks key of
+    Nothing   -> store
+    Just task -> putValue key (compute task (flip getValue store)) store
 
 -- Not a minimal build system
 busy :: forall k v. Eq k => Build Monad () k v
-busy task key store = execState (fetch key) store
+busy tasks key store = execState (fetch key) store
   where
     fetch :: k -> State (Store () k v) v
-    fetch k = case task fetch k of
-        Nothing  -> gets (getValue k)
-        Just act -> do v <- act; modify (putValue k v); return v
+    fetch k = case tasks k of
+        Nothing   -> gets (getValue k)
+        Just task -> do v <- run task fetch; modify (putValue k v); return v
 
 -- Not a minimal build system, but never builds a key twice
 memo :: Eq k => Build Monad () k v

@@ -20,9 +20,9 @@ import Build.Utilities
 -- and a key-value map @k -> v@, and computes information for the next build and
 -- an updated key-value map. Note that we require @Eq k@ since without it one
 -- has no way of updating the map.
-type Build c i k v = Task c k v -> k -> Store i k v -> Store i k v
+type Build c i k v = Tasks c k v -> k -> Store i k v -> Store i k v
 
-type MultiBuild c i k v = Task c k v -> [k] -> Store i k v -> Store i k v
+type MultiBuild c i k v = Tasks c k v -> [k] -> Store i k v -> Store i k v
 
 sequentialMultiBuild :: Build Monad i k v -> MultiBuild Monad i k v
 sequentialMultiBuild build task outputs store = case outputs of
@@ -42,15 +42,15 @@ sequentialMultiBuildA build task outputs store = case outputs of
 -- * @after@ and @magic@ agree on the values of all outputs.
 -- * @magic@ is 'consistent' with the @task@.
 -- We assume that @task@ is acyclic. If it is not, the function returns @True@.
-correct :: (Ord k, Eq v) => Build Monad i k v -> Task Monad k v -> Bool
-correct build task = forall $ \(key, store) ->
-    correctBuild task store (build task key store) key
+correct :: (Ord k, Eq v) => Build Monad i k v -> Tasks Monad k v -> Bool
+correct build tasks = forall $ \(key, store) ->
+    correctBuild tasks store (build tasks key store) key
 
 -- TODO: Switch to getHash
 -- | Check that a build system is /idempotent/, i.e. running it once or twice in
 -- a row leads to the same resulting 'Store'.
-idempotent :: Eq v => Build Monad i k v -> Task Monad k v -> Bool
-idempotent build task = forall $ \(key, store1) ->
-    let store2 = build task key store1
-        store3 = build task key store2
+idempotent :: Eq v => Build Monad i k v -> Tasks Monad k v -> Bool
+idempotent build tasks = forall $ \(key, store1) ->
+    let store2 = build tasks key store1
+        store3 = build tasks key store2
     in forall $ \k -> getValue k store2 == getValue k store3

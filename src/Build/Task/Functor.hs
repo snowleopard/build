@@ -1,9 +1,8 @@
-{-# LANGUAGE RankNTypes #-}
-module Build.Task.Functor (inputTask, dependency) where
+module Build.Task.Functor (dependency) where
 
 import Data.Functor.Const
 
 import Build.Task
 
-dependency :: Task Functor k v -> k -> Maybe k
-dependency task = fmap getConst . task Const
+dependency :: Task Functor k v -> k
+dependency task = getConst $ run task Const
