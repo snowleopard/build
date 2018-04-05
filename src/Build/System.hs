@@ -129,8 +129,8 @@ cloudShake = recursive $ \key fetch act -> do
 ------------------------------------- Bazel ------------------------------------
 bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
 bazel = topological $ \key deps act -> do
-    ct <- gets getInfo
     store <- get
+    let ct = getInfo store
     dirty <- not <$> verifyCT (return . flip getHash store) key ct
     when dirty $ do
         maybeValue <- constructCT (return . flip getHash store) key ct
@@ -144,16 +144,15 @@ bazel = topological $ \key deps act -> do
 
 ------------------------------------- Buck -------------------------------------
 buck :: (Eq v, Hashable k, Hashable v, Ord k) => Build Applicative (CTD k v) k v
-buck = topological2 $ \key inputs act -> do
-    ctd <- gets getInfo
+buck = topological $ \key deps act -> do
     store <- get
-    let dirty = not $ verifyCTD store key inputs ctd
+    let ctd   = getInfo store
+        dirty = not $ verifyCTD store key deps ctd
     when dirty $ do
-        let maybeValue = constructCTD store key inputs ctd
+        let maybeValue = constructCTD store key deps ctd
         case maybeValue of
             Just value -> modify (putValue key value)
             Nothing -> do
                 value <- act
-                modify $ \s ->
-                    let newS = putValue key value s
-                    in mapInfo (recordCTD newS key inputs <>) newS
+                modify $ \s -> let newS = putValue key value s
+                               in mapInfo (recordCTD newS key deps <>) newS

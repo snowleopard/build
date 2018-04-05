@@ -81,15 +81,14 @@ instance Monoid (CTD k v) where
     mappend = (<>)
 
 recordCTD :: (Hashable k, Hashable v) => Store i k v -> k -> [k] ->CTD k v
-recordCTD store key inputs = CTD (Map.singleton h (getValue key store))
+recordCTD store key deps = CTD (Map.singleton h (getValue key store))
   where
-    h = hash $ (key, map (flip getValue store) inputs)
+    h = hash (key, map (flip getValue store) deps)
 
 verifyCTD :: (Eq v, Hashable k, Hashable v) => Store i k v -> k -> [k] -> CTD k v -> Bool
-verifyCTD store key inputs ctd =
-    Just (getValue key store) == constructCTD store key inputs ctd
+verifyCTD store key deps ctd = Just (getValue key store) == constructCTD store key deps ctd
 
 constructCTD :: (Hashable k, Hashable v) => Store i k v -> k -> [k] -> CTD k v -> Maybe v
-constructCTD store key inputs (CTD cache) = Map.lookup h cache
+constructCTD store key deps (CTD cache) = Map.lookup h cache
   where
-    h = hash $ (key, map (flip getValue store) inputs)
+    h = hash (key, map (flip getValue store) deps)
