@@ -4,7 +4,7 @@ module Build.System (
     dumb, busy, memo,
 
     -- * Applicative build systems
-    make, bazel,
+    make, bazel, buck,
 
     -- * Monadic build systems
     excel, shake, cloudShake
@@ -130,3 +130,19 @@ bazel = topological $ \key deps act -> do
                 modify $ \s ->
                     let newS = putValue key value s
                     in mapInfo (recordCT newS key deps) newS
+
+------------------------------------- Buck -------------------------------------
+buck :: (Eq v, Hashable k, Hashable v, Ord k) => Build Applicative (CTD k v) k v
+buck = topological2 $ \key inputs act -> do
+    ctd <- gets getInfo
+    store <- get
+    let dirty = not $ verifyCTD store key inputs ctd
+    when dirty $ do
+        let maybeValue = constructCTD store key inputs ctd
+        case maybeValue of
+            Just value -> modify (putValue key value)
+            Nothing -> do
+                value <- act
+                modify $ \s ->
+                    let newS = putValue key value s
+                    in mapInfo (recordCTD newS key inputs) newS

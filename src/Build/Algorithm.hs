@@ -1,8 +1,8 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
-module Build.Algorithm(
-    recursive,
-    topological,
-    reordering, CalcChain, Result(..)
+module Build.Algorithm (
+    topological, topological2,
+    reordering, CalcChain, Result(..),
+    recursive
     ) where
 
 import Control.Monad.State
@@ -11,7 +11,7 @@ import Data.Set (Set)
 import Build
 import Build.Task
 import Build.Task.Applicative hiding (exceptional)
-import Build.Task.Monad hiding (dependencies)
+import Build.Task.Monad hiding (dependencies, inputs)
 import Build.Store
 import Build.Utilities
 
@@ -89,3 +89,21 @@ recursive process task key store = fst $ execState (fetch key) (store, [])
                 modify $ \(s, done) -> (s, key : done)
                 process key fetch act
             gets (getValue key . fst)
+
+-- For Buck: the only difference from topological is that we pass a list of
+-- inputs to process, instead of a list of direct dependencies
+topological2 :: Ord k =>
+    (      k                        -- ^ Key to build @k@
+        -> [k]                      -- ^ Inputs of @k@
+        -> State (Store i k v) v    -- ^ Action to calculate the value of @k@
+        -> State (Store i k v) ()
+    ) -> Build Applicative i k v
+topological2 process task key = execState $ forM_ chain $ \k -> do
+    let fetch k = gets (getValue k)
+    case task fetch k of
+        Nothing  -> return ()
+        Just act -> process k (inputs task k) act
+  where
+    chain = case topSort (graph (dependencies task) key) of
+        Nothing -> error "Cannot build tasks with cyclic dependencies"
+        Just xs -> xs

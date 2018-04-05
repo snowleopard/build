@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, DefaultSignatures, FunctionalDependencies #-}
 module Build.Store (
     -- * Hashing
-    Hash, Hashable (..),
+    Hash (..), Hashable (..),
 
     -- * Store
     Store, getValue, putValue, getHash, getInfo, putInfo, mapInfo,
@@ -12,9 +12,18 @@ module Build.Store (
     -- UnsafeMapStore, runUnsafeMapStore, MapStore, runMapStoreT, runMapStore
     ) where
 
+import Data.Semigroup
+
 -- | A 'Hash' is used for efficient tracking and sharing of build results. We
 -- use @newtype Hash a = Hash Int@ for prototyping.
-newtype Hash a = Hash Int deriving (Eq,Ord)
+newtype Hash a = Hash { unhash :: Int } deriving (Eq,Ord)
+
+instance Semigroup (Hash a) where
+    Hash x <> Hash y = Hash (x * (y + 1))
+
+instance Hashable a => Monoid (Hash a) where
+    mempty  = Hash 0
+    mappend = (<>)
 
 class Hashable a where
     -- | Compute the hash of a given value. We typically assume cryptographic
@@ -26,6 +35,12 @@ instance Hashable Int where
 
 instance Hashable Integer where
     hash = Hash . fromIntegral
+
+instance Hashable a => Hashable [a] where
+    hash = Hash . unhash . mconcat . map hash
+
+instance (Hashable a, Hashable b) => Hashable (a, b) where
+    hash (a, b) = Hash (unhash (hash a) * (unhash (hash b) + 2))
 
 data Store i k v = Store { info :: i, values :: k -> v }
 

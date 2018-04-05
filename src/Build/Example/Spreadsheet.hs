@@ -5,6 +5,7 @@ import Data.Bool
 import Data.Char
 import Data.Maybe
 import Data.String
+import Build.Store
 import Build.Task
 import Text.Read
 
@@ -27,6 +28,9 @@ instance IsString Cell where
         _ -> fail
       where
         fail = error $ "Cannot parse cell name " ++ string
+
+instance Hashable Cell where
+    hash (Cell r c) = Hash . unhash $ hash (r, c)
 
 -- | Some cells contain formulas for computing values from other cells. Formulas
 -- include:
