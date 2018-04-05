@@ -98,7 +98,7 @@ shake = recursive $ \key fetch act -> do
         (value, deps) <- act
         modify $ \(s, t) ->
             let newS = putValue key value s
-            in (mapInfo (recordVT newS key deps) newS, t)
+            in (mapInfo (recordVT newS key deps <>) newS, t)
 
 ---------------------------------- Cloud Shake ---------------------------------
 cloudShake :: (Eq k, Hashable v) => Build Monad (CT k v) k v
@@ -113,7 +113,7 @@ cloudShake = recursive $ \key fetch act -> do
                 (value, deps) <- act
                 modify $ \(s, t) ->
                     let newS = putValue key value s
-                    in (mapInfo (recordCT newS key deps) newS, t)
+                    in (mapInfo (recordCT newS key deps <>) newS, t)
 
 ------------------------------------- Bazel ------------------------------------
 bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
@@ -129,7 +129,7 @@ bazel = topological $ \key deps act -> do
                 value <- act
                 modify $ \s ->
                     let newS = putValue key value s
-                    in mapInfo (recordCT newS key deps) newS
+                    in mapInfo (recordCT newS key deps <>) newS
 
 ------------------------------------- Buck -------------------------------------
 buck :: (Eq v, Hashable k, Hashable v, Ord k) => Build Applicative (CTD k v) k v
@@ -145,4 +145,4 @@ buck = topological2 $ \key inputs act -> do
                 value <- act
                 modify $ \s ->
                     let newS = putValue key value s
-                    in mapInfo (recordCTD newS key inputs) newS
+                    in mapInfo (recordCTD newS key inputs <>) newS

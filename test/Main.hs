@@ -46,7 +46,7 @@ acyclicSpreadsheet cell = case name cell of
     _     -> Nothing
 
 targets :: [Cell]
-targets = [ "A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "F0", "F1", "F30" ]
+targets = [ "A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "F0", "F1", "F4" ]
 
 task :: Task Monad Cell Int
 task = spreadsheetTask spreadsheet

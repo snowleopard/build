@@ -13,6 +13,7 @@ module Build.Store (
     ) where
 
 import Data.Semigroup
+import Data.List.Extra
 
 -- | A 'Hash' is used for efficient tracking and sharing of build results. We
 -- use @newtype Hash a = Hash Int@ for prototyping.
@@ -71,4 +72,4 @@ checkHashes store = all (\(k, h) -> getHash k store == h)
 agree :: Eq v => [Store i k v] -> [k] -> Bool
 agree ss = all same
   where
-    same k = let vs = [getValue k s | s <- ss] in and $ zipWith (==) vs (drop 1 vs)
+    same k = allSame [getValue k s | s <- ss]
