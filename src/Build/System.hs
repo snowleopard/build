@@ -4,7 +4,7 @@ module Build.System (
     dumb, busy, memo,
 
     -- * Applicative build systems
-    make, bazel, buck,
+    make, ninja, bazel, buck,
 
     -- * Monadic build systems
     excel, shake, cloudShake
@@ -56,6 +56,17 @@ make = topological process
             v <- act
             let newModTime k = if k == key then now else modTime k
             modify $ putInfo (newModTime, now + 1) . putValue key v
+
+------------------------------------- Ninja ------------------------------------
+ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
+ninja = topological $ \key deps act -> do
+    store <- get
+    let vt = getInfo store
+    dirty <- not <$> verifyVT (return . flip getHash store) key vt
+    when dirty $ do
+        value <- act
+        modify $ \s -> let newS = putValue key value s
+                       in mapInfo (recordVT newS key deps <>) newS
 
 ------------------------------------- Excel ------------------------------------
 data DependencyApproximation k = SubsetOf [k] | Unknown -- Add Exact [k]?
@@ -120,9 +131,9 @@ bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
 bazel = topological $ \key deps act -> do
     ct <- gets getInfo
     store <- get
-    dirty <- not <$> verifyCT (\k -> return $ getHash k store) key ct
+    dirty <- not <$> verifyCT (return . flip getHash store) key ct
     when dirty $ do
-        maybeValue <- constructCT (\k -> return $ getHash k store) key ct
+        maybeValue <- constructCT (return . flip getHash store) key ct
         case maybeValue of
             Just value -> modify (putValue key value)
             Nothing -> do
