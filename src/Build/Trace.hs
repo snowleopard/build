@@ -48,7 +48,6 @@ data CT k v = CT
     { traces    :: VT k v
     , contents  :: Map (Hash v) v }
 
-
 instance Semigroup (CT k v) where
     CT t1 c1 <> CT t2 c2 = CT (t1 <> t2) (Map.union c1 c2)
 
@@ -66,8 +65,8 @@ constructCT :: (Monad m, Eq k) => (k -> m (Hash v)) -> k -> CT k v -> m (Maybe v
 constructCT fetchHash key (CT (VT ts) cache) = firstJustM match ts
   where
     match (Trace k deps result) = do
-        sameInputs <- andM $ return (k == key) : [ (h==) <$> fetchHash k | (k, h) <- deps ]
-        if not sameInputs
+        sameInputs <- andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
+        if k /= key || not sameInputs
             then return Nothing
             else return (Map.lookup result cache)
 
@@ -80,15 +79,25 @@ instance Monoid (CTD k v) where
     mempty  = CTD Map.empty
     mappend = (<>)
 
+-- Let's drop Hash proxy: this will then become simply @mconcat (hash key : hs)@
+hack :: (Hashable k, Hashable v) => k -> [Hash v] -> Hash (k, [v])
+hack key hs = Hash $ unhash (hash key) * (unhash (mconcat hs) + 3)
+
 recordCTD :: (Hashable k, Hashable v) => Store i k v -> k -> [k] ->CTD k v
 recordCTD store key deps = CTD (Map.singleton h (getValue key store))
   where
-    h = hash (key, map (flip getValue store) deps)
+    h = hack key (map (flip getHash store) deps)
 
-verifyCTD :: (Eq v, Hashable k, Hashable v) => Store i k v -> k -> [k] -> CTD k v -> Bool
-verifyCTD store key deps ctd = Just (getValue key store) == constructCTD store key deps ctd
+verifyCTD :: (Hashable k, Hashable v, Monad m)
+          => (k -> m (Hash v)) -> k -> [k] -> CTD k v -> m Bool
+verifyCTD fetchHash key deps ctd = do
+    maybeValue <- constructCTD fetchHash key deps ctd
+    case maybeValue of
+        Nothing    -> return False
+        Just value -> (hash value ==) <$> fetchHash key
 
-constructCTD :: (Hashable k, Hashable v) => Store i k v -> k -> [k] -> CTD k v -> Maybe v
-constructCTD store key deps (CTD cache) = Map.lookup h cache
-  where
-    h = hash (key, map (flip getValue store) deps)
+constructCTD :: (Hashable k, Hashable v, Monad m)
+             => (k -> m (Hash v)) -> k -> [k] -> CTD k v -> m (Maybe v)
+constructCTD fetchHash key deps (CTD cache) = do
+    hs <- mapM fetchHash deps
+    return (Map.lookup (hack key hs) cache)

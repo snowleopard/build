@@ -7,7 +7,7 @@ module Build.System (
     make, ninja, bazel, buck,
 
     -- * Monadic build systems
-    excel, shake, cloudShake
+    excel, shake, cloudShake, nix
     ) where
 
 import Control.Monad.State
@@ -143,16 +143,32 @@ bazel = topological $ \key deps act -> do
                     in mapInfo (recordCT newS key deps <>) newS
 
 ------------------------------------- Buck -------------------------------------
-buck :: (Eq v, Hashable k, Hashable v, Ord k) => Build Applicative (CTD k v) k v
+buck :: (Hashable k, Hashable v, Ord k) => Build Applicative (CTD k v) k v
 buck = topological $ \key deps act -> do
     store <- get
-    let ctd   = getInfo store
-        dirty = not $ verifyCTD store key deps ctd
+    let ctd = getInfo store
+    dirty <- not <$> verifyCTD (return . flip getHash store) key deps ctd
     when dirty $ do
-        let maybeValue = constructCTD store key deps ctd
+        maybeValue <- constructCTD (return . flip getHash store) key deps ctd
         case maybeValue of
             Just value -> modify (putValue key value)
             Nothing -> do
                 value <- act
                 modify $ \s -> let newS = putValue key value s
                                in mapInfo (recordCTD newS key deps <>) newS
+
+-------------------------------------- Nix -------------------------------------
+nix :: (Hashable k, Hashable v, Ord k) => Build Monad (CTD k v) k v
+nix = recursive $ \key fetch act -> do
+    ctd <- gets (getInfo . fst)
+    let deps = [] -- Here is the tricky part: we need to store this in CTD
+    dirty <- not <$> verifyCTD (fmap hash . fetch) key deps ctd
+    when dirty $ do
+        maybeValue <- constructCTD (fmap hash . fetch) key deps ctd
+        case maybeValue of
+            Just value -> modify $ \(s, t) -> (putValue key value s, t)
+            Nothing -> do
+                (value, deps) <- act
+                modify $ \(s, t) ->
+                    let newS = putValue key value s
+                    in (mapInfo (recordCTD newS key deps <>) newS, t)
