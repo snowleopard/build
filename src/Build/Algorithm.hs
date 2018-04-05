@@ -51,7 +51,7 @@ reordering :: forall i k v. Ord k => (k -> State (Store i k v) (Result k v)
 reordering process task key = execState $ do
     chain    <- snd . getInfo <$> get
     newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
-    modify . updateInfo $ \(i, _) -> (i, newChain)
+    modify . mapInfo $ \(i, _) -> (i, newChain)
   where
     go :: Set k -> CalcChain k -> State (Store (i, [k]) k v) (CalcChain k)
     go _    []     = return []

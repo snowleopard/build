@@ -1,5 +1,4 @@
-{-# LANGUAGE FlexibleInstances, GADTs, MultiParamTypeClasses, RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables #-}
 module Build.Task.Monad (
     dependencies, track, trackM, transitiveDependencies, inputs, acyclic,
     correctBuild, compute, debugPartial, partial, trackExceptions, exceptional,

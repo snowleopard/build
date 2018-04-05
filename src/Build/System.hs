@@ -1,5 +1,14 @@
 {-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
-module Build.System (dumb, busy, memo, make, excel, shake, cloudShake, bazel) where
+module Build.System (
+    -- * Toy build systems
+    dumb, busy, memo,
+
+    -- * Applicative build systems
+    make, bazel,
+
+    -- * Monadic build systems
+    excel, shake, cloudShake
+    ) where
 
 import Control.Monad.State
 import Data.List
@@ -89,7 +98,7 @@ shake = recursive $ \key fetch act -> do
         (value, deps) <- act
         modify $ \(s, t) ->
             let newS = putValue key value s
-            in (updateInfo (recordVT newS key deps) newS, t)
+            in (mapInfo (recordVT newS key deps) newS, t)
 
 ---------------------------------- Cloud Shake ---------------------------------
 cloudShake :: (Eq k, Hashable v) => Build Monad (CT k v) k v
@@ -104,7 +113,7 @@ cloudShake = recursive $ \key fetch act -> do
                 (value, deps) <- act
                 modify $ \(s, t) ->
                     let newS = putValue key value s
-                    in (updateInfo (recordCT newS key deps) newS, t)
+                    in (mapInfo (recordCT newS key deps) newS, t)
 
 ------------------------------------- Bazel ------------------------------------
 bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
@@ -120,4 +129,4 @@ bazel = topological $ \key deps act -> do
                 value <- act
                 modify $ \s ->
                     let newS = putValue key value s
-                    in updateInfo (recordCT newS key deps) newS
+                    in mapInfo (recordCT newS key deps) newS
