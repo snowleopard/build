@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 module Build.Task.Applicative (
-    pureTask, dependencies, transitiveDependencies, acyclic, debugPartial,
-    partial, exceptional
+    pureTask, dependencies, inputs, transitiveDependencies, acyclic,
+    debugPartial, partial, exceptional
     ) where
 
 import Control.Applicative
@@ -18,6 +18,9 @@ pureTask store _ = Just . pure . store
 -- TODO: Does this always terminate? It's not obvious!
 dependencies :: Task Applicative k v -> k -> [k]
 dependencies task = maybe [] getConst . task (\k -> Const [k])
+
+inputs :: Ord k => Task Applicative k v -> k -> [k]
+inputs task key = filter (isInput task) (reachable (dependencies task) key)
 
 transitiveDependencies :: Eq k => Task Applicative k v -> k -> Maybe [k]
 transitiveDependencies task = reach (dependencies task)
