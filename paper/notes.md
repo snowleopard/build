@@ -1,3 +1,27 @@
+# Refactoring
+
+
+topological' :: Ord k =>
+    (      k                        -- ^ Key to build @k@
+        -> Task c k v
+        -> State (Store i k v) ())
+    ) -> Build Applicative i k v
+
+recursive' :: Ord k =>
+    (      k                        -- ^ Key to build @k@
+        -> Task c k v
+        -> (k -> State (Store i k v) ())
+        -> State (Store i k v) ())
+    ) -> Build Applicative i k v
+
+
+reordering' :: forall i k v. Ord k => (k -> Task c k v
+                                        -> (k -> Bool)
+                                        -> State (Store i k v) Bool)
+                                  -> Build Monad (i, CalcChain k) k v
+
+
+
 # Meeting with Simon Marlow
 
 * Make:
