@@ -1,15 +1,11 @@
 {-# LANGUAGE FlexibleInstances, DefaultSignatures, FunctionalDependencies #-}
 module Build.Store (
     -- * Hashing
-    Hash (..), Hashable (..),
+    Hash, Hashable (..),
 
     -- * Store
     Store, getValue, putValue, getHash, getInfo, putInfo, mapInfo,
-    initialise, checkHashes, agree
-
-    -- * The store monad
-    -- Store (..), Snapshot (..), checkHashes, PureStore, runPureStore,
-    -- UnsafeMapStore, runUnsafeMapStore, MapStore, runMapStoreT, runMapStore
+    initialise, agree
     ) where
 
 import Data.List.Extra
@@ -18,6 +14,13 @@ import Data.List.Extra
 -- | A 'Hash' is used for efficient tracking and sharing of build results. We
 -- use @newtype Hash a = Hash a@ for prototyping.
 newtype Hash a = Hash a deriving (Eq, Ord)
+
+instance Functor Hash where
+    fmap f (Hash a) = Hash (f a)
+
+instance Applicative Hash where
+    pure = Hash
+    Hash f <*> Hash a = Hash (f a)
 
 class Ord a => Hashable a where
     -- | Compute the hash of a given value. We typically assume cryptographic
@@ -61,9 +64,6 @@ putValue k v s = s { values = \key -> if key == k then v else values s key }
 
 initialise :: i -> (k -> v) -> Store i k v
 initialise = Store
-
-checkHashes :: Hashable v => Store m k v -> [(k, Hash v)] -> Bool
-checkHashes store = all (\(k, h) -> getHash k store == h)
 
 agree :: Eq v => [Store i k v] -> [k] -> Bool
 agree ss = all same

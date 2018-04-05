@@ -30,7 +30,7 @@ instance IsString Cell where
         fail = error $ "Cannot parse cell name " ++ string
 
 instance Hashable Cell where
-    hash = Hash
+    hash (Cell row column) = Cell <$> hash row <*> hash column
 
 -- | Some cells contain formulas for computing values from other cells. Formulas
 -- include:
