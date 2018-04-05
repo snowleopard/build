@@ -86,7 +86,7 @@ changed, see Fig.~\ref{fig-make}(c). Note that if the dependency graph is
 dependencies are typically not allowed in build systems although there are rare
 exceptions, see~\S\ref{sec-iterative-compute}.
 
-The following property is essential for build systems, it is their raison d'\^etre:
+The following property is essential for build systems; indeed, it is their raison d'\^etre:
 
 \definition[Minimality]{A build system is \emph{minimal} if it executes tasks at
 most once per build and only if they transitively depend on inputs that changed
@@ -125,40 +125,22 @@ example:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{text}
-A1: 10      B1: IF(C1=1,A1,A2)      C1: 1
-A2: 20
-\end{minted}
-\vspace{1mm}
-
-\noindent
-Here the cell \cmd{C1} controls which branch of the \cmd{IF} function is used
-to compute \cmd{B1}. When \cmd{C1=1}, the dependencies of \cmd{B1} are
-$\{\cmd{C1},\cmd{A1}\}$, otherwise they are $\{\cmd{C1},\cmd{A2}\}$, which is
-not known statically\footnote{One might say that the value of \cmd{C1} is statically
-known in this particular example, but imagine that it is the result of a long computation
-chain -- its value will only become available during the build.}.
-
-\Excel handles this example correctly: if \cmd{C1=1} and the user changes
-\cmd{A2}, \Excel will not require \cmd{B1} to be computed in advance. Alas, other forms of
-dynamic dependencies can force \Excel to perform unnecessary computation.
-Consider the following modification of the above example:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{text}
 A1: 10      B1: INDIRECT("A" & C1)      C1: 1
 A2: 20
 \end{minted}
 \vspace{1mm}
 
 \noindent
-The new version uses the \cmd{INDIRECT} function, which allows us to reference a
-cell indirectly by a text string that is not necessarily known in advance. The
-current implementation of \Excel recomputes indirect references in every
-build~\cite{excel_recalc}. This approach clearly violates the minimality
-property~\ref{def-minimal}: if \cmd{C1=1} and the user modifies \cmd{A2}, \Excel
-will recompute \cmd{B1}, potentially triggering further unnecessary
-recalculation even though \cmd{B1} does not transitively depend on \cmd{A2}.
+The formula in \cmd{B1} uses the \cmd{INDIRECT} function, which takes a string and
+returns the value of the cell with that name.  The string evaluates
+to \cmd{"A1"}, so \cmd{B1} evaluates to \cmd{10}. However, the dependencies of the
+formula in \cmd{B1} are determined by the value of \cmd{C1}, so there is no
+possibility\footnote{In this particular example one might say that
+the value of \cmd{C1} is statically known, but imagine that it is the result of a long computation
+chain -- its value will only become available during the build.}
+of computing the dependency graph prior to calc.
 
+To support dynamic dependencies,
 \Excel's build algorithm~\cite{excel_recalc} is significantly different from
 \Make. \Excel uses the \emph{calculation chain}
 produced by the previous build as an approximation to the correct topological
@@ -167,6 +149,14 @@ order. During recalculation, \Excel processes cells in this order, but can
 discovered dependency has not yet been rebuilt. We refer to this
 algorithm as \emph{reordering}, and will discuss it in more detail
 in~\S\ref{sec-implementation-excel}.
+
+Dynamic dependencies complicate minimality.  In the above example,
+\cmd{B1} should only be recomputed if \cmd{A1} or \cmd{C1} change, but
+not if (say) \cmd{A2} changes; but these facts are not statically apparent.
+In pracice Excel implements a conservative approximation to
+minimality: roughly, it recomputes a formula if (a) the formula
+text mentions a changed cell, or (b) the formula uses a function like \cmd{INDIRECT}
+whose dependencies are not statically visible.
 
 Another distinguishing feature of \Excel is \emph{self-tracking}. Most build
 systems only track changes of inputs and intermediate results, but \Excel can
