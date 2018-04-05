@@ -12,21 +12,14 @@ module Build.Store (
     -- UnsafeMapStore, runUnsafeMapStore, MapStore, runMapStoreT, runMapStore
     ) where
 
-import Data.Semigroup
 import Data.List.Extra
 
+-- TODO: Switch to cryptographic hashes.
 -- | A 'Hash' is used for efficient tracking and sharing of build results. We
--- use @newtype Hash a = Hash Int@ for prototyping.
-newtype Hash a = Hash { unhash :: Int } deriving (Eq,Ord)
+-- use @newtype Hash a = Hash a@ for prototyping.
+newtype Hash a = Hash a deriving (Eq, Ord)
 
-instance Semigroup (Hash a) where
-    Hash x <> Hash y = Hash (x * (y + 1))
-
-instance Hashable a => Monoid (Hash a) where
-    mempty  = Hash 0
-    mappend = (<>)
-
-class Hashable a where
+class Ord a => Hashable a where
     -- | Compute the hash of a given value. We typically assume cryptographic
     -- hashing, e.g. SHA256.
     hash :: a -> Hash a
@@ -35,13 +28,16 @@ instance Hashable Int where
     hash = Hash
 
 instance Hashable Integer where
-    hash = Hash . fromIntegral
+    hash = Hash
 
 instance Hashable a => Hashable [a] where
-    hash = Hash . unhash . mconcat . map hash
+    hash = Hash
+
+instance Hashable a => Hashable (Hash a) where
+    hash = Hash
 
 instance (Hashable a, Hashable b) => Hashable (a, b) where
-    hash (a, b) = Hash (unhash (hash a) * (unhash (hash b) + 2))
+    hash = Hash
 
 data Store i k v = Store { info :: i, values :: k -> v }
 

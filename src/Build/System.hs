@@ -143,7 +143,7 @@ bazel = topological $ \key deps act -> do
                     in mapInfo (recordCT newS key deps <>) newS
 
 ------------------------------------- Buck -------------------------------------
-buck :: (Hashable k, Hashable v, Ord k) => Build Applicative (CTD k v) k v
+buck :: (Hashable k, Hashable v) => Build Applicative (CTD k v) k v
 buck = topological $ \key deps act -> do
     store <- get
     let ctd = getInfo store
@@ -158,7 +158,7 @@ buck = topological $ \key deps act -> do
                                in mapInfo (recordCTD newS key deps <>) newS
 
 -------------------------------------- Nix -------------------------------------
-nix :: (Hashable k, Hashable v, Ord k) => Build Monad (CTD k v) k v
+nix :: (Hashable k, Hashable v) => Build Monad (CTD k v) k v
 nix = recursive $ \key fetch act -> do
     ctd <- gets (getInfo . fst)
     let deps = [] -- Here is the tricky part: we need to store this in CTD

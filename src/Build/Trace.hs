@@ -24,7 +24,6 @@ data Trace k v = Trace
     , depends :: [(k, Hash v)]
     , result  :: Hash v }
 
-
 -- | An abstract data type for a set of verifying traces equipped with 'record',
 -- 'verify' and a 'Monoid' instance.
 newtype VT k v = VT [Trace k v] deriving (Monoid, Semigroup)
@@ -37,7 +36,7 @@ recordVT store key deps = VT [Trace key [ (k, getHash k store) | k <- deps ] (ge
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
 -- up-to-date.
-verifyVT :: (Monad m, Eq k) => (k -> m (Hash v)) -> k -> VT k v -> m Bool
+verifyVT :: (Monad m, Eq k, Eq v) => (k -> m (Hash v)) -> k -> VT k v -> m Bool
 verifyVT fetchHash key (VT ts) = anyM match ts
   where
     match (Trace k deps result)
@@ -48,20 +47,20 @@ data CT k v = CT
     { traces    :: VT k v
     , contents  :: Map (Hash v) v }
 
-instance Semigroup (CT k v) where
+instance Ord v => Semigroup (CT k v) where
     CT t1 c1 <> CT t2 c2 = CT (t1 <> t2) (Map.union c1 c2)
 
-instance Monoid (CT k v) where
+instance Ord v => Monoid (CT k v) where
     mempty  = CT mempty Map.empty
     mappend = (<>)
 
 recordCT :: Hashable v => Store i k v -> k -> [k] -> CT k v
 recordCT store key deps = CT (recordVT store key deps) (Map.singleton (getHash key store) (getValue key store))
 
-verifyCT :: (Monad m, Eq k) => (k -> m (Hash v)) -> k -> CT k v -> m Bool
+verifyCT :: (Monad m, Eq k, Eq v) => (k -> m (Hash v)) -> k -> CT k v -> m Bool
 verifyCT fetchHash key (CT ts _) = verifyVT fetchHash key ts
 
-constructCT :: (Monad m, Eq k) => (k -> m (Hash v)) -> k -> CT k v -> m (Maybe v)
+constructCT :: (Monad m, Eq k, Ord v) => (k -> m (Hash v)) -> k -> CT k v -> m (Maybe v)
 constructCT fetchHash key (CT (VT ts) cache) = firstJustM match ts
   where
     match (Trace k deps result) = do
@@ -70,23 +69,19 @@ constructCT fetchHash key (CT (VT ts) cache) = firstJustM match ts
             then return Nothing
             else return (Map.lookup result cache)
 
-newtype CTD k v = CTD (Map (Hash (k, [v])) v)
+newtype CTD k v = CTD (Map (Hash (k, [Hash v])) v)
 
-instance Semigroup (CTD k v) where
+instance (Ord k, Ord v) => Semigroup (CTD k v) where
     CTD c1 <> CTD c2 = CTD (Map.union c1 c2)
 
-instance Monoid (CTD k v) where
+instance (Ord k, Ord v) => Monoid (CTD k v) where
     mempty  = CTD Map.empty
     mappend = (<>)
 
--- Let's drop Hash proxy: this will then become simply @mconcat (hash key : hs)@
-hack :: (Hashable k, Hashable v) => k -> [Hash v] -> Hash (k, [v])
-hack key hs = Hash $ unhash (hash key) * (unhash (mconcat hs) + 3)
-
-recordCTD :: (Hashable k, Hashable v) => Store i k v -> k -> [k] ->CTD k v
+recordCTD :: (Hashable k, Hashable v) => Store i k v -> k -> [k] -> CTD k v
 recordCTD store key deps = CTD (Map.singleton h (getValue key store))
   where
-    h = hack key (map (flip getHash store) deps)
+    h = hash (key, (map (flip getHash store) deps))
 
 verifyCTD :: (Hashable k, Hashable v, Monad m)
           => (k -> m (Hash v)) -> k -> [k] -> CTD k v -> m Bool
@@ -100,4 +95,4 @@ constructCTD :: (Hashable k, Hashable v, Monad m)
              => (k -> m (Hash v)) -> k -> [k] -> CTD k v -> m (Maybe v)
 constructCTD fetchHash key deps (CTD cache) = do
     hs <- mapM fetchHash deps
-    return (Map.lookup (hack key hs) cache)
+    return (Map.lookup (hash (key, hs)) cache)
