@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
 module Build.System (
     -- * Toy build systems
-    dumb, busy, memo,
+    dumb, busy, memo, topoDumb,
 
     -- * Applicative build systems
     make, ninja, bazel, buck,
@@ -21,10 +21,13 @@ import Build.Task.Monad
 import Build.Trace
 
 -- Not a correct build system
-dumb :: Eq k => Build Monad i k v
+dumb :: Eq k => Build Monad () k v
 dumb task key store = case compute task (flip getValue store) key of
     Nothing    -> store
     Just value -> putValue key value store
+
+topoDumb :: Ord k => Build Applicative () k v
+topoDumb = topologicalT dumb
 
 -- Not a minimal build system
 busy :: forall k v. Eq k => Build Monad () k v

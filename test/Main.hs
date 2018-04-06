@@ -78,6 +78,7 @@ testSuite = and <$> sequence
     [ test  "dumb      " dumb       ()
     , test  "busy      " busy       ()
     , test  "memo      " memo       ()
+    , testA "topoDumb  " topoDumb   ()
     , testA "make      " make       (const (-1), 0)
     , testA "ninja     " ninja      mempty
     , test  "excel     " excel      ((const True, mempty), mempty)
