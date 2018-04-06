@@ -17,14 +17,14 @@ import Build.Utilities
 
 import qualified Data.Set as Set
 
-
-topological :: Ord k => (k -> Task Applicative k v -> Task (MonadState i) k v)
+topological :: Ord k => (k -> v -> Task Applicative k v -> Task (MonadState i) k v)
     -> Build Applicative i k v
 topological transformer tasks key = execState $ forM_ chain $ \k ->
     case tasks k of
         Nothing   -> return ()
         Just task -> do
-            let t = transformer k task
+            currentValue <- gets (getValue k)
+            let t = transformer k currentValue task
                 fetch :: k -> StateT i (State (Store i k v)) v
                 fetch = lift . gets . getValue
             info <- gets getInfo

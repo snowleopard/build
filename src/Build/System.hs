@@ -51,8 +51,8 @@ type MakeInfo k = (k -> Time, Time)
 make :: forall k v. Ord k => Build Applicative (MakeInfo k) k v
 make = topological transformer
   where
-    transformer :: k -> Task Applicative k v -> Task (MonadState (MakeInfo k)) k v
-    transformer key task = Task $ \fetch -> do
+    transformer :: k -> v -> Task Applicative k v -> Task (MonadState (MakeInfo k)) k v
+    transformer key currentValue task = Task $ \fetch -> do
         (modTime, now) <- get
         let dirty = or [ modTime dep > modTime key | dep <- A.dependencies task ]
         if dirty || modTime key < 0
@@ -61,11 +61,11 @@ make = topological transformer
             put (newModTime, now + 1)
             run task fetch
         else
-            fetch key
+            return currentValue
 
 ------------------------------------- Ninja ------------------------------------
 ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
-ninja = topological $ \key task -> Task $ \fetch -> do
+ninja = topological $ \key currentValue task -> Task $ \fetch -> do
     vt <- get
     dirty <- not <$> verifyVT (fmap hash . fetch) key vt
     if dirty
@@ -75,7 +75,7 @@ ninja = topological $ \key task -> Task $ \fetch -> do
         modify (newVT <>)
         return value
     else
-        fetch key
+        return currentValue
 
 ------------------------------------- Excel ------------------------------------
 data DependencyApproximation k = SubsetOf [k] | Unknown -- Add Exact [k]?
@@ -137,7 +137,7 @@ cloudShake = recursive $ \key fetch act -> do
 
 ------------------------------------- Bazel ------------------------------------
 bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
-bazel = topological $ \key task -> Task $ \fetch -> do
+bazel = topological $ \key currentValue task -> Task $ \fetch -> do
     ct <- get
     dirty <- not <$> verifyCT (fmap hash . fetch) key ct
     if dirty
@@ -151,7 +151,7 @@ bazel = topological $ \key task -> Task $ \fetch -> do
                 modify (newCT <>)
                 return value
     else
-        fetch key
+        return currentValue
 
 ------------------------------------- Buck -------------------------------------
 -- buck :: (Hashable k, Hashable v) => Build Applicative (CTD k v) k v
