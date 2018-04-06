@@ -2,13 +2,13 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 module Build.Trace (
     -- * Verifying traces
-    VT, recordVT, recordVT', verifyVT,
+    VT, recordVT, verifyVT,
 
     -- * Constructive traces
-    CT, recordCT, recordCT', verifyCT, constructCT,
+    CT, recordCT, verifyCT, constructCT,
 
     -- * Constructive traces optimised for deterministic tasks
-    CTD, recordCTD, verifyCTD, constructCTD
+    DCT, recordDCT, verifyDCT, constructDCT
     ) where
 
 import Build.Store
@@ -30,23 +30,20 @@ newtype VT k v = VT [Trace k v] deriving (Monoid, Semigroup)
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values from the given @store@.
-recordVT :: Hashable v => Store i k v -> k -> [k] -> VT k v
-recordVT store key deps = VT [Trace key [ (k, getHash k store) | k <- deps ] (getHash key store)]
-
-recordVT' :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m v) -> m (VT k v)
-recordVT' key value deps fetch = do
-    hs <- mapM (fmap hash . fetch) deps
+recordVT :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m (Hash v)) -> m (VT k v)
+recordVT key value deps fetchHash = do
+    hs <- mapM fetchHash deps
     return $ VT [ Trace key (zip deps hs) (hash value) ]
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
 -- up-to-date.
-verifyVT :: (Monad m, Eq k, Eq v) => (k -> m (Hash v)) -> k -> VT k v -> m Bool
-verifyVT fetchHash key (VT ts) = anyM match ts
+verifyVT :: (Monad m, Eq k, Hashable v) => k -> v -> (k -> m (Hash v)) -> VT k v -> m Bool
+verifyVT key value fetchHash (VT ts) = anyM match ts
   where
     match (Trace k deps result)
-        | k /= key  = return False
-        | otherwise = andM [ (h==) <$> fetchHash k | (k, h) <- (key, result) : deps ]
+        | k /= key || result /= hash value = return False
+        | otherwise = andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
 
 data CT k v = CT
     { traces    :: VT k v
@@ -59,20 +56,17 @@ instance Ord v => Monoid (CT k v) where
     mempty  = CT mempty Map.empty
     mappend = (<>)
 
-recordCT :: Hashable v => Store i k v -> k -> [k] -> CT k v
-recordCT store key deps = CT (recordVT store key deps) (Map.singleton (getHash key store) (getValue key store))
-
-recordCT' :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m v) -> m (CT k v)
-recordCT' key value deps fetch = do
-    hs <- mapM (fmap hash . fetch) deps
+recordCT :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m (Hash v)) -> m (CT k v)
+recordCT key value deps fetchHash = do
+    hs <- mapM fetchHash deps
     let h = hash value
     return $ CT (VT [Trace key (zip deps hs) h]) (Map.singleton h value)
 
-verifyCT :: (Monad m, Eq k, Eq v) => (k -> m (Hash v)) -> k -> CT k v -> m Bool
-verifyCT fetchHash key (CT ts _) = verifyVT fetchHash key ts
+verifyCT :: (Monad m, Eq k, Hashable v) => k -> v -> (k -> m (Hash v)) -> CT k v -> m Bool
+verifyCT key value fetchHash (CT ts _) = verifyVT key value fetchHash ts
 
-constructCT :: (Monad m, Eq k, Ord v) => (k -> m (Hash v)) -> k -> CT k v -> m (Maybe v)
-constructCT fetchHash key (CT (VT ts) cache) = firstJustM match ts
+constructCT :: (Monad m, Eq k, Ord v) => k -> (k -> m (Hash v)) -> CT k v -> m (Maybe v)
+constructCT key fetchHash (CT (VT ts) cache) = firstJustM match ts
   where
     match (Trace k deps result) = do
         sameInputs <- andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
@@ -80,30 +74,31 @@ constructCT fetchHash key (CT (VT ts) cache) = firstJustM match ts
             then return Nothing
             else return (Map.lookup result cache)
 
-newtype CTD k v = CTD (Map (Hash (k, [Hash v])) v)
+newtype DCT k v = DCT (Map (Hash (k, [Hash v])) v)
 
-instance (Ord k, Ord v) => Semigroup (CTD k v) where
-    CTD c1 <> CTD c2 = CTD (Map.union c1 c2)
+instance (Ord k, Ord v) => Semigroup (DCT k v) where
+    DCT c1 <> DCT c2 = DCT (Map.union c1 c2)
 
-instance (Ord k, Ord v) => Monoid (CTD k v) where
-    mempty  = CTD Map.empty
+instance (Ord k, Ord v) => Monoid (DCT k v) where
+    mempty  = DCT Map.empty
     mappend = (<>)
 
-recordCTD :: (Hashable k, Hashable v) => Store i k v -> k -> [k] -> CTD k v
-recordCTD store key deps = CTD (Map.singleton h (getValue key store))
-  where
-    h = hash (key, (map (flip getHash store) deps))
+recordDCT :: (Hashable k, Hashable v, Monad m)
+          => k -> v -> [k] -> (k -> m (Hash v)) -> m (DCT k v)
+recordDCT key value deps fetchHash = do
+    hs <- mapM fetchHash deps
+    return $ DCT (Map.singleton (hash (key, hs)) value)
 
-verifyCTD :: (Hashable k, Hashable v, Monad m)
-          => (k -> m (Hash v)) -> k -> [k] -> CTD k v -> m Bool
-verifyCTD fetchHash key deps ctd = do
-    maybeValue <- constructCTD fetchHash key deps ctd
+verifyDCT :: (Hashable k, Hashable v, Monad m)
+          => k -> [k] -> (k -> m (Hash v)) -> DCT k v -> m Bool
+verifyDCT key deps fetchHash ctd = do
+    maybeValue <- constructDCT key deps fetchHash ctd
     case maybeValue of
-        Nothing    -> return False
+        Nothing -> return False
         Just value -> (hash value ==) <$> fetchHash key
 
-constructCTD :: (Hashable k, Hashable v, Monad m)
-             => (k -> m (Hash v)) -> k -> [k] -> CTD k v -> m (Maybe v)
-constructCTD fetchHash key deps (CTD cache) = do
+constructDCT :: (Hashable k, Hashable v, Monad m)
+             => k -> [k] -> (k -> m (Hash v)) -> DCT k v -> m (Maybe v)
+constructDCT key deps fetchHash (DCT cache) = do
     hs <- mapM fetchHash deps
     return (Map.lookup (hash (key, hs)) cache)

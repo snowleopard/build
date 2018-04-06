@@ -4,10 +4,10 @@ module Build.System (
     dumb, busy, memo,
 
     -- * Applicative build systems
-    make, ninja, bazel, -- buck,
+    make, ninja, bazel, buck,
 
     -- * Monadic build systems
-    excel, shake, cloudShake, nix
+    excel, shake, cloudShake --, nix
     ) where
 
 import Control.Monad.State
@@ -40,9 +40,7 @@ busy tasks key store = execState (fetch key) store
 
 -- Not a minimal build system, but never builds a key twice
 memo :: Eq k => Build Monad () k v
-memo = recursive $ \key _fetch act -> do
-    (value, _deps) <- act
-    modify $ \(store, t) -> (putValue key value store, t)
+memo = recursive $ \_key _value task -> Task (run task)
 
 ------------------------------------- Make -------------------------------------
 type Time = Integer -- A negative time value means a key was never built
@@ -67,11 +65,11 @@ make = topological transformer
 ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
 ninja = topological $ \key currentValue task -> Task $ \fetch -> do
     vt <- get
-    dirty <- not <$> verifyVT (fmap hash . fetch) key vt
+    dirty <- not <$> verifyVT key currentValue (fmap hash . fetch) vt
     if dirty
     then do
         value <- run task fetch
-        newVT <- recordVT' key value (A.dependencies task) fetch
+        newVT <- recordVT key value (A.dependencies task) (fmap hash . fetch)
         modify (newVT <>)
         return value
     else
@@ -111,75 +109,84 @@ excel = reordering process
 
 ------------------------------------- Shake ------------------------------------
 shake :: (Eq k, Hashable v) => Build Monad (VT k v) k v
-shake = recursive $ \key fetch act -> do
-    vt <- gets (getInfo . fst)
-    dirty <- not <$> verifyVT (fmap hash . fetch) key vt
-    when dirty $ do
-        (value, deps) <- act
-        modify $ \(s, t) ->
-            let newS = putValue key value s
-            in (mapInfo (recordVT newS key deps <>) newS, t)
-
+shake = recursive $ \key currentValue task -> Task $ \fetch -> do
+    vt <- get
+    dirty <- not <$> verifyVT key currentValue (fmap hash . fetch) vt
+    if dirty
+    then do
+        (value, deps) <- trackM fetch task
+        newVT <- recordVT key value deps (fmap hash . fetch)
+        modify (newVT <>)
+        return value
+    else
+        return currentValue
 ---------------------------------- Cloud Shake ---------------------------------
+-- Currently broken: loops forever
 cloudShake :: (Eq k, Hashable v) => Build Monad (CT k v) k v
-cloudShake = recursive $ \key fetch act -> do
-    ct <- gets (getInfo . fst)
-    dirty <- not <$> verifyCT (fmap hash . fetch) key ct
-    when dirty $ do
-        maybeValue <- constructCT (fmap hash . fetch) key ct
+cloudShake = recursive $ \key currentValue task -> Task $ \fetch -> do
+    ct <- get
+    dirty <- not <$> verifyCT key currentValue (fmap hash . fetch) ct
+    if dirty
+    then do
+        maybeValue <- constructCT key (fmap hash . fetch) ct
         case maybeValue of
-            Just value -> modify $ \(s, t) -> (putValue key value s, t)
+            Just value -> return value
             Nothing -> do
-                (value, deps) <- act
-                modify $ \(s, t) ->
-                    let newS = putValue key value s
-                    in (mapInfo (recordCT newS key deps <>) newS, t)
+                (value, deps) <- trackM fetch task
+                newCT <- recordCT key value deps (fmap hash . fetch)
+                modify (newCT <>)
+                return value
+    else
+        return currentValue
 
 ------------------------------------- Bazel ------------------------------------
 bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
 bazel = topological $ \key currentValue task -> Task $ \fetch -> do
     ct <- get
-    dirty <- not <$> verifyCT (fmap hash . fetch) key ct
+    dirty <- not <$> verifyCT key currentValue (fmap hash . fetch) ct
     if dirty
     then do
-        maybeValue <- constructCT (fmap hash . fetch) key ct
+        maybeValue <- constructCT key (fmap hash . fetch) ct
         case maybeValue of
             Just value -> return value
             Nothing -> do
                 value <- run task fetch
-                newCT <- recordCT' key value (A.dependencies task) fetch
+                newCT <- recordCT key value (A.dependencies task) (fmap hash . fetch)
                 modify (newCT <>)
                 return value
     else
         return currentValue
 
 ------------------------------------- Buck -------------------------------------
--- buck :: (Hashable k, Hashable v) => Build Applicative (CTD k v) k v
--- buck = topological $ \key deps act -> do
---     store <- get
---     let ctd = getInfo store
---     dirty <- not <$> verifyCTD (return . flip getHash store) key deps ctd
---     when dirty $ do
---         maybeValue <- constructCTD (return . flip getHash store) key deps ctd
---         case maybeValue of
---             Just value -> modify (putValue key value)
---             Nothing -> do
---                 value <- act
---                 modify $ \s -> let newS = putValue key value s
---                                in mapInfo (recordCTD newS key deps <>) newS
+buck :: (Hashable k, Hashable v) => Build Applicative (DCT k v) k v
+buck = topological $ \key currentValue task -> Task $ \fetch -> do
+    dct <- get
+    dirty <- not <$> verifyDCT key (A.dependencies task) (fmap hash . fetch) dct
+    if dirty
+    then do
+        maybeValue <- constructDCT key (A.dependencies task) (fmap hash . fetch) dct
+        case maybeValue of
+            Just value -> return value
+            Nothing -> do
+                value <- run task fetch
+                newDCT <- recordDCT key value (A.dependencies task) (fmap hash . fetch)
+                modify (newDCT <>)
+                return value
+    else
+        return currentValue
 
 -------------------------------------- Nix -------------------------------------
-nix :: (Hashable k, Hashable v) => Build Monad (CTD k v) k v
-nix = recursive $ \key fetch act -> do
-    ctd <- gets (getInfo . fst)
-    let deps = [] -- Here is the tricky part: we need to store this in CTD
-    dirty <- not <$> verifyCTD (fmap hash . fetch) key deps ctd
-    when dirty $ do
-        maybeValue <- constructCTD (fmap hash . fetch) key deps ctd
-        case maybeValue of
-            Just value -> modify $ \(s, t) -> (putValue key value s, t)
-            Nothing -> do
-                (value, deps) <- act
-                modify $ \(s, t) ->
-                    let newS = putValue key value s
-                    in (mapInfo (recordCTD newS key deps <>) newS, t)
+-- nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v
+-- nix = recursive $ \key fetch act -> do
+--     ctd <- gets (getInfo . fst)
+--     let deps = [] -- Here is the tricky part: we need to store this in CTD
+--     dirty <- not <$> verifyCTD (fmap hash . fetch) key deps ctd
+--     when dirty $ do
+--         maybeValue <- constructCTD (fmap hash . fetch) key deps ctd
+--         case maybeValue of
+--             Just value -> modify $ \(s, t) -> (putValue key value s, t)
+--             Nothing -> do
+--                 (value, deps) <- act
+--                 modify $ \(s, t) ->
+--                     let newS = putValue key value s
+--                     in (mapInfo (recordCTD newS key deps <>) newS, t)

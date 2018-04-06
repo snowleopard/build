@@ -29,9 +29,7 @@ topological transformer tasks key = execState $ forM_ chain $ \k ->
                 fetch = lift . gets . getValue
             info <- gets getInfo
             (value, newInfo) <- runStateT (run t fetch) info
-            -- Shall we skip writing if the value is the same? It feels a bit
-            -- inefficient, but at the moment we have no way to indicate that
-            -- the transformed task doesn't need recomputation.
+            -- Shall we skip writing if the value is the same?
             modify $ putInfo newInfo . putValue k value
   where
     deps  = maybe [] dependencies . tasks
@@ -76,14 +74,10 @@ reordering process tasks key = execState $ do
                 | otherwise           = return Nothing
 
 -- Recursive dependency strategy
-recursive :: forall i k v. Eq k =>
-    (forall t.
-        k                                   -- ^ Key to build @k@
-        -> (k -> State (Store i k v, t) v)  -- ^ Action to look up (and build if necessary) a key.
-        -> State (Store i k v, t) (v, [k])  -- ^ Action to compute the value of @k@ and its direct dependencies.
-        -> State (Store i k v, t) ()
-    ) -> Build Monad i k v
-recursive process tasks key store = fst $ execState (fetch key) (store, [])
+recursive :: forall i k v. Eq k
+          => (k -> v -> Task Monad k v -> Task (MonadState i) k v)
+          -> Build Monad i k v
+recursive transformer tasks key store = fst $ execState (fetch key) (store, [])
   where
     fetch :: k -> State (Store i k v, [k]) v
     fetch key = case tasks key of
@@ -91,6 +85,12 @@ recursive process tasks key store = fst $ execState (fetch key) (store, [])
         Just task -> do
             done <- gets snd
             when (key `notElem` done) $ do
-                modify $ \(s, done) -> (s, key : done)
-                process key fetch (trackM fetch task)
+                currentValue <- gets (getValue key . fst)
+                let t = transformer key currentValue task
+                    liftedFetch :: k -> StateT i (State (Store i k v, [k])) v
+                    liftedFetch = lift . fetch
+                info <- gets (getInfo . fst)
+                (value, newInfo) <- runStateT (run t liftedFetch) info
+                -- Shall we skip writing if the value is the same?
+                modify $ \(s, done) -> (putInfo newInfo $ putValue key value s, done)
             gets (getValue key . fst)
