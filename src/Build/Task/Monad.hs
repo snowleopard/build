@@ -23,8 +23,8 @@ dependencies task store = execWriterT $ run task fetch
 track :: (k -> v) -> Task Monad k v -> (v, [k])
 track fetch task = runWriter $ run task (\k -> writer (fetch k, [k]))
 
-trackM :: forall m k v. Monad m => (k -> m v) -> Task Monad k v -> m (v, [k])
-trackM fetch task = runWriterT $ run task trackingFetch
+trackM :: forall m k v. Monad m => Task Monad k v -> (k -> m v) -> m (v, [k])
+trackM task fetch = runWriterT $ run task trackingFetch
   where
     trackingFetch :: k -> WriterT [k] m v
     trackingFetch k = tell [k] >> lift (fetch k)
