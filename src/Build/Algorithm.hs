@@ -1,9 +1,9 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
 module Build.Algorithm (
-    RebuildStrategy,
     topological,
     reordering, Chain,
-    recursive
+    recursive,
+    independent
     ) where
 
 import Control.Monad.State
@@ -14,11 +14,10 @@ import Build
 import Build.Task
 import Build.Task.Applicative hiding (exceptional)
 import Build.Store
+import Build.Strategy
 import Build.Utilities
 
 import qualified Data.Set as Set
-
-type RebuildStrategy c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
 
 -- Shall we skip writing to the store if the value is the same?
 -- We could skip writing if hash value == hash newValue.
@@ -26,7 +25,7 @@ updateValue :: Eq k => k -> v -> v -> Store i k v -> Store i k v
 updateValue key _value newValue = putValue key newValue
 
 ---------------------------------- Topological ---------------------------------
-topological :: Ord k => RebuildStrategy Applicative i k v -> Build Applicative i k v
+topological :: Ord k => Strategy Applicative i k v -> Build Applicative i k v
 topological strategy tasks key = execState $ forM_ chain $ \k ->
     case tasks k of
         Nothing   -> return ()
@@ -50,7 +49,7 @@ type Chain k = [k]
 trying :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
 trying task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
 
-reordering :: forall i k v. Ord k => RebuildStrategy Monad i k v -> Build Monad (i, Chain k) k v
+reordering :: forall i k v. Ord k => Strategy Monad i k v -> Build Monad (i, Chain k) k v
 reordering strategy tasks key = execState $ do
     chain    <- snd . getInfo <$> get
     newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
@@ -78,7 +77,7 @@ reordering strategy tasks key = execState $ do
                         (k :) <$> go (Set.insert k done) ks
 
 ----------------------------------- Recursive ----------------------------------
-recursive :: forall i k v. Eq k => RebuildStrategy Monad i k v -> Build Monad i k v
+recursive :: forall i k v. Eq k => Strategy Monad i k v -> Build Monad i k v
 recursive strategy tasks key store = fst $ execState (fetch key) (store, [])
   where
     fetch :: k -> State (Store i k v, [k]) v
@@ -96,3 +95,17 @@ recursive strategy tasks key store = fst $ execState (fetch key) (store, [])
                 modify $ \(s, done) ->
                     (putInfo newInfo $ updateValue key value newValue s, done)
             gets (getValue key . fst)
+
+-- | An incorrect build algorithm that builds the target key without respecting
+-- its dependencies. It produces the correct result only if all dependencies of
+-- the target key are up to date.
+independent :: forall i k v. Eq k => Strategy Monad i k v -> Build Monad i k v
+independent strategy tasks key store = case tasks key of
+    Nothing -> store
+    Just task ->
+        let value   = getValue key store
+            newTask = strategy key value task
+            newFetch :: k -> State i v
+            newFetch k = return (getValue k store)
+            (newValue, newInfo) = runState (run newTask newFetch) (getInfo store)
+        in putInfo newInfo $ updateValue key value newValue store

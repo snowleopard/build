@@ -82,8 +82,8 @@ testSuite = and <$> sequence
     , testA "ninja     " ninja      mempty
     , test  "excel     " excel      ((const True, mempty), mempty)
     , test  "shake     " shake      mempty
-    , test  "cloudShake" cloudShake mempty
     , testA "bazel     " bazel      mempty
+    , test  "cloudShake" cloudShake mempty
     , testA "buck      " buck       mempty ]
     -- Fails currently:
     -- , test  "nix       " nix        mempty ]
