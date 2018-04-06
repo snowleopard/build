@@ -48,17 +48,17 @@ acyclicSpreadsheet cell = case name cell of
 targets :: [Cell]
 targets = [ "A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "F0", "F1", "F4" ]
 
-task :: Task Monad Cell Int
-task = spreadsheetTask spreadsheet
+tasks :: Tasks Monad Cell Int
+tasks = spreadsheetTask spreadsheet
 
-taskA :: Task Applicative Cell Int
-taskA = spreadsheetTaskA acyclicSpreadsheet
+tasksA :: Tasks Applicative Cell Int
+tasksA = spreadsheetTaskA acyclicSpreadsheet
 
 test :: String -> Build Monad i Cell Int -> i -> IO Bool
 test name build i = do
     let store   = inputs i
-        result  = sequentialMultiBuild build task targets store
-        correct = all (correctBuild task store result) targets
+        result  = sequentialMultiBuild build tasks targets store
+        correct = all (correctBuild tasks store result) targets
     putStr $ name ++ " is "
     case (trim name, correct) of
         ("dumb", False) -> do putStr "incorrect, which is [OK]\n"; return True
@@ -68,8 +68,8 @@ test name build i = do
 testA :: String -> Build Applicative i Cell Int -> i -> IO Bool
 testA name build i = do
     let store   = inputs i
-        result  = sequentialMultiBuildA build taskA targets store
-        correct = all (correctBuild task store result) targets
+        result  = sequentialMultiBuildA build tasksA targets store
+        correct = all (correctBuild tasks store result) targets
     putStrLn $ name ++ " is " ++ bool "incorrect: [FAIL]" "correct: [OK]" correct
     return correct
 

@@ -1,8 +1,7 @@
-{-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
 module Build.Task.Monad (
-    dependencies, track, trackM, transitiveDependencies, inputs, acyclic,
-    correctBuild, compute, debugPartial, partial, trackExceptions, exceptional,
-    staticDependencies, Script (..), getScript, runScript, isStatic
+    dependencies, track, trackM, inputs, correctBuild, compute,
+    debugPartial, partial, trackExceptions, exceptional
     ) where
 
 import Control.Monad.Trans
@@ -11,41 +10,30 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
 import Data.Functor.Identity
 import Data.Maybe
-import Data.Proxy
 
 import Build.Store
-import Build.Task hiding (isInput)
+import Build.Task
 import Build.Utilities
 
 -- TODO: Does this always terminate? It's not obvious!
-dependencies :: Monad m => Task Monad k v -> (k -> m v) -> k -> m [k]
-dependencies task store = execWriterT . sequenceA . task fetch
+dependencies :: Monad m => Task Monad k v -> (k -> m v) -> m [k]
+dependencies task store = execWriterT $ run task fetch
   where
     fetch k = tell [k] >> lift (store k)
 
-track :: Task Monad k v -> (k -> v) -> k -> Maybe (v, [k])
-track task fetch = fmap runWriter . task (\k -> writer (fetch k, [k]))
+track :: (k -> v) -> Task Monad k v -> (v, [k])
+track fetch task = runWriter $ run task (\k -> writer (fetch k, [k]))
 
-trackM :: forall m k v. Monad m => Task Monad k v -> (k -> m v) -> k -> Maybe (m (v, [k]))
-trackM task fetch = fmap runWriterT . task trackingFetch
+trackM :: forall m k v. Monad m => (k -> m v) -> Task Monad k v -> m (v, [k])
+trackM fetch task = runWriterT $ run task trackingFetch
   where
     trackingFetch :: k -> WriterT [k] m v
     trackingFetch k = tell [k] >> lift (fetch k)
 
-transitiveDependencies :: (Eq k, Monad m) => Task Monad k v
-                                          -> (k -> m v) -> k -> m (Maybe [k])
-transitiveDependencies task fetch = reachM (dependencies task fetch)
-
-acyclic :: (Eq k, Monad m) => Task Monad k v -> (k -> m v) -> k -> m Bool
-acyclic task fetch = fmap isJust . transitiveDependencies task fetch
-
-isInput :: Task Monad k v -> k -> Bool
-isInput task = isNothing . task (const Proxy)
-
-inputs :: Ord k => Task Monad k v -> Store i k v -> k -> [k]
-inputs task store key = filter (isInput task) (reachable deps key)
+inputs :: Ord k => Tasks Monad k v -> Store i k v -> k -> [k]
+inputs tasks store = filter (isNothing . tasks) . reachable deps
   where
-    deps k = maybe [] snd (track task (\k -> getValue k store) k)
+    deps = maybe [] (snd . track (flip getValue store)) . tasks
 
 -- | Given a task description @task@, a target @key@, an initial @store@, and a
 -- @result@ produced by running a build system with parameters @task@, @key@ and
@@ -55,25 +43,25 @@ inputs task store key = filter (isInput task) (reachable deps key)
 --   no inputs were corrupted during the build.
 -- * @result@ is /consistent/ with the @task@, i.e. for all non-input keys, the
 --   result of recomputing the @task@ matches the value stored in the @result@.
-correctBuild :: (Ord k, Eq v) => Task Monad k v -> Store i k v -> Store i k v -> k -> Bool
-correctBuild task store result key = all correct (reachable deps key)
+correctBuild :: (Ord k, Eq v) => Tasks Monad k v -> Store i k v -> Store i k v -> k -> Bool
+correctBuild tasks store result = all correct . reachable deps
   where
-    deps    k = maybe [] snd (track task (flip getValue result) k)
-    correct k = case compute task (flip getValue result) k of
-        Nothing -> getValue k result == getValue k store
-        Just v  -> getValue k result == v
+    deps = maybe [] (snd . track (flip getValue result)) . tasks
+    correct k = case tasks k of
+        Nothing   -> getValue k result == getValue k store
+        Just task -> getValue k result == compute task (flip getValue result)
 
 -- | Run a task with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
-compute :: Task Monad k v -> (k -> v) -> k -> Maybe v
-compute task store = fmap runIdentity . task (Identity . store)
+compute :: Task Monad k v -> (k -> v) -> v
+compute task store = runIdentity $ run task (Identity . store)
 
 -- | Run a task with a partial lookup function. The result @Left k@ indicates
 -- that the task failed due to a missing dependency @k@. Otherwise, the
 -- result @Right v@ yields the computed value.
 debugPartial :: Monad m => Task Monad k v
-                      -> (k -> m (Maybe v)) -> k -> Maybe (m (Either k v))
-debugPartial task store = fmap runExceptT . task fetch
+                      -> (k -> m (Maybe v)) -> m (Either k v)
+debugPartial task store = runExceptT $ run task fetch
   where
     fetch k = maybe (throwE k) return =<< lift (store k)
 
@@ -83,7 +71,7 @@ debugPartial task store = fmap runExceptT . task fetch
 -- indicates that the task failed because of a missing dependency.
 -- Use 'debugPartial' if you need to know which dependency was missing.
 partial :: Task Monad k v -> Task Monad k (Maybe v)
-partial task fetch = fmap runMaybeT . task (MaybeT . fetch)
+partial task = Task $ \fetch -> runMaybeT $ run task (MaybeT . fetch)
 
 -- | Convert a task with a total lookup function @k -> m v@ into a task
 -- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
@@ -91,66 +79,17 @@ partial task fetch = fmap runMaybeT . task (MaybeT . fetch)
 -- where the result @Left e@ indicates that the task failed because of a
 -- failed dependency lookup, and @Right v@ yeilds the value otherwise.
 exceptional :: Task Monad k v -> Task Monad k (Either e v)
-exceptional task fetch = fmap runExceptT . task (ExceptT . fetch)
+exceptional task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
 
 -- Yuck!
 trackExceptions :: forall m k v. Monad m => Task Monad k v -> (k -> m (Maybe v))
-                           -> k -> Maybe (m (Either k (v, [k])))
-trackExceptions task partialFetch = fmap (fmap fix . runWriterT) . debugPartial task fetch
+                           -> m (Either k (v, [k]))
+trackExceptions task partialFetch = (fmap convert . runWriterT) $ debugPartial task fetch
   where
     fetch :: k -> WriterT [k] m (Maybe v)
     fetch k = do
         mv <- lift (partialFetch k)
         writer (mv, [k])
-    fix :: (Either k v, [k]) -> Either k (v, [k])
-    fix (Left  k, _ ) = Left k
-    fix (Right v, ks) = Right (v, ks)
-
--- TODO: Does this always terminate? It's not obvious!
-staticDependencies :: Task Monad k v -> k -> [k]
-staticDependencies task key = case getScript task key of
-    Nothing     -> []
-    Just script -> staticScriptDependencies script
-
-data Script k v a where
-    Fetch :: k -> Script k v v
-    Pure  :: a -> Script k v a
-    Ap    :: Script k v (a -> b) -> Script k v a -> Script k v b
-    Bind  :: Script k v a -> (a -> Script k v b) -> Script k v b
-
-instance Functor (Script k v) where
-    fmap = Ap . Pure
-
-instance Applicative (Script k v) where
-    pure  = Pure
-    (<*>) = Ap
-
-instance Monad (Script k v) where
-    return = Pure
-    (>>)   = (*>)
-    (>>=)  = Bind
-
-getScript :: Task Monad k v -> k -> Maybe (Script k v v)
-getScript task = task Fetch
-
-runScript :: Monad m => (k -> m v) -> Script k v a -> m a
-runScript fetch script = case script of
-    Fetch k  -> fetch k
-    Pure v   -> pure v
-    Ap s1 s2 -> runScript fetch s1 <*> runScript fetch s2
-    Bind s f -> runScript fetch s >>= fmap (runScript fetch) f
-
--- TODO: Fix inifinite loop
-staticScriptDependencies :: Script k v a -> [k]
-staticScriptDependencies script = case script of
-    Fetch k  -> [k]
-    Pure _   -> []
-    Ap s1 s2 -> staticScriptDependencies s1 ++ staticScriptDependencies s2
-    Bind s _ -> staticScriptDependencies s
-
-isStatic :: Script k v a -> Bool
-isStatic script = case script of
-    Fetch _  -> True
-    Pure _   -> True
-    Ap s1 s2 -> isStatic s1 && isStatic s2
-    Bind _ _ -> False
+    convert :: (Either k v, [k]) -> Either k (v, [k])
+    convert (Left  k, _ ) = Left k
+    convert (Right v, ks) = Right (v, ks)

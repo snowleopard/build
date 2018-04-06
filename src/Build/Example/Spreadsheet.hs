@@ -78,35 +78,37 @@ type Spreadsheet = Cell -> Maybe Formula
 
 -- TODO: Implement 'Random'.
 -- | Monadic spreadsheet computation.
-spreadsheetTask :: Spreadsheet -> Task Monad Cell Int
-spreadsheetTask spreadsheet get cell@(Cell r c) = case spreadsheet cell of
+spreadsheetTask :: Spreadsheet -> Tasks Monad Cell Int
+spreadsheetTask spreadsheet cell@(Cell r c) = case spreadsheet cell of
     Nothing      -> Nothing -- This is an input
-    Just formula -> Just $ evaluate formula
+    Just formula -> Just $ Task $ evaluate formula
   where
-    evaluate formula = case formula of
-        Constant x              -> pure x
-        Reference cell          -> get cell
-        RelativeReference dr dc -> get (Cell (r + dr) (c + dc))
-        Unary  op fx            -> op <$> evaluate fx
-        Binary op fx fy         -> op <$> evaluate fx <*> evaluate fy
-        IfZero fx fy fz         -> do
-            x <- evaluate fx
-            if x == 0 then evaluate fy else evaluate fz
-        Random _ _      -> error "Random not implemented"
+    evaluate formula fetch = go formula
+      where go formula = case formula of
+                Constant x              -> pure x
+                Reference cell          -> fetch cell
+                RelativeReference dr dc -> fetch (Cell (r + dr) (c + dc))
+                Unary  op fx            -> op <$> go fx
+                Binary op fx fy         -> op <$> go fx <*> go fy
+                IfZero fx fy fz         -> do
+                    x <- go fx
+                    if x == 0 then go fy else go fz
+                Random _ _      -> error "Random not implemented"
 
 -- | Applicative spreadsheet computation.
-spreadsheetTaskA :: Spreadsheet -> Task Applicative Cell Int
-spreadsheetTaskA spreadsheet get cell@(Cell r c) = case spreadsheet cell of
+spreadsheetTaskA :: Spreadsheet -> Tasks Applicative Cell Int
+spreadsheetTaskA spreadsheet cell@(Cell r c) = case spreadsheet cell of
     Nothing      -> Nothing -- This is an input
-    Just formula -> Just $ evaluate formula
+    Just formula -> Just $ Task $ evaluate formula
   where
-    evaluate formula = case formula of
-        Constant x              -> pure x
-        Reference cell          -> get cell
-        RelativeReference dr dc -> get (Cell (r + dr) (c + dc))
-        Unary  op fx            -> op <$> evaluate fx
-        Binary op fx fy         -> op <$> evaluate fx <*> evaluate fy
-        IfZero fx fy fz         -> bool <$> evaluate fz
-                                        <*> evaluate fy
-                                        <*> ((==0) <$> evaluate fx)
-        Random _ _      -> error "Random not implemented"
+    evaluate formula fetch = go formula
+      where go formula = case formula of
+                Constant x              -> pure x
+                Reference cell          -> fetch cell
+                RelativeReference dr dc -> fetch (Cell (r + dr) (c + dc))
+                Unary  op fx            -> op <$> go fx
+                Binary op fx fy         -> op <$> go fx <*> go fy
+                IfZero fx fy fz         -> bool <$> go fz
+                                                <*> go fy
+                                                <*> ((==0) <$> go fx)
+                Random _ _      -> error "Random not implemented"
