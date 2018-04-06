@@ -17,17 +17,24 @@ import Build.Utilities
 
 import qualified Data.Set as Set
 
-topological :: Ord k =>
-    (      k                        -- ^ Key to build @k@
-        -> [k]                      -- ^ Dependencies of @k@
-        -> State (Store i k v) v    -- ^ Action to calculate the value of @k@
-        -> State (Store i k v) ()
-    ) -> Build Applicative i k v
-topological process tasks key = execState $ forM_ chain $ \k -> do
-    let fetch k = gets (getValue k)
+
+-- type With (c :: * -> Constraint) (i :: *) (f :: i) = (c f, State i )
+
+topological :: Ord k => (k -> Task Applicative k v -> Task (MonadState i) k v)
+    -> Build Applicative i k v
+topological transformer tasks key = execState $ forM_ chain $ \k ->
     case tasks k of
         Nothing   -> return ()
-        Just task -> process k (deps k) (run task fetch)
+        Just task -> do
+            let t = transformer k task
+                fetch :: k -> StateT i (State (Store i k v)) v
+                fetch = lift . gets . getValue
+            info <- gets getInfo
+            (value, newInfo) <- runStateT (run t fetch) info
+            -- Shall we skip writing if the value is the same? It feels a bit
+            -- inefficient, but at the moment we have no way to indicate that
+            -- the transformed task doesn't need recomputation.
+            modify $ putInfo newInfo . putValue k value
   where
     deps  = maybe [] dependencies . tasks
     chain = case topSort (graph deps key) of

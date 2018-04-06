@@ -4,7 +4,7 @@ module Build.System (
     dumb, busy, memo,
 
     -- * Applicative build systems
-    make, ninja, bazel, buck,
+    make, ninja, bazel, -- buck,
 
     -- * Monadic build systems
     excel, shake, cloudShake, nix
@@ -20,6 +20,8 @@ import Build.Store
 import Build.Task
 import Build.Task.Monad
 import Build.Trace
+
+import qualified Build.Task.Applicative as A
 
 -- Not a correct build system
 dumb :: Eq k => Build Monad i k v
@@ -47,27 +49,33 @@ type Time = Integer -- A negative time value means a key was never built
 type MakeInfo k = (k -> Time, Time)
 
 make :: forall k v. Ord k => Build Applicative (MakeInfo k) k v
-make = topological process
+make = topological transformer
   where
-    process :: k -> [k] -> State (Store (MakeInfo k) k v) v -> State (Store (MakeInfo k) k v) ()
-    process key deps act = do
-        (modTime, now) <- gets getInfo
-        let dirty = or [ modTime dep > modTime key | dep <- deps ]
-        when (dirty || modTime key < 0) $ do
-            v <- act
+    transformer :: k -> Task Applicative k v -> Task (MonadState (MakeInfo k)) k v
+    transformer key task = Task $ \fetch -> do
+        (modTime, now) <- get
+        let dirty = or [ modTime dep > modTime key | dep <- A.dependencies task ]
+        if dirty || modTime key < 0
+        then do
             let newModTime k = if k == key then now else modTime k
-            modify $ putInfo (newModTime, now + 1) . putValue key v
+            put (newModTime, now + 1)
+            run task fetch
+        else
+            fetch key
 
 ------------------------------------- Ninja ------------------------------------
 ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
-ninja = topological $ \key deps act -> do
-    store <- get
-    let vt = getInfo store
-    dirty <- not <$> verifyVT (return . flip getHash store) key vt
-    when dirty $ do
-        value <- act
-        modify $ \s -> let newS = putValue key value s
-                       in mapInfo (recordVT newS key deps <>) newS
+ninja = topological $ \key task -> Task $ \fetch -> do
+    vt <- get
+    dirty <- not <$> verifyVT (fmap hash . fetch) key vt
+    if dirty
+    then do
+        let newFetch = fmap hash . fetch -- needs to be fixed
+        newVT <- recordVT' newFetch key (A.dependencies task)
+        modify (newVT <>)
+        run task fetch
+    else
+        fetch key
 
 ------------------------------------- Excel ------------------------------------
 data DependencyApproximation k = SubsetOf [k] | Unknown -- Add Exact [k]?
@@ -129,34 +137,36 @@ cloudShake = recursive $ \key fetch act -> do
 
 ------------------------------------- Bazel ------------------------------------
 bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
-bazel = topological $ \key deps act -> do
-    store <- get
-    let ct = getInfo store
-    dirty <- not <$> verifyCT (return . flip getHash store) key ct
-    when dirty $ do
-        maybeValue <- constructCT (return . flip getHash store) key ct
+bazel = topological $ \key task -> Task $ \fetch -> do
+    ct <- get
+    dirty <- not <$> verifyCT (fmap hash . fetch) key ct
+    if dirty
+    then do
+        maybeValue <- constructCT (fmap hash . fetch) key ct
         case maybeValue of
-            Just value -> modify (putValue key value)
+            Just value -> return value
             Nothing -> do
-                value <- act
-                modify $ \s ->
-                    let newS = putValue key value s
-                    in mapInfo (recordCT newS key deps <>) newS
+                let newFetch = fetch -- needs to be fixed
+                newCT <- recordCT' newFetch key (A.dependencies task)
+                modify (newCT <>)
+                run task fetch
+    else
+        fetch key
 
 ------------------------------------- Buck -------------------------------------
-buck :: (Hashable k, Hashable v) => Build Applicative (CTD k v) k v
-buck = topological $ \key deps act -> do
-    store <- get
-    let ctd = getInfo store
-    dirty <- not <$> verifyCTD (return . flip getHash store) key deps ctd
-    when dirty $ do
-        maybeValue <- constructCTD (return . flip getHash store) key deps ctd
-        case maybeValue of
-            Just value -> modify (putValue key value)
-            Nothing -> do
-                value <- act
-                modify $ \s -> let newS = putValue key value s
-                               in mapInfo (recordCTD newS key deps <>) newS
+-- buck :: (Hashable k, Hashable v) => Build Applicative (CTD k v) k v
+-- buck = topological $ \key deps act -> do
+--     store <- get
+--     let ctd = getInfo store
+--     dirty <- not <$> verifyCTD (return . flip getHash store) key deps ctd
+--     when dirty $ do
+--         maybeValue <- constructCTD (return . flip getHash store) key deps ctd
+--         case maybeValue of
+--             Just value -> modify (putValue key value)
+--             Nothing -> do
+--                 value <- act
+--                 modify $ \s -> let newS = putValue key value s
+--                                in mapInfo (recordCTD newS key deps <>) newS
 
 -------------------------------------- Nix -------------------------------------
 nix :: (Hashable k, Hashable v) => Build Monad (CTD k v) k v
