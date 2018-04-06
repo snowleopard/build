@@ -70,10 +70,10 @@ ninja = topological $ \key task -> Task $ \fetch -> do
     dirty <- not <$> verifyVT (fmap hash . fetch) key vt
     if dirty
     then do
-        let newFetch = fmap hash . fetch -- needs to be fixed
-        newVT <- recordVT' newFetch key (A.dependencies task)
+        value <- run task fetch
+        newVT <- recordVT' key value (A.dependencies task) fetch
         modify (newVT <>)
-        run task fetch
+        return value
     else
         fetch key
 
@@ -146,10 +146,10 @@ bazel = topological $ \key task -> Task $ \fetch -> do
         case maybeValue of
             Just value -> return value
             Nothing -> do
-                let newFetch = fetch -- needs to be fixed
-                newCT <- recordCT' newFetch key (A.dependencies task)
+                value <- run task fetch
+                newCT <- recordCT' key value (A.dependencies task) fetch
                 modify (newCT <>)
-                run task fetch
+                return value
     else
         fetch key
 

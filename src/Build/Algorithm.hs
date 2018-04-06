@@ -18,8 +18,6 @@ import Build.Utilities
 import qualified Data.Set as Set
 
 
--- type With (c :: * -> Constraint) (i :: *) (f :: i) = (c f, State i )
-
 topological :: Ord k => (k -> Task Applicative k v -> Task (MonadState i) k v)
     -> Build Applicative i k v
 topological transformer tasks key = execState $ forM_ chain $ \k ->

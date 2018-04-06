@@ -33,11 +33,10 @@ newtype VT k v = VT [Trace k v] deriving (Monoid, Semigroup)
 recordVT :: Hashable v => Store i k v -> k -> [k] -> VT k v
 recordVT store key deps = VT [Trace key [ (k, getHash k store) | k <- deps ] (getHash key store)]
 
-recordVT' :: Monad m => (k -> m (Hash v)) -> k -> [k] -> m (VT k v)
-recordVT' fetchHash key deps = do
-    hs <- mapM fetchHash deps
-    h  <- fetchHash key
-    return $ VT [Trace key (zip deps hs) h]
+recordVT' :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m v) -> m (VT k v)
+recordVT' key value deps fetch = do
+    hs <- mapM (fmap hash . fetch) deps
+    return $ VT [ Trace key (zip deps hs) (hash value) ]
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
@@ -63,12 +62,11 @@ instance Ord v => Monoid (CT k v) where
 recordCT :: Hashable v => Store i k v -> k -> [k] -> CT k v
 recordCT store key deps = CT (recordVT store key deps) (Map.singleton (getHash key store) (getValue key store))
 
-recordCT' :: (Hashable v, Monad m) => (k -> m v) -> k -> [k] -> m (CT k v)
-recordCT' fetch key deps = do
+recordCT' :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m v) -> m (CT k v)
+recordCT' key value deps fetch = do
     hs <- mapM (fmap hash . fetch) deps
-    h  <- hash <$> fetch key
-    v  <- fetch key
-    return $ CT (VT [Trace key (zip deps hs) h]) (Map.singleton h v)
+    let h = hash value
+    return $ CT (VT [Trace key (zip deps hs) h]) (Map.singleton h value)
 
 verifyCT :: (Monad m, Eq k, Eq v) => (k -> m (Hash v)) -> k -> CT k v -> m Bool
 verifyCT fetchHash key (CT ts _) = verifyVT fetchHash key ts
