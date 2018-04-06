@@ -39,19 +39,7 @@ makeStrategy key value task = Task $ \fetch -> do
         put (newModTime, now + 1)
         run task fetch
 
-vtStrategyA :: (Ord k, Hashable v) => Strategy Applicative (VT k v) k v
-vtStrategyA key value task = Task $ \fetch -> do
-    vt <- get
-    dirty <- not <$> verifyVT key value (fmap hash . fetch) vt
-    if not dirty
-    then return value
-    else do
-        newValue <- run task fetch
-        newVT <- recordVT key newValue (A.dependencies task) (fmap hash . fetch)
-        modify (newVT <>)
-        return newValue
-
-------------------------------------- Excel ------------------------------------
+--------------------------- Depencency approximation ---------------------------
 data DependencyApproximation k = SubsetOf [k] | Unknown -- Add Exact [k]?
 
 instance Ord k => Semigroup (DependencyApproximation k) where
@@ -76,7 +64,19 @@ approximationStrategy key value task = Task $ \fetch -> do
             put (\k -> k == key || isDirty k, deps)
             run task fetch
 
-------------------------------------- Shake ------------------------------------
+------------------------------- Verifying traces -------------------------------
+vtStrategyA :: (Ord k, Hashable v) => Strategy Applicative (VT k v) k v
+vtStrategyA key value task = Task $ \fetch -> do
+    vt <- get
+    dirty <- not <$> verifyVT key value (fmap hash . fetch) vt
+    if not dirty
+    then return value
+    else do
+        newValue <- run task fetch
+        newVT <- recordVT key newValue (A.dependencies task) (fmap hash . fetch)
+        modify (newVT <>)
+        return newValue
+
 vtStrategyM :: (Eq k, Hashable v) => Strategy Monad (VT k v) k v
 vtStrategyM key value task = Task $ \fetch -> do
     vt <- get
@@ -89,6 +89,7 @@ vtStrategyM key value task = Task $ \fetch -> do
         modify (newVT <>)
         return newValue
 
+------------------------------ Constructive traces -----------------------------
 ctStrategyM :: (Eq k, Hashable v) => Strategy Monad (CT k v) k v
 ctStrategyM key value task = Task $ \fetch -> do
     ct <- get
@@ -121,6 +122,7 @@ ctStrategyA key value task = Task $ \fetch -> do
                 modify (newCT <>)
                 return newValue
 
+----------------------- Deterministic constructive traces ----------------------
 dctStrategyA :: (Hashable k, Hashable v) => Strategy Applicative (DCT k v) k v
 dctStrategyA key value task = Task $ \fetch -> do
     dct <- get
