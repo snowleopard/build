@@ -53,27 +53,25 @@ make = topological transformer
     transformer key currentValue task = Task $ \fetch -> do
         (modTime, now) <- get
         let dirty = or [ modTime dep > modTime key | dep <- A.dependencies task ]
-        if dirty || modTime key < 0
-        then do
+        if not (dirty || modTime key < 0)
+        then return currentValue
+        else do
             let newModTime k = if k == key then now else modTime k
             put (newModTime, now + 1)
             run task fetch
-        else
-            return currentValue
 
 ------------------------------------- Ninja ------------------------------------
 ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
 ninja = topological $ \key currentValue task -> Task $ \fetch -> do
     vt <- get
     dirty <- not <$> verifyVT key currentValue (fmap hash . fetch) vt
-    if dirty
-    then do
+    if not dirty
+    then return currentValue
+    else do
         value <- run task fetch
         newVT <- recordVT key value (A.dependencies task) (fmap hash . fetch)
         modify (newVT <>)
         return value
-    else
-        return currentValue
 
 ------------------------------------- Excel ------------------------------------
 data DependencyApproximation k = SubsetOf [k] | Unknown -- Add Exact [k]?
@@ -87,47 +85,41 @@ instance Ord k => Monoid (DependencyApproximation k) where
     mempty  = Unknown
     mappend = (<>)
 
-type ExcelInfo k = ((k -> Bool, k -> DependencyApproximation k), CalcChain k)
+type ExcelInfo k = ((k -> Bool, k -> DependencyApproximation k), Chain k)
 
 excel :: Ord k => Build Monad (ExcelInfo k) k v
-excel = reordering process
-  where
-    process key act = do
-        (dirty, deps) <- gets getInfo
-        let rebuild = dirty key || case deps key of SubsetOf ks -> any dirty ks
-                                                    Unknown     -> True
-        if not rebuild
-            then return Nothing
-            else do
-                result <- act
-                case result of
-                    MissingDependency _ -> return ()
-                    Result v _dynamicDependencies -> do
-                        let newDirty k = if k == key then True else dirty k
-                        modify $ putInfo (newDirty, deps) . putValue key v
-                return (Just result)
+excel = reordering $ \key currentValue task -> Task $ \fetch -> do
+    (isDirty, deps) <- get
+    let dirty = isDirty key || case deps key of SubsetOf ks -> any isDirty ks
+                                                Unknown     -> True
+    if not dirty
+        then return currentValue
+        else do
+            put (\k -> k == key || isDirty k, deps)
+            run task fetch
 
 ------------------------------------- Shake ------------------------------------
 shake :: (Eq k, Hashable v) => Build Monad (VT k v) k v
 shake = recursive $ \key currentValue task -> Task $ \fetch -> do
     vt <- get
     dirty <- not <$> verifyVT key currentValue (fmap hash . fetch) vt
-    if dirty
-    then do
+    if not dirty
+    then return currentValue
+    else do
         (value, deps) <- trackM fetch task
         newVT <- recordVT key value deps (fmap hash . fetch)
         modify (newVT <>)
         return value
-    else
-        return currentValue
+
 ---------------------------------- Cloud Shake ---------------------------------
 -- Currently broken: loops forever
 cloudShake :: (Eq k, Hashable v) => Build Monad (CT k v) k v
 cloudShake = recursive $ \key currentValue task -> Task $ \fetch -> do
     ct <- get
     dirty <- not <$> verifyCT key currentValue (fmap hash . fetch) ct
-    if dirty
-    then do
+    if not dirty
+    then return currentValue
+    else do
         maybeValue <- constructCT key (fmap hash . fetch) ct
         case maybeValue of
             Just value -> return value
@@ -136,16 +128,15 @@ cloudShake = recursive $ \key currentValue task -> Task $ \fetch -> do
                 newCT <- recordCT key value deps (fmap hash . fetch)
                 modify (newCT <>)
                 return value
-    else
-        return currentValue
 
 ------------------------------------- Bazel ------------------------------------
 bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
 bazel = topological $ \key currentValue task -> Task $ \fetch -> do
     ct <- get
     dirty <- not <$> verifyCT key currentValue (fmap hash . fetch) ct
-    if dirty
-    then do
+    if not dirty
+    then return currentValue
+    else do
         maybeValue <- constructCT key (fmap hash . fetch) ct
         case maybeValue of
             Just value -> return value
@@ -154,16 +145,15 @@ bazel = topological $ \key currentValue task -> Task $ \fetch -> do
                 newCT <- recordCT key value (A.dependencies task) (fmap hash . fetch)
                 modify (newCT <>)
                 return value
-    else
-        return currentValue
 
 ------------------------------------- Buck -------------------------------------
 buck :: (Hashable k, Hashable v) => Build Applicative (DCT k v) k v
 buck = topological $ \key currentValue task -> Task $ \fetch -> do
     dct <- get
     dirty <- not <$> verifyDCT key (A.dependencies task) (fmap hash . fetch) dct
-    if dirty
-    then do
+    if not dirty
+    then return currentValue
+    else do
         maybeValue <- constructDCT key (A.dependencies task) (fmap hash . fetch) dct
         case maybeValue of
             Just value -> return value
@@ -172,8 +162,6 @@ buck = topological $ \key currentValue task -> Task $ \fetch -> do
                 newDCT <- recordDCT key value (A.dependencies task) (fmap hash . fetch)
                 modify (newDCT <>)
                 return value
-    else
-        return currentValue
 
 -------------------------------------- Nix -------------------------------------
 -- nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v

@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
 module Build.Task.Monad (
-    dependencies, track, trackM, inputs, correctBuild, compute,
-    debugPartial, partial, trackExceptions, exceptional
+    dependencies, track, trackM, inputs, correctBuild, compute, partial, exceptional
     ) where
 
 import Control.Monad.Trans
@@ -56,20 +55,10 @@ correctBuild tasks store result = all correct . reachable deps
 compute :: Task Monad k v -> (k -> v) -> v
 compute task store = runIdentity $ run task (Identity . store)
 
--- | Run a task with a partial lookup function. The result @Left k@ indicates
--- that the task failed due to a missing dependency @k@. Otherwise, the
--- result @Right v@ yields the computed value.
-debugPartial :: Monad m => Task Monad k v
-                      -> (k -> m (Maybe v)) -> m (Either k v)
-debugPartial task store = runExceptT $ run task fetch
-  where
-    fetch k = maybe (throwE k) return =<< lift (store k)
-
 -- | Convert a task with a total lookup function @k -> m v@ into a task
 -- with a partial lookup function @k -> m (Maybe v)@. This essentially lifts the
 -- task from the type of values @v@ to @Maybe v@, where the result @Nothing@
 -- indicates that the task failed because of a missing dependency.
--- Use 'debugPartial' if you need to know which dependency was missing.
 partial :: Task Monad k v -> Task Monad k (Maybe v)
 partial task = Task $ \fetch -> runMaybeT $ run task (MaybeT . fetch)
 
@@ -80,16 +69,3 @@ partial task = Task $ \fetch -> runMaybeT $ run task (MaybeT . fetch)
 -- failed dependency lookup, and @Right v@ yeilds the value otherwise.
 exceptional :: Task Monad k v -> Task Monad k (Either e v)
 exceptional task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
-
--- Yuck!
-trackExceptions :: forall m k v. Monad m => Task Monad k v -> (k -> m (Maybe v))
-                           -> m (Either k (v, [k]))
-trackExceptions task partialFetch = (fmap convert . runWriterT) $ debugPartial task fetch
-  where
-    fetch :: k -> WriterT [k] m (Maybe v)
-    fetch k = do
-        mv <- lift (partialFetch k)
-        writer (mv, [k])
-    convert :: (Either k v, [k]) -> Either k (v, [k])
-    convert (Left  k, _ ) = Left k
-    convert (Right v, ks) = Right (v, ks)

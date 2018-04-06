@@ -1,22 +1,28 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
 module Build.Algorithm (
     topological,
-    reordering, CalcChain, Result(..),
+    reordering, Chain,
     recursive
     ) where
 
 import Control.Monad.State
+import Control.Monad.Trans.Except
 import Data.Set (Set)
 
 import Build
 import Build.Task
 import Build.Task.Applicative hiding (exceptional)
-import Build.Task.Monad hiding (dependencies, inputs)
 import Build.Store
 import Build.Utilities
 
 import qualified Data.Set as Set
 
+-- Shall we skip writing to the store if the value is the same?
+-- We could skip writing if hash oldValue == hash newValue.
+updateValue :: Eq k => k -> v -> v -> Store i k v -> Store i k v
+updateValue key _oldValue newValue = putValue key newValue
+
+---------------------------------- Topological ---------------------------------
 topological :: Ord k => (k -> v -> Task Applicative k v -> Task (MonadState i) k v)
     -> Build Applicative i k v
 topological transformer tasks key = execState $ forM_ chain $ \k ->
@@ -29,51 +35,49 @@ topological transformer tasks key = execState $ forM_ chain $ \k ->
                 fetch = lift . gets . getValue
             info <- gets getInfo
             (value, newInfo) <- runStateT (run t fetch) info
-            -- Shall we skip writing if the value is the same?
-            modify $ putInfo newInfo . putValue k value
+            modify $ putInfo newInfo . updateValue k currentValue value
   where
     deps  = maybe [] dependencies . tasks
     chain = case topSort (graph deps key) of
         Nothing -> error "Cannot build tasks with cyclic dependencies"
         Just xs -> xs
 
-data Result k v = MissingDependency k | Result v [k]
+---------------------------------- Reordering ----------------------------------
+type Chain k = [k]
 
-try :: forall m k v. Monad m => Task Monad k v -> (k -> m (Maybe v)) -> m (Result k v)
-try task partialFetch = toResult <$> trackExceptions task partialFetch
-  where
-    toResult (Left k       ) = MissingDependency k
-    toResult (Right (v, ks)) = Result v ks
+trying :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
+trying task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
 
-type CalcChain k = [k]
-
-reordering :: forall i k v. Ord k => (k -> State (Store i k v) (Result k v)
-                                        -> State (Store i k v) (Maybe (Result k v)))
-                                  -> Build Monad (i, CalcChain k) k v
-reordering process tasks key = execState $ do
+reordering :: forall i k v. Ord k
+           => (k -> v -> Task Monad k v -> Task (MonadState i) k v)
+           -> Build Monad (i, Chain k) k v
+reordering transformer tasks key = execState $ do
     chain    <- snd . getInfo <$> get
     newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
     modify . mapInfo $ \(i, _) -> (i, newChain)
   where
-    go :: Set k -> CalcChain k -> State (Store (i, [k]) k v) (CalcChain k)
+    go :: Set k -> Chain k -> State (Store (i, [k]) k v) (Chain k)
     go _    []     = return []
     go done (k:ks) = do
         case tasks k of
             Nothing -> (k :) <$> go (Set.insert k done) ks
             Just task -> do
-                store <- get
-                let act = try task fetch
-                    (res, newStore) = runState (process k act) (mapInfo fst store)
-                put $ mapInfo (,[]) newStore
-                case res of
-                    Just (MissingDependency d) -> go done $ [ d | d `notElem` ks ] ++ ks ++ [k]
-                    _                          -> (k :) <$> go (Set.insert k done) ks
-      where
-        fetch :: k -> State (Store i k v) (Maybe v)
-        fetch k | k `Set.member` done = gets (Just . getValue k)
-                | otherwise           = return Nothing
+                currentValue <- gets (getValue k)
+                let t = transformer k currentValue task
+                    tryFetch :: k -> StateT i (State (Store (i, [k]) k v)) (Either k v)
+                    tryFetch k | k `Set.member` done = do
+                                   store <- lift get
+                                   return $ Right (getValue k store)
+                               | otherwise = return (Left k)
+                info <- fst <$> gets getInfo
+                (result, newInfo) <- runStateT (run (trying t) tryFetch) info
+                case result of
+                    Left dep -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
+                    Right value -> do
+                        modify $ putInfo (newInfo, []) . updateValue k currentValue value
+                        (k :) <$> go (Set.insert k done) ks
 
--- Recursive dependency strategy
+----------------------------------- Recursive ----------------------------------
 recursive :: forall i k v. Eq k
           => (k -> v -> Task Monad k v -> Task (MonadState i) k v)
           -> Build Monad i k v
@@ -87,10 +91,7 @@ recursive transformer tasks key store = fst $ execState (fetch key) (store, [])
             when (key `notElem` done) $ do
                 currentValue <- gets (getValue key . fst)
                 let t = transformer key currentValue task
-                    liftedFetch :: k -> StateT i (State (Store i k v, [k])) v
-                    liftedFetch = lift . fetch
                 info <- gets (getInfo . fst)
-                (value, newInfo) <- runStateT (run t liftedFetch) info
-                -- Shall we skip writing if the value is the same?
-                modify $ \(s, done) -> (putInfo newInfo $ putValue key value s, done)
+                (value, newInfo) <- runStateT (run t (lift . fetch)) info
+                modify $ \(s, done) -> (putInfo newInfo $ updateValue key currentValue value s, done)
             gets (getValue key . fst)
