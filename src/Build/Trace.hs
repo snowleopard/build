@@ -68,11 +68,11 @@ verifyCT key value fetchHash (CT ts _) = verifyVT key value fetchHash ts
 constructCT :: (Monad m, Eq k, Ord v) => k -> (k -> m (Hash v)) -> CT k v -> m (Maybe v)
 constructCT key fetchHash (CT (VT ts) cache) = firstJustM match ts
   where
-    match (Trace k deps result) = do
-        sameInputs <- andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
-        if k /= key || not sameInputs
-            then return Nothing
-            else return (Map.lookup result cache)
+    match (Trace k deps result)
+        | k /= key  = return Nothing
+        | otherwise = do
+            sameInputs <- andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
+            return $ if sameInputs then Map.lookup result cache else Nothing
 
 newtype DCT k v = DCT (Map (Hash (k, [Hash v])) v)
 
