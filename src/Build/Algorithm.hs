@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
 module Build.Algorithm (
-    topological,
+    topological, topologicalT,
     reordering, CalcChain, Result(..),
     recursive
     ) where
@@ -89,3 +89,13 @@ recursive process task key store = fst $ execState (fetch key) (store, [])
                 modify $ \(s, done) -> (s, key : done)
                 process key fetch act
             gets (getValue key . fst)
+
+topologicalT :: Ord k => Build Applicative i k v -> Build Applicative i k v
+topologicalT build task key = go chain
+  where
+    deps  = dependencies task
+    chain = case topSort (graph deps key) of
+        Nothing -> error "Cannot build tasks with cyclic dependencies"
+        Just xs -> xs
+    go []     = id
+    go (k:ks) = go ks . build task k
