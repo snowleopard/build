@@ -4,10 +4,13 @@ module Build.System (
     dumb, busy, memo,
 
     -- * Applicative build systems
-    make, ninja, bazel, buck,
+    make, makeT, ninja, bazel, buck,
 
     -- * Monadic build systems
-    excel, shake, cloudShake, nix
+    excel, shake, cloudShake, nix,
+
+    -- * hack
+    Time, Timed (mtime)
     ) where
 
 import Control.Monad.State
@@ -19,6 +22,8 @@ import Build.Algorithm
 import Build.Store
 import Build.Task.Monad
 import Build.Trace
+
+import Debug.Trace (traceM)
 
 -- Not a correct build system
 dumb :: Eq k => Build Monad i k v
@@ -56,6 +61,23 @@ make = topological process
             v <- act
             let newModTime k = if k == key then now else modTime k
             modify $ putInfo (newModTime, now + 1) . putValue key v
+
+class Timed v where
+    mtime :: v -> Time
+
+makeT :: forall k v. (Show k, Timed v, Ord k) => Build Applicative () k v
+makeT = topological process
+  where
+    process :: Timed v => k -> [k] -> State (Store () k v) v -> State (Store () k v) ()
+    process key deps act = do
+        modTime <- gets (\store -> mtime . values store)
+        let dirty = or [ modTime dep > modTime key | dep <- deps ]
+        if (dirty || modTime key < 0) then do
+            traceM ("Building key " ++ show key)
+            v <- act
+            modify $ putValue key v
+        else do
+            traceM ("Skipping key " ++ show key ++ " (already up to date)")
 
 ------------------------------------- Ninja ------------------------------------
 ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v

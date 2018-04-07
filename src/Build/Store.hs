@@ -4,7 +4,7 @@ module Build.Store (
     Hash, Hashable (..),
 
     -- * Store
-    Store, getValue, putValue, getHash, getInfo, putInfo, mapInfo,
+    Store, values, getValue, putValue, getHash, getInfo, putInfo, mapInfo,
     initialise, agree
     ) where
 
