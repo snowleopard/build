@@ -74,7 +74,7 @@ constructCT key fetchHash (CT (VT ts) cache) = firstJustM match ts
             sameInputs <- andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
             return $ if sameInputs then Map.lookup result cache else Nothing
 
-newtype DCT k v = DCT (Map (Hash (k, [Hash v])) v)
+newtype DCT k v = DCT (Map (Hash (k, [(k, Hash v)])) v)
 
 instance (Ord k, Ord v) => Semigroup (DCT k v) where
     DCT c1 <> DCT c2 = DCT (Map.union c1 c2)
@@ -87,7 +87,7 @@ recordDCT :: (Hashable k, Hashable v, Monad m)
           => k -> v -> [k] -> (k -> m (Hash v)) -> m (DCT k v)
 recordDCT key value deps fetchHash = do
     hs <- mapM fetchHash deps
-    return $ DCT (Map.singleton (hash (key, hs)) value)
+    return $ DCT (Map.singleton (hash (key, zip deps hs)) value)
 
 verifyDCT :: (Hashable k, Hashable v, Monad m)
           => k -> [k] -> (k -> m (Hash v)) -> DCT k v -> m Bool
@@ -101,4 +101,4 @@ constructDCT :: (Hashable k, Hashable v, Monad m)
              => k -> [k] -> (k -> m (Hash v)) -> DCT k v -> m (Maybe v)
 constructDCT key deps fetchHash (DCT cache) = do
     hs <- mapM fetchHash deps
-    return (Map.lookup (hash (key, hs)) cache)
+    return (Map.lookup (hash (key, zip deps hs)) cache)
