@@ -1,12 +1,13 @@
-{-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts, ScopedTypeVariables, DeriveFunctor #-}
 module Build.Task.Monad (
-    dependencies, track, trackM, inputs, correctBuild, compute, partial, exceptional
+    dependencies, track, trackM, inputs, correctBuild, compute, partial, exceptional, toDepends, Depends(..)
     ) where
 
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
+import Data.Tuple.Extra
 import Data.Functor.Identity
 import Data.Maybe
 
@@ -69,3 +70,19 @@ partial task = Task $ \fetch -> runMaybeT $ run task (MaybeT . fetch)
 -- failed dependency lookup, and @Right v@ yeilds the value otherwise.
 exceptional :: Task Monad k v -> Task Monad k (Either e v)
 exceptional task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
+
+data Depends k v r = Depends [k] ([v] -> Depends k v r)
+                   | Done r
+    deriving Functor
+
+instance Applicative (Depends k v) where
+    pure = return
+    f1 <*> f2 = f2 >>= \v -> ($ v) <$> f1
+
+instance Monad (Depends k v) where
+    return = Done
+    Done x >>= f = f x
+    Depends ds op >>= f = Depends ds $ \vs -> f =<< op vs
+
+toDepends :: Task Monad k v -> Depends k v v
+toDepends (Task f) = f $ \k -> Depends [k] $ \[v] -> Done v
