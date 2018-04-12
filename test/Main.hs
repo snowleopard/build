@@ -10,6 +10,8 @@ import Build.Task
 import Build.Task.Monad (correctBuild)
 import Build.Store
 import Build.System
+import Build.Changing()
+import Build.Multi()
 
 import Build.Example.Spreadsheet
 

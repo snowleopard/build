@@ -20,7 +20,9 @@ library
   hs-source-dirs:       src
   exposed-modules:      Build,
                         Build.Algorithm,
+                        Build.Changing,
                         Build.Example.Spreadsheet,
+                        Build.Multi,
                         Build.NonDeterministic,
                         Build.Store,
                         Build.Task,
