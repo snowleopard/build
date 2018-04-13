@@ -7,7 +7,6 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
-import Data.Tuple.Extra
 import Data.Functor.Identity
 import Data.Maybe
 
