@@ -21,25 +21,17 @@ import Data.Tree
 import Build.Task
 import Build.Task.Applicative
 
-
-data KeyM k
-    = KeyM k
-    | InputM k
-    | KeyTaskM k
+data KeyM k     = KeyM k   | KeyTaskM k
+data ValueM v t = ValueM v | ValueTaskM t
 
 -- | A model using Monad, works beautifully and allows storing the key on the disk
-selfTrackingM :: (v -> Maybe (Task Monad k v)) -> Tasks Monad (KeyM k) v
+selfTrackingM :: (t -> Task Monad k v) -> Tasks Monad (KeyM k) (ValueM v t)
 selfTrackingM _     (KeyTaskM _) = Nothing -- the Tasks must be an input stored on disk
-selfTrackingM _     (InputM   _) = Nothing
 selfTrackingM parse (KeyM     k) = Just $ Task $ \fetch -> do
-    taskValue <- fetch (KeyTaskM k)
-    case parse taskValue of
-        Nothing -> fetch (InputM k)
-        Just task -> run task (fetch . KeyM)
+    ValueTaskM taskDescription <- fetch (KeyTaskM k)
+    ValueM <$> run (parse taskDescription) (fmap (\(ValueM v) -> v) . fetch . KeyM)
 
-
-data KeyA1 k
-    = KeyA1 k (Tree String)
+data KeyA1 k = KeyA1 k (Tree String)
 
 -- | First Applicative model, requires every key to be able to associate with it's environment (e.g. a reader somewhere)
 --   Does not support cutoff if a key changes
