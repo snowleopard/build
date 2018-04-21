@@ -5,24 +5,16 @@
 -- * For Monad it works out beautifully. You just store the rule on the disk,
 --   and depend on it.
 --
--- * For Applicative1, if you are willing to give up cutoff, you can just store
---   the rules as a Tree in the node itself. That works adequately, but in
---   practice I (Neil) don't think anyone does it like that.
---
--- * For Applicative2, we generate a fresh Task each time, but have that Task
+-- * For Applicative, we generate a fresh Task each time, but have that Task
 --   depend on a fake version of the rules. This is a change in the Task, but
 --   it's one for which the standard implementations tend to cope with just fine.
 --   Most Applicative systems with self-tracking probably do it this way.
 module Build.SelfTracking(
     KeyM (..), selfTrackingM,
-    KeyA1 (..), selfTrackingA1,
-    KeyA2 (..), ValueA2 (..), selfTrackingA2
+    KeyA (..), ValueA (..), selfTrackingA
     ) where
 
-import Data.Tree
-
 import Build.Task
-import Build.Task.Depend
 
 -- We assume that the fetch passed to a Task is consistent and returns values
 -- matching the keys. It is possible to switch to typed tasks to check this
@@ -54,33 +46,21 @@ selfTrackingM parser (KeyM     k) = Just $ Task $ \fetch -> do
     task <- parser <$> fetchValueTaskM fetch k -- Fetch and parse the task description
     ValueM <$> run task (fetchValueM fetch)
 
-data KeyA1 k = KeyA1 k (Tree String)
+data KeyA k
+    = KeyA k
+    | InputA k
+    | KeyTaskA k
 
--- | First Applicative model, requires every key to be able to associate with
--- its environment (e.g. a reader somewhere). Does not support cutoff if a key changes
-selfTrackingA1 :: (String -> Maybe (Task Applicative k v)) -> Tasks Applicative (KeyA1 k) v
-selfTrackingA1 parse (KeyA1 _ (Node task children)) = case parse task of
-    Nothing -> Nothing
-    Just op -> Just $ Task $ \fetch ->
-        let Depend ds f = toDepend op
-        in fmap f $ traverse fetch $ zipWith KeyA1 ds children
-
-
-data KeyA2 k
-    = KeyA2 k
-    | InputA2 k
-    | KeyTaskA2 k
-
-data ValueA2 v
-    = ValueA2 v
-    | ValueTaskA2 String
+data ValueA v
+    = ValueA v
+    | ValueTaskA String
 
 -- | Second Applicative model, requires every key to be able to associate with it's environment (e.g. a reader somewhere)
 --   Does not support cutoff if a key changes
-selfTrackingA2 :: (String -> Maybe (Task Applicative k v)) -> (k -> String) -> Tasks Applicative (KeyA2 k) (ValueA2 v)
-selfTrackingA2 _     _   (KeyTaskA2 _) = Nothing
-selfTrackingA2 _     _   (InputA2   _) = Nothing
-selfTrackingA2 parse ask (KeyA2 k) = Just $ Task $ \fetch ->
-        fetch (KeyTaskA2 k) <* case parse $ ask k of
-            Nothing -> fetch $ InputA2 k
-            Just (Task op) -> fmap ValueA2 $ op $ fmap (\(ValueA2 v) -> v) . fetch . KeyA2
+selfTrackingA :: (String -> Maybe (Task Applicative k v)) -> (k -> String) -> Tasks Applicative (KeyA k) (ValueA v)
+selfTrackingA _     _   (KeyTaskA _) = Nothing
+selfTrackingA _     _   (InputA   _) = Nothing
+selfTrackingA parse ask (KeyA k) = Just $ Task $ \fetch ->
+        fetch (KeyTaskA k) <* case parse $ ask k of
+            Nothing -> fetch $ InputA k
+            Just (Task op) -> fmap ValueA $ op $ fmap (\(ValueA v) -> v) . fetch . KeyA
