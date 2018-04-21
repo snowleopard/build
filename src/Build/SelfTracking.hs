@@ -19,7 +19,7 @@ module Build.SelfTracking(
 import Data.Tree
 
 import Build.Task
-import Build.Task.Applicative
+import Build.Task.Depend
 
 data KeyM k     = KeyM k   | KeyTaskM k
 data ValueM v t = ValueM v | ValueTaskM t

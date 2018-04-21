@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 module Build.Task.Applicative (
-    pureTask, dependencies, inputs, partial, exceptional, toDepend, Depend(..)
+    pureTask, dependencies, inputs, partial, exceptional
     ) where
 
 import Control.Applicative
@@ -36,14 +36,3 @@ partial task = Task $ \fetch -> getCompose $ run task (Compose . fetch)
 -- failed dependency lookup, and @Right v@ yeilds the value otherwise.
 exceptional :: Task Applicative k v -> Task Applicative k (Either e v)
 exceptional task = Task $ \fetch -> getCompose $ run task (Compose . fetch)
-
-
-data Depend k v r = Depend [k] ([v] -> r)
-    deriving Functor
-
-instance Applicative (Depend k v) where
-    pure v = Depend [] (\[] -> v)
-    Depend d1 f1 <*> Depend d2 f2 = Depend (d1++d2) $ \vs -> let (v1,v2) = splitAt (length d1) vs in f1 v1 $ f2 v2
-
-toDepend :: Task Applicative k v -> Depend k v v
-toDepend (Task f) = f $ \k -> Depend [k] $ \[v] -> v
