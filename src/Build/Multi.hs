@@ -1,12 +1,7 @@
-{-# LANGUAGE Rank2Types, ConstraintKinds #-}
-module Build.Multi(
-    multi
-    ) where
+module Build.Multi (multi) where
 
-import Data.List
 import Data.Maybe
 import Build.Task
-
 
 -- | Defines a set partition. For a function to be a valid partition,
 --   if @f k == ks@, then:
@@ -19,8 +14,10 @@ type Partition k = k -> [k]
 -- Given a build rule where you can build some combinations of multiple rules,
 -- use a partition to enable building lots of multiple rule subsets.
 multi :: Eq k => Partition k -> Tasks Applicative [k] [v] -> Tasks Applicative [k] [v]
-multi part old ks
-    | k:_ <- ks, part k == ks = old ks
+multi partition tasks keys
+    | k:_ <- keys, partition k == keys = tasks keys
     | otherwise = Just $ Task $ \fetch ->
-        sequenceA [(!! index k) <$> fetch (part k) | k <- ks]
-    where index k = fromJust $ elemIndex k $ part k
+        sequenceA [ select k <$> fetch (partition k) | k <- keys ]
+  where
+    select k = fromMaybe (error msg) . lookup k . zip (partition k)
+    msg = "Partition invariants violated"
