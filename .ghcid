@@ -1,1 +1,1 @@
--c "ghci -ferror-spans" -T main
+-T main
