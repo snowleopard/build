@@ -9,9 +9,8 @@
 --   depend on a fake version of the rules. This is a change in the Task, but
 --   it's one for which the standard implementations tend to cope with just fine.
 --   Most Applicative systems with self-tracking probably do it this way.
-module Build.SelfTracking(
-    KeyM (..), selfTrackingM,
-    KeyA (..), ValueA (..), selfTrackingA
+module Build.SelfTracking (
+    Key (..), Value (..), selfTrackingM, selfTrackingA
     ) where
 
 import Build.Task
@@ -19,46 +18,36 @@ import Build.Task
 -- We assume that the fetch passed to a Task is consistent and returns values
 -- matching the keys. It is possible to switch to typed tasks to check this
 -- assumption at compile time, e.g. see "Build.Task.Typed".
-data KeyM k     = KeyM k   | KeyTaskM k
-data ValueM v t = ValueM v | ValueTaskM t
+data Key k     = Key k   | KeyTask k
+data Value v t = Value v | ValueTask t
 
 -- Fetch a value
-fetchValueM :: Monad m => (KeyM k -> m (ValueM v t)) -> k -> m v
-fetchValueM fetch key = do
-    value <- fetch (KeyM key)
-    case value of ValueM v -> return v
-                  _ -> error "Inconsistent fetch"
+fetchValue :: Functor f => (Key k -> f (Value v t)) -> k -> f v
+fetchValue fetch key = extract <$> fetch (Key key)
+  where
+    extract (Value v) = v
+    extract _ = error "Inconsistent fetch"
 
 -- Fetch a task description
-fetchValueTaskM :: Monad m => (KeyM k -> m (ValueM v t)) -> k -> m t
-fetchValueTaskM fetch key = do
-    value <- fetch (KeyTaskM key)
-    case value of ValueTaskM t -> return t
-                  _ -> error "Inconsistent fetch"
+fetchValueTask :: Functor f => (Key k -> f (Value v t)) -> k -> f t
+fetchValueTask fetch key = extract <$> fetch (KeyTask key)
+  where
+    extract (ValueTask t) = t
+    extract _ = error "Inconsistent fetch"
 
 -- For simplicity our task description parsers are total.
 type TaskParser c k v t = t -> Task c k v
 
 -- A model using Monad, works beautifully and allows storing the key on the disk
-selfTrackingM :: TaskParser Monad k v t -> Tasks Monad (KeyM k) (ValueM v t)
-selfTrackingM _      (KeyTaskM _) = Nothing -- Task keys are inputs
-selfTrackingM parser (KeyM     k) = Just $ Task $ \fetch -> do
-    task <- parser <$> fetchValueTaskM fetch k -- Fetch and parse the task description
-    ValueM <$> run task (fetchValueM fetch)
-
-data KeyA k   = KeyA k   | KeyTaskA k
-data ValueA v = ValueA v | ValueTaskA
-
--- Fetch a value
-fetchValueA :: Applicative f => (KeyA k -> f (ValueA v)) -> k -> f v
-fetchValueA fetch key = extract <$> fetch (KeyA key)
-  where
-    extract (ValueA v) = v
-    extract _          = error "Inconsistent fetch"
+selfTrackingM :: TaskParser Monad k v t -> Tasks Monad (Key k) (Value v t)
+selfTrackingM _      (KeyTask _) = Nothing -- Task keys are inputs
+selfTrackingM parser (Key     k) = Just $ Task $ \fetch -> do
+    task <- parser <$> fetchValueTask fetch k -- Fetch and parse the task description
+    Value <$> run task (fetchValue fetch)
 
 -- | The Applicative model requires every key to be able to associate with its
 -- environment (e.g. a reader somewhere). Does not support cutoff if a key changes
-selfTrackingA :: TaskParser Applicative k v t -> (k -> t) -> Tasks Applicative (KeyA k) (ValueA v)
-selfTrackingA _      _   (KeyTaskA _) = Nothing -- Task keys are inputs
-selfTrackingA parser ask (KeyA k) = Just $ Task $ \fetch ->
-    fetch (KeyTaskA k) <* (ValueA <$> run (parser $ ask k) (fetchValueA fetch))
+selfTrackingA :: TaskParser Applicative k v t -> (k -> t) -> Tasks Applicative (Key k) (Value v t)
+selfTrackingA _      _   (KeyTask _) = Nothing -- Task keys are inputs
+selfTrackingA parser ask (Key k) = Just $ Task $ \fetch ->
+    fetch (KeyTask k) <* (Value <$> run (parser $ ask k) (fetchValue fetch))
