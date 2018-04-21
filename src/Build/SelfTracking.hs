@@ -46,21 +46,19 @@ selfTrackingM parser (KeyM     k) = Just $ Task $ \fetch -> do
     task <- parser <$> fetchValueTaskM fetch k -- Fetch and parse the task description
     ValueM <$> run task (fetchValueM fetch)
 
-data KeyA k
-    = KeyA k
-    | InputA k
-    | KeyTaskA k
+data KeyA k   = KeyA k   | KeyTaskA k
+data ValueA v = ValueA v | ValueTaskA
 
-data ValueA v
-    = ValueA v
-    | ValueTaskA String
+-- Fetch a value
+fetchValueA :: Applicative f => (KeyA k -> f (ValueA v)) -> k -> f v
+fetchValueA fetch key = extract <$> fetch (KeyA key)
+  where
+    extract (ValueA v) = v
+    extract _          = error "Inconsistent fetch"
 
--- | Second Applicative model, requires every key to be able to associate with it's environment (e.g. a reader somewhere)
---   Does not support cutoff if a key changes
-selfTrackingA :: (String -> Maybe (Task Applicative k v)) -> (k -> String) -> Tasks Applicative (KeyA k) (ValueA v)
-selfTrackingA _     _   (KeyTaskA _) = Nothing
-selfTrackingA _     _   (InputA   _) = Nothing
-selfTrackingA parse ask (KeyA k) = Just $ Task $ \fetch ->
-        fetch (KeyTaskA k) <* case parse $ ask k of
-            Nothing -> fetch $ InputA k
-            Just (Task op) -> fmap ValueA $ op $ fmap (\(ValueA v) -> v) . fetch . KeyA
+-- | The Applicative model requires every key to be able to associate with its
+-- environment (e.g. a reader somewhere). Does not support cutoff if a key changes
+selfTrackingA :: TaskParser Applicative k v t -> (k -> t) -> Tasks Applicative (KeyA k) (ValueA v)
+selfTrackingA _      _   (KeyTaskA _) = Nothing -- Task keys are inputs
+selfTrackingA parser ask (KeyA k) = Just $ Task $ \fetch ->
+    fetch (KeyTaskA k) <* (ValueA <$> run (parser $ ask k) (fetchValueA fetch))
