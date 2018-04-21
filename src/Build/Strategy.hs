@@ -3,9 +3,7 @@ module Build.Strategy (
     Strategy, alwaysRebuildStrategy,
     makeStrategy, Time, MakeInfo,
     approximationStrategy, DependencyApproximation, ApproximationInfo,
-    vtStrategyA, vtStrategyM,
-    ctStrategyA, ctStrategyM,
-    dctStrategyA
+    tracingStrategyA, tracingStrategyM
     ) where
 
 import Control.Monad.State
@@ -64,77 +62,38 @@ approximationStrategy key value task = Task $ \fetch -> do
             put (\k -> k == key || isDirty k, deps)
             run task fetch
 
-------------------------------- Verifying traces -------------------------------
-vtStrategyA :: (Ord k, Hashable v) => Strategy Applicative (VT k v) k v
-vtStrategyA key value task = Task $ \fetch -> do
-    vt <- get
-    dirty <- not <$> verifyVT key value (fmap hash . fetch) vt
+------------------------------------ Traces ------------------------------------
+tracingStrategyA :: (Hashable k, Hashable v, Semigroup (t k v), Trace t)
+                 => Strategy Applicative (t k v) k v
+tracingStrategyA key value task = Task $ \fetch -> do
+    let deps = A.dependencies task
+    t <- get
+    dirty <- not <$> verify key value deps (fmap hash . fetch) t
     if not dirty
     then return value
     else do
-        newValue <- run task fetch
-        newVT <- recordVT key newValue (A.dependencies task) (fmap hash . fetch)
-        modify (newVT <>)
-        return newValue
+        maybeCachedValue <- construct key deps (fmap hash . fetch) t
+        case maybeCachedValue of
+            Just cachedValue -> return cachedValue
+            Nothing -> do
+                newValue <- run task fetch
+                newT <- record key newValue deps (fmap hash . fetch)
+                modify (newT <>)
+                return newValue
 
-vtStrategyM :: (Eq k, Hashable v) => Strategy Monad (VT k v) k v
-vtStrategyM key value task = Task $ \fetch -> do
-    vt <- get
-    dirty <- not <$> verifyVT key value (fmap hash . fetch) vt
+tracingStrategyM :: (Hashable k, Hashable v, Semigroup (t k v), Trace t)
+                 => Strategy Monad (t k v) k v
+tracingStrategyM key value task = Task $ \fetch -> do
+    t <- get
+    dirty <- not <$> verify key value [] (fmap hash . fetch) t
     if not dirty
     then return value
     else do
-        (newValue, deps) <- trackM task fetch
-        newVT <- recordVT key newValue deps (fmap hash . fetch)
-        modify (newVT <>)
-        return newValue
-
------------------------------- Constructive traces -----------------------------
-ctStrategyM :: (Eq k, Hashable v) => Strategy Monad (CT k v) k v
-ctStrategyM key value task = Task $ \fetch -> do
-    ct <- get
-    dirty <- not <$> verifyCT key value (fmap hash . fetch) ct
-    if not dirty
-    then return value
-    else do
-        maybeCachedValue <- constructCT key (fmap hash . fetch) ct
+        maybeCachedValue <- construct key [] (fmap hash . fetch) t
         case maybeCachedValue of
             Just cachedValue -> return cachedValue
             Nothing -> do
                 (newValue, deps) <- trackM task fetch
-                newCT <- recordCT key newValue deps (fmap hash . fetch)
-                modify (newCT <>)
-                return newValue
-
-ctStrategyA :: (Ord k, Hashable v) => Strategy Applicative (CT k v) k v
-ctStrategyA key value task = Task $ \fetch -> do
-    ct <- get
-    dirty <- not <$> verifyCT key value (fmap hash . fetch) ct
-    if not dirty
-    then return value
-    else do
-        maybeCachedValue <- constructCT key (fmap hash . fetch) ct
-        case maybeCachedValue of
-            Just cachedValue -> return cachedValue
-            Nothing -> do
-                newValue <- run task fetch
-                newCT <- recordCT key newValue (A.dependencies task) (fmap hash . fetch)
-                modify (newCT <>)
-                return newValue
-
------------------------ Deterministic constructive traces ----------------------
-dctStrategyA :: (Hashable k, Hashable v) => Strategy Applicative (DCT k v) k v
-dctStrategyA key value task = Task $ \fetch -> do
-    dct <- get
-    dirty <- not <$> verifyDCT key (A.dependencies task) (fmap hash . fetch) dct
-    if not dirty
-    then return value
-    else do
-        maybeCachedValue <- constructDCT key (A.dependencies task) (fmap hash . fetch) dct
-        case maybeCachedValue of
-            Just cachedValue -> return cachedValue
-            Nothing -> do
-                newValue <- run task fetch
-                newDCT <- recordDCT key newValue (A.dependencies task) (fmap hash . fetch)
-                modify (newDCT <>)
+                newT <- record key newValue deps (fmap hash . fetch)
+                modify (newT <>)
                 return newValue

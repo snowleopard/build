@@ -1,6 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 module Build.Trace (
+    -- * Tracing interface
+    Trace (..),
+
     -- * Verifying traces
     VT, recordVT, verifyVT,
 
@@ -19,29 +22,52 @@ import Data.Semigroup
 
 import qualified Data.Map as Map
 
-data Trace k v = Trace
+data T k v = T
     { key     :: k
     , depends :: [(k, Hash v)]
     , result  :: Hash v }
 
+class Trace t where
+    record    :: (Hashable k, Hashable v, Monad m)
+              => k -> v -> [k] -> (k -> m (Hash v)) -> m (t k v)
+    verify    :: (Hashable k, Hashable v, Monad m)
+              => k -> v -> [k] -> (k -> m (Hash v)) -> t k v -> m Bool
+    construct :: (Hashable k, Hashable v, Monad m)
+              => k -> [k] -> (k -> m (Hash v)) -> t k v -> m (Maybe v)
+
+instance Trace VT where
+    record = recordVT
+    verify = verifyVT
+    construct _key _deps _fetchHash _trace = return Nothing
+
+instance Trace CT where
+    record    = recordCT
+    verify    = verifyCT
+    construct = constructCT
+
+instance Trace DCT where
+    record    = recordDCT
+    verify    = verifyDCT
+    construct = constructDCT
+
 -- | An abstract data type for a set of verifying traces equipped with 'record',
 -- 'verify' and a 'Monoid' instance.
-newtype VT k v = VT [Trace k v] deriving (Monoid, Semigroup)
+newtype VT k v = VT [T k v] deriving (Monoid, Semigroup)
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values from the given @store@.
 recordVT :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m (Hash v)) -> m (VT k v)
 recordVT key value deps fetchHash = do
     hs <- mapM fetchHash deps
-    return $ VT [ Trace key (zip deps hs) (hash value) ]
+    return $ VT [ T key (zip deps hs) (hash value) ]
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
 -- up-to-date.
-verifyVT :: (Monad m, Eq k, Hashable v) => k -> v -> (k -> m (Hash v)) -> VT k v -> m Bool
-verifyVT key value fetchHash (VT ts) = anyM match ts
+verifyVT :: (Monad m, Eq k, Hashable v) => k -> v -> [k] -> (k -> m (Hash v)) -> VT k v -> m Bool
+verifyVT key value _deps fetchHash (VT ts) = anyM match ts
   where
-    match (Trace k deps result)
+    match (T k deps result)
         | k /= key || result /= hash value = return False
         | otherwise = andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
 
@@ -60,15 +86,15 @@ recordCT :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m (Hash v)) -> m (CT
 recordCT key value deps fetchHash = do
     hs <- mapM fetchHash deps
     let h = hash value
-    return $ CT (VT [Trace key (zip deps hs) h]) (Map.singleton h value)
+    return $ CT (VT [T key (zip deps hs) h]) (Map.singleton h value)
 
-verifyCT :: (Monad m, Eq k, Hashable v) => k -> v -> (k -> m (Hash v)) -> CT k v -> m Bool
-verifyCT key value fetchHash (CT ts _) = verifyVT key value fetchHash ts
+verifyCT :: (Monad m, Eq k, Hashable v) => k -> v -> [k] -> (k -> m (Hash v)) -> CT k v -> m Bool
+verifyCT key value deps fetchHash (CT ts _) = verifyVT key value deps fetchHash ts
 
-constructCT :: (Monad m, Eq k, Ord v) => k -> (k -> m (Hash v)) -> CT k v -> m (Maybe v)
-constructCT key fetchHash (CT (VT ts) cache) = firstJustM match ts
+constructCT :: (Monad m, Eq k, Ord v) => k -> [k] -> (k -> m (Hash v)) -> CT k v -> m (Maybe v)
+constructCT key _deps fetchHash (CT (VT ts) cache) = firstJustM match ts
   where
-    match (Trace k deps result)
+    match (T k deps result)
         | k /= key  = return Nothing
         | otherwise = do
             sameInputs <- andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
@@ -90,8 +116,8 @@ recordDCT key value deps fetchHash = do
     return $ DCT (Map.singleton (hash (key, zip deps hs)) value)
 
 verifyDCT :: (Hashable k, Hashable v, Monad m)
-          => k -> [k] -> (k -> m (Hash v)) -> DCT k v -> m Bool
-verifyDCT key deps fetchHash ctd = do
+          => k -> v -> [k] -> (k -> m (Hash v)) -> DCT k v -> m Bool
+verifyDCT key _value deps fetchHash ctd = do
     maybeValue <- constructDCT key deps fetchHash ctd
     case maybeValue of
         Nothing -> return False

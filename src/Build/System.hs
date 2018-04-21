@@ -39,25 +39,25 @@ memo = recursive alwaysRebuildStrategy
 make :: forall k v. Ord k => Build Applicative (MakeInfo k) k v
 make = topological makeStrategy
 
-ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
-ninja = topological vtStrategyA
+ninja :: (Hashable k, Hashable v) => Build Applicative (VT k v) k v
+ninja = topological tracingStrategyA
 
 type ExcelInfo k = (ApproximationInfo k, Chain k)
 
 excel :: Ord k => Build Monad (ExcelInfo k) k v
 excel = reordering approximationStrategy
 
-shake :: (Eq k, Hashable v) => Build Monad (VT k v) k v
-shake = recursive vtStrategyM
+shake :: (Hashable k, Hashable v) => Build Monad (VT k v) k v
+shake = recursive tracingStrategyM
 
-bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
-bazel = topological ctStrategyA
+bazel :: (Hashable k, Hashable v) => Build Applicative (CT k v) k v
+bazel = topological tracingStrategyA
 
-cloudShake :: (Eq k, Hashable v) => Build Monad (CT k v) k v
-cloudShake = recursive ctStrategyM
+cloudShake :: (Hashable k, Hashable v) => Build Monad (CT k v) k v
+cloudShake = recursive tracingStrategyM
 
 buck :: (Hashable k, Hashable v) => Build Applicative (DCT k v) k v
-buck = topological dctStrategyA
+buck = topological tracingStrategyA
 
 -------------------------------------- Nix -------------------------------------
 -- nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v
