@@ -39,7 +39,7 @@ makeStrategy key value task = Task $ \fetch -> do
         put (newModTime, now + 1)
         run task fetch
 
---------------------------- Depencency approximation ---------------------------
+--------------------------- Dependency approximation ---------------------------
 data DependencyApproximation k = SubsetOf [k] | Unknown -- Add Exact [k]?
 
 instance Ord k => Semigroup (DependencyApproximation k) where
@@ -93,34 +93,26 @@ vtStrategyM key value task = Task $ \fetch -> do
 ctStrategyM :: (Eq k, Hashable v) => Strategy Monad (CT k v) k v
 ctStrategyM key value task = Task $ \fetch -> do
     ct <- get
-    dirty <- not <$> verifyCT key value (fmap hash . fetch) ct
-    if not dirty
-    then return value
-    else do
-        maybeCachedValue <- constructCT key (fmap hash . fetch) ct
-        case maybeCachedValue of
-            Just cachedValue -> return cachedValue
-            Nothing -> do
-                (newValue, deps) <- trackM task fetch
-                newCT <- recordCT key newValue deps (fmap hash . fetch)
-                modify (newCT <>)
-                return newValue
+    maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
+    case maybeCachedValue of
+        Just cachedValue -> return cachedValue
+        Nothing -> do
+            (newValue, deps) <- trackM task fetch
+            newCT <- recordCT key newValue deps (fmap hash . fetch)
+            modify (newCT <>)
+            return newValue
 
 ctStrategyA :: (Ord k, Hashable v) => Strategy Applicative (CT k v) k v
 ctStrategyA key value task = Task $ \fetch -> do
     ct <- get
-    dirty <- not <$> verifyCT key value (fmap hash . fetch) ct
-    if not dirty
-    then return value
-    else do
-        maybeCachedValue <- constructCT key (fmap hash . fetch) ct
-        case maybeCachedValue of
-            Just cachedValue -> return cachedValue
-            Nothing -> do
-                newValue <- run task fetch
-                newCT <- recordCT key newValue (A.dependencies task) (fmap hash . fetch)
-                modify (newCT <>)
-                return newValue
+    maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
+    case maybeCachedValue of
+        Just cachedValue -> return cachedValue
+        Nothing -> do
+            newValue <- run task fetch
+            newCT <- recordCT key newValue (A.dependencies task) (fmap hash . fetch)
+            modify (newCT <>)
+            return newValue
 
 ----------------------- Deterministic constructive traces ----------------------
 dctStrategyA :: (Hashable k, Hashable v) => Strategy Applicative (DCT k v) k v

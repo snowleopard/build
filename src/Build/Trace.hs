@@ -5,7 +5,7 @@ module Build.Trace (
     VT, recordVT, verifyVT,
 
     -- * Constructive traces
-    CT, recordCT, verifyCT, constructCT,
+    CT, recordCT, constructCT,
 
     -- * Constructive traces optimised for deterministic tasks
     DCT, recordDCT, verifyDCT, constructDCT
@@ -15,18 +15,21 @@ import Build.Store
 
 import Control.Monad.Extra
 import Data.Map (Map)
+import Data.Maybe
 import Data.Semigroup
 
 import qualified Data.Map as Map
 
-data Trace k v = Trace
+-- A trace is parameterised by the types of keys @k@, hashes @h@, as well as the
+-- result @r@. For verifying traces, @r = h@; for constructive traces, @Hash r = h@.
+data Trace k h r = Trace
     { key     :: k
-    , depends :: [(k, Hash v)]
-    , result  :: Hash v }
+    , depends :: [(k, h)]
+    , result  :: r }
 
 -- | An abstract data type for a set of verifying traces equipped with 'record',
 -- 'verify' and a 'Monoid' instance.
-newtype VT k v = VT [Trace k v] deriving (Monoid, Semigroup)
+newtype VT k v = VT [Trace k (Hash v) (Hash v)] deriving (Monoid, Semigroup)
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values from the given @store@.
@@ -45,34 +48,25 @@ verifyVT key value fetchHash (VT ts) = anyM match ts
         | k /= key || result /= hash value = return False
         | otherwise = andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
 
-data CT k v = CT
-    { traces    :: VT k v
-    , contents  :: Map (Hash v) v }
+newtype CT k v = CT [Trace k (Hash v) v] deriving (Monoid, Semigroup)
 
-instance Ord v => Semigroup (CT k v) where
-    CT t1 c1 <> CT t2 c2 = CT (t1 <> t2) (Map.union c1 c2)
-
-instance Ord v => Monoid (CT k v) where
-    mempty  = CT mempty Map.empty
-    mappend = (<>)
-
-recordCT :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m (Hash v)) -> m (CT k v)
+recordCT :: Monad m => k -> v -> [k] -> (k -> m (Hash v)) -> m (CT k v)
 recordCT key value deps fetchHash = do
     hs <- mapM fetchHash deps
-    let h = hash value
-    return $ CT (VT [Trace key (zip deps hs) h]) (Map.singleton h value)
+    return $ CT ([Trace key (zip deps hs) value])
 
-verifyCT :: (Monad m, Eq k, Hashable v) => k -> v -> (k -> m (Hash v)) -> CT k v -> m Bool
-verifyCT key value fetchHash (CT ts _) = verifyVT key value fetchHash ts
-
-constructCT :: (Monad m, Eq k, Ord v) => k -> (k -> m (Hash v)) -> CT k v -> m (Maybe v)
-constructCT key fetchHash (CT (VT ts) cache) = firstJustM match ts
+-- Prefer constructing the currenct value, if it matches one of the traces.
+constructCT :: (Monad m, Eq k, Ord v) => k -> v -> (k -> m (Hash v)) -> CT k v -> m (Maybe v)
+constructCT key value fetchHash (CT ts) = do
+    candidates <- catMaybes <$> mapM match ts
+    if value `elem` candidates then return $ Just value
+                               else return $ listToMaybe candidates
   where
     match (Trace k deps result)
         | k /= key  = return Nothing
         | otherwise = do
             sameInputs <- andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
-            return $ if sameInputs then Map.lookup result cache else Nothing
+            return $ if sameInputs then Just result else Nothing
 
 newtype DCT k v = DCT (Map (Hash (k, [(k, Hash v)])) v)
 
