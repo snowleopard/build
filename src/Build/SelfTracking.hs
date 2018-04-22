@@ -50,4 +50,4 @@ selfTrackingM parser (Key     k) = Just $ Task $ \fetch -> do
 selfTrackingA :: TaskParser Applicative k v t -> (k -> t) -> Tasks Applicative (Key k) (Value v t)
 selfTrackingA _      _   (KeyTask _) = Nothing -- Task keys are inputs
 selfTrackingA parser ask (Key k) = Just $ Task $ \fetch ->
-    fetch (KeyTask k) <* (Value <$> run (parser $ ask k) (fetchValue fetch))
+    fetch (KeyTask k) *> (Value <$> run (parser $ ask k) (fetchValue fetch))
