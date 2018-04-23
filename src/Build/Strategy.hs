@@ -73,8 +73,7 @@ vtStrategyA key value task = Task $ \fetch -> do
     then return value
     else do
         newValue <- run task fetch
-        newVT <- recordVT key newValue (A.dependencies task) (fmap hash . fetch)
-        modify (newVT <>)
+        put =<< recordVT key newValue (A.dependencies task) (fmap hash . fetch) vt
         return newValue
 
 vtStrategyM :: (Eq k, Hashable v) => Strategy Monad (VT k v) k v
@@ -85,8 +84,7 @@ vtStrategyM key value task = Task $ \fetch -> do
     then return value
     else do
         (newValue, deps) <- trackM task fetch
-        newVT <- recordVT key newValue deps (fmap hash . fetch)
-        modify (newVT <>)
+        put =<< recordVT key newValue deps (fmap hash . fetch) vt
         return newValue
 
 ------------------------------ Constructive traces -----------------------------
@@ -98,8 +96,7 @@ ctStrategyA key value task = Task $ \fetch -> do
         Just cachedValue -> return cachedValue
         Nothing -> do
             newValue <- run task fetch
-            newCT <- recordCT key newValue (A.dependencies task) (fmap hash . fetch)
-            modify (newCT <>)
+            put =<< recordCT key newValue (A.dependencies task) (fmap hash . fetch) ct
             return newValue
 
 ctStrategyM :: (Eq k, Hashable v) => Strategy Monad (CT k v) k v
@@ -110,8 +107,7 @@ ctStrategyM key value task = Task $ \fetch -> do
         Just cachedValue -> return cachedValue
         Nothing -> do
             (newValue, deps) <- trackM task fetch
-            newCT <- recordCT key newValue deps (fmap hash . fetch)
-            modify (newCT <>)
+            put =<< recordCT key newValue deps (fmap hash . fetch) ct
             return newValue
 
 ----------------------- Deterministic constructive traces ----------------------
@@ -123,8 +119,7 @@ dctStrategyA key _value task = Task $ \fetch -> do
         Just cachedValue -> return cachedValue
         Nothing -> do
             newValue <- run task fetch
-            dct' <- recordDCT key newValue (A.dependencies task) (fmap hash . fetch) dct
-            put dct'
+            put =<< recordDCT key newValue (A.dependencies task) (fmap hash . fetch) dct
             return newValue
 
 dctStrategyM :: (Hashable k, Hashable v) => Strategy Monad (DCT k v) k v
@@ -135,6 +130,5 @@ dctStrategyM key _value task = Task $ \fetch -> do
         Just cachedValue -> return cachedValue
         Nothing -> do
             (newValue, deps) <- trackM task fetch
-            dct' <- recordDCT key newValue deps (fmap hash . fetch) dct
-            put dct'
+            put =<< recordDCT key newValue deps (fmap hash . fetch) dct
             return newValue

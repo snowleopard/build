@@ -31,10 +31,10 @@ newtype VT k v = VT [Trace k (Hash v) (Hash v)] deriving (Monoid, Semigroup)
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values from the given @store@.
-recordVT :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m (Hash v)) -> m (VT k v)
-recordVT key value deps fetchHash = do
+recordVT :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m (Hash v)) -> VT k v -> m (VT k v)
+recordVT key value deps fetchHash (VT ts) = do
     hs <- mapM fetchHash deps
-    return $ VT [ Trace key (zip deps hs) (hash value) ]
+    return $ VT $ Trace key (zip deps hs) (hash value) : ts
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
@@ -48,10 +48,10 @@ verifyVT key value fetchHash (VT ts) = anyM match ts
 
 newtype CT k v = CT [Trace k (Hash v) v] deriving (Monoid, Semigroup)
 
-recordCT :: Monad m => k -> v -> [k] -> (k -> m (Hash v)) -> m (CT k v)
-recordCT key value deps fetchHash = do
+recordCT :: Monad m => k -> v -> [k] -> (k -> m (Hash v)) -> CT k v -> m (CT k v)
+recordCT key value deps fetchHash (CT ts) = do
     hs <- mapM fetchHash deps
-    return $ CT ([Trace key (zip deps hs) value])
+    return $ CT $ Trace key (zip deps hs) value : ts
 
 -- Prefer constructing the currenct value, if it matches one of the traces.
 constructCT :: (Monad m, Eq k, Eq v) => k -> v -> (k -> m (Hash v)) -> CT k v -> m (Maybe v)
