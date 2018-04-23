@@ -86,9 +86,8 @@ testSuite = and <$> sequence
     , test  "shake     " shake      mempty
     , testA "bazel     " bazel      mempty
     , test  "cloudShake" cloudShake mempty
-    , testA "buck      " buck       mempty ]
-    -- Fails currently:
-    -- , test  "nix       " nix        mempty ]
+    , testA "buck      " buck       mempty
+    , test  "nix       " nix        mempty ]
 
 main :: IO ()
 main = do

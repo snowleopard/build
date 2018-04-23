@@ -7,7 +7,7 @@ module Build.System (
     make, ninja, bazel, buck,
 
     -- * Monadic build systems
-    excel, shake, cloudShake --, nix
+    excel, shake, cloudShake, nix
     ) where
 
 import Control.Monad.State
@@ -59,18 +59,5 @@ cloudShake = recursive ctStrategyM
 buck :: (Hashable k, Hashable v) => Build Applicative (DCT k v) k v
 buck = topological dctStrategyA
 
--------------------------------------- Nix -------------------------------------
--- nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v
--- nix = recursive $ \key fetch act -> do
---     ctd <- gets (getInfo . fst)
---     let deps = [] -- Here is the tricky part: we need to store this in CTD
---     dirty <- not <$> verifyCTD (fmap hash . fetch) key deps ctd
---     when dirty $ do
---         maybeValue <- constructCTD (fmap hash . fetch) key deps ctd
---         case maybeValue of
---             Just value -> modify $ \(s, t) -> (putValue key value s, t)
---             Nothing -> do
---                 (value, deps) <- act
---                 modify $ \(s, t) ->
---                     let newS = putValue key value s
---                     in (mapInfo (recordCTD newS key deps <>) newS, t)
+nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v
+nix = recursive dctStrategyM

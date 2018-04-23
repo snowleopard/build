@@ -5,7 +5,7 @@ module Build.Strategy (
     approximationStrategy, DependencyApproximation, ApproximationInfo,
     vtStrategyA, vtStrategyM,
     ctStrategyA, ctStrategyM,
-    dctStrategyA
+    dctStrategyA, dctStrategyM
     ) where
 
 import Control.Monad.State
@@ -90,18 +90,6 @@ vtStrategyM key value task = Task $ \fetch -> do
         return newValue
 
 ------------------------------ Constructive traces -----------------------------
-ctStrategyM :: (Eq k, Hashable v) => Strategy Monad (CT k v) k v
-ctStrategyM key value task = Task $ \fetch -> do
-    ct <- get
-    maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
-    case maybeCachedValue of
-        Just cachedValue -> return cachedValue
-        Nothing -> do
-            (newValue, deps) <- trackM task fetch
-            newCT <- recordCT key newValue deps (fmap hash . fetch)
-            modify (newCT <>)
-            return newValue
-
 ctStrategyA :: (Ord k, Hashable v) => Strategy Applicative (CT k v) k v
 ctStrategyA key value task = Task $ \fetch -> do
     ct <- get
@@ -111,6 +99,18 @@ ctStrategyA key value task = Task $ \fetch -> do
         Nothing -> do
             newValue <- run task fetch
             newCT <- recordCT key newValue (A.dependencies task) (fmap hash . fetch)
+            modify (newCT <>)
+            return newValue
+
+ctStrategyM :: (Eq k, Hashable v) => Strategy Monad (CT k v) k v
+ctStrategyM key value task = Task $ \fetch -> do
+    ct <- get
+    maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
+    case maybeCachedValue of
+        Just cachedValue -> return cachedValue
+        Nothing -> do
+            (newValue, deps) <- trackM task fetch
+            newCT <- recordCT key newValue deps (fmap hash . fetch)
             modify (newCT <>)
             return newValue
 
@@ -124,5 +124,17 @@ dctStrategyA key _value task = Task $ \fetch -> do
         Nothing -> do
             newValue <- run task fetch
             dct' <- recordDCT key newValue (A.dependencies task) (fmap hash . fetch) dct
+            put dct'
+            return newValue
+
+dctStrategyM :: (Hashable k, Hashable v) => Strategy Monad (DCT k v) k v
+dctStrategyM key _value task = Task $ \fetch -> do
+    dct <- get
+    maybeCachedValue <- constructDCT key (fmap hash . fetch) dct
+    case maybeCachedValue of
+        Just cachedValue -> return cachedValue
+        Nothing -> do
+            (newValue, deps) <- trackM task fetch
+            dct' <- recordDCT key newValue deps (fmap hash . fetch) dct
             put dct'
             return newValue
