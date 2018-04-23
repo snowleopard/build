@@ -116,17 +116,13 @@ ctStrategyA key value task = Task $ \fetch -> do
 
 ----------------------- Deterministic constructive traces ----------------------
 dctStrategyA :: (Hashable k, Hashable v) => Strategy Applicative (DCT k v) k v
-dctStrategyA key value task = Task $ \fetch -> do
+dctStrategyA key _value task = Task $ \fetch -> do
     dct <- get
-    dirty <- not <$> verifyDCT key (A.dependencies task) (fmap hash . fetch) dct
-    if not dirty
-    then return value
-    else do
-        maybeCachedValue <- constructDCT key (A.dependencies task) (fmap hash . fetch) dct
-        case maybeCachedValue of
-            Just cachedValue -> return cachedValue
-            Nothing -> do
-                newValue <- run task fetch
-                newDCT <- recordDCT key newValue (A.dependencies task) (fmap hash . fetch)
-                modify (newDCT <>)
-                return newValue
+    maybeCachedValue <- constructDCT key (A.dependencies task) (fmap hash . fetch) dct
+    case maybeCachedValue of
+        Just cachedValue -> return cachedValue
+        Nothing -> do
+            newValue <- run task fetch
+            dct' <- recordDCT key newValue (A.dependencies task) (fmap hash . fetch) dct
+            put dct'
+            return newValue

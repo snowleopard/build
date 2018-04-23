@@ -1,4 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveFunctor, DeriveTraversable, TupleSections #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 module Build.Trace (
     -- * Verifying traces
@@ -8,17 +9,14 @@ module Build.Trace (
     CT, recordCT, constructCT,
 
     -- * Constructive traces optimised for deterministic tasks
-    DCT, recordDCT, verifyDCT, constructDCT
+    DCT, recordDCT, constructDCT
     ) where
 
 import Build.Store
 
 import Control.Monad.Extra
-import Data.Map (Map)
 import Data.Maybe
 import Data.Semigroup
-
-import qualified Data.Map as Map
 
 -- A trace is parameterised by the types of keys @k@, hashes @h@, as well as the
 -- result @r@. For verifying traces, @r = h@; for constructive traces, @Hash r = h@.
@@ -56,7 +54,7 @@ recordCT key value deps fetchHash = do
     return $ CT ([Trace key (zip deps hs) value])
 
 -- Prefer constructing the currenct value, if it matches one of the traces.
-constructCT :: (Monad m, Eq k, Ord v) => k -> v -> (k -> m (Hash v)) -> CT k v -> m (Maybe v)
+constructCT :: (Monad m, Eq k, Eq v) => k -> v -> (k -> m (Hash v)) -> CT k v -> m (Maybe v)
 constructCT key value fetchHash (CT ts) = do
     candidates <- catMaybes <$> mapM match ts
     if value `elem` candidates then return $ Just value
@@ -68,31 +66,36 @@ constructCT key value fetchHash (CT ts) = do
             sameInputs <- andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
             return $ if sameInputs then Just result else Nothing
 
-newtype DCT k v = DCT (Map (Hash (k, [(k, Hash v)])) v)
+data Tree a = Leaf a | Node [Tree a]
+    deriving (Eq, Foldable, Functor, Ord, Show, Traversable)
 
-instance (Ord k, Ord v) => Semigroup (DCT k v) where
-    DCT c1 <> DCT c2 = DCT (Map.union c1 c2)
+instance Hashable a => Hashable (Tree a) where
+    hash (Leaf x) = Leaf <$> hash x
+    hash (Node x) = Node <$> hash x
 
-instance (Ord k, Ord v) => Monoid (DCT k v) where
-    mempty  = DCT Map.empty
-    mappend = (<>)
+-- Invariant: if a DCT contains a trace for a key @k@, then it must also contain
+-- traces for each of its non-input dependencies. Input keys cannot appear in a
+-- DCT because they are never built.
+newtype DCT k v = DCT [Trace k (Hash (Tree (Hash v))) v] deriving (Monoid, Semigroup)
 
-recordDCT :: (Hashable k, Hashable v, Monad m)
-          => k -> v -> [k] -> (k -> m (Hash v)) -> m (DCT k v)
-recordDCT key value deps fetchHash = do
-    hs <- mapM fetchHash deps
-    return $ DCT (Map.singleton (hash (key, zip deps hs)) value)
+inputTree :: Eq k => DCT k v -> k -> Tree k
+inputTree dct@(DCT ts) key = case [ deps | Trace k deps _ <- ts, k == key ] of
+    [] -> Leaf key
+    deps:_ -> Node $ map (inputTree dct . fst) deps
 
-verifyDCT :: (Hashable k, Hashable v, Monad m)
-          => k -> [k] -> (k -> m (Hash v)) -> DCT k v -> m Bool
-verifyDCT key deps fetchHash ctd = do
-    maybeValue <- constructDCT key deps fetchHash ctd
-    case maybeValue of
-        Nothing -> return False
-        Just value -> (hash value ==) <$> fetchHash key
+recordDCT :: forall k v m. (Hashable k, Hashable v, Monad m)
+          => k -> v -> [k] -> (k -> m (Hash v)) -> DCT k v -> m (DCT k v)
+recordDCT key value deps fetchHash (DCT ts) = do
+    hs <- mapM depHash deps
+    return $ DCT $ Trace key (zip deps hs) value : ts
+  where
+    depHash :: k -> m (Hash (Tree (Hash v)))
+    depHash depKey = case [ deps | Trace k deps _ <- ts, k == depKey ] of
+        [] -> hash . Leaf <$> fetchHash depKey -- depKey is an input
+        deps:_ -> return $ fmap Node $ sequenceA $ map snd deps
 
 constructDCT :: (Hashable k, Hashable v, Monad m)
              => k -> [k] -> (k -> m (Hash v)) -> DCT k v -> m (Maybe v)
-constructDCT key deps fetchHash (DCT cache) = do
-    hs <- mapM fetchHash deps
-    return (Map.lookup (hash (key, zip deps hs)) cache)
+constructDCT key deps fetchHash dct@(DCT ts) = do
+    khs <- sequenceA [ (\t -> (k, hash t)) <$> traverse fetchHash (inputTree dct k) | k <- deps ]
+    return $ listToMaybe $ [ v | Trace k ds v <- ts, k == key, ds == khs ]
