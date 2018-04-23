@@ -83,6 +83,9 @@ inputTree dct@(DCT ts) key = case [ deps | Trace k deps _ <- ts, k == key ] of
     [] -> Leaf key
     deps:_ -> Node $ map (inputTree dct . fst) deps
 
+inputHashTree :: (Eq k, Monad m) => DCT k v -> (k -> m (Hash v)) -> k -> m (Tree (Hash v))
+inputHashTree dct fetchHash key = traverse fetchHash (inputTree dct key)
+
 recordDCT :: forall k v m. (Hashable k, Hashable v, Monad m)
           => k -> v -> [k] -> (k -> m (Hash v)) -> DCT k v -> m (DCT k v)
 recordDCT key value deps fetchHash (DCT ts) = do
@@ -94,8 +97,19 @@ recordDCT key value deps fetchHash (DCT ts) = do
         [] -> hash . Leaf <$> fetchHash depKey -- depKey is an input
         deps:_ -> return $ fmap Node $ sequenceA $ map snd deps
 
-constructDCT :: (Hashable k, Hashable v, Monad m)
-             => k -> [k] -> (k -> m (Hash v)) -> DCT k v -> m (Maybe v)
-constructDCT key deps fetchHash dct@(DCT ts) = do
-    khs <- sequenceA [ (\t -> (k, hash t)) <$> traverse fetchHash (inputTree dct k) | k <- deps ]
-    return $ listToMaybe $ [ v | Trace k ds v <- ts, k == key, ds == khs ]
+constructDCT :: forall k v m. (Hashable k, Hashable v, Monad m)
+             => k -> (k -> m (Hash v)) -> DCT k v -> m (Maybe v)
+constructDCT key fetchHash dct@(DCT ts) = do
+    candidates <- catMaybes <$> mapM match ts
+    case candidates of
+        []  -> return Nothing
+        [v] -> return (Just v)
+        _   -> error "Non-determinism detected"
+  where
+    match :: Trace k (Hash (Tree (Hash v))) v -> m (Maybe v)
+    match (Trace k deps result)
+        | k /= key  = return Nothing
+        | otherwise = do
+            let storedHashes = map snd deps
+            actualHashes <- mapM (fmap hash . inputHashTree dct fetchHash . fst) deps
+            return $ if storedHashes == actualHashes then Just result else Nothing

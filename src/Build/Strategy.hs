@@ -118,7 +118,7 @@ ctStrategyA key value task = Task $ \fetch -> do
 dctStrategyA :: (Hashable k, Hashable v) => Strategy Applicative (DCT k v) k v
 dctStrategyA key _value task = Task $ \fetch -> do
     dct <- get
-    maybeCachedValue <- constructDCT key (A.dependencies task) (fmap hash . fetch) dct
+    maybeCachedValue <- constructDCT key (fmap hash . fetch) dct
     case maybeCachedValue of
         Just cachedValue -> return cachedValue
         Nothing -> do
