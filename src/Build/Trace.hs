@@ -66,6 +66,9 @@ constructCT key value fetchHash (CT ts) = do
             sameInputs <- andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
             return $ if sameInputs then Just result else Nothing
 
+-- TODO: Dependencies actually form acyclic graphs, not trees. Trees are fine
+-- from the correctness standpoint, but can be very inefficient if the graphs of
+-- dependencies contain a lot of sharing. Switch to using graphs?
 data Tree a = Leaf a | Node [Tree a]
     deriving (Eq, Foldable, Functor, Ord, Show, Traversable)
 
@@ -78,13 +81,15 @@ instance Hashable a => Hashable (Tree a) where
 -- DCT because they are never built.
 newtype DCT k v = DCT [Trace k (Hash (Tree (Hash v))) v] deriving (Monoid, Semigroup)
 
+-- Extract the tree of input dependencies of a given key.
 inputTree :: Eq k => DCT k v -> k -> Tree k
 inputTree dct@(DCT ts) key = case [ deps | Trace k deps _ <- ts, k == key ] of
     [] -> Leaf key
     deps:_ -> Node $ map (inputTree dct . fst) deps
 
+-- Like 'inputTree', but replaces each key with the hash of its current value.
 inputHashTree :: (Eq k, Monad m) => DCT k v -> (k -> m (Hash v)) -> k -> m (Tree (Hash v))
-inputHashTree dct fetchHash key = traverse fetchHash (inputTree dct key)
+inputHashTree dct fetchHash = traverse fetchHash . inputTree dct
 
 recordDCT :: forall k v m. (Hashable k, Hashable v, Monad m)
           => k -> v -> [k] -> (k -> m (Hash v)) -> DCT k v -> m (DCT k v)
@@ -110,6 +115,5 @@ constructDCT key fetchHash dct@(DCT ts) = do
     match (Trace k deps result)
         | k /= key  = return Nothing
         | otherwise = do
-            let storedHashes = map snd deps
-            actualHashes <- mapM (fmap hash . inputHashTree dct fetchHash . fst) deps
-            return $ if storedHashes == actualHashes then Just result else Nothing
+            sameInputs <- andM [ ((h ==) . hash) <$> inputHashTree dct fetchHash k | (k, h) <- deps ]
+            return $ if sameInputs then Just result else Nothing
