@@ -37,11 +37,6 @@ ds task = getConst $ task (\k -> Const [k])
 isi :: forall k v. Ts Applicative k v -> k -> Bool
 isi tasks = isNothing . tasks
 
--- wT :: Tsc c k v -> a -> (Tc c k v -> a) -> k -> a
--- wT tasks o i key = case tasks key of
---     Nothing -> o
---     Just t  -> i t
-
 is :: forall k v. Ord k => Ts Applicative k v -> k -> [k]
 is tasks = filter (isi tasks) . reachable (maybe [] d . tasks)
   where
