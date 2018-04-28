@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 module Build.Strategy (
     Strategy, alwaysRebuildStrategy,
     makeStrategy, Time, MakeInfo,
@@ -22,14 +22,14 @@ import qualified Build.Task.Applicative as A
 type Strategy c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
 
 alwaysRebuildStrategy :: Strategy Monad () k v
-alwaysRebuildStrategy _key _value task = Task (run task)
+alwaysRebuildStrategy _key _value task = task
 
 ------------------------------------- Make -------------------------------------
 type Time = Integer -- A negative time value means a key was never built
 type MakeInfo k = (k -> Time, Time)
 
 makeStrategy :: Eq k => Strategy Applicative (MakeInfo k) k v
-makeStrategy key value task = Task $ \fetch -> do
+makeStrategy key value task fetch = do
     (modTime, now) <- get
     let dirty = or [ modTime dep > modTime key | dep <- A.dependencies task ]
     if not (dirty || modTime key < 0)
@@ -37,7 +37,7 @@ makeStrategy key value task = Task $ \fetch -> do
     else do
         let newModTime k = if k == key then now else modTime k
         put (newModTime, now + 1)
-        run task fetch
+        task fetch
 
 --------------------------- Dependency approximation ---------------------------
 data DependencyApproximation k = SubsetOf [k] | Unknown -- Add Exact [k]?
@@ -54,7 +54,7 @@ instance Ord k => Monoid (DependencyApproximation k) where
 type ApproximationInfo k = (k -> Bool, k -> DependencyApproximation k)
 
 approximationStrategy :: Ord k => Strategy Monad (ApproximationInfo k) k v
-approximationStrategy key value task = Task $ \fetch -> do
+approximationStrategy key value task fetch = do
     (isDirty, deps) <- get
     let dirty = isDirty key || case deps key of SubsetOf ks -> any isDirty ks
                                                 Unknown     -> True
@@ -62,22 +62,22 @@ approximationStrategy key value task = Task $ \fetch -> do
         then return value
         else do
             put (\k -> k == key || isDirty k, deps)
-            run task fetch
+            task fetch
 
 ------------------------------- Verifying traces -------------------------------
 vtStrategyA :: (Ord k, Hashable v) => Strategy Applicative (VT k v) k v
-vtStrategyA key value task = Task $ \fetch -> do
+vtStrategyA key value task fetch = do
     vt <- get
     dirty <- not <$> verifyVT key value (fmap hash . fetch) vt
     if not dirty
     then return value
     else do
-        newValue <- run task fetch
+        newValue <- task fetch
         put =<< recordVT key newValue (A.dependencies task) (fmap hash . fetch) vt
         return newValue
 
 vtStrategyM :: (Eq k, Hashable v) => Strategy Monad (VT k v) k v
-vtStrategyM key value task = Task $ \fetch -> do
+vtStrategyM key value task fetch = do
     vt <- get
     dirty <- not <$> verifyVT key value (fmap hash . fetch) vt
     if not dirty
@@ -89,18 +89,18 @@ vtStrategyM key value task = Task $ \fetch -> do
 
 ------------------------------ Constructive traces -----------------------------
 ctStrategyA :: (Ord k, Hashable v) => Strategy Applicative (CT k v) k v
-ctStrategyA key value task = Task $ \fetch -> do
+ctStrategyA key value task fetch = do
     ct <- get
     maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
     case maybeCachedValue of
         Just cachedValue -> return cachedValue
         Nothing -> do
-            newValue <- run task fetch
+            newValue <- task fetch
             put =<< recordCT key newValue (A.dependencies task) (fmap hash . fetch) ct
             return newValue
 
 ctStrategyM :: (Eq k, Hashable v) => Strategy Monad (CT k v) k v
-ctStrategyM key value task = Task $ \fetch -> do
+ctStrategyM key value task fetch = do
     ct <- get
     maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
     case maybeCachedValue of
@@ -112,18 +112,18 @@ ctStrategyM key value task = Task $ \fetch -> do
 
 ----------------------- Deterministic constructive traces ----------------------
 dctStrategyA :: (Hashable k, Hashable v) => Strategy Applicative (DCT k v) k v
-dctStrategyA key _value task = Task $ \fetch -> do
+dctStrategyA key _value task fetch = do
     dct <- get
     maybeCachedValue <- constructDCT key (fmap hash . fetch) dct
     case maybeCachedValue of
         Just cachedValue -> return cachedValue
         Nothing -> do
-            newValue <- run task fetch
+            newValue <- task fetch
             put =<< recordDCT key newValue (A.dependencies task) (fmap hash . fetch) dct
             return newValue
 
 dctStrategyM :: (Hashable k, Hashable v) => Strategy Monad (DCT k v) k v
-dctStrategyM key _value task = Task $ \fetch -> do
+dctStrategyM key _value task fetch = do
     dct <- get
     maybeCachedValue <- constructDCT key (fmap hash . fetch) dct
     case maybeCachedValue of

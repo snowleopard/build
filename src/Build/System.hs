@@ -30,7 +30,7 @@ busy tasks key store = execState (fetch key) store
     fetch :: k -> State (Store () k v) v
     fetch k = case tasks k of
         Nothing   -> gets (getValue k)
-        Just task -> do v <- run task fetch; modify (putValue k v); return v
+        Just w -> do v <- unwrap w fetch; modify (putValue k v); return v
 
 -- Not a minimal build system, but never builds a key twice
 memo :: Eq k => Build Monad () k v

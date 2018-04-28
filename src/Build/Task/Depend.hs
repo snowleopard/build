@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor, RankNTypes #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Build.Task.Depend (toDepend, Depend (..), toDepends, Depends (..)) where
 
@@ -13,7 +13,7 @@ instance Applicative (Depend k v) where
     Depend d1 f1 <*> Depend d2 f2 = Depend (d1++d2) $ \vs -> let (v1,v2) = splitAt (length d1) vs in f1 v1 $ f2 v2
 
 toDepend :: Task Applicative k v -> Depend k v v
-toDepend (Task f) = f $ \k -> Depend [k] $ \[v] -> v
+toDepend f = f $ \k -> Depend [k] $ \[v] -> v
 
 -------------------------------- Free Task Monad -------------------------------
 data Depends k v r = Depends [k] ([v] -> Depends k v r)
@@ -30,4 +30,4 @@ instance Monad (Depends k v) where
     Depends ds op >>= f = Depends ds $ \vs -> f =<< op vs
 
 toDepends :: Task Monad k v -> Depends k v v
-toDepends (Task f) = f $ \k -> Depends [k] $ \[v] -> Done v
+toDepends f = f $ \k -> Depends [k] $ \[v] -> Done v
