@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 module Build.Task.Monad (
-    dependencies, track, trackM, unwrap, inputs, correctBuild, compute, partial, exceptional
+    dependencies, track, trackM, unwrap, inputs, correctBuild, compute, partial,
+    exceptional
     ) where
 
 import Control.Monad.Trans

@@ -1,16 +1,29 @@
-{-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleInstances, RankNTypes, StandaloneDeriving #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes, StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-module Build.Task (
-    Task, Tasks, compose, fetchIO, sprsh1, sprsh2, sprsh3
-    ) where
+module Build.Task (Task, Tasks, compose, fetchIO, sprsh1, sprsh2, sprsh3) where
 
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Fail (MonadFail)
 
--- | Task a value corresponding to a given key by performing necessary
--- lookups of the dependencies using the provided lookup function. Returns
--- @Nothing@ to indicate that a given key is an input.
+-- Ideally we would like to write:
+--
+--    type Tasks c k v = k -> Maybe (Task c k v)
+--    type Task  c k v = forall f. c f => (k -> f v) -> f v
+--
+-- Alas, we can't since it requires impredicative polymorphism and GHC currently
+-- does not support it.
+--
+-- A usual workaround is to wrap 'Task' into a newtype, but this leads to the
+-- loss of higher-rank polymorphism: for example, we can no longer apply a
+-- monadic build system to an applicative task description or apply a monadic
+-- 'trackM' to trace the execution of a 'Task Applicative'. This leads to severe
+-- code duplication.
+--
+-- Our workaround is inspired by the @lens@ library, which allows us to keep
+-- higher-rank polymorphism at the cost of inserting 'unwrap' in a few places
+-- in our code and using slightly strange definitions of 'Tasks' and 'Task'.
+-- See "Build.Task.Wrapped".
 type Tasks c k v = forall f. c f => k -> Maybe ((k -> f v) -> f v)
 type Task  c k v = forall f. c f =>             (k -> f v) -> f v
 

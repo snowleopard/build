@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables #-}
 module Build.Strategy (
     Strategy, alwaysRebuildStrategy,
     makeStrategy, Time, MakeInfo,
@@ -15,7 +15,6 @@ import Build.Task
 import Build.Task.Applicative (dependencies)
 import Build.Task.Monad hiding (dependencies)
 import Build.Trace
-
 
 type Strategy c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstraintKinds, DeriveFunctor, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables #-}
 module Build.Task.Applicative (
     pureTask, dependencies, unwrap, inputs, partial, exceptional
     ) where
@@ -20,7 +20,7 @@ dependencies :: Task Applicative k v -> [k]
 dependencies task = getConst $ task (\k -> Const [k])
 
 isInput :: forall k v. Tasks Applicative k v -> k -> Bool
-isInput tasks key = isNothing (tasks key :: Maybe ((k -> Maybe v) -> Maybe v))
+isInput tasks key = isNothing (tasks key :: Maybe ((k -> [v]) -> [v]))
 
 unwrap :: forall k v. Wrapped Applicative k v -> Task Applicative k v
 unwrap wrapped = runTask (wrapped f)

@@ -5,6 +5,9 @@ module Build.Task.Wrapped (ReifiedTask (..), Wrapped) where
 import Control.Applicative
 import Control.Monad
 
+-- This whole module is just a tiresome workaround for the lack of impredicative
+-- polymorphism.
+
 newtype ReifiedTask c k v a =
     ReifiedTask { runTask :: forall f. c f => (k -> f v) -> f a }
 
