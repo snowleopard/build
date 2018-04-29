@@ -39,7 +39,7 @@ make :: forall k v. Ord k => Build Applicative (MakeInfo k) k v
 make = topological makeStrategy
 
 ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
-ninja = topological vtStrategyA
+ninja = topological vtStrategy
 
 type ExcelInfo k = (ApproximationInfo k, Chain k)
 
@@ -47,16 +47,16 @@ excel :: Ord k => Build Monad (ExcelInfo k) k v
 excel = reordering approximationStrategy
 
 shake :: (Eq k, Hashable v) => Build Monad (VT k v) k v
-shake = recursive vtStrategyM
+shake = recursive vtStrategy
 
 bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
-bazel = topological ctStrategyA
+bazel = topological ctStrategy
 
 cloudShake :: (Eq k, Hashable v) => Build Monad (CT k v) k v
-cloudShake = recursive ctStrategyM
+cloudShake = recursive ctStrategy
 
 buck :: (Hashable k, Hashable v) => Build Applicative (DCT k v) k v
-buck = topological dctStrategyA
+buck = topological dctStrategy
 
 nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v
-nix = recursive dctStrategyM
+nix = recursive dctStrategy
