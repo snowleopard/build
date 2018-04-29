@@ -41,7 +41,7 @@ type TaskParser c k v t = t -> Task c k v
 -- A model using Monad, works beautifully and allows storing the key on the disk
 selfTrackingM :: TaskParser Monad k v t -> Tasks Monad (Key k) (Value v t)
 selfTrackingM _      (KeyTask _) = Nothing -- Task keys are inputs
-selfTrackingM parser (Key     k) = output $ \fetch -> do
+selfTrackingM parser (Key     k) = Just $ \fetch -> do
     task <- parser <$> fetchValueTask fetch k -- Fetch and parse the task description
     Value <$> task (fetchValue fetch)
 
@@ -49,5 +49,5 @@ selfTrackingM parser (Key     k) = output $ \fetch -> do
 -- environment (e.g. a reader somewhere). Does not support cutoff if a key changes
 selfTrackingA :: TaskParser Applicative k v t -> (k -> t) -> Tasks Applicative (Key k) (Value v t)
 selfTrackingA _      _   (KeyTask _) = Nothing -- Task keys are inputs
-selfTrackingA parser ask (Key k) = output $ \fetch ->
+selfTrackingA parser ask (Key k) = Just $ \fetch ->
     fetch (KeyTask k) *> (Value <$> parser (ask k) (fetchValue fetch))

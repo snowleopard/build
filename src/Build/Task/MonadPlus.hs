@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes #-}
+{-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 module Build.Task.MonadPlus (
     random, dependenciesM, computeND, correctBuild
     ) where
@@ -22,7 +22,13 @@ dependenciesM task store = execWriterT $ task fetch
 computeND :: Task MonadPlus k v -> (k -> v) -> [v]
 computeND task store = task (return . store)
 
+clone :: forall k v. TT MonadPlus k v -> Task MonadPlus k v
+clone tt fetch = run (tt f) fetch
+  where
+    f :: k -> T MonadPlus k v v
+    f k = T $ \f -> f k
+
 correctBuild :: Eq v => Tasks MonadPlus k v -> Store i k v -> Store i k v -> k -> Bool
 correctBuild tasks store result k = case tasks k of
     Nothing -> getValue k result == getValue k store
-    Just w  -> getValue k result `elem` computeND (unwrap w) (flip getValue store)
+    Just t -> getValue k result `elem` computeND (clone t) (flip getValue store)

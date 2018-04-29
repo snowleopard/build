@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds, DeriveFunctor, RankNTypes, ScopedTypeVariables #-}
 module Build.Task.Applicative (
-    pureTask, dependencies, inputs, partial, exceptional
+    pureTask, dependencies, clone, inputs, partial, exceptional
     ) where
 
 import Control.Applicative
@@ -18,10 +18,20 @@ pureTask v = const (pure v)
 dependencies :: Task Applicative k v -> [k]
 dependencies task = getConst $ task (\k -> Const [k])
 
-inputs :: Ord k => Tasks Applicative k v -> k -> [k]
-inputs tasks = filter (isNothing . tasks) . reachable deps
+isInput :: forall k v. Tasks Applicative k v -> k -> Bool
+isInput tasks key = isNothing (tasks key :: Maybe ((k -> Maybe v) -> Maybe v))
+
+clone :: forall k v. TT Applicative k v -> Task Applicative k v
+clone tt fetch = run (tt f) fetch
   where
-    deps = maybe [] (\w -> dependencies (unwrap w)) . tasks
+    f :: k -> T Applicative k v v
+    f k = T $ \f -> f k
+
+inputs :: forall k v. Ord k => Tasks Applicative k v -> k -> [k]
+inputs tasks = filter (isInput tasks) . reachable deps
+  where
+    deps :: k -> [k]
+    deps k = maybe [] (\t -> dependencies (clone t)) (tasks k)
 
 -- | Convert a task with a total lookup function @k -> m v@ into a task
 -- with a partial lookup function @k -> m (Maybe v)@. This essentially lifts the

@@ -16,7 +16,6 @@ import Build
 import Build.Algorithm
 import Build.Store
 import Build.Strategy
-import Build.Task
 import Build.Trace
 
 -- Not a correct build system
@@ -30,7 +29,7 @@ busy tasks key store = execState (fetch key) store
     fetch :: k -> State (Store () k v) v
     fetch k = case tasks k of
         Nothing   -> gets (getValue k)
-        Just w -> do v <- unwrap w fetch; modify (putValue k v); return v
+        Just task -> do v <- task fetch; modify (putValue k v); return v
 
 -- Not a minimal build system, but never builds a key twice
 memo :: Eq k => Build Monad () k v

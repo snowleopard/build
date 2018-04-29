@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 module Build.Task.Monad (
-    dependencies, track, trackM, inputs, correctBuild, compute, partial, exceptional
+    dependencies, track, trackM, clone, inputs, correctBuild, compute, partial, exceptional
     ) where
 
 import Control.Monad.Trans
@@ -29,10 +29,19 @@ trackM task fetch = runWriterT $ task trackingFetch
     trackingFetch :: k -> WriterT [k] m v
     trackingFetch k = tell [k] >> lift (fetch k)
 
-inputs :: Ord k => Tasks Monad k v -> Store i k v -> k -> [k]
-inputs tasks store = filter (isNothing . tasks) . reachable deps
+isInput :: forall k v. Tasks Monad k v -> k -> Bool
+isInput tasks key = isNothing (tasks key :: Maybe ((k -> Maybe v) -> Maybe v))
+
+clone :: forall k v. TT Monad k v -> Task Monad k v
+clone tt fetch = run (tt f) fetch
   where
-    deps = maybe [] (\w -> snd $ track (flip getValue store) (unwrap w)) . tasks
+    f :: k -> T Monad k v v
+    f k = T $ \f -> f k
+
+inputs :: forall i k v. Ord k => Tasks Monad k v -> Store i k v -> k -> [k]
+inputs tasks store = filter (isInput tasks) . reachable deps
+  where
+    deps = maybe [] (\t -> snd $ track (flip getValue store) (clone t)) . tasks
 
 -- | Given a task description @task@, a target @key@, an initial @store@, and a
 -- @result@ produced by running a build system with parameters @task@, @key@ and
@@ -45,10 +54,10 @@ inputs tasks store = filter (isNothing . tasks) . reachable deps
 correctBuild :: (Ord k, Eq v) => Tasks Monad k v -> Store i k v -> Store i k v -> k -> Bool
 correctBuild tasks store result = all correct . reachable deps
   where
-    deps = maybe [] (\w -> snd $ track (flip getValue result) (unwrap w)) . tasks
+    deps = maybe [] (\t -> snd $ track (flip getValue result) (clone t)) . tasks
     correct k = case tasks k of
         Nothing -> getValue k result == getValue k store
-        Just w  -> getValue k result == compute (unwrap w) (flip getValue result)
+        Just t  -> getValue k result == compute (clone t) (flip getValue result)
 
 -- | Run a task with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.
