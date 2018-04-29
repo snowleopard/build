@@ -90,8 +90,7 @@ recursive strategy tasks key store = fst $ execState (fetch key) (store, [])
             done <- gets snd
             when (key `notElem` done) $ do
                 value <- gets (getValue key . fst)
-                let newTask :: Task (MonadState i) k v
-                    newTask = strategy key value (M.clone task)
+                let newTask = strategy key value (M.clone task)
                     newFetch :: k -> StateT i (State (Store i k v, [k])) v
                     newFetch = lift . fetch
                 info <- gets (getInfo . fst)
@@ -108,7 +107,6 @@ independent strategy tasks key store = case tasks key of
     Nothing -> store
     Just task ->
         let value   = getValue key store
-            newTask :: Task (MonadState i) k v
             newTask = strategy key value (M.clone task)
             newFetch :: k -> State i v
             newFetch k = return (getValue k store)

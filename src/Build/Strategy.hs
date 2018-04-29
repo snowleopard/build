@@ -12,10 +12,10 @@ import Data.Semigroup
 
 import Build.Store
 import Build.Task
-import Build.Task.Monad
+import Build.Task.Applicative (dependencies)
+import Build.Task.Monad hiding (dependencies)
 import Build.Trace
 
-import qualified Build.Task.Applicative as A
 
 type Strategy c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
 
@@ -29,7 +29,7 @@ type MakeInfo k = (k -> Time, Time)
 makeStrategy :: Eq k => Strategy Applicative (MakeInfo k) k v
 makeStrategy key value task fetch = do
     (modTime, now) <- get
-    let dirty = or [ modTime dep > modTime key | dep <- A.dependencies task ]
+    let dirty = or [ modTime dep > modTime key | dep <- dependencies task ]
     if not (dirty || modTime key < 0)
     then return value
     else do
@@ -57,10 +57,10 @@ approximationStrategy key value task fetch = do
     let dirty = isDirty key || case deps key of SubsetOf ks -> any isDirty ks
                                                 Unknown     -> True
     if not dirty
-        then return value
-        else do
-            put (\k -> k == key || isDirty k, deps)
-            task fetch
+    then return value
+    else do
+        put (\k -> k == key || isDirty k, deps)
+        task fetch
 
 ------------------------------- Verifying traces -------------------------------
 vtStrategy :: (Eq k, Hashable v) => Strategy Monad (VT k v) k v
