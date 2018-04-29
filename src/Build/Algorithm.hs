@@ -39,7 +39,7 @@ topological strategy tasks key = execState $ forM_ chain $ \k ->
             (newValue, newInfo) <- runStateT (newTask newFetch) info
             modify $ putInfo newInfo . updateValue k value newValue
   where
-    deps  = maybe [] (\t -> A.dependencies (A.unwrap t)) . tasks
+    deps  = maybe [] (\t -> A.dependencies $ A.unwrap t) . tasks
     chain = case topSort (graph deps key) of
         Nothing -> error "Cannot build tasks with cyclic dependencies"
         Just xs -> xs

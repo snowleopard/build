@@ -3,7 +3,7 @@
 module Build.Task (Task, Tasks, compose, fetchIO, sprsh1, sprsh2, sprsh3) where
 
 import Control.Applicative
-import Control.Monad
+import Control.Monad.Trans.Reader
 import Control.Monad.Fail (MonadFail)
 
 -- Ideally we would like to write:
@@ -30,16 +30,14 @@ type Task  c k v = forall f. c f =>             (k -> f v) -> f v
 compose :: Tasks Monad k v -> Tasks Monad k v -> Tasks Monad k v
 compose t1 t2 key = t1 key <|> t2 key
 
--- compose2 :: Tasks Monad k v -> Tasks Monad k v -> Tasks Monad k v
--- compose2 t1 t2 fetch key = t1 fetch key <|> t2 fetch key
+-- Old type for task descriptions, isomorphic to Tasks as demonstrated below.
+type Tasks2 c k v = forall f. c f => (k -> f v) -> k -> Maybe (f v)
 
--- type Tasks2 c k v = forall f. c f => (k -> f v) -> k -> Maybe (f v)
+fromTasks :: Tasks Monad k v -> Tasks2 Monad k v
+fromTasks tasks fetch key = ($fetch) <$> tasks key
 
--- toTask :: Task2 Monad k v -> Task Monad k v
--- toTask task2 fetch key = ($fetch) <$> task2 key
-
--- fromTask :: Task Monad k v -> Task2 Monad k v
--- fromTask task key = runReaderT <$> task (\k -> ReaderT ($k)) key
+toTasks :: Tasks2 Monad k v -> Tasks Monad k v
+toTasks tasks2 key = runReaderT <$> tasks2 (\k -> ReaderT ($k)) key
 
 --------------------------- Task Functor: Collatz ---------------------------
 -- Collatz sequence:
@@ -145,10 +143,3 @@ editDistance (D i j) = Just $ \fetch -> do
             replace <- fetch (D (i - 1) (j - 1))
             return (1 + minimum [insert, delete, replace])
 editDistance _ = Nothing
-
--- These type synonyms are not very useful, but enumerate all interesting cases.
-type FunctorialTask  k v = forall f. Functor     f => (k -> f v) -> k -> Maybe (f v)
-type ApplicativeTask k v = forall f. Applicative f => (k -> f v) -> k -> Maybe (f v)
-type AlternativeTask k v = forall f. Alternative f => (k -> f v) -> k -> Maybe (f v)
-type MonadicTask     k v = forall f. Monad       f => (k -> f v) -> k -> Maybe (f v)
-type MonadPlusedTask k v = forall f. MonadPlus   f => (k -> f v) -> k -> Maybe (f v)

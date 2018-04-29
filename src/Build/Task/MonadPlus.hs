@@ -16,7 +16,7 @@ random (low, high) = const $ foldr mplus mzero $ map pure [low..high]
 dependenciesM :: MonadPlus m => Task MonadPlus k v -> (k -> m v) -> m [k]
 dependenciesM task store = execWriterT $ task fetch
   where
-    fetch k = tell [k] >> lift  (store k)
+    fetch k = tell [k] >> lift (store k)
 
 unwrap :: forall k v. Wrapped MonadPlus k v -> Task MonadPlus k v
 unwrap wrapped = runTask (wrapped f)
