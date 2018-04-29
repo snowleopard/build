@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds, DeriveFunctor, RankNTypes, ScopedTypeVariables #-}
 module Build.Task.Applicative (
-    pureTask, dependencies, clone, inputs, partial, exceptional
+    pureTask, dependencies, unwrap, inputs, partial, exceptional
     ) where
 
 import Control.Applicative
@@ -8,6 +8,7 @@ import Data.Functor.Compose
 import Data.Maybe
 
 import Build.Task
+import Build.Task.Wrapped
 import Build.Utilities
 
 -- | An applicative task that returns a constant.
@@ -21,17 +22,17 @@ dependencies task = getConst $ task (\k -> Const [k])
 isInput :: forall k v. Tasks Applicative k v -> k -> Bool
 isInput tasks key = isNothing (tasks key :: Maybe ((k -> Maybe v) -> Maybe v))
 
-clone :: forall k v. TT Applicative k v -> Task Applicative k v
-clone tt fetch = run (tt f) fetch
+unwrap :: forall k v. Wrapped Applicative k v -> Task Applicative k v
+unwrap wrapped = runTask (wrapped f)
   where
-    f :: k -> T Applicative k v v
-    f k = T $ \f -> f k
+    f :: k -> ReifiedTask Applicative k v v
+    f k = ReifiedTask $ \f -> f k
 
 inputs :: forall k v. Ord k => Tasks Applicative k v -> k -> [k]
 inputs tasks = filter (isInput tasks) . reachable deps
   where
     deps :: k -> [k]
-    deps k = maybe [] (\t -> dependencies (clone t)) (tasks k)
+    deps k = maybe [] (\t -> dependencies (unwrap t)) (tasks k)
 
 -- | Convert a task with a total lookup function @k -> m v@ into a task
 -- with a partial lookup function @k -> m (Maybe v)@. This essentially lifts the

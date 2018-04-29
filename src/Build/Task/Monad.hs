@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 module Build.Task.Monad (
-    dependencies, track, trackM, clone, inputs, correctBuild, compute, partial, exceptional
+    dependencies, track, trackM, unwrap, inputs, correctBuild, compute, partial, exceptional
     ) where
 
 import Control.Monad.Trans
@@ -12,6 +12,7 @@ import Data.Maybe
 
 import Build.Store
 import Build.Task
+import Build.Task.Wrapped
 import Build.Utilities
 
 -- TODO: Does this always terminate? It's not obvious!
@@ -32,16 +33,16 @@ trackM task fetch = runWriterT $ task trackingFetch
 isInput :: forall k v. Tasks Monad k v -> k -> Bool
 isInput tasks key = isNothing (tasks key :: Maybe ((k -> Maybe v) -> Maybe v))
 
-clone :: forall k v. TT Monad k v -> Task Monad k v
-clone tt fetch = run (tt f) fetch
+unwrap :: forall k v. Wrapped Monad k v -> Task Monad k v
+unwrap wrapped = runTask (wrapped f)
   where
-    f :: k -> T Monad k v v
-    f k = T $ \f -> f k
+    f :: k -> ReifiedTask Monad k v v
+    f k = ReifiedTask $ \f -> f k
 
 inputs :: forall i k v. Ord k => Tasks Monad k v -> Store i k v -> k -> [k]
 inputs tasks store = filter (isInput tasks) . reachable deps
   where
-    deps = maybe [] (\t -> snd $ track (flip getValue store) (clone t)) . tasks
+    deps = maybe [] (\t -> snd $ track (flip getValue store) (unwrap t)) . tasks
 
 -- | Given a task description @task@, a target @key@, an initial @store@, and a
 -- @result@ produced by running a build system with parameters @task@, @key@ and
@@ -54,10 +55,10 @@ inputs tasks store = filter (isInput tasks) . reachable deps
 correctBuild :: (Ord k, Eq v) => Tasks Monad k v -> Store i k v -> Store i k v -> k -> Bool
 correctBuild tasks store result = all correct . reachable deps
   where
-    deps = maybe [] (\t -> snd $ track (flip getValue result) (clone t)) . tasks
+    deps = maybe [] (\t -> snd $ track (flip getValue result) (unwrap t)) . tasks
     correct k = case tasks k of
         Nothing -> getValue k result == getValue k store
-        Just t  -> getValue k result == compute (clone t) (flip getValue result)
+        Just t  -> getValue k result == compute (unwrap t) (flip getValue result)
 
 -- | Run a task with a pure lookup function. Returns @Nothing@ to indicate
 -- that a given key is an input.

@@ -12,7 +12,7 @@ import Data.Set (Set)
 
 import Build
 import Build.Task
-import Build.Task.Applicative hiding (clone, exceptional)
+import Build.Task.Applicative hiding (unwrap, exceptional)
 import Build.Store
 import Build.Strategy
 import Build.Utilities
@@ -33,14 +33,14 @@ topological strategy tasks key = execState $ forM_ chain $ \k ->
         Nothing   -> return ()
         Just task -> do
             value <- gets (getValue k)
-            let newTask = strategy k value (A.clone task)
+            let newTask = strategy k value (A.unwrap task)
                 newFetch :: k -> StateT i (State (Store i k v)) v
                 newFetch = lift . gets . getValue
             info <- gets getInfo
             (newValue, newInfo) <- runStateT (newTask newFetch) info
             modify $ putInfo newInfo . updateValue k value newValue
   where
-    deps  = maybe [] (\t -> dependencies (A.clone t)) . tasks
+    deps  = maybe [] (\t -> dependencies (A.unwrap t)) . tasks
     chain = case topSort (graph deps key) of
         Nothing -> error "Cannot build tasks with cyclic dependencies"
         Just xs -> xs
@@ -65,7 +65,7 @@ reordering strategy tasks key = execState $ do
             Just task -> do
                 value <- gets (getValue k)
                 let newTask :: Task (MonadState i) k v
-                    newTask = strategy k value (M.clone task)
+                    newTask = strategy k value (M.unwrap task)
                     newFetch :: k -> StateT i (State (Store (i, [k]) k v)) (Either k v)
                     newFetch k | k `Set.member` done = do
                                    store <- lift get
@@ -90,7 +90,7 @@ recursive strategy tasks key store = fst $ execState (fetch key) (store, [])
             done <- gets snd
             when (key `notElem` done) $ do
                 value <- gets (getValue key . fst)
-                let newTask = strategy key value (M.clone task)
+                let newTask = strategy key value (M.unwrap task)
                     newFetch :: k -> StateT i (State (Store i k v, [k])) v
                     newFetch = lift . fetch
                 info <- gets (getInfo . fst)
@@ -107,7 +107,7 @@ independent strategy tasks key store = case tasks key of
     Nothing -> store
     Just task ->
         let value   = getValue key store
-            newTask = strategy key value (M.clone task)
+            newTask = strategy key value (M.unwrap task)
             newFetch :: k -> State i v
             newFetch k = return (getValue k store)
             (newValue, newInfo) = runState (newTask newFetch) (getInfo store)

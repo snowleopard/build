@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleInstances, RankNTypes, StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 module Build.Task (
-    Task, Tasks, T (..), TT, compose, fetchIO, sprsh1, sprsh2, sprsh3
+    Task, Tasks, compose, fetchIO, sprsh1, sprsh2, sprsh3
     ) where
 
 import Control.Applicative
@@ -13,52 +13,6 @@ import Control.Monad.Fail (MonadFail)
 -- @Nothing@ to indicate that a given key is an input.
 type Tasks c k v = forall f. c f => k -> Maybe ((k -> f v) -> f v)
 type Task  c k v = forall f. c f =>             (k -> f v) -> f v
-
-newtype T c k v a = T { run :: forall f. c f => (k -> f v) -> f a }
-
-deriving instance Functor (T Functor     k v)
-deriving instance Functor (T Applicative k v)
-deriving instance Functor (T Alternative k v)
-deriving instance Functor (T Monad       k v)
-deriving instance Functor (T MonadPlus   k v)
-
-instance Applicative (T Applicative k v) where
-    pure x = T $ \_ -> pure x
-    T f <*> T x = T $ \fetch -> f fetch <*> x fetch
-
-instance Applicative (T Alternative k v) where
-    pure x = T $ \_ -> pure x
-    T f <*> T x = T $ \fetch -> f fetch <*> x fetch
-
-instance Applicative (T Monad k v) where
-    pure x = T $ \_ -> pure x
-    T f <*> T x = T $ \fetch -> f fetch <*> x fetch
-
-instance Applicative (T MonadPlus k v) where
-    pure x = T $ \_ -> pure x
-    T f <*> T x = T $ \fetch -> f fetch <*> x fetch
-
-instance Monad (T Monad k v) where
-    return x = T $ \_ -> return x
-    T x >>= f = T $ \fetch -> x fetch >>= \a -> run (f a) fetch
-
-instance Monad (T MonadPlus k v) where
-    return x = T $ \_ -> return x
-    T x >>= f = T $ \fetch -> x fetch >>= \a -> run (f a) fetch
-
-instance Alternative (T Alternative k v) where
-    empty = T $ \_ -> empty
-    T x <|> T y = T $ \fetch -> x fetch <|> y fetch
-
-instance Alternative (T MonadPlus k v) where
-    empty = T $ \_ -> empty
-    T x <|> T y = T $ \fetch -> x fetch <|> y fetch
-
-instance MonadPlus (T MonadPlus k v) where
-    mzero = empty
-    mplus = (<|>)
-
-type TT c k v = (k -> T c k v v) -> T c k v v
 
 compose :: Tasks Monad k v -> Tasks Monad k v -> Tasks Monad k v
 compose t1 t2 key = t1 key <|> t2 key
