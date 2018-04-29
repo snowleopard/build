@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleInstances #-}
 {-# LANGUAGE RankNTypes, StandaloneDeriving #-}
-module Build.Task.Wrapped (ReifiedTask (..), Wrapped) where
+module Build.Task.Wrapped (GTask (..), Wrapped) where
 
 import Control.Applicative
 import Control.Monad
@@ -9,49 +9,52 @@ import Control.Monad
 -- polymorphism. If GHC adds impredicative polymorphism, we can drop it entirely
 -- and simplify the rest of the code by removing unnecessary task unwrapping.
 
-newtype ReifiedTask c k v a =
-    ReifiedTask { runTask :: forall f. c f => (k -> f v) -> f a }
+-- GTask is a generalised Task wrapped in a newtype. It is generalised in the
+-- sense that it computes a value of type @a@ given a fetch of type @k -> f v@.
+newtype GTask c k v a =
+    GTask { runGTask :: forall f. c f => (k -> f v) -> f a }
 
-type Wrapped c k v = (k -> ReifiedTask c k v v) -> ReifiedTask c k v v
+type Wrapped c k v = (k -> GTask c k v v) -> GTask c k v v
 
-deriving instance Functor (ReifiedTask Functor     k v)
-deriving instance Functor (ReifiedTask Applicative k v)
-deriving instance Functor (ReifiedTask Alternative k v)
-deriving instance Functor (ReifiedTask Monad       k v)
-deriving instance Functor (ReifiedTask MonadPlus   k v)
+-- Thanks to the generalisation, we can make GTask an instance of many classes
+deriving instance Functor (GTask Functor     k v)
+deriving instance Functor (GTask Applicative k v)
+deriving instance Functor (GTask Alternative k v)
+deriving instance Functor (GTask Monad       k v)
+deriving instance Functor (GTask MonadPlus   k v)
 
-instance Applicative (ReifiedTask Applicative k v) where
-    pure x = ReifiedTask $ \_ -> pure x
-    ReifiedTask f <*> ReifiedTask x = ReifiedTask $ \fetch -> f fetch <*> x fetch
+instance Applicative (GTask Applicative k v) where
+    pure x = GTask $ \_ -> pure x
+    GTask f <*> GTask x = GTask $ \fetch -> f fetch <*> x fetch
 
-instance Applicative (ReifiedTask Alternative k v) where
-    pure x = ReifiedTask $ \_ -> pure x
-    ReifiedTask f <*> ReifiedTask x = ReifiedTask $ \fetch -> f fetch <*> x fetch
+instance Applicative (GTask Alternative k v) where
+    pure x = GTask $ \_ -> pure x
+    GTask f <*> GTask x = GTask $ \fetch -> f fetch <*> x fetch
 
-instance Applicative (ReifiedTask Monad k v) where
-    pure x = ReifiedTask $ \_ -> pure x
-    ReifiedTask f <*> ReifiedTask x = ReifiedTask $ \fetch -> f fetch <*> x fetch
+instance Applicative (GTask Monad k v) where
+    pure x = GTask $ \_ -> pure x
+    GTask f <*> GTask x = GTask $ \fetch -> f fetch <*> x fetch
 
-instance Applicative (ReifiedTask MonadPlus k v) where
-    pure x = ReifiedTask $ \_ -> pure x
-    ReifiedTask f <*> ReifiedTask x = ReifiedTask $ \fetch -> f fetch <*> x fetch
+instance Applicative (GTask MonadPlus k v) where
+    pure x = GTask $ \_ -> pure x
+    GTask f <*> GTask x = GTask $ \fetch -> f fetch <*> x fetch
 
-instance Monad (ReifiedTask Monad k v) where
-    return x = ReifiedTask $ \_ -> return x
-    ReifiedTask x >>= f = ReifiedTask $ \fetch -> x fetch >>= \a -> runTask (f a) fetch
+instance Monad (GTask Monad k v) where
+    return x = GTask $ \_ -> return x
+    GTask x >>= f = GTask $ \fetch -> x fetch >>= \a -> runGTask (f a) fetch
 
-instance Monad (ReifiedTask MonadPlus k v) where
-    return x = ReifiedTask $ \_ -> return x
-    ReifiedTask x >>= f = ReifiedTask $ \fetch -> x fetch >>= \a -> runTask (f a) fetch
+instance Monad (GTask MonadPlus k v) where
+    return x = GTask $ \_ -> return x
+    GTask x >>= f = GTask $ \fetch -> x fetch >>= \a -> runGTask (f a) fetch
 
-instance Alternative (ReifiedTask Alternative k v) where
-    empty = ReifiedTask $ \_ -> empty
-    ReifiedTask x <|> ReifiedTask y = ReifiedTask $ \fetch -> x fetch <|> y fetch
+instance Alternative (GTask Alternative k v) where
+    empty = GTask $ \_ -> empty
+    GTask x <|> GTask y = GTask $ \fetch -> x fetch <|> y fetch
 
-instance Alternative (ReifiedTask MonadPlus k v) where
-    empty = ReifiedTask $ \_ -> empty
-    ReifiedTask x <|> ReifiedTask y = ReifiedTask $ \fetch -> x fetch <|> y fetch
+instance Alternative (GTask MonadPlus k v) where
+    empty = GTask $ \_ -> empty
+    GTask x <|> GTask y = GTask $ \fetch -> x fetch <|> y fetch
 
-instance MonadPlus (ReifiedTask MonadPlus k v) where
+instance MonadPlus (GTask MonadPlus k v) where
     mzero = empty
     mplus = (<|>)

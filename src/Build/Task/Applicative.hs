@@ -23,10 +23,10 @@ isInput :: forall k v. Tasks Applicative k v -> k -> Bool
 isInput tasks key = isNothing (tasks key :: Maybe ((k -> [v]) -> [v]))
 
 unwrap :: forall k v. Wrapped Applicative k v -> Task Applicative k v
-unwrap wrapped = runTask (wrapped f)
+unwrap wrapped = runGTask (wrapped f)
   where
-    f :: k -> ReifiedTask Applicative k v v
-    f k = ReifiedTask $ \f -> f k
+    f :: k -> GTask Applicative k v v
+    f k = GTask $ \f -> f k
 
 inputs :: forall k v. Ord k => Tasks Applicative k v -> k -> [k]
 inputs tasks = filter (isInput tasks) . reachable deps

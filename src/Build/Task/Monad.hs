@@ -35,10 +35,10 @@ isInput :: forall k v. Tasks Monad k v -> k -> Bool
 isInput tasks key = isNothing (tasks key :: Maybe ((k -> Maybe v) -> Maybe v))
 
 unwrap :: forall k v. Wrapped Monad k v -> Task Monad k v
-unwrap wrapped = runTask (wrapped f)
+unwrap wrapped = runGTask (wrapped f)
   where
-    f :: k -> ReifiedTask Monad k v v
-    f k = ReifiedTask $ \f -> f k
+    f :: k -> GTask Monad k v v
+    f k = GTask $ \f -> f k
 
 inputs :: forall i k v. Ord k => Tasks Monad k v -> Store i k v -> k -> [k]
 inputs tasks store = filter (isInput tasks) . reachable deps

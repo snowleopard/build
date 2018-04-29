@@ -19,10 +19,10 @@ dependenciesM task store = execWriterT $ task fetch
     fetch k = tell [k] >> lift (store k)
 
 unwrap :: forall k v. Wrapped MonadPlus k v -> Task MonadPlus k v
-unwrap wrapped = runTask (wrapped f)
+unwrap wrapped = runGTask (wrapped f)
   where
-    f :: k -> ReifiedTask MonadPlus k v v
-    f k = ReifiedTask $ \f -> f k
+    f :: k -> GTask MonadPlus k v v
+    f k = GTask $ \f -> f k
 
 -- | Run a non-deterministic task with a pure lookup function, listing all
 -- possible results, including @Nothing@ indicating that a given key is an input.
