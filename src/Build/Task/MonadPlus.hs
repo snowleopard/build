@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TypeApplications #-}
 module Build.Task.MonadPlus (
     random, dependenciesM, unwrap, computeND, correctBuild
     ) where
@@ -18,12 +18,6 @@ dependenciesM task store = execWriterT $ task fetch
   where
     fetch k = tell [k] >> lift (store k)
 
-unwrap :: forall k v. Wrapped MonadPlus k v -> Task MonadPlus k v
-unwrap wrapped = runGTask (wrapped f)
-  where
-    f :: k -> GTask MonadPlus k v v
-    f k = GTask $ \f -> f k
-
 -- | Run a non-deterministic task with a pure lookup function, listing all
 -- possible results, including @Nothing@ indicating that a given key is an input.
 computeND :: Task MonadPlus k v -> (k -> v) -> [v]
@@ -32,4 +26,4 @@ computeND task store = task (return . store)
 correctBuild :: Eq v => Tasks MonadPlus k v -> Store i k v -> Store i k v -> k -> Bool
 correctBuild tasks store result k = case tasks k of
     Nothing -> getValue k result == getValue k store
-    Just t -> getValue k result `elem` computeND (unwrap t) (flip getValue store)
+    Just t -> getValue k result `elem` computeND (unwrap @MonadPlus t) (flip getValue store)

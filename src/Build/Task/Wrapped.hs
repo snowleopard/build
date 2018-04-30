@@ -1,9 +1,11 @@
 {-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleInstances #-}
 {-# LANGUAGE RankNTypes, StandaloneDeriving #-}
-module Build.Task.Wrapped (GTask (..), Wrapped) where
+module Build.Task.Wrapped (GTask (..), Wrapped, unwrap) where
 
 import Control.Applicative
 import Control.Monad
+
+import Build.Task
 
 -- This whole module is just a tiresome workaround for the lack of impredicative
 -- polymorphism. If GHC adds impredicative polymorphism, we can drop it entirely
@@ -15,6 +17,12 @@ newtype GTask c k v a =
     GTask { runGTask :: forall f. c f => (k -> f v) -> f a }
 
 type Wrapped c k v = (k -> GTask c k v v) -> GTask c k v v
+
+unwrap :: forall c k v. Wrapped c k v -> Task c k v
+unwrap wrapped = runGTask (wrapped f)
+  where
+    f :: k -> GTask c k v v
+    f k = GTask $ \f -> f k
 
 -- Thanks to the generalisation, we can make GTask an instance of many classes
 deriving instance Functor (GTask Functor     k v)

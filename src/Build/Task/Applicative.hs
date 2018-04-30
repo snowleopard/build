@@ -1,11 +1,12 @@
-{-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables, TypeApplications #-}
 module Build.Task.Applicative (
-    pureTask, dependencies, unwrap, inputs, partial, exceptional
+    pureTask, dependencies, inputs, partial, exceptional
     ) where
 
 import Control.Applicative
 import Data.Functor.Compose
 import Data.Maybe
+import Data.Proxy
 
 import Build.Task
 import Build.Task.Wrapped
@@ -20,19 +21,13 @@ dependencies :: Task Applicative k v -> [k]
 dependencies task = getConst $ task (\k -> Const [k])
 
 isInput :: forall k v. Tasks Applicative k v -> k -> Bool
-isInput tasks key = isNothing (tasks key :: Maybe ((k -> [v]) -> [v]))
-
-unwrap :: forall k v. Wrapped Applicative k v -> Task Applicative k v
-unwrap wrapped = runGTask (wrapped f)
-  where
-    f :: k -> GTask Applicative k v v
-    f k = GTask $ \f -> f k
+isInput tasks key = isNothing (tasks @Proxy key)
 
 inputs :: forall k v. Ord k => Tasks Applicative k v -> k -> [k]
 inputs tasks = filter (isInput tasks) . reachable deps
   where
     deps :: k -> [k]
-    deps k = maybe [] (\t -> dependencies (unwrap t)) (tasks k)
+    deps = maybe [] (\task -> dependencies (unwrap @Applicative task)) . tasks
 
 -- | Convert a task with a total lookup function @k -> m v@ into a task
 -- with a partial lookup function @k -> m (Maybe v)@. This essentially lifts the
