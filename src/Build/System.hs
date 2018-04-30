@@ -16,7 +16,6 @@ import Build
 import Build.Algorithm
 import Build.Store
 import Build.Strategy
-import Build.Task
 import Build.Trace
 
 -- Not a correct build system
@@ -30,7 +29,7 @@ busy tasks key store = execState (fetch key) store
     fetch :: k -> State (Store () k v) v
     fetch k = case tasks k of
         Nothing   -> gets (getValue k)
-        Just task -> do v <- run task fetch; modify (putValue k v); return v
+        Just task -> do v <- task fetch; modify (putValue k v); return v
 
 -- Not a minimal build system, but never builds a key twice
 memo :: Eq k => Build Monad () k v
@@ -40,7 +39,7 @@ make :: forall k v. Ord k => Build Applicative (MakeInfo k) k v
 make = topological makeStrategy
 
 ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
-ninja = topological vtStrategyA
+ninja = topological vtStrategy
 
 type ExcelInfo k = (ApproximationInfo k, Chain k)
 
@@ -48,16 +47,16 @@ excel :: Ord k => Build Monad (ExcelInfo k) k v
 excel = reordering approximationStrategy
 
 shake :: (Eq k, Hashable v) => Build Monad (VT k v) k v
-shake = recursive vtStrategyM
+shake = recursive vtStrategy
 
 bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
-bazel = topological ctStrategyA
+bazel = topological ctStrategy
 
 cloudShake :: (Eq k, Hashable v) => Build Monad (CT k v) k v
-cloudShake = recursive ctStrategyM
+cloudShake = recursive ctStrategy
 
 buck :: (Hashable k, Hashable v) => Build Applicative (DCT k v) k v
-buck = topological dctStrategyA
+buck = topological dctStrategy
 
 nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v
-nix = recursive dctStrategyM
+nix = recursive dctStrategy

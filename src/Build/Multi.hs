@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 module Build.Multi (multi) where
 
 import Data.Maybe
@@ -16,7 +17,7 @@ type Partition k = k -> [k]
 multi :: Eq k => Partition k -> Tasks Applicative [k] [v] -> Tasks Applicative [k] [v]
 multi partition tasks keys
     | k:_ <- keys, partition k == keys = tasks keys
-    | otherwise = Just $ Task $ \fetch ->
+    | otherwise = Just $ \fetch ->
         sequenceA [ select k <$> fetch (partition k) | k <- keys ]
   where
     select k = fromMaybe (error msg) . lookup k . zip (partition k)

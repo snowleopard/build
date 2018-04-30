@@ -81,7 +81,7 @@ type Spreadsheet = Cell -> Maybe Formula
 spreadsheetTask :: Spreadsheet -> Tasks Monad Cell Int
 spreadsheetTask spreadsheet cell@(Cell r c) = case spreadsheet cell of
     Nothing      -> Nothing -- This is an input
-    Just formula -> Just $ Task $ evaluate formula
+    Just formula -> Just $ evaluate formula
   where
     evaluate formula fetch = go formula
       where go formula = case formula of
@@ -99,7 +99,7 @@ spreadsheetTask spreadsheet cell@(Cell r c) = case spreadsheet cell of
 spreadsheetTaskA :: Spreadsheet -> Tasks Applicative Cell Int
 spreadsheetTaskA spreadsheet cell@(Cell r c) = case spreadsheet cell of
     Nothing      -> Nothing -- This is an input
-    Just formula -> Just $ Task $ evaluate formula
+    Just formula -> Just $ evaluate formula
   where
     evaluate formula fetch = go formula
       where go formula = case formula of

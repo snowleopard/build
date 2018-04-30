@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 module Build.Task.Functor (dependency) where
 
 import Data.Functor.Const
@@ -5,4 +6,4 @@ import Data.Functor.Const
 import Build.Task
 
 dependency :: Task Functor k v -> k
-dependency task = getConst $ run task Const
+dependency task = getConst $ task Const

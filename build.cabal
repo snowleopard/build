@@ -33,6 +33,7 @@ library
                         Build.Task.Monad,
                         Build.Task.MonadPlus,
                         Build.Task.Typed,
+                        Build.Task.Wrapped,
                         Build.Trace,
                         Build.Strategy,
                         Build.System,
