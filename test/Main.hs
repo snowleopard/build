@@ -5,6 +5,8 @@ import Data.List.Extra
 import Data.Maybe
 import System.Exit
 
+import qualified Data.Map as Map
+
 import Build
 import Build.Task
 import Build.Task.Monad (correctBuild)
@@ -80,7 +82,7 @@ testSuite = and <$> sequence
     [ test  "dumb      " dumb       ()
     , test  "busy      " busy       ()
     , test  "memo      " memo       ()
-    , testA "make      " make       (const (-1), 0)
+    , testA "make      " make       (Map.empty, 0)
     , testA "ninja     " ninja      mempty
     , test  "excel     " excel      ((const True, mempty), mempty)
     , test  "shake     " shake      mempty

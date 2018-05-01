@@ -8,7 +8,10 @@ module Build.Strategy (
 
 import Control.Monad.State
 import Data.List
+import Data.Map (Map)
 import Data.Semigroup
+
+import qualified Data.Map as Map
 
 import Build.Store
 import Build.Task
@@ -23,17 +26,18 @@ alwaysRebuildStrategy _key _value task = task
 
 ------------------------------------- Make -------------------------------------
 type Time = Integer -- A negative time value means a key was never built
-type MakeInfo k = (k -> Time, Time)
+type MakeInfo k = (Map k Time, Time)
 
-makeStrategy :: Eq k => Strategy Applicative (MakeInfo k) k v
+makeStrategy :: Ord k => Strategy Applicative (MakeInfo k) k v
 makeStrategy key value task fetch = do
     (modTime, now) <- get
-    let dirty = or [ modTime dep > modTime key | dep <- dependencies task ]
-    if not (dirty || modTime key < 0)
+    let dirty = case Map.lookup key modTime of
+            Nothing -> True
+            time -> any (\d -> Map.lookup d modTime > time) (dependencies task)
+    if not dirty
     then return value
     else do
-        let newModTime k = if k == key then now else modTime k
-        put (newModTime, now + 1)
+        put (Map.insert key now modTime, now + 1)
         task fetch
 
 --------------------------- Dependency approximation ---------------------------
