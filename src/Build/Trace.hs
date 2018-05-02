@@ -24,6 +24,7 @@ data Trace k h r = Trace
     { key     :: k
     , depends :: [(k, h)]
     , result  :: r }
+    deriving Show
 
 -- | An abstract data type for a set of verifying traces equipped with 'record',
 -- 'verify' and a 'Monoid' instance.

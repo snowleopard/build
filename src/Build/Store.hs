@@ -13,7 +13,7 @@ import Data.List.Extra
 -- TODO: Switch to cryptographic hashes.
 -- | A 'Hash' is used for efficient tracking and sharing of build results. We
 -- use @newtype Hash a = Hash a@ for prototyping.
-newtype Hash a = Hash a deriving (Eq, Ord)
+newtype Hash a = Hash a deriving (Eq, Ord,Show)
 
 instance Functor Hash where
     fmap f (Hash a) = Hash (f a)
