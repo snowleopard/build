@@ -36,11 +36,8 @@ fetchValueTask fetch key = extract <$> fetch (KeyTask key)
     extract (ValueTask t) = t
     extract _ = error "Inconsistent fetch"
 
--- For simplicity our task description parsers are total.
-type TaskParser c k v t = t -> Task c k v
-
 -- A model using Monad, works beautifully and allows storing the key on the disk
-selfTrackingM :: TaskParser Monad k v t -> Tasks Monad k t -> Tasks Monad (Key k) (Value v t)
+selfTrackingM :: (t -> Task Monad k v) -> Tasks Monad k t -> Tasks Monad (Key k) (Value v t)
 selfTrackingM _      _     (KeyTask _) = Nothing -- Task keys are inputs
 selfTrackingM parser tasks (Key     k) = runTask <$> tasks k
   where
@@ -51,7 +48,7 @@ selfTrackingM parser tasks (Key     k) = runTask <$> tasks k
 
 -- | The Applicative model requires every key to be able to associate with its
 -- environment (e.g. a reader somewhere). Does not support cutoff if a key changes
-selfTrackingA :: TaskParser Applicative k v t -> (k -> t) -> Tasks Applicative (Key k) (Value v t)
+selfTrackingA :: (t -> Task Applicative k v) -> (k -> t) -> Tasks Applicative (Key k) (Value v t)
 selfTrackingA _      _   (KeyTask _) = Nothing -- Task keys are inputs
 selfTrackingA parser ask (Key k) = Just $ \fetch ->
     fetch (KeyTask k) *> (Value <$> parser (ask k) (fetchValue fetch))
