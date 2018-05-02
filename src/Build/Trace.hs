@@ -5,6 +5,9 @@ module Build.Trace (
     -- * Verifying traces
     VT, recordVT, verifyVT,
 
+    -- * Step traces
+    Step, ST, recordST, verifyST,
+
     -- * Constructive traces
     CT, recordCT, constructCT,
 
@@ -16,6 +19,7 @@ import Build.Store
 
 import Control.Monad.Extra
 import Data.Maybe
+import Data.List
 import Data.Semigroup
 
 -- A trace is parameterised by the types of keys @k@, hashes @h@, as well as the
@@ -46,6 +50,40 @@ verifyVT key value fetchHash (VT ts) = anyM match ts
     match (Trace k deps result)
         | k /= key || result /= hash value = return False
         | otherwise = andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
+
+newtype Step = Step Int deriving (Enum,Eq,Ord,Show)
+instance Semigroup Step where Step a <> Step b = Step $ a + b
+instance Monoid Step where mempty = Step 0; mappend = (<>)
+
+-- | A step trace, records the resulting value, the step it last build, the step where it changed
+newtype ST k v = ST [Trace k () (Hash v, Step, Step)] deriving (Monoid, Semigroup,Show)
+
+latestST :: Eq k => k -> ST k v -> Maybe (Trace k () (Hash v, Step, Step))
+latestST k (ST ts) = fmap snd $ listToMaybe $ reverse $ sortOn fst [(step, t) | t@(Trace k2 _ (_, step, _)) <- ts, k == k2]
+
+-- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
+-- the hashes of up-to-date values from the given @store@.
+recordST :: (Hashable v, Eq k, Monad m) => Step -> k -> v -> [k] -> ST k v -> m (ST k v)
+recordST step key value deps (ST ts) = do
+    let hv = hash value
+    let lastChange = case latestST key (ST ts) of
+            Just (Trace _ _ (hv2, _, chng)) | hv2 == hv -> chng -- I rebuilt, didn't change, so use the old change time
+            _ -> step
+    return $ ST $ Trace key (map (,()) deps) (hash value, step, lastChange) : ts
+
+-- | Given a function to compute the hash of a key's current value,
+-- a @key@, and a set of verifying traces, return 'True' if the @key@ is
+-- up-to-date.
+verifyST :: (Monad m, Eq k, Hashable v) => k -> v -> (k -> m ()) -> m (ST k v) -> m Bool
+verifyST key value demand st = do
+    me <- latestST key <$> st
+    case me of
+        Just (Trace _ deps (hv, built, _)) | hash value == hv -> do
+            mapM_ (demand . fst) deps
+            st <- st
+            -- things with no traces must be inputs, which I'm going to ignore for now...
+            return $ and [ built >= chng | Just (Trace _ _ (_, _, chng)) <- map (flip latestST st . fst) deps]
+        _ -> return False
 
 newtype CT k v = CT [Trace k (Hash v) v] deriving (Monoid, Semigroup)
 

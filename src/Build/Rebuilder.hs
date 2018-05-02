@@ -1,9 +1,9 @@
-{-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables, TupleSections #-}
 module Build.Rebuilder (
     Rebuilder, perpetualRebuilder,
     modTimeRebuilder, Time, MakeInfo,
     approximationRebuilder, DependencyApproximation, ApproximationInfo,
-    vtRebuilder, ctRebuilder, dctRebuilder
+    vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
     ) where
 
 import Control.Monad.State
@@ -75,6 +75,18 @@ vtRebuilder key value task fetch = do
     else do
         (newValue, deps) <- trackM task fetch
         put =<< recordVT key newValue deps (fmap hash . fetch) =<< get
+        return newValue
+
+------------------------------- Version traces -------------------------------
+stRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (Step, ST k v) k v
+stRebuilder key value task fetch = do
+    dirty <- not <$> verifyST key value (void . fetch) (gets snd)
+    if not dirty
+    then return value
+    else do
+        (newValue, deps) <- trackM task fetch
+        (step, st) <- get
+        put . (step,) =<< recordST step key newValue deps st
         return newValue
 
 ------------------------------ Constructive traces -----------------------------

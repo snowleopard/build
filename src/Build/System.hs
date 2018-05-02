@@ -46,8 +46,8 @@ type ExcelInfo k = (ApproximationInfo k, Chain k)
 excel :: Ord k => Build Monad (ExcelInfo k) k v
 excel = reordering approximationRebuilder
 
-shake :: (Eq k, Hashable v) => Build Monad (VT k v) k v
-shake = recursive vtRebuilder
+shake :: (Eq k, Hashable v) => Build Monad (Step, ST k v) k v
+shake = recursive stRebuilder
 
 bazel :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
 bazel = topological ctRebuilder
