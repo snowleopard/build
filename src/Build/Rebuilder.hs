@@ -74,7 +74,7 @@ vtRebuilder key value task fetch = do
     then return value
     else do
         (newValue, deps) <- trackM task fetch
-        put =<< recordVT key newValue deps (fmap hash . fetch) vt
+        put =<< recordVT key newValue deps (fmap hash . fetch) =<< get
         return newValue
 
 ------------------------------ Constructive traces -----------------------------
@@ -98,5 +98,5 @@ dctRebuilder key _value task fetch = do
         Just cachedValue -> return cachedValue
         Nothing -> do
             (newValue, deps) <- trackM task fetch
-            put =<< recordDCT key newValue deps (fmap hash . fetch) dct
+            put =<< recordDCT key newValue deps (fmap hash . fetch) =<< get
             return newValue
