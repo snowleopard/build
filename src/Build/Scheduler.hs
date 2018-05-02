@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
-module Build.Algorithm (
+module Build.Scheduler (
     topological,
     reordering, Chain,
     recursive,

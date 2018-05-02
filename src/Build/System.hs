@@ -13,7 +13,7 @@ module Build.System (
 import Control.Monad.State
 
 import Build
-import Build.Algorithm
+import Build.Scheduler
 import Build.Store
 import Build.Strategy
 import Build.Trace
