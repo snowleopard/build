@@ -15,7 +15,7 @@ import Build
 import Build.Task
 import Build.Task.Wrapped
 import Build.Store
-import Build.Strategy
+import Build.Rebuilder
 import Build.Utilities
 
 import qualified Data.Set as Set
@@ -27,13 +27,13 @@ updateValue :: Eq k => k -> v -> v -> Store i k v -> Store i k v
 updateValue key _value newValue = putValue key newValue
 
 ---------------------------------- Topological ---------------------------------
-topological :: Ord k => Strategy Applicative i k v -> Build Applicative i k v
-topological strategy tasks key = execState $ forM_ chain $ \k ->
+topological :: Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
+topological rebuilder tasks key = execState $ forM_ chain $ \k ->
     case tasks k of
         Nothing   -> return ()
         Just task -> do
             value <- gets (getValue k)
-            let newTask = strategy k value (unwrap @Applicative task)
+            let newTask = rebuilder k value (unwrap @Applicative task)
                 newFetch :: k -> StateT i (State (Store i k v)) v
                 newFetch = lift . gets . getValue
             info <- gets getInfo
@@ -51,8 +51,8 @@ type Chain k = [k]
 trying :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
 trying task fetch = runExceptT $ task (ExceptT . fetch)
 
-reordering :: forall i k v. Ord k => Strategy Monad i k v -> Build Monad (i, Chain k) k v
-reordering strategy tasks key = execState $ do
+reordering :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
+reordering rebuilder tasks key = execState $ do
     chain    <- snd . getInfo <$> get
     newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
     modify . mapInfo $ \(i, _) -> (i, newChain)
@@ -65,7 +65,7 @@ reordering strategy tasks key = execState $ do
             Just task -> do
                 value <- gets (getValue k)
                 let newTask :: Task (MonadState i) k v
-                    newTask = strategy k value (unwrap @Monad task)
+                    newTask = rebuilder k value (unwrap @Monad task)
                     newFetch :: k -> StateT i (State (Store (i, [k]) k v)) (Either k v)
                     newFetch k | k `Set.member` done = do
                                    store <- lift get
@@ -80,8 +80,8 @@ reordering strategy tasks key = execState $ do
                         (k :) <$> go (Set.insert k done) ks
 
 ----------------------------------- Recursive ----------------------------------
-recursive :: forall i k v. Eq k => Strategy Monad i k v -> Build Monad i k v
-recursive strategy tasks key store = fst $ execState (fetch key) (store, [])
+recursive :: forall i k v. Eq k => Rebuilder Monad i k v -> Build Monad i k v
+recursive rebuilder tasks key store = fst $ execState (fetch key) (store, [])
   where
     fetch :: k -> State (Store i k v, [k]) v
     fetch key = case tasks key of
@@ -90,7 +90,7 @@ recursive strategy tasks key store = fst $ execState (fetch key) (store, [])
             done <- gets snd
             when (key `notElem` done) $ do
                 value <- gets (getValue key . fst)
-                let newTask = strategy key value (unwrap @Monad task)
+                let newTask = rebuilder key value (unwrap @Monad task)
                     newFetch :: k -> StateT i (State (Store i k v, [k])) v
                     newFetch = lift . fetch
                 info <- gets (getInfo . fst)
@@ -102,12 +102,12 @@ recursive strategy tasks key store = fst $ execState (fetch key) (store, [])
 -- | An incorrect build algorithm that builds the target key without respecting
 -- its dependencies. It produces the correct result only if all dependencies of
 -- the target key are up to date.
-independent :: forall i k v. Eq k => Strategy Monad i k v -> Build Monad i k v
-independent strategy tasks key store = case tasks key of
+independent :: forall i k v. Eq k => Rebuilder Monad i k v -> Build Monad i k v
+independent rebuilder tasks key store = case tasks key of
     Nothing -> store
     Just task ->
         let value   = getValue key store
-            newTask = strategy key value (unwrap @Monad task)
+            newTask = rebuilder key value (unwrap @Monad task)
             newFetch :: k -> State i v
             newFetch k = return (getValue k store)
             (newValue, newInfo) = runState (newTask newFetch) (getInfo store)

@@ -1,9 +1,9 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables #-}
-module Build.Strategy (
-    Strategy, alwaysRebuildStrategy,
-    makeStrategy, Time, MakeInfo,
-    approximationStrategy, DependencyApproximation, ApproximationInfo,
-    vtStrategy, ctStrategy, dctStrategy
+module Build.Rebuilder (
+    Rebuilder, perpetualRebuilder,
+    modTimeRebuilder, Time, MakeInfo,
+    approximationRebuilder, DependencyApproximation, ApproximationInfo,
+    vtRebuilder, ctRebuilder, dctRebuilder
     ) where
 
 import Control.Monad.State
@@ -19,17 +19,17 @@ import Build.Task.Applicative (dependencies)
 import Build.Task.Monad hiding (dependencies)
 import Build.Trace
 
-type Strategy c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
+type Rebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
 
-alwaysRebuildStrategy :: Strategy Monad () k v
-alwaysRebuildStrategy _key _value task = task
+perpetualRebuilder :: Rebuilder Monad () k v
+perpetualRebuilder _key _value task = task
 
 ------------------------------------- Make -------------------------------------
-type Time = Integer -- A negative time value means a key was never built
+type Time = Integer
 type MakeInfo k = (Map k Time, Time)
 
-makeStrategy :: Ord k => Strategy Applicative (MakeInfo k) k v
-makeStrategy key value task fetch = do
+modTimeRebuilder :: Ord k => Rebuilder Applicative (MakeInfo k) k v
+modTimeRebuilder key value task fetch = do
     (modTime, now) <- get
     let dirty = case Map.lookup key modTime of
             Nothing -> True
@@ -54,8 +54,8 @@ instance Ord k => Monoid (DependencyApproximation k) where
 
 type ApproximationInfo k = (k -> Bool, k -> DependencyApproximation k)
 
-approximationStrategy :: Ord k => Strategy Monad (ApproximationInfo k) k v
-approximationStrategy key value task fetch = do
+approximationRebuilder :: Ord k => Rebuilder Monad (ApproximationInfo k) k v
+approximationRebuilder key value task fetch = do
     (isDirty, deps) <- get
     let dirty = isDirty key || case deps key of SubsetOf ks -> any isDirty ks
                                                 Unknown     -> True
@@ -66,8 +66,8 @@ approximationStrategy key value task fetch = do
         task fetch
 
 ------------------------------- Verifying traces -------------------------------
-vtStrategy :: (Eq k, Hashable v) => Strategy Monad (VT k v) k v
-vtStrategy key value task fetch = do
+vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
+vtRebuilder key value task fetch = do
     vt <- get
     dirty <- not <$> verifyVT key value (fmap hash . fetch) vt
     if not dirty
@@ -78,8 +78,8 @@ vtStrategy key value task fetch = do
         return newValue
 
 ------------------------------ Constructive traces -----------------------------
-ctStrategy :: (Eq k, Hashable v) => Strategy Monad (CT k v) k v
-ctStrategy key value task fetch = do
+ctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (CT k v) k v
+ctRebuilder key value task fetch = do
     ct <- get
     maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
     case maybeCachedValue of
@@ -90,8 +90,8 @@ ctStrategy key value task fetch = do
             return newValue
 
 ----------------------- Deterministic constructive traces ----------------------
-dctStrategy :: (Hashable k, Hashable v) => Strategy Monad (DCT k v) k v
-dctStrategy key _value task fetch = do
+dctRebuilder :: (Hashable k, Hashable v) => Rebuilder Monad (DCT k v) k v
+dctRebuilder key _value task fetch = do
     dct <- get
     maybeCachedValue <- constructDCT key (fmap hash . fetch) dct
     case maybeCachedValue of

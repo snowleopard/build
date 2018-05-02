@@ -22,6 +22,7 @@ library
                         Build.Example.Spreadsheet,
                         Build.Multi,
                         Build.NonDeterministic,
+                        Build.Rebuilder,
                         Build.SelfTracking,
                         Build.Scheduler,
                         Build.Store,
@@ -35,7 +36,6 @@ library
                         Build.Task.Typed,
                         Build.Task.Wrapped,
                         Build.Trace,
-                        Build.Strategy,
                         Build.System,
                         Build.Utilities
   build-depends:        algebraic-graphs >= 0.0.5,
