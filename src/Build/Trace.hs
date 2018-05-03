@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, RankNTypes, ScopedTypeVariables #-}
-{-# LANGUAGE DeriveFunctor, DeriveTraversable, TupleSections #-}
+{-# LANGUAGE DeriveFunctor, DeriveTraversable, FlexibleContexts, TupleSections #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 module Build.Trace (
     -- * Verifying traces
@@ -18,6 +18,7 @@ module Build.Trace (
 import Build.Store
 
 import Control.Monad.Extra
+import Control.Monad.State
 import Data.Maybe
 import Data.List
 import Data.Semigroup
@@ -32,20 +33,23 @@ data Trace k h r = Trace
 
 -- | An abstract data type for a set of verifying traces equipped with 'record',
 -- 'verify' and a 'Monoid' instance.
-newtype VT k v = VT [Trace k (Hash v) (Hash v)] deriving (Monoid, Semigroup)
+newtype VT k v = VT [Trace k (Hash v) (Hash v)] deriving (Semigroup, Monoid)
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values from the given @store@.
-recordVT :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m (Hash v)) -> VT k v -> m (VT k v)
-recordVT key value deps fetchHash (VT ts) = do
+recordVT :: (Hashable v, MonadState (VT k v) m) => k -> v -> [k] -> (k -> m (Hash v)) -> m ()
+recordVT key value deps fetchHash = do
     hs <- mapM fetchHash deps
-    return $ VT $ Trace key (zip deps hs) (hash value) : ts
+    VT ts <- get
+    put $ VT $ Trace key (zip deps hs) (hash value) : ts
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
 -- up-to-date.
-verifyVT :: (Monad m, Eq k, Hashable v) => k -> v -> (k -> m (Hash v)) -> VT k v -> m Bool
-verifyVT key value fetchHash (VT ts) = anyM match ts
+verifyVT :: (Eq k, Hashable v, MonadState (VT k v) m) => k -> v -> (k -> m (Hash v)) -> m Bool
+verifyVT key value fetchHash = do
+    VT ts <- get
+    anyM match ts
   where
     match (Trace k deps result)
         | k /= key || result /= hash value = return False
