@@ -33,7 +33,7 @@ modTimeRebuilder key value task fetch = do
     (modTime, now) <- get
     let upToDate = case Map.lookup key modTime of
             Nothing -> False
-            time -> any (\d -> Map.lookup d modTime < time) (dependencies task)
+            time -> all (\d -> Map.lookup d modTime < time) (dependencies task)
     if upToDate
     then return value
     else do
