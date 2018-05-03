@@ -60,7 +60,7 @@ here. Perhaps there is another similar paper to be written about packaging syste
 > **B:** ML Compilation Manager?
 
 Many languages have built-in build systems, including ML (as you mention),
-Haskell's `ghc --make`, and OCamlMake. In the interests of space, we chose to
+Haskell's `ghc --make`, and OCamlMake. In the interest of space, we chose to
 focus on language-independent build systems, rather than language-specific ones.
 
 > **C:** In the present form, the code of each build system is quite different
