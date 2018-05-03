@@ -33,15 +33,14 @@ data Trace k h r = Trace
 
 -- | An abstract data type for a set of verifying traces equipped with 'record',
 -- 'verify' and a 'Monoid' instance.
-newtype VT k v = VT [Trace k (Hash v) (Hash v)] deriving (Semigroup, Monoid)
+newtype VT k v = VT [Trace k (Hash v) (Hash v)] deriving (Monoid, Semigroup)
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values from the given @store@.
 recordVT :: (Hashable v, MonadState (VT k v) m) => k -> v -> [k] -> (k -> m (Hash v)) -> m ()
 recordVT key value deps fetchHash = do
     hs <- mapM fetchHash deps
-    VT ts <- get
-    put $ VT $ Trace key (zip deps hs) (hash value) : ts
+    modify $ \(VT ts) -> VT $ Trace key (zip deps hs) (hash value) : ts
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
@@ -55,50 +54,52 @@ verifyVT key value fetchHash = do
         | k /= key || result /= hash value = return False
         | otherwise = andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
 
-newtype Step = Step Int deriving (Enum,Eq,Ord,Show)
+newtype Step = Step Int deriving (Enum, Eq, Ord, Show)
 instance Semigroup Step where Step a <> Step b = Step $ a + b
 instance Monoid Step where mempty = Step 0; mappend = (<>)
 
 -- | A step trace, records the resulting value, the step it last build, the step where it changed
-newtype ST k v = ST [Trace k () (Hash v, Step, Step)] deriving (Monoid, Semigroup,Show)
+newtype ST k v = ST (Step, [Trace k () (Hash v, Step, Step)]) deriving (Monoid, Semigroup, Show)
 
 latestST :: Eq k => k -> ST k v -> Maybe (Trace k () (Hash v, Step, Step))
-latestST k (ST ts) = fmap snd $ listToMaybe $ reverse $ sortOn fst [(step, t) | t@(Trace k2 _ (_, step, _)) <- ts, k == k2]
+latestST k (ST (_, ts)) = fmap snd $ listToMaybe $ reverse $ sortOn fst
+    [ (step, t) | t@(Trace k2 _ (_, step, _)) <- ts, k == k2 ]
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values from the given @store@.
-recordST :: (Hashable v, Eq k, Monad m) => Step -> k -> v -> [k] -> ST k v -> m (ST k v)
-recordST step key value deps (ST ts) = do
+recordST :: (Eq k, Hashable v, MonadState (ST k v) m) => k -> v -> [k] -> m ()
+recordST key value deps = do
     let hv = hash value
-    let lastChange = case latestST key (ST ts) of
+    let lastChange st@(ST (step, _)) = case latestST key st of
             Just (Trace _ _ (hv2, _, chng)) | hv2 == hv -> chng -- I rebuilt, didn't change, so use the old change time
             _ -> step
-    return $ ST $ Trace key (map (,()) deps) (hash value, step, lastChange) : ts
+    modify $ \st@(ST (step, ts)) -> ST (step, Trace key (map (,()) deps) (hash value, step, lastChange st) : ts)
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
 -- up-to-date.
-verifyST :: (Monad m, Eq k, Hashable v) => k -> v -> (k -> m ()) -> m (ST k v) -> m Bool
-verifyST key value demand st = do
-    me <- latestST key <$> st
+verifyST :: (Eq k, Hashable v, MonadState (ST k v) m) => k -> v -> (k -> m ()) -> m Bool
+verifyST key value demand = do
+    me <- latestST key <$> get
     case me of
         Just (Trace _ deps (hv, built, _)) | hash value == hv -> do
             mapM_ (demand . fst) deps
-            st <- st
+            st <- get
             -- things with no traces must be inputs, which I'm going to ignore for now...
             return $ and [ built >= chng | Just (Trace _ _ (_, _, chng)) <- map (flip latestST st . fst) deps]
         _ -> return False
 
 newtype CT k v = CT [Trace k (Hash v) v] deriving (Monoid, Semigroup)
 
-recordCT :: Monad m => k -> v -> [k] -> (k -> m (Hash v)) -> CT k v -> m (CT k v)
-recordCT key value deps fetchHash (CT ts) = do
+recordCT :: MonadState (CT k v) m => k -> v -> [k] -> (k -> m (Hash v)) -> m ()
+recordCT key value deps fetchHash = do
     hs <- mapM fetchHash deps
-    return $ CT $ Trace key (zip deps hs) value : ts
+    modify $ \(CT ts) -> CT $ Trace key (zip deps hs) value : ts
 
 -- Prefer constructing the currenct value, if it matches one of the traces.
-constructCT :: (Monad m, Eq k, Eq v) => k -> v -> (k -> m (Hash v)) -> CT k v -> m (Maybe v)
-constructCT key value fetchHash (CT ts) = do
+constructCT :: (Eq k, Eq v, MonadState (CT k v) m) => k -> v -> (k -> m (Hash v)) -> m (Maybe v)
+constructCT key value fetchHash = do
+    CT ts <- get
     candidates <- catMaybes <$> mapM match ts
     if value `elem` candidates then return $ Just value
                                else return $ listToMaybe candidates
@@ -134,20 +135,23 @@ inputTree dct@(DCT ts) key = case [ deps | Trace k deps _ <- ts, k == key ] of
 inputHashTree :: (Eq k, Monad m) => DCT k v -> (k -> m (Hash v)) -> k -> m (Tree (Hash v))
 inputHashTree dct fetchHash = traverse fetchHash . inputTree dct
 
-recordDCT :: forall k v m. (Hashable k, Hashable v, Monad m)
-          => k -> v -> [k] -> (k -> m (Hash v)) -> DCT k v -> m (DCT k v)
-recordDCT key value deps fetchHash (DCT ts) = do
+recordDCT :: forall k v m. (Hashable k, Hashable v, MonadState (DCT k v) m)
+          => k -> v -> [k] -> (k -> m (Hash v)) -> m ()
+recordDCT key value deps fetchHash = do
     hs <- mapM depHash deps
-    return $ DCT $ Trace key (zip deps hs) value : ts
+    modify $ \(DCT ts) -> DCT $ Trace key (zip deps hs) value : ts
   where
     depHash :: k -> m (Hash (Tree (Hash v)))
-    depHash depKey = case [ deps | Trace k deps _ <- ts, k == depKey ] of
-        [] -> hash . Leaf <$> fetchHash depKey -- depKey is an input
-        deps:_ -> return $ fmap Node $ sequenceA $ map snd deps
+    depHash depKey = do
+        DCT ts <- get
+        case [ deps | Trace k deps _ <- ts, k == depKey ] of
+            [] -> hash . Leaf <$> fetchHash depKey -- depKey is an input
+            deps:_ -> return $ fmap Node $ sequenceA $ map snd deps
 
-constructDCT :: forall k v m. (Hashable k, Hashable v, Monad m)
-             => k -> (k -> m (Hash v)) -> DCT k v -> m (Maybe v)
-constructDCT key fetchHash dct@(DCT ts) = do
+constructDCT :: forall k v m. (Hashable k, Hashable v, MonadState (DCT k v) m)
+             => k -> (k -> m (Hash v)) -> m (Maybe v)
+constructDCT key fetchHash = do
+    DCT ts <- get
     candidates <- catMaybes <$> mapM match ts
     case candidates of
         []  -> return Nothing
@@ -158,5 +162,6 @@ constructDCT key fetchHash dct@(DCT ts) = do
     match (Trace k deps result)
         | k /= key  = return Nothing
         | otherwise = do
+            dct <- get
             sameInputs <- andM [ ((h ==) . hash) <$> inputHashTree dct fetchHash k | (k, h) <- deps ]
             return $ if sameInputs then Just result else Nothing

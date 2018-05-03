@@ -77,37 +77,34 @@ vtRebuilder key value task fetch = do
         return newValue
 
 ------------------------------- Version traces -------------------------------
-stRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (Step, ST k v) k v
+stRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (ST k v) k v
 stRebuilder key value task fetch = do
-    dirty <- not <$> verifyST key value (void . fetch) (gets snd)
+    dirty <- not <$> verifyST key value (void . fetch)
     if not dirty
     then return value
     else do
         (newValue, deps) <- trackM task fetch
-        (step, st) <- get
-        put . (step,) =<< recordST step key newValue deps st
+        recordST key newValue deps
         return newValue
 
 ------------------------------ Constructive traces -----------------------------
 ctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (CT k v) k v
 ctRebuilder key value task fetch = do
-    ct <- get
-    maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
+    maybeCachedValue <- constructCT key value (fmap hash . fetch)
     case maybeCachedValue of
         Just cachedValue -> return cachedValue
         Nothing -> do
             (newValue, deps) <- trackM task fetch
-            put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
+            recordCT key newValue deps (fmap hash . fetch)
             return newValue
 
 ----------------------- Deterministic constructive traces ----------------------
 dctRebuilder :: (Hashable k, Hashable v) => Rebuilder Monad (DCT k v) k v
 dctRebuilder key _value task fetch = do
-    dct <- get
-    maybeCachedValue <- constructDCT key (fmap hash . fetch) dct
+    maybeCachedValue <- constructDCT key (fmap hash . fetch)
     case maybeCachedValue of
         Just cachedValue -> return cachedValue
         Nothing -> do
             (newValue, deps) <- trackM task fetch
-            put =<< recordDCT key newValue deps (fmap hash . fetch) =<< get
+            recordDCT key newValue deps (fmap hash . fetch)
             return newValue
