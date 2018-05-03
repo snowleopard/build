@@ -15,17 +15,15 @@ build system to be correct -- see S3.6 (correctness), S6.3 (correctness in
 presence of non-determinism) and S6.4 (correctness of shallow cloud builds).
 
 > The property most build system authors chase after is that an incremental
-> build should be equivalent to a clean build, up to non-determinism - if there
-> is any in your build!
+> build should be equivalent to a clean build, up to non-determinism
 
-We fully agree that correctness must take precedence. Our definition of
-correctness allows the designers of build systems to verify that even with
-incrementality and non-determinism, their build systems produce results that are
-equivalent to clean builds.
+Yes indeed. That statement is a consequence of our defintion of correctness
+on page 11.   (Our statement is a bit stronger, because it does not rely
+on some earlier notion of a "clean build".   For example, presumably
+a "clean build" means a build in which all inputs are treated as out
+of date; and also that the results of that build are "correct".  But
+what does "correct" mean?  Our definition avoids these difficulties.)
 
-*** Simon says: what does this para mean?  Are you saying "yes, your statement
-"an incremental build should be equivalent to a clean build" is what correctness
-means, and is what our correctness property states?  Or what? ***
 
 
 # Details
