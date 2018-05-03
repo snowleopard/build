@@ -21,7 +21,7 @@ approximation to a real \Make that you might find on your machine.} was develope
 more than 40 years ago to automatically build software libraries and executable
 programs from source code. It uses \emph{makefiles} to describe tasks (often
 referred to as \emph{build rules}) and their dependencies in a simple textual form.
-For example:
+For example\footnote{Do not worry about the dependency on \cmd{stdio.h}, and its transitive (perhaps dynamic) dependencies.  We will deal with these in Section \simon{xxx}.}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{makefile}
@@ -212,7 +212,7 @@ In \Shake we can express the rule for \cmd{release.tar} as:
     need ["release.txt"]
     files <- lines <$> readFile "release.txt"
     need files
-    system "tar" $ ["-cf", "result.tar"] ++ files
+    system "tar" $ ["-cf", "release.tar"] ++ files
 \end{minted}
 
 \noindent

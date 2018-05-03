@@ -160,8 +160,8 @@ Which looks tantalisingly close to the profunctor optics definition by
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Optic p a b s t = p a b -> p s t
 \end{minted}
-
-Provided we instantiate \hs{p} to something like
+\noindend
+provided we instantiate \hs{p} to something like
 \hs{k}~\hs{->}~\hs{f}~\hs{v}~--~which many of the actual instances in that paper
 do. The properties of such optics are well studied, and the functions like
 \hs{dependencies} are very much based on observations from that field of work.
