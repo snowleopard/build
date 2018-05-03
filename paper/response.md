@@ -2,6 +2,8 @@ We thank all reviewers for their comments and suggestions and will address them
 in the revision. We also respond to some of them below, starting with the most
 important.
 
+# Key points
+
 Referee B (an expert) makes a single criticism of our paper:
 
 > The emphasis of the minimality property over correctness seems somewhat off.
@@ -26,7 +28,7 @@ equivalent to clean builds.
 means, and is what our correctness property states?  Or what? ***
 
 
-# Other more detailed points
+# Details
 
 ## Reviewer A
 
