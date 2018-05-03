@@ -31,10 +31,10 @@ type MakeInfo k = (Map k Time, Time)
 modTimeRebuilder :: Ord k => Rebuilder Applicative (MakeInfo k) k v
 modTimeRebuilder key value task fetch = do
     (modTime, now) <- get
-    let dirty = case Map.lookup key modTime of
-            Nothing -> True
-            time -> any (\d -> Map.lookup d modTime > time) (dependencies task)
-    if not dirty
+    let upToDate = case Map.lookup key modTime of
+            Nothing -> False
+            time -> any (\d -> Map.lookup d modTime < time) (dependencies task)
+    if upToDate
     then return value
     else do
         put (Map.insert key now modTime, now + 1)
@@ -68,8 +68,8 @@ approximationRebuilder key value task fetch = do
 ------------------------------- Verifying traces -------------------------------
 vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
 vtRebuilder key value task fetch = do
-    dirty <- not <$> verifyVT key value (fmap hash . fetch)
-    if not dirty
+    upToDate <- verifyVT key value (fmap hash . fetch)
+    if upToDate
     then return value
     else do
         (newValue, deps) <- trackM task fetch
@@ -79,8 +79,8 @@ vtRebuilder key value task fetch = do
 ------------------------------- Version traces -------------------------------
 stRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (ST k v) k v
 stRebuilder key value task fetch = do
-    dirty <- not <$> verifyST key value (void . fetch)
-    if not dirty
+    upToDate <- verifyST key value (void . fetch)
+    if upToDate
     then return value
     else do
         (newValue, deps) <- trackM task fetch
