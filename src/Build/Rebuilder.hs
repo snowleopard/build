@@ -98,7 +98,7 @@ ctRebuilder key value task fetch = do
         Just cachedValue -> return cachedValue
         Nothing -> do
             (newValue, deps) <- trackM task fetch
-            put =<< recordCT key newValue deps (fmap hash . fetch) ct
+            put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
             return newValue
 
 ----------------------- Deterministic constructive traces ----------------------
