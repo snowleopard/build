@@ -16,7 +16,7 @@ incremental build should be equivalent to a clean build, up to non-determinism
 Yes indeed. Our definition of correctness is stronger than "equivalent to a
 clean build", because it does not rely on some earlier notion of a "clean build".
 Presumably a "clean build" means a build in which all inputs are treated as
-out-of-date; and also that the results of that build are "correct". But what
+out-of-date; and *also* that the results of that build are "correct". But what
 does "correct" mean? Our definition is self-contained.
 
 > **B:** How do these design decisions affect the developer experience?
@@ -43,11 +43,11 @@ them uniformly as if they all were dynamic.
 > **A:** Presumably you could call `dependencies` on monadic tasks?
 
 No. Dependencies of a monadic task cannot be determined without providing actual
-values; see line 577.
+values; see the example in lines 576-585.
 
 > **B:** reproducible/deterministic builds
 
-A strength of our abstractions is that they allow us to discuss the tradeoffs
+A strength of our abstractions is that they allow us to discuss the trade-offs
 involved in requiring full determinism. We will add such a discussion in our
 revision.
 
@@ -60,8 +60,9 @@ here. Perhaps there is another similar paper to be written about packaging syste
 > **B:** ML Compilation Manager?
 
 Many languages have built-in build systems, including ML (as you mention),
-Haskell's `ghc --make`, and OCamlMake. In the interest of space, we chose to
-focus on language-independent build systems, rather than language-specific ones.
+Haskell's `ghc --make`, and OCamlMake. In the interest of space and breadth of
+impact, we chose to focus on language-independent build systems, rather than
+language-specific ones.
 
 > **C:** In the present form, the code of each build system is quite different
 from each other
@@ -73,7 +74,7 @@ in the revision.
 
 The following didn't fit the limit:
 -----------------------------------
-> how does the file system metadata fit into this model? Is it persistent
+> **A:** how does the file system metadata fit into this model? Is it persistent
 > build information?
 
 We consider file system metadata to be a part of persistent build information.
