@@ -13,7 +13,7 @@ systems.
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
 -- An abstract store
-data Store i k v
+data Store i k v -- i = info, k = key, v = value
 getInfo    :: Store i k v -> i
 putInfo    :: i -> Store i k v -> Store i k v
 getValue   :: k -> Store i k v -> v
