@@ -1,4 +1,4 @@
-name:                build
+name:                build-systems
 version:             0.0.1
 synopsis:            Build systems à la carte
 homepage:            https://github.com/snowleopard/build
@@ -10,6 +10,7 @@ copyright:           Andrey Mokhov, Neil Mitchell, Simon Peyton Jones, 2018
 category:            Algorithms, Data Structures
 build-type:          Simple
 extra-source-files:  README.md
+description:         A library for testing the ideas behind the associated ICFP paper.
 cabal-version:       >=1.10
 
 source-repository head
@@ -47,8 +48,7 @@ library
                         random           >= 1.1,
                         transformers     >= 0.5.2.0
   default-language:     Haskell2010
-  GHC-options:          -O2
-                        -Wall
+  GHC-options:          -Wall
                         -fno-warn-name-shadowing
                         -Wcompat
                         -Wincomplete-record-updates
@@ -66,8 +66,7 @@ test-suite test
                         mtl          >= 2.2.1,
                         transformers >= 0.5.2.0
     default-language:   Haskell2010
-    GHC-options:        -O2
-                        -Wall
+    GHC-options:        -Wall
                         -fno-warn-name-shadowing
                         -Wcompat
                         -Wincomplete-record-updates
