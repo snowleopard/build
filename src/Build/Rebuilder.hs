@@ -1,6 +1,8 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables, TupleSections #-}
+{-# LANGUAGE FlexibleInstances, FunctionalDependencies, MultiParamTypeClasses #-}
 module Build.Rebuilder (
     Rebuilder, perpetualRebuilder,
+    dirtyBitRebuilder, HasDirtyBit (..),
     modTimeRebuilder, Time, MakeInfo,
     approximationRebuilder, DependencyApproximation, ApproximationInfo,
     vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
@@ -9,9 +11,11 @@ module Build.Rebuilder (
 import Control.Monad.State
 import Data.List
 import Data.Map (Map)
+import Data.Set (Set)
 import Data.Semigroup
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import Build.Store
 import Build.Task
@@ -23,6 +27,34 @@ type Rebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
 
 perpetualRebuilder :: Rebuilder Monad () k v
 perpetualRebuilder _key _value task = task
+
+----------------------------------- Dirty bit ----------------------------------
+-- TODO: This is just a temporary experiment and might soon be removed
+-- Ideally, we'd like to make MakeInfo an instance of HasDirtyBit and then we
+-- won't need modTimeRebuilder. But the problem is that isDirty for Make needs
+-- an extra input (the list of dependencies).
+-- Furthermore, it would be great to make CT an instance, then Bazel
+-- implementation would be really nice. But isDirty of CT requires fetchHash.
+-- So, Maybe this is just a wrong abstraction and should be removed.
+class HasDirtyBit i k | i -> k where
+    isDirty       :: k -> i -> Bool
+    clearDirtyBit :: k -> i -> i
+
+isUpToDate :: HasDirtyBit i k => k -> i -> Bool
+isUpToDate k = not . isDirty k
+
+instance Ord k => HasDirtyBit (Set k) k where
+    isDirty       = Set.member
+    clearDirtyBit = Set.delete
+
+dirtyBitRebuilder :: HasDirtyBit i k => Rebuilder Applicative i k v
+dirtyBitRebuilder key value task fetch = do
+    upToDate <- isUpToDate key <$> get
+    if upToDate
+    then return value
+    else do
+        modify (clearDirtyBit key)
+        task fetch
 
 ------------------------------------- Make -------------------------------------
 type Time = Integer
