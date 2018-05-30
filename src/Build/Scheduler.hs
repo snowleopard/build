@@ -23,12 +23,18 @@ import Build.Utilities
 import qualified Data.Set               as Set
 import qualified Build.Task.Applicative as A
 
--- Shall we skip writing to the store if the value is the same?
--- We could skip writing if hash value == hash newValue.
+-- | Update the value of a key in the store. The function takes both the current
+-- value (the first parameter of type @v@) and the new value (the second
+-- parameter of type @v@), and can potentially avoid touching the store if the
+-- value is unchanged. The current implementation simply ignores the current
+-- value, but in future this may be optimised, e.g. by comparing their hashes.
 updateValue :: Eq k => k -> v -> v -> Store i k v -> Store i k v
 updateValue key _value newValue = putValue key newValue
 
 ---------------------------------- Topological ---------------------------------
+-- | This scheduler builds the dependency graph of the target key by extracting
+-- all (static) dependencies upfront, and then traversing the graph in the
+-- topological order, rebuilding keys using the supplied rebuilder.
 topological :: Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
 topological rebuilder tasks key = execState $ forM_ chain $ \k ->
     case tasks k of
@@ -47,12 +53,26 @@ topological rebuilder tasks key = execState $ forM_ chain $ \k ->
         Nothing -> error "Cannot build tasks with cyclic dependencies"
         Just xs -> xs
 
----------------------------------- Reordering ----------------------------------
-type Chain k = [k]
+---------------------------------- Restarting ----------------------------------
 
+-- | Convert a task with a total lookup function @k -> m v@ into a task
+-- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
+-- essentially lifts the task from the type of values @v@ to @Either e v@,
+-- where the result @Left e@ indicates that the task failed, e.g. because of a
+-- failed dependency lookup, and @Right v@ yeilds the value otherwise.
 trying :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
 trying task fetch = runExceptT $ task (ExceptT . fetch)
 
+-- | The so-called @calculation chain@: the order in which keys were built
+-- during the previous build, which is used as the best guess for the current
+-- build by Excel and other similar build systems.
+type Chain k = [k]
+
+-- | A model of the scheduler used by Excel, which builds keys in the order used
+-- in the previous build. If a key cannot be build because its dependencies have
+-- changed and a new dependency is still dirty, the corresponding build task is
+-- abandoned and the key is moved at the end of the calculation chain, so it can
+-- be restarted when all its dependencies are up to date.
 reordering :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
 reordering rebuilder tasks key = execState $ do
     chain    <- snd . getInfo <$> get
@@ -148,9 +168,9 @@ recursive rebuilder tasks key store = fst $ execState (fetch key) (store, [])
                     (putInfo newInfo $ updateValue key value newValue s, done)
             gets (getValue key . fst)
 
--- | An incorrect build algorithm that builds the target key without respecting
--- its dependencies. It produces the correct result only if all dependencies of
--- the target key are up to date.
+-- | An incorrect scheduler that builds the target key without respecting its
+-- dependencies. It produces the correct result only if all dependencies of the
+-- target key are up to date.
 independent :: forall i k v. Eq k => Rebuilder Monad i k v -> Build Monad i k v
 independent rebuilder tasks key store = case tasks key of
     Nothing -> store
