@@ -36,8 +36,8 @@ library
                         Build.Task.Typed,
                         Build.Task.Wrapped,
                         Build.Trace,
-                        Build.System,
-                        Build.Utilities
+                        Build.System
+  other-modules:        Build.Utilities
   build-depends:        algebraic-graphs >= 0.0.5,
                         base             >= 4.7 && < 5,
                         containers       >= 0.5.7.1,

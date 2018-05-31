@@ -1,3 +1,5 @@
+
+-- | General utilities useful in the rest of the package
 module Build.Utilities (
     -- * Graph operations
     graph, reachable, topSort, reach, reachM,
