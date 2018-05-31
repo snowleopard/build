@@ -15,6 +15,7 @@ import Data.Set (Set)
 
 import Build
 import Build.Task
+import Build.Task.Monad
 import Build.Task.Wrapped
 import Build.Store
 import Build.Rebuilder
@@ -85,16 +86,15 @@ reordering rebuilder tasks key = execState $ do
         case tasks k of
             Nothing -> (k :) <$> go (Set.insert k done) ks
             Just task -> do
-                value <- gets (getValue k)
-                let newTask :: Task (MonadState i) k v
+                store <- get
+                let value = getValue k store
+                    newTask :: Task (MonadState i) k v
                     newTask = rebuilder k value (unwrap @Monad task)
-                    newFetch :: k -> StateT i (State (Store (i, [k]) k v)) (Either k v)
-                    newFetch k | k `Set.member` done = do
-                                   store <- lift get
-                                   return $ Right (getValue k store)
+                    newFetch :: k -> State i (Either k v)
+                    newFetch k | k `Set.member` done = return $ Right (getValue k store)
                                | otherwise = return (Left k)
-                info <- fst <$> gets getInfo
-                (result, newInfo) <- runStateT (trying newTask newFetch) info
+                    info = fst $ getInfo store
+                    (result, newInfo) = runState (trying newTask newFetch) info
                 case result of
                     Left dep -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
                     Right newValue -> do
@@ -102,8 +102,8 @@ reordering rebuilder tasks key = execState $ do
                         (k :) <$> go (Set.insert k done) ks
 
 -- An item in the queue comprises a key that needs to be built and a list of
--- keys that are blocked on it. Much more efficient implementations are
--- possible, e.g. using @Map k [k]@ to store blocked keys.
+-- keys that are blocked on it. More efficient implementations are possible,
+-- e.g. storing blocked keys in a @Map k [k]@ would allow faster queue updates.
 type Queue k = [(k, [k])]
 
 enqueue :: Eq k => k -> [k] -> Queue k -> Queue k
@@ -116,17 +116,10 @@ dequeue :: Queue k -> Maybe (k, [k], Queue k)
 dequeue []          = Nothing
 dequeue ((k, bs):q) = Just (k, bs, q)
 
--- TODO: We can implement IsDirty for CT and then we'll be able to say
--- bazel = restarting isDirtyCT ctRebuilder
---
--- I would like to also make it possible to use restarting for Excel, but didn't
--- have enough time yet. I think this is just a matter of choosing the right
--- queue implementation: Excel will use the CalcChain instead of Queue.
 type IsDirty i k v = k -> Store i k v -> Bool
 
 restarting :: forall i k v. Eq k => IsDirty i k v -> Rebuilder Monad i k v -> Build Monad i k v
-restarting isDirty rebuilder tasks key = execState $ do
-    go (enqueue key [] mempty)
+restarting isDirty rebuilder tasks key = execState $ go (enqueue key [] mempty)
   where
     go :: Queue k -> State (Store i k v) ()
     go queue = case dequeue queue of
@@ -134,14 +127,15 @@ restarting isDirty rebuilder tasks key = execState $ do
         Just (k, bs, q) -> case tasks k of
             Nothing -> return () -- Never happens: we have no inputs in the queue
             Just task -> do
-                value <- gets (getValue k)
                 store <- get
-                let newTask :: Task (MonadState i) k v
+                let value = getValue k store
+                    upToDate k = isInput tasks k || not (isDirty k store)
+                    newTask :: Task (MonadState i) k v
                     newTask = rebuilder k value (unwrap @Monad task)
-                    newFetch :: k -> StateT i (State (Store i k v)) (Either k v)
-                    newFetch k | isDirty k store = return (Left k)
-                               | otherwise       = Right . getValue k <$> lift get
-                (result, newInfo) <- runStateT (trying newTask newFetch) (getInfo store)
+                    newFetch :: k -> State i (Either k v)
+                    newFetch k | upToDate k = return (Right (getValue k store))
+                               | otherwise  = return (Left k)
+                    (result, newInfo) = runState (trying newTask newFetch) (getInfo store)
                 case result of
                     Left dirtyDependency -> go (enqueue dirtyDependency (k:bs) q)
                     Right newValue -> do

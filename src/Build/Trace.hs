@@ -1,5 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, RankNTypes, ScopedTypeVariables #-}
-{-# LANGUAGE DeriveFunctor, DeriveTraversable, TupleSections #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveTraversable, TupleSections #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 module Build.Trace (
     -- * Verifying traces
@@ -9,7 +9,7 @@ module Build.Trace (
     Step, ST, recordST, verifyST,
 
     -- * Constructive traces
-    CT, recordCT, constructCT,
+    CT, isDirtyCT, recordCT, constructCT,
 
     -- * Constructive traces optimised for deterministic tasks
     DCT, recordDCT, constructDCT
@@ -85,7 +85,14 @@ verifyST key value demand st = do
             return $ and [ built >= chng | Just (Trace _ _ (_, _, chng)) <- map (flip latestST st . fst) deps]
         _ -> return False
 
-newtype CT k v = CT [Trace k (Hash v) v] deriving (Monoid, Semigroup)
+newtype CT k v = CT [Trace k (Hash v) v] deriving (Monoid, Semigroup, Show)
+
+isDirtyCT :: (Eq k, Hashable v) => k -> Store (CT k v) k v -> Bool
+isDirtyCT key store = let CT ts = getInfo store in not (any match ts)
+  where
+    match (Trace k deps result) = k == key
+                               && result == getValue key store
+                               && and [ getHash k store == h | (k, h) <- deps ]
 
 recordCT :: Monad m => k -> v -> [k] -> (k -> m (Hash v)) -> CT k v -> m (CT k v)
 recordCT key value deps fetchHash (CT ts) = do
