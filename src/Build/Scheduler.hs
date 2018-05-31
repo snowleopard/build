@@ -3,14 +3,13 @@
 {-# LANGUAGE TypeApplications, GeneralizedNewtypeDeriving #-}
 module Build.Scheduler (
     topological,
-    reordering, Chain, reordering2,
+    reordering, Chain,
     restarting,
     recursive,
     independent
     ) where
 
 import Control.Monad.State
-import Data.Set (Set)
 
 import Build
 import Build.Task
@@ -20,7 +19,6 @@ import Build.Store
 import Build.Rebuilder
 import Build.Utilities
 
-import qualified Data.Set               as Set
 import qualified Build.Task.Applicative as A
 
 -- | Update the value of a key in the store. The function takes both the current
@@ -59,6 +57,11 @@ topological rebuilder tasks key = execState $ forM_ chain $ \k ->
 -- build by Excel and other similar build systems.
 type Chain k = [k]
 
+-- | A model of the scheduler used by Excel, which builds keys in the order used
+-- in the previous build. If a key cannot be build because its dependencies have
+-- changed and a new dependency is still dirty, the corresponding build task is
+-- abandoned and the key is moved at the end of the calculation chain, so it can
+-- be restarted when all its dependencies are up to date.
 reordering :: forall i k v. Ord k => PartialRebuilder Monad i k v -> Build Monad (i, Chain k) k v
 reordering rebuilder tasks key = execState $ do
     chain    <- snd . getInfo <$> get
@@ -80,38 +83,6 @@ reordering rebuilder tasks key = execState $ do
                 Right newValue -> do
                     modify $ putInfo (newInfo, []) . updateValue k value newValue
                     (k :) <$> go ks
-
--- | A model of the scheduler used by Excel, which builds keys in the order used
--- in the previous build. If a key cannot be build because its dependencies have
--- changed and a new dependency is still dirty, the corresponding build task is
--- abandoned and the key is moved at the end of the calculation chain, so it can
--- be restarted when all its dependencies are up to date.
-reordering2 :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
-reordering2 rebuilder tasks key = execState $ do
-    chain    <- snd . getInfo <$> get
-    newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
-    modify . mapInfo $ \(i, _) -> (i, newChain)
-  where
-    go :: Set k -> Chain k -> State (Store (i, [k]) k v) (Chain k)
-    go _    []     = return []
-    go done (k:ks) = do
-        case tasks k of
-            Nothing -> (k :) <$> go (Set.insert k done) ks
-            Just task -> do
-                store <- get
-                let value = getValue k store
-                    newTask :: Task (MonadState i) k v
-                    newTask = rebuilder k value (unwrap @Monad task)
-                    newFetch :: k -> State i (Either k v)
-                    newFetch k | k `Set.member` done = return $ Right (getValue k store)
-                               | otherwise = return (Left k)
-                    info = fst $ getInfo store
-                    (result, newInfo) = runState (trying newTask newFetch) info
-                case result of
-                    Left dep -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
-                    Right newValue -> do
-                        modify $ putInfo (newInfo, []) . updateValue k value newValue
-                        (k :) <$> go (Set.insert k done) ks
 
 -- An item in the queue comprises a key that needs to be built and a list of
 -- keys that are blocked on it. More efficient implementations are possible,
