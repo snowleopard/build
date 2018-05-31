@@ -66,6 +66,4 @@ initialise :: i -> (k -> v) -> Store i k v
 initialise = Store
 
 agree :: Eq v => [Store i k v] -> [k] -> Bool
-agree ss = all same
-  where
-    same k = allSame [getValue k s | s <- ss]
+agree ss = all $ \k -> allSame [getValue k s | s <- ss]
