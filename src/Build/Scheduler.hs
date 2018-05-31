@@ -3,14 +3,13 @@
 {-# LANGUAGE TypeApplications, GeneralizedNewtypeDeriving #-}
 module Build.Scheduler (
     topological,
-    reordering, Chain,
+    reordering, Chain, reordering2,
     restarting,
     recursive,
     independent
     ) where
 
 import Control.Monad.State
-import Control.Monad.Trans.Except
 import Data.Set (Set)
 
 import Build
@@ -55,27 +54,40 @@ topological rebuilder tasks key = execState $ forM_ chain $ \k ->
         Just xs -> xs
 
 ---------------------------------- Restarting ----------------------------------
-
--- | Convert a task with a total lookup function @k -> m v@ into a task
--- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
--- essentially lifts the task from the type of values @v@ to @Either e v@,
--- where the result @Left e@ indicates that the task failed, e.g. because of a
--- failed dependency lookup, and @Right v@ yeilds the value otherwise.
-trying :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
-trying task fetch = runExceptT $ task (ExceptT . fetch)
-
 -- | The so-called @calculation chain@: the order in which keys were built
 -- during the previous build, which is used as the best guess for the current
 -- build by Excel and other similar build systems.
 type Chain k = [k]
+
+reordering :: forall i k v. Ord k => PartialRebuilder Monad i k v -> Build Monad (i, Chain k) k v
+reordering rebuilder tasks key = execState $ do
+    chain    <- snd . getInfo <$> get
+    newChain <- go $ chain ++ [key | key `notElem` chain]
+    modify . mapInfo $ \(i, _) -> (i, newChain)
+  where
+    go :: Chain k -> State (Store (i, Chain k) k v) (Chain k)
+    go []     = return []
+    go (k:ks) = case tasks k of
+        Nothing -> (k :) <$> go ks
+        Just task -> do
+            store <- get
+            let value   = getValue k store
+                newTask = rebuilder k value (unwrap @Monad task)
+                fetch k = return $ Right (getValue k store)
+                (result, newInfo) = runState (newTask fetch) (fst $ getInfo store)
+            case result of
+                Left dep -> go $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
+                Right newValue -> do
+                    modify $ putInfo (newInfo, []) . updateValue k value newValue
+                    (k :) <$> go ks
 
 -- | A model of the scheduler used by Excel, which builds keys in the order used
 -- in the previous build. If a key cannot be build because its dependencies have
 -- changed and a new dependency is still dirty, the corresponding build task is
 -- abandoned and the key is moved at the end of the calculation chain, so it can
 -- be restarted when all its dependencies are up to date.
-reordering :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
-reordering rebuilder tasks key = execState $ do
+reordering2 :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
+reordering2 rebuilder tasks key = execState $ do
     chain    <- snd . getInfo <$> get
     newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
     modify . mapInfo $ \(i, _) -> (i, newChain)

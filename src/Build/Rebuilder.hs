@@ -1,16 +1,16 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables, TupleSections #-}
-{-# LANGUAGE FlexibleInstances, FunctionalDependencies, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, FunctionalDependencies, MultiParamTypeClasses #-}
 module Build.Rebuilder (
-    Rebuilder, perpetualRebuilder,
+    Rebuilder, PartialRebuilder, trying,
+    perpetualRebuilder,
     modTimeRebuilder, Time, MakeInfo,
-    approximationRebuilder, DependencyApproximation, ApproximationInfo,
+    approximationRebuilder, DependencyApproximation (..), ApproximationInfo, markDirty,
     vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
     ) where
 
 import Control.Monad.State
-import Data.List
+import Control.Monad.Trans.Except
 import Data.Map (Map)
-import Data.Semigroup
 
 import qualified Data.Map as Map
 
@@ -22,6 +22,17 @@ import Build.Trace
 
 type Rebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
 
+type PartialRebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k (Either k v)
+
+-- | Convert a task with a total lookup function @k -> m v@ into a task
+-- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
+-- essentially lifts the task from the type of values @v@ to @Either e v@,
+-- where the result @Left e@ indicates that the task failed, e.g. because of a
+-- failed dependency lookup, and @Right v@ yeilds the value otherwise.
+trying :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
+trying task fetch = runExceptT $ task (ExceptT . fetch)
+
+-------------------------------- Always rebuild --------------------------------
 perpetualRebuilder :: Rebuilder Monad () k v
 perpetualRebuilder _key _value task = task
 
@@ -42,29 +53,36 @@ modTimeRebuilder key value task fetch = do
         task fetch
 
 --------------------------- Dependency approximation ---------------------------
-data DependencyApproximation k = SubsetOf [k] | Unknown -- Add Exact [k]?
+data DependencyApproximation k = Input | SubsetOf [k] | Unknown deriving (Eq, Show)
 
-instance Ord k => Semigroup (DependencyApproximation k) where
-    Unknown <> x = x
-    x <> Unknown = x
-    SubsetOf xs <> SubsetOf ys = SubsetOf (sort xs `intersect` sort ys)
+-- Initially, some keys are marked 'Dirty'.
+-- After the build all non-input 'Dirty' keys are 'Rebuilt'.
+-- Keys that were initially not in the map, will be either 'Skipped' or 'Rebuilt'
+data Status = Dirty | Rebuilt | Skipped deriving (Eq, Show)
 
-instance Ord k => Monoid (DependencyApproximation k) where
-    mempty  = Unknown
-    mappend = (<>)
+markDirty :: Ord k => [k] -> Map k Status
+markDirty ks = Map.fromList [ (k, Dirty) | k <- ks ]
 
-type ApproximationInfo k = (k -> Bool, k -> DependencyApproximation k)
+-- Nothing in the Map means k is not dirty and has not yet been processed
+type ApproximationInfo k = (Map k Status, k -> DependencyApproximation k)
 
-approximationRebuilder :: Ord k => Rebuilder Monad (ApproximationInfo k) k v
+approximationRebuilder :: forall k v. Ord k => PartialRebuilder Monad (ApproximationInfo k) k v
 approximationRebuilder key value task fetch = do
-    (isDirty, deps) <- get
-    let dirty = isDirty key || case deps key of SubsetOf ks -> any isDirty ks
-                                                Unknown     -> True
+    (status, deps) <- get
+    let is k s = Map.lookup k status == Just s
+        dirty  = key `is` Dirty || case deps key of
+                     Input       -> False -- Cannot happen
+                     SubsetOf ks -> any (\k -> k `is` Dirty || k `is` Rebuilt) ks
+                     Unknown     -> True
     if not dirty
-    then return value
+    then do
+        put (Map.insert key Skipped status, deps)
+        return (Right value)
     else do
-        put (\k -> k == key || isDirty k, deps)
-        task fetch
+        put (Map.insert key Rebuilt status, deps)
+        let newFetch k | k `is` Skipped || k `is` Rebuilt || deps k == Input = fetch k
+                       | otherwise = return (Left k)
+        trying task newFetch
 
 ------------------------------- Verifying traces -------------------------------
 vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
