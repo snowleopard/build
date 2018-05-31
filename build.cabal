@@ -20,7 +20,6 @@ source-repository head
 library
   hs-source-dirs:       src
   exposed-modules:      Build,
-                        Build.Example.Spreadsheet,
                         Build.Multi,
                         Build.NonDeterministic,
                         Build.Rebuilder,
@@ -59,6 +58,7 @@ test-suite test
     hs-source-dirs:     test
     type:               exitcode-stdio-1.0
     main-is:            Main.hs
+    other-modules:      Spreadsheet
     build-depends:      build,
                         base         >= 4.7     && < 5,
                         extra        >= 1.5.3,

@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
-module Build.Example.Spreadsheet where
+module Spreadsheet where
 
 import Data.Bool
 import Data.Char

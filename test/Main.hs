@@ -15,7 +15,7 @@ import Build.System
 import Build.SelfTracking()
 import Build.Multi()
 
-import Build.Example.Spreadsheet
+import Spreadsheet
 
 inputs :: i -> Store i Cell Int
 inputs i = initialise i $ \cell -> fromMaybe 0 $ lookup cell
