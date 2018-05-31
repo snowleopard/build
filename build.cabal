@@ -21,7 +21,6 @@ library
   hs-source-dirs:       src
   exposed-modules:      Build,
                         Build.Multi,
-                        Build.NonDeterministic,
                         Build.Rebuilder,
                         Build.SelfTracking,
                         Build.Scheduler,
