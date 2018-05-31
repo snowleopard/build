@@ -1,10 +1,10 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables, TupleSections #-}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, FunctionalDependencies, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances, FunctionalDependencies, MultiParamTypeClasses #-}
 module Build.Rebuilder (
     Rebuilder, PartialRebuilder, trying,
     perpetualRebuilder,
     modTimeRebuilder, Time, MakeInfo,
-    approximationRebuilder, DependencyApproximation (..), ApproximationInfo, markDirty,
+    approximationRebuilder, Status (..), DependencyApproximation (..), ApproximationInfo,
     vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
     ) where
 
@@ -22,6 +22,8 @@ import Build.Trace
 
 type Rebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
 
+-- Partial rebuilders return a task that fails if one if its dependencies is
+-- dirty or has not yet been processed. Used by restarting build schedulers.
 type PartialRebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k (Either k v)
 
 -- | Convert a task with a total lookup function @k -> m v@ into a task
@@ -59,9 +61,6 @@ data DependencyApproximation k = Input | SubsetOf [k] | Unknown deriving (Eq, Sh
 -- After the build all non-input 'Dirty' keys are 'Rebuilt'.
 -- Keys that were initially not in the map, will be either 'Skipped' or 'Rebuilt'
 data Status = Dirty | Rebuilt | Skipped deriving (Eq, Show)
-
-markDirty :: Ord k => [k] -> Map k Status
-markDirty ks = Map.fromList [ (k, Dirty) | k <- ks ]
 
 -- Nothing in the Map means k is not dirty and has not yet been processed
 type ApproximationInfo k = (Map k Status, k -> DependencyApproximation k)
