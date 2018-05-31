@@ -26,7 +26,6 @@ library
                         Build.Scheduler,
                         Build.Store,
                         Build.Task,
-                        Build.Task.Alternative,
                         Build.Task.Applicative,
                         Build.Task.Depend,
                         Build.Task.Functor,
