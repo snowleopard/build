@@ -1,4 +1,6 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables, TypeApplications #-}
+
+-- | Applicative dependencies.
 module Build.Task.Applicative (
     dependencies, inputs, partial, exceptional
     ) where

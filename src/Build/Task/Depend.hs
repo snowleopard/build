@@ -1,10 +1,16 @@
 {-# LANGUAGE DeriveFunctor, RankNTypes #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
+-- | The \"free\" structures for dependencies, providing either an applicative interface
+--   (for 'Depend') or a monadic interface (for 'Depends'). By passing them to a suitable
+--   'Task' you can reconstruct all necessary dependencies.
 module Build.Task.Depend (toDepend, Depend (..), toDepends, Depends (..)) where
 
 import Build.Task
 
 ----------------------------- Free Task Applicative ----------------------------
+
+-- | A list of dependencies, and a function that when applied to those dependencies produces the result.
 data Depend k v r = Depend [k] ([v] -> r)
     deriving Functor
 
@@ -16,6 +22,8 @@ toDepend :: Task Applicative k v -> Depend k v v
 toDepend f = f $ \k -> Depend [k] $ \[v] -> v
 
 -------------------------------- Free Task Monad -------------------------------
+
+-- | A list of dependencies, and a function that when applied to those dependencies either the result or more dependencies.
 data Depends k v r = Depends [k] ([v] -> Depends k v r)
                    | Done r
     deriving Functor
