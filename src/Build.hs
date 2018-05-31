@@ -3,9 +3,6 @@ module Build (
     -- * Build
     Build,
 
-    -- * MultiBuild
-    MultiBuild, sequentialMultiBuild, sequentialMultiBuildA,
-
     -- * Properties
     correct, idempotent
     ) where
@@ -21,18 +18,6 @@ import Build.Utilities
 -- an updated key-value map. Note that we require @Eq k@ since without it one
 -- has no way of updating the map.
 type Build c i k v = Tasks c k v -> k -> Store i k v -> Store i k v
-
-type MultiBuild c i k v = Tasks c k v -> [k] -> Store i k v -> Store i k v
-
-sequentialMultiBuild :: Build Monad i k v -> MultiBuild Monad i k v
-sequentialMultiBuild build task outputs store = case outputs of
-    []     -> store
-    (k:ks) -> sequentialMultiBuild build task ks (build task k store)
-
-sequentialMultiBuildA :: Build Applicative i k v -> MultiBuild Applicative i k v
-sequentialMultiBuildA build task outputs store = case outputs of
-    []     -> store
-    (k:ks) -> sequentialMultiBuildA build task ks (build task k store)
 
 -- | Given a @build@ and @task@, check that for any key-value map describing
 -- the contents of a store @before@ the build system is executed to build a list

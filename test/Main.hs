@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, RankNTypes, ConstraintKinds #-}
 import Control.Monad
 import Data.Bool
 import Data.List.Extra
@@ -16,6 +16,20 @@ import Build.SelfTracking()
 import Build.Multi()
 
 import Spreadsheet
+
+type MultiBuild c i k v = Tasks c k v -> [k] -> Store i k v -> Store i k v
+
+sequentialMultiBuild :: Build Monad i k v -> MultiBuild Monad i k v
+sequentialMultiBuild build task outputs store = case outputs of
+    []     -> store
+    (k:ks) -> sequentialMultiBuild build task ks (build task k store)
+
+sequentialMultiBuildA :: Build Applicative i k v -> MultiBuild Applicative i k v
+sequentialMultiBuildA build task outputs store = case outputs of
+    []     -> store
+    (k:ks) -> sequentialMultiBuildA build task ks (build task k store)
+
+
 
 inputs :: i -> Store i Cell Int
 inputs i = initialise i $ \cell -> fromMaybe 0 $ lookup cell
