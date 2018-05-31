@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables, TypeApplications #-}
 module Build.Task.Applicative (
-    pureTask, dependencies, inputs, partial, exceptional
+    dependencies, inputs, partial, exceptional
     ) where
 
 import Control.Applicative
@@ -11,10 +11,6 @@ import Data.Proxy
 import Build.Task
 import Build.Task.Wrapped
 import Build.Utilities
-
--- | An applicative task that returns a constant.
-pureTask :: v -> Task Applicative k v
-pureTask v = const (pure v)
 
 -- TODO: Does this always terminate? It's not obvious!
 dependencies :: Task Applicative k v -> [k]
