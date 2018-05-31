@@ -1,5 +1,7 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
+
+-- | The Task abstractions.
 module Build.Task (Task, Tasks) where
 
 import Control.Applicative

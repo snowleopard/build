@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TypeApplications #-}
+
+-- | A version of Monad tasks with some support for non-determinism.
 module Build.Task.MonadPlus (
     random, dependenciesM, unwrap, computeND, correctBuild
     ) where

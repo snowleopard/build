@@ -1,5 +1,9 @@
 {-# LANGUAGE ConstraintKinds, DeriveFunctor, FlexibleInstances #-}
 {-# LANGUAGE RankNTypes, StandaloneDeriving #-}
+
+-- | This whole module is just a tiresome workaround for the lack of impredicative
+--   polymorphism. If GHC adds impredicative polymorphism, we can drop it entirely
+--   and simplify the rest of the code by removing unnecessary task unwrapping.
 module Build.Task.Wrapped (GTask (..), Wrapped, unwrap) where
 
 import Control.Applicative
@@ -7,12 +11,8 @@ import Control.Monad
 
 import Build.Task
 
--- This whole module is just a tiresome workaround for the lack of impredicative
--- polymorphism. If GHC adds impredicative polymorphism, we can drop it entirely
--- and simplify the rest of the code by removing unnecessary task unwrapping.
-
--- GTask is a generalised Task wrapped in a newtype. It is generalised in the
--- sense that it computes a value of type @a@ given a fetch of type @k -> f v@.
+-- | GTask is a generalised Task wrapped in a newtype. It is generalised in the
+--   sense that it computes a value of type @a@ given a fetch of type @k -> f v@.
 newtype GTask c k v a =
     GTask { runGTask :: forall f. c f => (k -> f v) -> f a }
 

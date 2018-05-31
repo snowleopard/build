@@ -2,6 +2,8 @@
 {-# LANGUAGE DataKinds, GADTs, TypeFamilies, KindSignatures #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
+
+-- | A Typed version of dependencies where the value type depends on the key.
 module Build.Task.Typed (TTask, Key (..), digits, fetch) where
 
 import Data.Functor.Const

@@ -1,4 +1,6 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, TypeApplications #-}
+
+-- | Build systems and the properties they should ensure.
 module Build (
     -- * Build
     Build,
