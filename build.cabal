@@ -57,7 +57,8 @@ test-suite test
     hs-source-dirs:     test
     type:               exitcode-stdio-1.0
     main-is:            Main.hs
-    other-modules:      Spreadsheet
+    other-modules:      Examples
+                        Spreadsheet
     build-depends:      build,
                         base         >= 4.7     && < 5,
                         extra        >= 1.5.3,

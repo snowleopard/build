@@ -12,10 +12,9 @@ import Build.Task
 import Build.Task.Monad (correctBuild)
 import Build.Store
 import Build.System
-import Build.SelfTracking()
-import Build.Multi()
 
 import Spreadsheet
+import Examples()
 
 type MultiBuild c i k v = Tasks c k v -> [k] -> Store i k v -> Store i k v
 
