@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables, TypeApplications #-}
 
--- | Applicative dependencies.
+-- | Applicative dependencies, as provided by @make@, @ninja@ etc.
+--   Dependencies are known before any execution begins.
 module Build.Task.Applicative (
     dependencies, inputs, partial, exceptional
     ) where
@@ -14,13 +15,15 @@ import Build.Task
 import Build.Task.Wrapped
 import Build.Utilities
 
--- TODO: Does this always terminate? It's not obvious!
+-- | The dependencies of a task.
 dependencies :: Task Applicative k v -> [k]
 dependencies task = getConst $ task (\k -> Const [k])
 
+-- | Is this task an input.
 isInput :: forall k v. Tasks Applicative k v -> k -> Bool
 isInput tasks key = isNothing (tasks @Proxy key)
 
+-- | Find all ultimate dependencies that go into this task.
 inputs :: forall k v. Ord k => Tasks Applicative k v -> k -> [k]
 inputs tasks = filter (isInput tasks) . reachable deps
   where

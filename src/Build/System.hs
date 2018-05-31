@@ -1,4 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+
+-- | Actual build systems.
 module Build.System (
     -- * Toy build systems
     dumb, busy, memo,

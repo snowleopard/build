@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleInstances, DefaultSignatures, FunctionalDependencies #-}
+
+-- | A key/value Store.
 module Build.Store (
     -- * Hashing
     Hash, Hashable (..),

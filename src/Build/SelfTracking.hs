@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+
 -- | This module defines 3 different strategies of self-tracking. It's all based
 -- around the idea of storing task descriptions that can be parsed into a Task.
 --

@@ -1,4 +1,7 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TypeApplications #-}
+
+-- | Applicative dependencies, as provided by @Excel@, @shake@ etc.
+--   Dependencies can be discovered as execution proceeds.
 module Build.Task.Monad (
     dependencies, track, trackM, isInput, inputs, compute,
     partial, exceptional
@@ -16,7 +19,7 @@ import Build.Task
 import Build.Task.Wrapped
 import Build.Utilities
 
--- TODO: Does this always terminate? It's not obvious!
+-- | Compute the dependencies.
 dependencies :: Monad m => Task Monad k v -> (k -> m v) -> m [k]
 dependencies task store = execWriterT $ task fetch
   where
