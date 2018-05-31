@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TypeApplications #-}
 module Build.Task.Monad (
-    dependencies, track, trackM, isInput, inputs, correctBuild, compute,
+    dependencies, track, trackM, isInput, inputs, compute,
     partial, exceptional
     ) where
 
@@ -39,24 +39,7 @@ inputs tasks store = filter (isInput tasks) . reachable deps
   where
     deps = maybe [] (\t -> snd $ track (flip getValue store) (unwrap @Monad t)) . tasks
 
--- | Given a task description @task@, a target @key@, an initial @store@, and a
--- @result@ produced by running a build system with parameters @task@, @key@ and
--- @store@, this function returns 'True' if @result@ is a correct build outcome.
--- Specifically:
--- * @result@ and @store@ must agree on the values of all inputs. In other words,
---   no inputs were corrupted during the build.
--- * @result@ is /consistent/ with the @task@, i.e. for all non-input keys, the
---   result of recomputing the @task@ matches the value stored in the @result@.
-correctBuild :: (Ord k, Eq v) => Tasks Monad k v -> Store i k v -> Store i k v -> k -> Bool
-correctBuild tasks store result = all correct . reachable deps
-  where
-    deps = maybe [] (\t -> snd $ track (flip getValue result) (unwrap @Monad t)) . tasks
-    correct k = case tasks k of
-        Nothing -> getValue k result == getValue k store
-        Just t  -> getValue k result == compute (unwrap @Monad t) (flip getValue result)
-
--- | Run a task with a pure lookup function. Returns @Nothing@ to indicate
--- that a given key is an input.
+-- | Run a task with a pure lookup function.
 compute :: Task Monad k v -> (k -> v) -> v
 compute task store = runIdentity $ task (Identity . store)
 

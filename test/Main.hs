@@ -9,7 +9,6 @@ import qualified Data.Map as Map
 
 import Build
 import Build.Task
-import Build.Task.Monad (correctBuild)
 import Build.Store
 import Build.System
 
