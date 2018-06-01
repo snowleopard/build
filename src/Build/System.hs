@@ -39,7 +39,7 @@ busy tasks key store = execState (fetch key) store
 -- | This is a correct but non-minimal build system: it will rebuild keys even
 -- if they are up to date. However, it performs memoization, therefore it never
 -- builds a key twice.
-memo :: Eq k => Build Monad () k v
+memo :: Ord k => Build Monad () k v
 memo = recursive perpetualRebuilder
 
 -- | A model of Make: an applicative build system that uses file modification
@@ -61,7 +61,7 @@ excel = reordering approximationRebuilder
 
 -- | A model of Shake: a monadic build system that uses verifying traces to
 -- check if a key is up to date.
-shake :: (Eq k, Hashable v) => Build Monad (Step, ST k v) k v
+shake :: (Ord k, Hashable v) => Build Monad (Step, ST k v) k v
 shake = recursive stRebuilder
 
 -- | A model of Bazel: a monadic build system that uses constructive traces
@@ -73,7 +73,7 @@ bazel = restarting isDirtyCT ctRebuilder
 
 -- | A model of Cloud Shake: a monadic build system that uses constructive
 -- traces to check if a key is up to date as well as for caching build results.
-cloudShake :: (Eq k, Hashable v) => Build Monad (CT k v) k v
+cloudShake :: (Ord k, Hashable v) => Build Monad (CT k v) k v
 cloudShake = recursive ctRebuilder
 
 -- | A model of Buck: an applicative build system that uses deterministic

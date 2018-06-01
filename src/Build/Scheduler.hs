@@ -33,9 +33,9 @@ updateValue :: Eq k => k -> v -> v -> Store i k v -> Store i k v
 updateValue key _value newValue = putValue key newValue
 
 ---------------------------------- Topological ---------------------------------
--- | This scheduler builds the dependency graph of the target key by extracting
--- all (static) dependencies upfront, and then traversing the graph in the
--- topological order, rebuilding keys using the supplied rebuilder.
+-- | This scheduler constructs the dependency graph of the target key by
+-- extracting all (static) dependencies upfront, and then traversing the graph
+-- in the topological order, rebuilding keys using the supplied rebuilder.
 topological :: Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
 topological rebuilder tasks key = execState $ forM_ chain $ \k ->
     case tasks k of
@@ -55,14 +55,13 @@ topological rebuilder tasks key = execState $ forM_ chain $ \k ->
         Just xs -> xs
 
 ---------------------------------- Restarting ----------------------------------
-
 -- | Convert a task with a total lookup function @k -> m v@ into a task
 -- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
 -- essentially lifts the task from the type of values @v@ to @Either e v@,
 -- where the result @Left e@ indicates that the task failed, e.g. because of a
 -- failed dependency lookup, and @Right v@ yeilds the value otherwise.
-trying :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
-trying task fetch = runExceptT $ task (ExceptT . fetch)
+try :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
+try task fetch = runExceptT $ task (ExceptT . fetch)
 
 -- | The so-called @calculation chain@: the order in which keys were built
 -- during the previous build, which is used as the best guess for the current
@@ -80,44 +79,53 @@ reordering rebuilder tasks key = execState $ do
     newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
     modify . mapInfo $ \(i, _) -> (i, newChain)
   where
-    go :: Set k -> Chain k -> State (Store (i, [k]) k v) (Chain k)
+    go :: Set k -> Chain k -> State (Store (i, Chain k) k v) (Chain k)
     go _    []     = return []
-    go done (k:ks) = do
-        case tasks k of
-            Nothing -> (k :) <$> go (Set.insert k done) ks
-            Just task -> do
-                store <- get
-                let value = getValue k store
-                    newTask :: Task (MonadState i) k v
-                    newTask = rebuilder k value (unwrap @Monad task)
-                    newFetch :: k -> State i (Either k v)
-                    newFetch k | k `Set.member` done = return $ Right (getValue k store)
-                               | otherwise = return (Left k)
-                    info = fst $ getInfo store
-                    (result, newInfo) = runState (trying newTask newFetch) info
-                case result of
-                    Left dep -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
-                    Right newValue -> do
-                        modify $ putInfo (newInfo, []) . updateValue k value newValue
-                        (k :) <$> go (Set.insert k done) ks
+    go done (k:ks) = case tasks k of
+        Nothing -> (k :) <$> go (Set.insert k done) ks
+        Just task -> do
+            store <- get
+            let value = getValue k store
+                newTask :: Task (MonadState i) k v
+                newTask = rebuilder k value (unwrap @Monad task)
+                newFetch :: k -> State i (Either k v)
+                newFetch k | k `Set.member` done = return $ Right (getValue k store)
+                           | otherwise           = return $ Left k
+            case runState (try newTask newFetch) (fst $ getInfo store) of
+                (Left dep, _) -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
+                (Right newValue, newInfo) -> do
+                    modify $ putInfo (newInfo, []) . updateValue k value newValue
+                    (k :) <$> go (Set.insert k done) ks
 
--- An item in the queue comprises a key that needs to be built and a list of
+-- | An item in the queue comprises a key that needs to be built and a list of
 -- keys that are blocked on it. More efficient implementations are possible,
 -- e.g. storing blocked keys in a @Map k [k]@ would allow faster queue updates.
 type Queue k = [(k, [k])]
 
+-- | Add a key with a list of blocked keys to the queue. If the key is already
+-- in the queue, extend its list of blocked keys.
 enqueue :: Eq k => k -> [k] -> Queue k -> Queue k
 enqueue key blocked [] = [(key, blocked)]
 enqueue key blocked ((k, bs):q)
     | k == key  = (k, blocked ++ bs) : q
     | otherwise = (k, bs) : enqueue key blocked q
 
+-- | Extract a key and a list of blocked keys from the queue, or return
+-- @Nothing@ if the queue is empty.
 dequeue :: Queue k -> Maybe (k, [k], Queue k)
 dequeue []          = Nothing
 dequeue ((k, bs):q) = Just (k, bs, q)
 
+-- | Check if a key is dirty by examining its dependencies, as well as the
+-- stored build information.
 type IsDirty i k v = k -> Store i k v -> Bool
 
+-- | A model of the scheduler used by Bazel. We extract a key K from the queue
+-- and try to build it. There are now two cases:
+-- 1. The build fails because one of the dependencies of K is dirty. In this
+--    case we add the dirty dependency to the queue, listing K as blocked by it.
+-- 2. The build succeeds, in which case we add all keys that were previously
+--    blocked by K to the queue.
 restarting :: forall i k v. Eq k => IsDirty i k v -> Rebuilder Monad i k v -> Build Monad i k v
 restarting isDirty rebuilder tasks key = execState $ go (enqueue key [] mempty)
   where
@@ -135,31 +143,35 @@ restarting isDirty rebuilder tasks key = execState $ go (enqueue key [] mempty)
                     newFetch :: k -> State i (Either k v)
                     newFetch k | upToDate k = return (Right (getValue k store))
                                | otherwise  = return (Left k)
-                    (result, newInfo) = runState (trying newTask newFetch) (getInfo store)
-                case result of
-                    Left dirtyDependency -> go (enqueue dirtyDependency (k:bs) q)
-                    Right newValue -> do
+                case runState (try newTask newFetch) (getInfo store) of
+                    (Left dirtyDependency, _) -> go (enqueue dirtyDependency (k:bs) q)
+                    (Right newValue, newInfo) -> do
                         modify $ putInfo newInfo . updateValue k value newValue
                         go (foldr (\b -> enqueue b []) q bs)
 
 ----------------------------------- Recursive ----------------------------------
-recursive :: forall i k v. Eq k => Rebuilder Monad i k v -> Build Monad i k v
-recursive rebuilder tasks key store = fst $ execState (fetch key) (store, [])
+-- | This scheduler builds keys recursively: to build a key it first makes sure
+-- that all its dependencies are up to date and then executes the key's task.
+-- It stores the set of keys that have already been built as part of the state
+-- to avoid executing the same task twice.
+recursive :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad i k v
+recursive rebuilder tasks key store = fst $ execState (fetch key) (store, Set.empty)
   where
-    fetch :: k -> State (Store i k v, [k]) v
+    fetch :: k -> State (Store i k v, Set k) v
     fetch key = case tasks key of
         Nothing -> gets (getValue key . fst)
         Just task -> do
             done <- gets snd
-            when (key `notElem` done) $ do
+            when (key `Set.notMember` done) $ do
                 value <- gets (getValue key . fst)
                 let newTask = rebuilder key value (unwrap @Monad task)
-                    newFetch :: k -> StateT i (State (Store i k v, [k])) v
+                    newFetch :: k -> StateT i (State (Store i k v, Set k)) v
                     newFetch = lift . fetch
                 info <- gets (getInfo . fst)
                 (newValue, newInfo) <- runStateT (newTask newFetch) info
                 modify $ \(s, done) ->
-                    (putInfo newInfo $ updateValue key value newValue s, done)
+                    ( putInfo newInfo $ updateValue key value newValue s
+                    , Set.insert key done )
             gets (getValue key . fst)
 
 -- | An incorrect scheduler that builds the target key without respecting its
