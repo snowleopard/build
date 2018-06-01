@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 
--- | Given a build system that can work with single keys, generalise that to one that
---   deals with multiple keys at a time.
+-- | Given a build system that can work with single keys, generalise that to one
+-- that deals with multiple keys at a time.
 module Build.Multi (multi) where
 
 import Data.Maybe
@@ -15,7 +15,7 @@ import Build.Task
 -- * @forall i \in ks . f i == ks@
 type Partition k = k -> [k]
 
--- Given a build rule where you can build some combinations of multiple rules,
+-- | Given a build rule where you can build some combinations of multiple rules,
 -- use a partition to enable building lots of multiple rule subsets.
 multi :: Eq k => Partition k -> Tasks Applicative [k] [v] -> Tasks Applicative [k] [v]
 multi partition tasks keys

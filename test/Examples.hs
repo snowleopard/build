@@ -4,9 +4,15 @@ module Examples where
 
 import Build.Task
 import Control.Applicative
-import Control.Monad.Fail(MonadFail)
+import Control.Monad.Fail (MonadFail)
+
+
+-- | A useful fetch for experimenting with build systems in interactive GHC.
+fetchIO :: (Show k, Read v) => k -> IO v
+fetchIO k = do putStr (show k ++ ": "); read <$> getLine
 
 --------------------------- Task Functor: Collatz ---------------------------
+
 -- Collatz sequence:
 -- c[0] = n
 -- c[k] = f(c[k - 1]) where
@@ -22,7 +28,9 @@ collatz n | n <= 0    = Nothing
 -- * Task Collatz sequence from n = 6: 6, 3, 10, 5, 16, 8, 4, 2, 1, ...
 -- * Change n from 6 to 40 and rebuild: 40, 20, 10, 5, 16, 8, 4, 2, 1, ...
 -- * The recomputation should be cut-off after 10.
+
 ------------------------ Task Applicative: Fibonacci ------------------------
+
 -- Generalised Fibonacci sequence:
 -- f[0] = n
 -- f[1] = m
@@ -38,7 +46,9 @@ fibonacci n
 -- system will take ages to compute f[100], doing O(f[100]) recursive calls.
 -- The right approach is to build the dependency graph and execute computations
 -- in the topological order.
+
 --------------------------- Task Monad: Ackermann ---------------------------
+
 -- Ackermann function:
 -- a[0, n] = n + 1
 -- a[m, 0] = a[m - 1, 1]
@@ -58,6 +68,7 @@ ackermann (n, m)
 -- statically (Ackermann m (n - 1)), but not the second one.
 
 ----------------------------- Spreadsheet examples -----------------------------
+
 sprsh1 :: Tasks Applicative String Integer
 sprsh1 "B1" = Just $ \fetch -> ((+)  <$> fetch "A1" <*> fetch "A2")
 sprsh1 "B2" = Just $ \fetch -> ((*2) <$> fetch "B1")
@@ -91,8 +102,7 @@ staticIF b "B1" = Just $ \fetch ->
     if b then fetch "A1" else (+) <$> fetch "A2" <*> fetch "A3"
 staticIF _ _    = Nothing
 
-fetchIO :: (Show k, Read v) => k -> IO v
-fetchIO k = do putStr (show k ++ ": "); read <$> getLine
+-------------------------- Dynamic programming example -------------------------
 
 data Key = A Integer | B Integer | D Integer Integer
 

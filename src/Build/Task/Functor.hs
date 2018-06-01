@@ -8,6 +8,6 @@ import Data.Functor.Const
 
 import Build.Task
 
--- | Find the dependency.
+-- | Find the dependency of a functorial task.
 dependency :: Task Functor k v -> k
 dependency task = getConst $ task Const

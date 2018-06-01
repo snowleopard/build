@@ -31,7 +31,8 @@ type Task  c k v = forall f. c f =>             (k -> f v) -> f v
 compose :: Tasks Monad k v -> Tasks Monad k v -> Tasks Monad k v
 compose t1 t2 key = t1 key <|> t2 key
 
--- Old type for task descriptions, isomorphic to Tasks as demonstrated below.
+-- | An alternative type for task descriptions, isomorphic to 'Tasks' as
+-- demonstrated by functions 'fromTasks' and 'toTasks'.
 type Tasks2 c k v = forall f. c f => (k -> f v) -> k -> Maybe (f v)
 
 fromTasks :: Tasks Monad k v -> Tasks2 Monad k v

@@ -8,6 +8,6 @@ import Control.Applicative
 
 import Build.Task
 
--- | Compute the dependencies of an applicative task.
+-- | Find the dependencies of an applicative task.
 dependencies :: Task Applicative k v -> [k]
 dependencies task = getConst $ task (\k -> Const [k])

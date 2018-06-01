@@ -16,6 +16,7 @@ import Build.Task
 import Spreadsheet
 import Examples()
 
+-- | A build system that acceptes a list of target keys.
 type MultiBuild c i k v = Tasks c k v -> [k] -> Store i k v -> Store i k v
 
 sequentialMultiBuild :: Build Monad i k v -> MultiBuild Monad i k v
