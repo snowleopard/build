@@ -56,16 +56,16 @@ modTimeRebuilder key value task fetch = do
 
 --------------------------- Dependency approximation ---------------------------
 -- | Approximation of task dependencies:
--- * Inputs have no dependencies.
 -- * A subset of keys, e.g. @SubsefOf [x, y, z]@ for @IF(x > 0, y, z)@.
 -- * Unknown dependencies, e.g. for @INDIRECT@ spreadsheet references.
-data DependencyApproximation k = Input | SubsetOf [k] | Unknown deriving (Eq, Show)
+data DependencyApproximation k = SubsetOf [k] | Unknown deriving (Eq, Show)
 
--- | The status of a key during the build. Before the build, some keys are
--- marked 'Dirty', e.g. when the user edits a cell in a spreadsheet. After the
--- build all non-input 'Dirty' become 'Rebuilt'. Keys that initially have no
--- status, are either 'Skipped' (if they are up to date) or 'Rebuilt'.
-data Status = Dirty | Rebuilt | Skipped deriving (Eq, Show)
+-- | The status of a key during the build. Before the build, some input keys are
+-- marked 'NewInput', e.g. when the user edits a number in a spreadsheet, or
+-- 'Dirty' when the user edits a formula thus changing the task. After the build
+-- all 'Dirty' keys become 'Rebuilt'. Keys that initially have no status, are
+-- either 'Skipped' (if they are up to date) or 'Rebuilt'.
+data Status = NewInput | Dirty | Rebuilt | Skipped deriving (Eq, Show)
 
 -- | We store the status and dependency approximation for each key. @Nothing@
 -- in the status map means the key is not dirty and has not yet been processed.
@@ -76,8 +76,7 @@ approximationRebuilder key value task fetch = do
     (status, deps) <- get
     let is k s = Map.lookup k status == Just s
         dirty  = key `is` Dirty || case deps key of
-                     Input       -> False -- This cannot happen
-                     SubsetOf ks -> any (\k -> k `is` Dirty || k `is` Rebuilt) ks
+                     SubsetOf ks -> any (\k -> k `is` NewInput || k `is` Dirty || k `is` Rebuilt) ks
                      Unknown     -> True
     if not dirty
     then do
@@ -85,7 +84,7 @@ approximationRebuilder key value task fetch = do
         return (Right value)
     else do
         put (Map.insert key Rebuilt status, deps)
-        let newFetch k | k `is` Skipped || k `is` Rebuilt || deps k == Input = fetch k
+        let newFetch k | k `is` NewInput || k `is` Skipped || k `is` Rebuilt = fetch k
                        | otherwise = return (Left k)
         try task newFetch
 
@@ -125,6 +124,32 @@ ctRebuilder key value task fetch = do
             put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
             return newValue
 
+-- ctPartialRebuilder :: (Eq k, Hashable v) => PartialRebuilder Monad (Map k Status, CT k v) k v
+-- ctPartialRebuilder key value task fetch = do
+--     (status, ct) <- get
+--     let is k s = Map.lookup k status == Just s
+--         dirty  = key `is` Dirty || case deps key of
+--                      Input       -> False -- This cannot happen
+--                      SubsetOf ks -> any (\k -> k `is` Dirty || k `is` Rebuilt) ks
+--                      Unknown     -> True
+--     if not dirty
+--     then do
+--         put (Map.insert key Skipped status, deps)
+--         return (Right value)
+--     else do
+--         put (Map.insert key Rebuilt status, deps)
+--         let newFetch k | k `is` Skipped || k `is` Rebuilt || deps k == Input = fetch k
+--                        | otherwise = return (Left k)
+--         try task newFetch
+
+    -- ct <- get
+    -- maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
+    -- case maybeCachedValue of
+    --     Just cachedValue -> return cachedValue
+    --     Nothing -> do
+    --         (newValue, deps) <- trackM task fetch
+    --         put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
+    --         return newValue
 ----------------------- Deterministic constructive traces ----------------------
 dctRebuilder :: (Hashable k, Hashable v) => Rebuilder Monad (DCT k v) k v
 dctRebuilder key _value task fetch = do

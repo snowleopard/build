@@ -95,17 +95,14 @@ testSuite = and <$> sequence
     , test  "memo      " memo       ()
     , testA "make      " make       (Map.empty, 0)
     , testA "ninja     " ninja      mempty
-    , test  "excel     " excel      ((dirtyKeys, unknowns), mempty)
+    , test  "excel     " excel      ((dirtyInputs, const Unknown), mempty)
     , test  "shake     " shake      mempty
     , test  "bazel     " bazel      mempty
     , test  "cloudShake" cloudShake mempty
     , testA "buck      " buck       mempty
     , test  "nix       " nix        mempty ]
   where
-    dirtyKeys = Map.fromList [ (k, Dirty) | k <- targets ]
-    unknowns k | isNothing (spreadsheet k) = Input
-               | otherwise                 = Unknown
-
+    dirtyInputs = Map.fromList [ (k, NewInput) | k <- targets, isNothing (spreadsheet k) ]
 
 main :: IO ()
 main = do
