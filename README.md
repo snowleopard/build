@@ -13,13 +13,14 @@ You may be interested to:
 * Run `stack test` to execute all the provided build systems on a very simple example.
 * Run `stack haddock` to generate HTML documentation of all the interfaces.
 * Read the code, particularly [System.hs](src/Build/System.hs) which is the concrete implementation of
-  all build systems. Following the imports (or the Haddock documentation) will lead you to all the
+  all build systems. Following the imports (or the
+  [Haddock documentation](https://hackage.haskell.org/package/build)) will lead you to all the
   consistuent parts.
 
 ## Further Activities
 
-There aren't really any. The code served as a proving ground for ideas, and it's existence both allows
-confirmation that our conclusions are valid, and opportunity to cheaply conduct further experiments. However,
+There aren't really any. The code served as a proving ground for ideas, and its existence both allows
+confirmation that our conclusions are valid, and opportunity to cheaply conduct further experiments. Although
 the code is a useful adjoint to the paper, it is not essential to it (other than we wouldn't have been
 able to discover what we did without an executable specification).
 
