@@ -1,16 +1,16 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables, TupleSections #-}
 {-# LANGUAGE FlexibleInstances, FunctionalDependencies, MultiParamTypeClasses #-}
 module Build.Rebuilder (
-    Rebuilder, perpetualRebuilder,
+    Rebuilder, PartialRebuilder, try,
+    perpetualRebuilder,
     modTimeRebuilder, Time, MakeInfo,
-    approximationRebuilder, DependencyApproximation, ApproximationInfo,
+    approximationRebuilder, Status (..), DependencyApproximation (..), ApproximationInfo,
     vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
     ) where
 
 import Control.Monad.State
-import Data.List
+import Control.Monad.Trans.Except
 import Data.Map (Map)
-import Data.Semigroup
 
 import qualified Data.Map as Map
 
@@ -22,6 +22,19 @@ import Build.Trace
 
 type Rebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
 
+-- Partial rebuilders return a task that fails if one if its dependencies is
+-- dirty or has not yet been processed. Used by restarting build schedulers.
+type PartialRebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k (Either k v)
+
+-- | Convert a task with a total lookup function @k -> m v@ into a task
+-- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
+-- essentially lifts the task from the type of values @v@ to @Either e v@,
+-- where the result @Left e@ indicates that the task failed, e.g. because of a
+-- failed dependency lookup, and @Right v@ yeilds the value otherwise.
+try :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
+try task fetch = runExceptT $ task (ExceptT . fetch)
+
+-------------------------------- Always rebuild --------------------------------
 perpetualRebuilder :: Rebuilder Monad () k v
 perpetualRebuilder _key _value task = task
 
@@ -42,29 +55,41 @@ modTimeRebuilder key value task fetch = do
         task fetch
 
 --------------------------- Dependency approximation ---------------------------
-data DependencyApproximation k = SubsetOf [k] | Unknown -- Add Exact [k]?
+-- | Approximation of task dependencies:
+-- * Input keys have no dependencies.
+-- * A subset of keys, e.g. @SubsefOf [x, y, z]@ for @IF(x > 0, y, z)@.
+-- * Unknown dependencies, e.g. for @INDIRECT@ spreadsheet references.
+data DependencyApproximation k = Input | SubsetOf [k] | Unknown deriving (Eq, Show)
 
-instance Ord k => Semigroup (DependencyApproximation k) where
-    Unknown <> x = x
-    x <> Unknown = x
-    SubsetOf xs <> SubsetOf ys = SubsetOf (sort xs `intersect` sort ys)
+-- | The status of a key during the build. Before the build, some keys are
+-- marked 'Dirty', e.g. when the user edits a number or a formula (thus changing
+-- the task) in a spreadsheet. After the build all non-input 'Dirty' keys become
+-- 'Rebuilt'. Keys that initially have no status, are either 'Skipped' (if they
+-- are up to date) or 'Rebuilt' if their dependencies changed during the build.
+data Status = Dirty | Rebuilt | Skipped deriving (Eq, Show)
 
-instance Ord k => Monoid (DependencyApproximation k) where
-    mempty  = Unknown
-    mappend = (<>)
+-- | We store the status and dependency approximation for each key. @Nothing@
+-- in the status map means the key is not dirty and has not yet been processed.
+type ApproximationInfo k = (Map k Status, k -> DependencyApproximation k)
 
-type ApproximationInfo k = (k -> Bool, k -> DependencyApproximation k)
-
-approximationRebuilder :: Ord k => Rebuilder Monad (ApproximationInfo k) k v
+approximationRebuilder :: Ord k => PartialRebuilder Monad (ApproximationInfo k) k v
 approximationRebuilder key value task fetch = do
-    (isDirty, deps) <- get
-    let dirty = isDirty key || case deps key of SubsetOf ks -> any isDirty ks
-                                                Unknown     -> True
+    (status, deps) <- get
+    let is k s = Map.lookup k status == Just s
+        dirty  = key `is` Dirty || case deps key of
+                     Input       -> False -- Cannot happen: @key@ is not input
+                     SubsetOf ks -> any (\k -> k `is` Dirty || k `is` Rebuilt) ks
+                     Unknown     -> True
     if not dirty
-    then return value
+    then do
+        put (Map.insert key Skipped status, deps)
+        return (Right value)
     else do
-        put (\k -> k == key || isDirty k, deps)
-        task fetch
+        put (Map.insert key Rebuilt status, deps)
+        -- The new fetch fails on Dirty keys and on keys whose status is unknown.
+        let newFetch k | deps k == Input || k `is` Skipped || k `is` Rebuilt = fetch k
+                       | otherwise = return (Left k)
+        try task newFetch
 
 ------------------------------- Verifying traces -------------------------------
 vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v

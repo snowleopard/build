@@ -10,8 +10,6 @@ module Build.Scheduler (
     ) where
 
 import Control.Monad.State
-import Control.Monad.Trans.Except
-import Data.Set (Set)
 
 import Build
 import Build.Task
@@ -21,7 +19,6 @@ import Build.Store
 import Build.Rebuilder
 import Build.Utilities
 
-import qualified Data.Set               as Set
 import qualified Build.Task.Applicative as A
 
 -- | Update the value of a key in the store. The function takes both the current
@@ -55,15 +52,6 @@ topological rebuilder tasks key = execState $ forM_ chain $ \k ->
         Just xs -> xs
 
 ---------------------------------- Restarting ----------------------------------
-
--- | Convert a task with a total lookup function @k -> m v@ into a task
--- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
--- essentially lifts the task from the type of values @v@ to @Either e v@,
--- where the result @Left e@ indicates that the task failed, e.g. because of a
--- failed dependency lookup, and @Right v@ yeilds the value otherwise.
-trying :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
-trying task fetch = runExceptT $ task (ExceptT . fetch)
-
 -- | The so-called @calculation chain@: the order in which keys were built
 -- during the previous build, which is used as the best guess for the current
 -- build by Excel and other similar build systems.
@@ -74,32 +62,26 @@ type Chain k = [k]
 -- changed and a new dependency is still dirty, the corresponding build task is
 -- abandoned and the key is moved at the end of the calculation chain, so it can
 -- be restarted when all its dependencies are up to date.
-reordering :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
+reordering :: forall i k v. Ord k => PartialRebuilder Monad i k v -> Build Monad (i, Chain k) k v
 reordering rebuilder tasks key = execState $ do
     chain    <- snd . getInfo <$> get
-    newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
+    newChain <- go $ chain ++ [key | key `notElem` chain]
     modify . mapInfo $ \(i, _) -> (i, newChain)
   where
-    go :: Set k -> Chain k -> State (Store (i, [k]) k v) (Chain k)
-    go _    []     = return []
-    go done (k:ks) = do
-        case tasks k of
-            Nothing -> (k :) <$> go (Set.insert k done) ks
-            Just task -> do
-                store <- get
-                let value = getValue k store
-                    newTask :: Task (MonadState i) k v
-                    newTask = rebuilder k value (unwrap @Monad task)
-                    newFetch :: k -> State i (Either k v)
-                    newFetch k | k `Set.member` done = return $ Right (getValue k store)
-                               | otherwise = return (Left k)
-                    info = fst $ getInfo store
-                    (result, newInfo) = runState (trying newTask newFetch) info
-                case result of
-                    Left dep -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
-                    Right newValue -> do
-                        modify $ putInfo (newInfo, []) . updateValue k value newValue
-                        (k :) <$> go (Set.insert k done) ks
+    go :: Chain k -> State (Store (i, Chain k) k v) (Chain k)
+    go []     = return []
+    go (k:ks) = case tasks k of
+        Nothing -> (k :) <$> go ks
+        Just task -> do
+            store <- get
+            let value   = getValue k store
+                newTask = rebuilder k value (unwrap @Monad task)
+                fetch k = return $ Right (getValue k store)
+            case runState (newTask fetch) (fst $ getInfo store) of
+                (Left dep, _) -> go $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
+                (Right newValue, newInfo) -> do
+                    modify $ putInfo (newInfo, []) . updateValue k value newValue
+                    (k :) <$> go ks
 
 -- An item in the queue comprises a key that needs to be built and a list of
 -- keys that are blocked on it. More efficient implementations are possible,
@@ -135,7 +117,7 @@ restarting isDirty rebuilder tasks key = execState $ go (enqueue key [] mempty)
                     newFetch :: k -> State i (Either k v)
                     newFetch k | upToDate k = return (Right (getValue k store))
                                | otherwise  = return (Left k)
-                    (result, newInfo) = runState (trying newTask newFetch) (getInfo store)
+                    (result, newInfo) = runState (try newTask newFetch) (getInfo store)
                 case result of
                     Left dirtyDependency -> go (enqueue dirtyDependency (k:bs) q)
                     Right newValue -> do
