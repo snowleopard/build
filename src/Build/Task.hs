@@ -25,9 +25,17 @@ import Control.Monad.Trans.Reader
 -- higher-rank polymorphism at the cost of inserting 'unwrap' in a few places
 -- in our code and using slightly strange definitions of 'Tasks' and 'Task'.
 -- See "Build.Task.Wrapped".
-type Tasks c k v = forall f. c f => k -> Maybe ((k -> f v) -> f v)
-type Task  c k v = forall f. c f =>             (k -> f v) -> f v
 
+-- | 'Tasks' associates a 'Task' with every non-input key. @Nothing@ indicates
+-- that the key is an input.
+type Tasks c k v = forall f. c f => k -> Maybe ((k -> f v) -> f v)
+
+-- | A task is used to compute the value of a key, by finding the necessary
+-- dependencies using the provided @fetch :: k -> f v@ callback.
+type Task c k v = forall f. c f => (k -> f v) -> f v
+
+-- | Compose two task descriptions, preferring the first one in case there are
+-- two tasks corresponding to the same key.
 compose :: Tasks Monad k v -> Tasks Monad k v -> Tasks Monad k v
 compose t1 t2 key = t1 key <|> t2 key
 

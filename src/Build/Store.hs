@@ -1,4 +1,4 @@
--- | A key/value Store.
+-- | An abstract key/value store.
 module Build.Store (
     -- * Hashing
     Hash, Hashable (..),

@@ -1,10 +1,9 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, TypeApplications #-}
 
--- | Monadic dependencies, as provided by @Excel@, @shake@ etc. Dependencies can
--- be discovered as execution proceeds.
-module Build.Task.Monad (
-    track, trackM, isInput, compute, partial, exceptional
-    ) where
+-- | Monadic tasks, as used by Excel, Shake and other build systems.
+-- Dependencies of monadic tasks can only be discovered dynamically, i.e. during
+-- their execution.
+module Build.Task.Monad (track, trackM, isInput, compute, partial, exceptional) where
 
 import Control.Monad.Trans
 import Control.Monad.Trans.Except

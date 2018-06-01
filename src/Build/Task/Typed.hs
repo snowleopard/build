@@ -1,20 +1,29 @@
-{-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables #-}
-{-# LANGUAGE DataKinds, GADTs, TypeFamilies, KindSignatures #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes, GADTs, TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 
 -- | A Typed version of dependencies where the value type depends on the key.
-module Build.Task.Typed (TTask, Key (..), digits, fetch) where
+-- See the source for an example.
+module Build.Task.Typed (Task, Key (..), showDependencies) where
 
 import Data.Functor.Const
 import Data.Functor.Identity
 
+-- | A type class for keys, equipped with an associated type family that
+-- can be used to determine the type of value corresponding to the key.
 class Key k where
     type Value k :: *
+    -- | The name of the key. Useful for avoiding heterogeneous lists of keys.
     showKey :: k -> String
 
-type TTask c k = forall f. c f => (forall k. Key k => k -> f (Value k)) -> k -> Maybe (f (Value k))
+-- | A typed build task.
+type Task c k = forall f. c f => (forall k. Key k => k -> f (Value k)) -> k -> Maybe (f (Value k))
 
+-- | Extract the names of dependencies.
+showDependencies :: Task Applicative k -> k -> [String]
+showDependencies task = maybe [] getConst . task (\k -> Const [showKey k])
+
+------------------------------------ Example -----------------------------------
 data ExampleKey a where
     Base       :: ExampleKey Int
     Number     :: ExampleKey Int
@@ -34,23 +43,11 @@ instance Key (ExampleKey a) where
     type Value (ExampleKey a) = a
     showKey = show
 
-digits :: TTask Applicative (ExampleKey a)
+digits :: Task Applicative (ExampleKey a)
 digits fetch SplitDigit = Just $ divMod <$> fetch Number <*> fetch Base
 digits fetch LastDigit  = Just $ snd <$> fetch SplitDigit
 digits fetch BaseDigits = Just $ enumFromTo 1 <$> fetch Base
 digits _ _ = Nothing
-
-data SomeKey where
-    MkSomeKey :: Key k => k -> SomeKey
-
-dependencies :: TTask Applicative k -> k -> [SomeKey]
-dependencies task = maybe [] getConst . task (\k -> Const [MkSomeKey k])
-
-showDependencies :: TTask Applicative k -> k -> [String]
-showDependencies task k = map showSomeKey (dependencies task k)
-  where
-    showSomeKey :: SomeKey -> String
-    showSomeKey (MkSomeKey k) = showKey k
 
 fetch :: ExampleKey t -> Identity (Value (ExampleKey t))
 fetch key = Identity $ case key of

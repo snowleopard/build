@@ -10,7 +10,9 @@ copyright:           Andrey Mokhov, Neil Mitchell, Simon Peyton Jones, 2018
 category:            Algorithms, Data Structures
 build-type:          Simple
 extra-source-files:  README.md
-description:         A library for testing the ideas behind the associated ICFP paper.
+description:         A library for experimenting with build systems and
+                     incremental computation frameworks, based on the ideas
+                     presented in the ICFP 2018 paper "Build systems a la carte".
 cabal-version:       >=1.10
 
 source-repository head

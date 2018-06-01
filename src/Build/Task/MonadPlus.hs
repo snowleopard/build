@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes, TypeApplications #-}
 
--- | A version of Monad tasks with some support for non-determinism.
+-- | A version of monadic tasks with some support for non-determinism.
 module Build.Task.MonadPlus (random, computeND, correctBuildValue) where
 
 import Control.Monad

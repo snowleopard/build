@@ -3,8 +3,6 @@ module Build.Utilities (
     -- * Graph operations
     graph, reachable, topSort, reach, reachM,
 
-    -- * Transformers
-
     -- * Logic combinators
     forall, forallM, exists, existsM, (==>)
     ) where

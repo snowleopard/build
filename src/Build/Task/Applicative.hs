@@ -1,7 +1,8 @@
 {-# LANGUAGE RankNTypes #-}
 
--- | Applicative dependencies, as provided by @make@, @ninja@ etc.
---   Dependencies are known before any execution begins.
+-- | Applicative tasks, as used by Make, Ninja and other applicative build
+-- systems. Dependencies of applicative tasks are known statically, before their
+-- execution.
 module Build.Task.Applicative (dependencies) where
 
 import Control.Applicative

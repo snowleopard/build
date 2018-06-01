@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
 {-# LANGUAGE DeriveTraversable, TupleSections #-}
+
+-- | Build traces that are used for recording information from previuos builds.
 module Build.Trace (
     Trace (..),
 
