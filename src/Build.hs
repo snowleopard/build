@@ -10,7 +10,7 @@ module Build (
     ) where
 
 import Build.Task
-import Build.Task.Monad hiding (dependencies)
+import Build.Task.Monad
 import Build.Task.Wrapped
 import Build.Store
 import Build.Utilities
@@ -45,7 +45,7 @@ correct build tasks = forall $ \(key, store) ->
 correctBuild :: (Ord k, Eq v) => Tasks Monad k v -> Store i k v -> Store i k v -> k -> Bool
 correctBuild tasks store result = all correct . reachable deps
   where
-    deps = maybe [] (\t -> snd $ track (flip getValue result) (unwrap @Monad t)) . tasks
+    deps = maybe [] (\t -> snd $ track (unwrap @Monad t) (flip getValue result)) . tasks
     correct k = case tasks k of
         Nothing -> getValue k result == getValue k store
         Just t  -> getValue k result == compute (unwrap @Monad t) (flip getValue result)

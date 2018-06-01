@@ -1,23 +1,20 @@
-{-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables, TupleSections #-}
-{-# LANGUAGE FlexibleInstances, FunctionalDependencies, MultiParamTypeClasses #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes, TupleSections #-}
 module Build.Rebuilder (
     Rebuilder, perpetualRebuilder,
     modTimeRebuilder, Time, MakeInfo,
-    approximationRebuilder, DependencyApproximation, ApproximationInfo,
+    approximationRebuilder, DependencyApproximation (..), ApproximationInfo,
     vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
     ) where
 
 import Control.Monad.State
-import Data.List
 import Data.Map (Map)
-import Data.Semigroup
 
 import qualified Data.Map as Map
 
 import Build.Store
 import Build.Task
-import Build.Task.Applicative (dependencies)
-import Build.Task.Monad hiding (dependencies)
+import Build.Task.Applicative
+import Build.Task.Monad
 import Build.Trace
 
 type Rebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
@@ -42,16 +39,7 @@ modTimeRebuilder key value task fetch = do
         task fetch
 
 --------------------------- Dependency approximation ---------------------------
-data DependencyApproximation k = SubsetOf [k] | Unknown -- Add Exact [k]?
-
-instance Ord k => Semigroup (DependencyApproximation k) where
-    Unknown <> x = x
-    x <> Unknown = x
-    SubsetOf xs <> SubsetOf ys = SubsetOf (sort xs `intersect` sort ys)
-
-instance Ord k => Monoid (DependencyApproximation k) where
-    mempty  = Unknown
-    mappend = (<>)
+data DependencyApproximation k = SubsetOf [k] | Unknown
 
 type ApproximationInfo k = (k -> Bool, k -> DependencyApproximation k)
 

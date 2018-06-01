@@ -8,9 +8,10 @@ import System.Exit
 import qualified Data.Map as Map
 
 import Build
-import Build.Task
+import Build.Rebuilder
 import Build.Store
 import Build.System
+import Build.Task
 
 import Spreadsheet
 import Examples()
@@ -26,8 +27,6 @@ sequentialMultiBuildA :: Build Applicative i k v -> MultiBuild Applicative i k v
 sequentialMultiBuildA build task outputs store = case outputs of
     []     -> store
     (k:ks) -> sequentialMultiBuildA build task ks (build task k store)
-
-
 
 inputs :: i -> Store i Cell Int
 inputs i = initialise i $ \cell -> fromMaybe 0 $ lookup cell
@@ -96,7 +95,7 @@ testSuite = and <$> sequence
     , test  "memo      " memo       ()
     , testA "make      " make       (Map.empty, 0)
     , testA "ninja     " ninja      mempty
-    , test  "excel     " excel      ((const True, mempty), mempty)
+    , test  "excel     " excel      ((const True, const Unknown), mempty)
     , test  "shake     " shake      mempty
     , test  "bazel     " bazel      mempty
     , test  "cloudShake" cloudShake mempty
