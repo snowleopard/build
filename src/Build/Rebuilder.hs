@@ -124,32 +124,6 @@ ctRebuilder key value task fetch = do
             put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
             return newValue
 
--- ctPartialRebuilder :: (Eq k, Hashable v) => PartialRebuilder Monad (Map k Status, CT k v) k v
--- ctPartialRebuilder key value task fetch = do
---     (status, ct) <- get
---     let is k s = Map.lookup k status == Just s
---         dirty  = key `is` Dirty || case deps key of
---                      Input       -> False -- This cannot happen
---                      SubsetOf ks -> any (\k -> k `is` Dirty || k `is` Rebuilt) ks
---                      Unknown     -> True
---     if not dirty
---     then do
---         put (Map.insert key Skipped status, deps)
---         return (Right value)
---     else do
---         put (Map.insert key Rebuilt status, deps)
---         let newFetch k | k `is` Skipped || k `is` Rebuilt || deps k == Input = fetch k
---                        | otherwise = return (Left k)
---         try task newFetch
-
-    -- ct <- get
-    -- maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
-    -- case maybeCachedValue of
-    --     Just cachedValue -> return cachedValue
-    --     Nothing -> do
-    --         (newValue, deps) <- trackM task fetch
-    --         put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
-    --         return newValue
 ----------------------- Deterministic constructive traces ----------------------
 dctRebuilder :: (Hashable k, Hashable v) => Rebuilder Monad (DCT k v) k v
 dctRebuilder key _value task fetch = do
