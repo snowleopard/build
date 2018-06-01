@@ -15,7 +15,7 @@ You may be interested to:
 * Read the code, particularly [System.hs](src/Build/System.hs) which is the concrete implementation of
   all build systems. Following the imports (or the
   [Haddock documentation](https://hackage.haskell.org/package/build)) will lead you to all the
-  consistuent parts.
+  constituent parts.
 
 ## Further Activities
 
