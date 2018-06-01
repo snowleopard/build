@@ -56,16 +56,17 @@ modTimeRebuilder key value task fetch = do
 
 --------------------------- Dependency approximation ---------------------------
 -- | Approximation of task dependencies:
+-- * Input keys have no dependencies.
 -- * A subset of keys, e.g. @SubsefOf [x, y, z]@ for @IF(x > 0, y, z)@.
 -- * Unknown dependencies, e.g. for @INDIRECT@ spreadsheet references.
-data DependencyApproximation k = SubsetOf [k] | Unknown deriving (Eq, Show)
+data DependencyApproximation k = Input | SubsetOf [k] | Unknown deriving (Eq, Show)
 
--- | The status of a key during the build. Before the build, some input keys are
--- marked 'NewInput', e.g. when the user edits a number in a spreadsheet, or
--- 'Dirty' when the user edits a formula thus changing the task. After the build
--- all 'Dirty' keys become 'Rebuilt'. Keys that initially have no status, are
--- either 'Skipped' (if they are up to date) or 'Rebuilt'.
-data Status = NewInput | Dirty | Rebuilt | Skipped deriving (Eq, Show)
+-- | The status of a key during the build. Before the build, some keys are
+-- marked 'Dirty', e.g. when the user edits a number or a formula (thus changing
+-- the task) in a spreadsheet. After the build all non-input 'Dirty' keys become
+-- 'Rebuilt'. Keys that initially have no status, are either 'Skipped' (if they
+-- are up to date) or 'Rebuilt' if their dependencies changed during the build.
+data Status = Dirty | Rebuilt | Skipped deriving (Eq, Show)
 
 -- | We store the status and dependency approximation for each key. @Nothing@
 -- in the status map means the key is not dirty and has not yet been processed.
@@ -76,7 +77,8 @@ approximationRebuilder key value task fetch = do
     (status, deps) <- get
     let is k s = Map.lookup k status == Just s
         dirty  = key `is` Dirty || case deps key of
-                     SubsetOf ks -> any (\k -> k `is` NewInput || k `is` Dirty || k `is` Rebuilt) ks
+                     Input       -> False -- Cannot happen: @key@ is not input
+                     SubsetOf ks -> any (\k -> k `is` Dirty || k `is` Rebuilt) ks
                      Unknown     -> True
     if not dirty
     then do
@@ -84,7 +86,8 @@ approximationRebuilder key value task fetch = do
         return (Right value)
     else do
         put (Map.insert key Rebuilt status, deps)
-        let newFetch k | k `is` NewInput || k `is` Skipped || k `is` Rebuilt = fetch k
+        -- The new fetch fails on Dirty keys and on keys whose status is unknown.
+        let newFetch k | deps k == Input || k `is` Skipped || k `is` Rebuilt = fetch k
                        | otherwise = return (Left k)
         try task newFetch
 
