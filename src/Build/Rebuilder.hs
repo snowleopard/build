@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes, ScopedTypeVariables, TupleSections #-}
 {-# LANGUAGE FlexibleInstances, FunctionalDependencies, MultiParamTypeClasses #-}
 module Build.Rebuilder (
-    Rebuilder, PartialRebuilder, trying,
+    Rebuilder, PartialRebuilder, try,
     perpetualRebuilder,
     modTimeRebuilder, Time, MakeInfo,
     approximationRebuilder, Status (..), DependencyApproximation (..), ApproximationInfo,
@@ -31,8 +31,8 @@ type PartialRebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k (E
 -- essentially lifts the task from the type of values @v@ to @Either e v@,
 -- where the result @Left e@ indicates that the task failed, e.g. because of a
 -- failed dependency lookup, and @Right v@ yeilds the value otherwise.
-trying :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
-trying task fetch = runExceptT $ task (ExceptT . fetch)
+try :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
+try task fetch = runExceptT $ task (ExceptT . fetch)
 
 -------------------------------- Always rebuild --------------------------------
 perpetualRebuilder :: Rebuilder Monad () k v
@@ -55,22 +55,28 @@ modTimeRebuilder key value task fetch = do
         task fetch
 
 --------------------------- Dependency approximation ---------------------------
+-- | Approximation of task dependencies:
+-- * Inputs have no dependencies.
+-- * A subset of keys, e.g. @SubsefOf [x, y, z]@ for @IF(x > 0, y, z)@.
+-- * Unknown dependencies, e.g. for @INDIRECT@ spreadsheet references.
 data DependencyApproximation k = Input | SubsetOf [k] | Unknown deriving (Eq, Show)
 
--- Initially, some keys are marked 'Dirty'.
--- After the build all non-input 'Dirty' keys are 'Rebuilt'.
--- Keys that were initially not in the map, will be either 'Skipped' or 'Rebuilt'
+-- | The status of a key during the build. Before the build, some keys are
+-- marked 'Dirty', e.g. when the user edits a cell in a spreadsheet. After the
+-- build all non-input 'Dirty' become 'Rebuilt'. Keys that initially have no
+-- status, are either 'Skipped' (if they are up to date) or 'Rebuilt'.
 data Status = Dirty | Rebuilt | Skipped deriving (Eq, Show)
 
--- Nothing in the Map means k is not dirty and has not yet been processed
+-- | We store the status and dependency approximation for each key. @Nothing@
+-- in the status map means the key is not dirty and has not yet been processed.
 type ApproximationInfo k = (Map k Status, k -> DependencyApproximation k)
 
-approximationRebuilder :: forall k v. Ord k => PartialRebuilder Monad (ApproximationInfo k) k v
+approximationRebuilder :: Ord k => PartialRebuilder Monad (ApproximationInfo k) k v
 approximationRebuilder key value task fetch = do
     (status, deps) <- get
     let is k s = Map.lookup k status == Just s
         dirty  = key `is` Dirty || case deps key of
-                     Input       -> False -- Cannot happen
+                     Input       -> False -- This cannot happen
                      SubsetOf ks -> any (\k -> k `is` Dirty || k `is` Rebuilt) ks
                      Unknown     -> True
     if not dirty
@@ -81,7 +87,7 @@ approximationRebuilder key value task fetch = do
         put (Map.insert key Rebuilt status, deps)
         let newFetch k | k `is` Skipped || k `is` Rebuilt || deps k == Input = fetch k
                        | otherwise = return (Left k)
-        trying task newFetch
+        try task newFetch
 
 ------------------------------- Verifying traces -------------------------------
 vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v

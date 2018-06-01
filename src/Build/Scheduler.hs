@@ -77,10 +77,9 @@ reordering rebuilder tasks key = execState $ do
             let value   = getValue k store
                 newTask = rebuilder k value (unwrap @Monad task)
                 fetch k = return $ Right (getValue k store)
-                (result, newInfo) = runState (newTask fetch) (fst $ getInfo store)
-            case result of
-                Left dep -> go $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
-                Right newValue -> do
+            case runState (newTask fetch) (fst $ getInfo store) of
+                (Left dep, _) -> go $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
+                (Right newValue, newInfo) -> do
                     modify $ putInfo (newInfo, []) . updateValue k value newValue
                     (k :) <$> go ks
 
@@ -118,7 +117,7 @@ restarting isDirty rebuilder tasks key = execState $ go (enqueue key [] mempty)
                     newFetch :: k -> State i (Either k v)
                     newFetch k | upToDate k = return (Right (getValue k store))
                                | otherwise  = return (Left k)
-                    (result, newInfo) = runState (trying newTask newFetch) (getInfo store)
+                    (result, newInfo) = runState (try newTask newFetch) (getInfo store)
                 case result of
                     Left dirtyDependency -> go (enqueue dirtyDependency (k:bs) q)
                     Right newValue -> do
