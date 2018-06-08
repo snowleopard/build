@@ -1,11 +1,9 @@
-{-# LANGUAGE ConstraintKinds, RankNTypes, StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes #-}
 
 -- | The Task abstractions.
-module Build.Task (Task, Tasks) where
+module Build.Task (Task (..), Tasks, compose, liftTask, liftTasks) where
 
 import Control.Applicative
-import Control.Monad.Trans.Reader
 
 -- Ideally we would like to write:
 --
@@ -18,33 +16,28 @@ import Control.Monad.Trans.Reader
 -- A usual workaround is to wrap 'Task' into a newtype, but this leads to the
 -- loss of higher-rank polymorphism: for example, we can no longer apply a
 -- monadic build system to an applicative task description or apply a monadic
--- 'trackM' to trace the execution of a 'Task Applicative'. This leads to severe
--- code duplication.
---
--- Our workaround is inspired by the @lens@ library, which allows us to keep
--- higher-rank polymorphism at the cost of inserting 'unwrap' in a few places
--- in our code and using slightly strange definitions of 'Tasks' and 'Task'.
--- See "Build.Task.Wrapped".
+-- 'trackM' to trace the execution of a 'Task Applicative'. This leads to code
+-- duplication in some places.
+
+-- | A 'Task' is used to compute a value of type @v@, by finding the necessary
+-- dependencies using the provided @fetch :: k -> f v@ callback.
+newtype Task c k v = Task { run :: forall f. c f => (k -> f v) -> f v }
 
 -- | 'Tasks' associates a 'Task' with every non-input key. @Nothing@ indicates
 -- that the key is an input.
-type Tasks c k v = forall f. c f => k -> Maybe ((k -> f v) -> f v)
-
--- | A task is used to compute the value of a key, by finding the necessary
--- dependencies using the provided @fetch :: k -> f v@ callback.
-type Task c k v = forall f. c f => (k -> f v) -> f v
+type Tasks c k v = k -> Maybe (Task c k v)
 
 -- | Compose two task descriptions, preferring the first one in case there are
 -- two tasks corresponding to the same key.
 compose :: Tasks Monad k v -> Tasks Monad k v -> Tasks Monad k v
 compose t1 t2 key = t1 key <|> t2 key
 
--- | An alternative type for task descriptions, isomorphic to 'Tasks' as
--- demonstrated by functions 'fromTasks' and 'toTasks'.
-type Tasks2 c k v = forall f. c f => (k -> f v) -> k -> Maybe (f v)
+-- | Lift an applicative task to @Task Monad@. Use this function when applying
+-- monadic task combinators to applicative tasks.
+liftTask :: Task Applicative k v -> Task Monad k v
+liftTask (Task task) = Task task
 
-fromTasks :: Tasks Monad k v -> Tasks2 Monad k v
-fromTasks tasks fetch key = ($fetch) <$> tasks key
-
-toTasks :: Tasks2 Monad k v -> Tasks Monad k v
-toTasks tasks2 key = runReaderT <$> tasks2 (\k -> ReaderT ($k)) key
+-- | Lift a collection of applicative tasks to @Tasks Monad@. Use this function
+-- when building applicative tasks with a monadic build system.
+liftTasks :: Tasks Applicative k v -> Tasks Monad k v
+liftTasks = fmap (fmap liftTask)

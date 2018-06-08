@@ -18,6 +18,7 @@ import Build
 import Build.Scheduler
 import Build.Store
 import Build.Rebuilder
+import Build.Task
 import Build.Trace
 
 -- | This is not a correct build system: given a target key, it simply rebuilds
@@ -34,7 +35,7 @@ busy tasks key store = execState (fetch key) store
     fetch :: k -> State (Store () k v) v
     fetch k = case tasks k of
         Nothing   -> gets (getValue k)
-        Just task -> do v <- task fetch; modify (putValue k v); return v
+        Just task -> do v <- run task fetch; modify (putValue k v); return v
 
 -- | This is a correct but non-minimal build system: it will rebuild keys even
 -- if they are up to date. However, it performs memoization, therefore it never
@@ -50,7 +51,7 @@ make = topological modTimeRebuilder
 -- | A model of Ninja: an applicative build system that uses verifying traces
 -- to check if a key is up to date.
 ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
-ninja = topological vtRebuilder
+ninja = topological (unliftRebuilder vtRebuilder)
 
 type ExcelInfo k = (ApproximationInfo k, Chain k)
 
@@ -80,7 +81,7 @@ cloudShake = recursive ctRebuilder
 -- constructive traces to check if a key is up to date as well as for caching
 -- build results.
 buck :: (Hashable k, Hashable v) => Build Applicative (DCT k v) k v
-buck = topological dctRebuilder
+buck = topological (unliftRebuilder dctRebuilder)
 
 -- | A model of Nix: a monadic build system that uses deterministic constructive
 -- traces to check if a key is up to date as well as for caching build results.

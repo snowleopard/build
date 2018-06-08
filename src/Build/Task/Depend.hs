@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFunctor, RankNTypes #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- | The \"free\" structures for dependencies, providing either an applicative
@@ -21,7 +21,7 @@ instance Applicative (Depend k v) where
         \vs -> let (v1,v2) = splitAt (length d1) vs in f1 v1 $ f2 v2
 
 toDepend :: Task Applicative k v -> Depend k v v
-toDepend f = f $ \k -> Depend [k] $ \[v] -> v
+toDepend f = run f $ \k -> Depend [k] $ \[v] -> v
 
 -------------------------------- Free Task Monad -------------------------------
 
@@ -41,4 +41,4 @@ instance Monad (Depends k v) where
     Depends ds op >>= f = Depends ds $ \vs -> f =<< op vs
 
 toDepends :: Task Monad k v -> Depends k v v
-toDepends f = f $ \k -> Depends [k] $ \[v] -> Done v
+toDepends f = run f $ \k -> Depends [k] $ \[v] -> Done v

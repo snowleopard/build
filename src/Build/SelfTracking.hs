@@ -1,5 +1,4 @@
-{-# LANGUAGE ConstraintKinds, FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | This module defines two different strategies of self-tracking, based
 -- around the idea of storing task descriptions that can be parsed into a Task.
@@ -38,18 +37,19 @@ fetchValueTask fetch key = extract <$> fetch (KeyTask key)
     extract _ = error "Inconsistent fetch"
 
 -- | A model using Monad, works beautifully and allows storing the key on the disk.
-selfTrackingM :: (t -> Task Monad k v) -> Tasks Monad k t -> Tasks Monad (Key k) (Value v t)
+selfTrackingM :: forall k v t. (t -> Task Monad k v) -> Tasks Monad k t -> Tasks Monad (Key k) (Value v t)
 selfTrackingM _      _     (KeyTask _) = Nothing -- Task keys are inputs
 selfTrackingM parser tasks (Key     k) = runTask <$> tasks k
   where
     -- Fetch the task description, parse it, and then run the obtained task
-    runTask act fetch = do
-        task <- parser <$> act (fetchValueTask fetch)
-        Value <$> task (fetchValue fetch)
+    runTask :: Task Monad k t -> Task Monad (Key k) (Value v t)
+    runTask act = Task $ \fetch -> do
+        task <- parser <$> run act (fetchValueTask fetch)
+        Value <$> run task (fetchValue fetch)
 
 -- | The Applicative model requires every key to be able to associate with its
 -- environment (e.g. a reader somewhere). Does not support cutoff if a key changes.
 selfTrackingA :: (t -> Task Applicative k v) -> (k -> t) -> Tasks Applicative (Key k) (Value v t)
 selfTrackingA _      _   (KeyTask _) = Nothing -- Task keys are inputs
-selfTrackingA parser ask (Key k) = Just $ \fetch ->
-    fetch (KeyTask k) *> (Value <$> parser (ask k) (fetchValue fetch))
+selfTrackingA parser ask (Key k) = Just $ Task $ \fetch ->
+    fetch (KeyTask k) *> (Value <$> run (parser $ ask k) (fetchValue fetch))
