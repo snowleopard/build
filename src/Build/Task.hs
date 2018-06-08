@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds, RankNTypes #-}
 
 -- | The Task abstractions.
-module Build.Task (Task (..), Tasks, compose) where
+module Build.Task (Task (..), Tasks, compose, liftTask, liftTasks) where
 
 import Control.Applicative
 
@@ -31,3 +31,11 @@ type Tasks c k v = k -> Maybe (Task c k v)
 -- two tasks corresponding to the same key.
 compose :: Tasks Monad k v -> Tasks Monad k v -> Tasks Monad k v
 compose t1 t2 key = t1 key <|> t2 key
+
+-- | Lift a applicative task to @Task Monad@.
+liftTask :: Task Applicative k v -> Task Monad k v
+liftTask (Task task) = Task task
+
+-- | Lift a collection of applicative tasks to @Tasks Monad@.
+liftTasks :: Tasks Applicative k v -> Tasks Monad k v
+liftTasks = fmap (fmap liftTask)
