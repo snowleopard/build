@@ -32,10 +32,12 @@ type Tasks c k v = k -> Maybe (Task c k v)
 compose :: Tasks Monad k v -> Tasks Monad k v -> Tasks Monad k v
 compose t1 t2 key = t1 key <|> t2 key
 
--- | Lift a applicative task to @Task Monad@.
+-- | Lift an applicative task to @Task Monad@. Use this function when applying
+-- monadic task combinators to applicative tasks.
 liftTask :: Task Applicative k v -> Task Monad k v
 liftTask (Task task) = Task task
 
--- | Lift a collection of applicative tasks to @Tasks Monad@.
+-- | Lift a collection of applicative tasks to @Tasks Monad@. Use this function
+-- when building applicative tasks with a monadic build system.
 liftTasks :: Tasks Applicative k v -> Tasks Monad k v
 liftTasks = fmap (fmap liftTask)
