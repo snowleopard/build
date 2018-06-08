@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFunctor, RankNTypes #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- | The \"free\" structures for dependencies, providing either an applicative

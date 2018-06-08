@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstraintKinds, RankNTypes, TupleSections #-}
+{-# LANGUAGE TupleSections #-}
 
 -- | Rebuilders take care of deciding whether a key needs to be rebuild and
 -- running the corresponding task if need be.

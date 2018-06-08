@@ -1,4 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
 module Spreadsheet where
 
 import Data.Bool

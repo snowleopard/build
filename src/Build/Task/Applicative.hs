@@ -1,5 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-
 -- | Applicative tasks, as used by Make, Ninja and other applicative build
 -- systems. Dependencies of applicative tasks are known statically, before their
 -- execution.

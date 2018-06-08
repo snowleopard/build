@@ -1,5 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-
 -- | Given a build system that can work with single keys, generalise that to one
 -- that deals with multiple keys at a time.
 module Build.Multi (multi) where

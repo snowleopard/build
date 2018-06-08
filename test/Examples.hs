@@ -1,5 +1,3 @@
-{-# LANGUAGE Rank2Types #-}
-
 module Examples where
 
 import Build.Task

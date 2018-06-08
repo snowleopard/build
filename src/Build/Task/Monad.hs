@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, ScopedTypeVariables, TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Monadic tasks, as used by Excel, Shake and other build systems.
 -- Dependencies of monadic tasks can only be discovered dynamically, i.e. during
@@ -27,7 +27,7 @@ trackM task fetch = runWriterT $ run task trackingFetch
     trackingFetch k = tell [k] >> lift (fetch k)
 
 -- | Given a description of tasks, check if a key is input.
-isInput :: forall k v. Tasks Monad k v -> k -> Bool
+isInput :: Tasks Monad k v -> k -> Bool
 isInput tasks = isNothing . tasks
 
 -- | Run a task with a pure lookup function.

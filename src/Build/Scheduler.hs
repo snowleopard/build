@@ -1,6 +1,4 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
-{-# LANGUAGE FunctionalDependencies, MultiParamTypeClasses #-}
-{-# LANGUAGE TypeApplications, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Build schedulers execute task rebuilders in the right order.
 module Build.Scheduler (

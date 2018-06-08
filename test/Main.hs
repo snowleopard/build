@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RankNTypes, ConstraintKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
 import Control.Monad
 import Data.Bool
 import Data.List.Extra
