@@ -11,4 +11,4 @@ import Build.Task
 
 -- | Find the dependency of a functorial task.
 dependency :: Task Functor k v -> k
-dependency task = getConst $ task Const
+dependency task = getConst $ run task Const

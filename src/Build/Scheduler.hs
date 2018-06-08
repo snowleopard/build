@@ -18,7 +18,6 @@ import Data.Set (Set)
 import Build
 import Build.Task
 import Build.Task.Monad
-import Build.Task.Wrapped
 import Build.Store
 import Build.Rebuilder
 import Build.Utilities
@@ -44,14 +43,14 @@ topological rebuilder tasks key = execState $ forM_ chain $ \k ->
         Nothing   -> return ()
         Just task -> do
             value <- gets (getValue k)
-            let newTask = rebuilder k value (unwrap @Applicative task)
+            let newTask = rebuilder k value task
                 newFetch :: k -> StateT i (State (Store i k v)) v
                 newFetch = lift . gets . getValue
             info <- gets getInfo
-            (newValue, newInfo) <- runStateT (newTask newFetch) info
+            (newValue, newInfo) <- runStateT (run newTask newFetch) info
             modify $ putInfo newInfo . updateValue k value newValue
   where
-    deps  = maybe [] (\t -> A.dependencies $ unwrap @Applicative t) . tasks
+    deps  = maybe [] A.dependencies . tasks
     chain = case topSort (graph deps key) of
         Nothing -> error "Cannot build tasks with cyclic dependencies"
         Just xs -> xs
@@ -63,7 +62,7 @@ topological rebuilder tasks key = execState $ forM_ chain $ \k ->
 -- where the result @Left e@ indicates that the task failed, e.g. because of a
 -- failed dependency lookup, and @Right v@ yeilds the value otherwise.
 try :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
-try task fetch = runExceptT $ task (ExceptT . fetch)
+try task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
 
 -- | The so-called @calculation chain@: the order in which keys were built
 -- during the previous build, which is used as the best guess for the current
@@ -89,11 +88,11 @@ reordering rebuilder tasks key = execState $ do
             store <- get
             let value = getValue k store
                 newTask :: Task (MonadState i) k v
-                newTask = rebuilder k value (unwrap @Monad task)
+                newTask = rebuilder k value task
                 newFetch :: k -> State i (Either k v)
                 newFetch k | k `Set.member` done = return $ Right (getValue k store)
                            | otherwise           = return $ Left k
-            case runState (try newTask newFetch) (fst $ getInfo store) of
+            case runState (run (try newTask) newFetch) (fst $ getInfo store) of
                 (Left dep, _) -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
                 (Right newValue, newInfo) -> do
                     modify $ putInfo (newInfo, []) . updateValue k value newValue
@@ -141,11 +140,11 @@ restarting isDirty rebuilder tasks key = execState $ go (enqueue key [] mempty)
                 let value = getValue k store
                     upToDate k = isInput tasks k || not (isDirty k store)
                     newTask :: Task (MonadState i) k v
-                    newTask = rebuilder k value (unwrap @Monad task)
+                    newTask = rebuilder k value task
                     newFetch :: k -> State i (Either k v)
                     newFetch k | upToDate k = return (Right (getValue k store))
                                | otherwise  = return (Left k)
-                case runState (try newTask newFetch) (getInfo store) of
+                case runState (run (try newTask) newFetch) (getInfo store) of
                     (Left dirtyDependency, _) -> go (enqueue dirtyDependency (k:bs) q)
                     (Right newValue, newInfo) -> do
                         modify $ putInfo newInfo . updateValue k value newValue
@@ -166,11 +165,11 @@ recursive rebuilder tasks key store = fst $ execState (fetch key) (store, Set.em
             done <- gets snd
             when (key `Set.notMember` done) $ do
                 value <- gets (getValue key . fst)
-                let newTask = rebuilder key value (unwrap @Monad task)
+                let newTask = rebuilder key value task
                     newFetch :: k -> StateT i (State (Store i k v, Set k)) v
                     newFetch = lift . fetch
                 info <- gets (getInfo . fst)
-                (newValue, newInfo) <- runStateT (newTask newFetch) info
+                (newValue, newInfo) <- runStateT (run newTask newFetch) info
                 modify $ \(s, done) ->
                     ( putInfo newInfo $ updateValue key value newValue s
                     , Set.insert key done )
@@ -184,8 +183,8 @@ independent rebuilder tasks key store = case tasks key of
     Nothing -> store
     Just task ->
         let value   = getValue key store
-            newTask = rebuilder key value (unwrap @Monad task)
+            newTask = rebuilder key value task
             newFetch :: k -> State i v
             newFetch k = return (getValue k store)
-            (newValue, newInfo) = runState (newTask newFetch) (getInfo store)
+            (newValue, newInfo) = runState (run newTask newFetch) (getInfo store)
         in putInfo newInfo $ updateValue key value newValue store

@@ -20,7 +20,7 @@ type Partition k = k -> [k]
 multi :: Eq k => Partition k -> Tasks Applicative [k] [v] -> Tasks Applicative [k] [v]
 multi partition tasks keys
     | k:_ <- keys, partition k == keys = tasks keys
-    | otherwise = Just $ \fetch ->
+    | otherwise = Just $ Task $ \fetch ->
         sequenceA [ select k <$> fetch (partition k) | k <- keys ]
   where
     select k = fromMaybe (error msg) . lookup k . zip (partition k)

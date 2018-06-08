@@ -11,7 +11,6 @@ module Build (
 
 import Build.Task
 import Build.Task.Monad
-import Build.Task.Wrapped
 import Build.Store
 import Build.Utilities
 
@@ -29,10 +28,10 @@ type Build c i k v = Tasks c k v -> k -> Store i k v -> Store i k v
 correctBuild :: (Ord k, Eq v) => Tasks Monad k v -> Store i k v -> Store i k v -> k -> Bool
 correctBuild tasks store result = all correct . reachable deps
   where
-    deps = maybe [] (\t -> snd $ track (unwrap @Monad t) (flip getValue result)) . tasks
+    deps = maybe [] (\task -> snd $ track task (flip getValue result)) . tasks
     correct k = case tasks k of
-        Nothing -> getValue k result == getValue k store
-        Just t  -> getValue k result == compute (unwrap @Monad t) (flip getValue result)
+        Nothing   -> getValue k result == getValue k store
+        Just task -> getValue k result == compute task (flip getValue result)
 
 -- | Given a @build@ and @tasks@, check that @build@ produces a correct result
 -- for any initial store and a target key.

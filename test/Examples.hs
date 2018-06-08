@@ -19,7 +19,7 @@ fetchIO k = do putStr (show k ++ ": "); read <$> getLine
 -- For example, if n = 12, the sequence is 3, 10, 5, 16, 8, 4, 2, 1, ...
 collatz :: Tasks Functor Integer Integer
 collatz n | n <= 0    = Nothing
-          | otherwise = Just $ \fetch -> f <$> fetch (n - 1)
+          | otherwise = Just $ Task $ \fetch -> f <$> fetch (n - 1)
   where
     f k | even k    = k `div` 2
         | otherwise = 3 * k + 1
@@ -39,7 +39,7 @@ collatz n | n <= 0    = Nothing
 -- (n, m) = (2, 1) we get Lucas sequence: 2, 1, 3, 4, 7, 11, 18, 29, 47, ...
 fibonacci :: Tasks Applicative Integer Integer
 fibonacci n
-    | n >= 2 = Just $ \fetch -> (+) <$> fetch (n-1) <*> fetch (n-2)
+    | n >= 2 = Just $ Task $ \fetch -> (+) <$> fetch (n-1) <*> fetch (n-2)
     | otherwise = Nothing
 
 -- Fibonacci numbers are a classic example of memoization: a non-minimal build
@@ -58,10 +58,10 @@ fibonacci n
 ackermann :: Tasks Monad (Integer, Integer) Integer
 ackermann (n, m)
     | m < 0 || n < 0 = Nothing
-    | m == 0    = Just $ const $ pure (n + 1)
-    | n == 0    = Just $ \fetch -> fetch (m - 1, 1)
-    | otherwise = Just $ \fetch -> do index <- fetch (m, n - 1)
-                                      fetch (m - 1, index)
+    | m == 0    = Just $ Task $ const $ pure (n + 1)
+    | n == 0    = Just $ Task $ \fetch -> fetch (m - 1, 1)
+    | otherwise = Just $ Task $ \fetch -> do index <- fetch (m, n - 1)
+                                             fetch (m - 1, index)
 
 -- Unlike Collatz and Fibonacci computations, the Ackermann computation cannot
 -- be statically analysed for dependencies. We can only find the first dependency
@@ -70,23 +70,23 @@ ackermann (n, m)
 ----------------------------- Spreadsheet examples -----------------------------
 
 sprsh1 :: Tasks Applicative String Integer
-sprsh1 "B1" = Just $ \fetch -> ((+)  <$> fetch "A1" <*> fetch "A2")
-sprsh1 "B2" = Just $ \fetch -> ((*2) <$> fetch "B1")
+sprsh1 "B1" = Just $ Task $ \fetch -> ((+)  <$> fetch "A1" <*> fetch "A2")
+sprsh1 "B2" = Just $ Task $ \fetch -> ((*2) <$> fetch "B1")
 sprsh1 _    = Nothing
 
 sprsh2 :: Tasks Monad String Integer
-sprsh2 "B1" = Just $ \fetch -> do c1 <- fetch "C1"
-                                  if c1 == 1 then fetch "B2" else fetch "A2"
-sprsh2 "B2" = Just $ \fetch -> do c1 <- fetch "C1"
-                                  if c1 == 1 then fetch "A1" else fetch "B1"
+sprsh2 "B1" = Just $ Task $ \fetch -> do c1 <- fetch "C1"
+                                         if c1 == 1 then fetch "B2" else fetch "A2"
+sprsh2 "B2" = Just $ Task $ \fetch -> do c1 <- fetch "C1"
+                                         if c1 == 1 then fetch "A1" else fetch "B1"
 sprsh2 _ = Nothing
 
 sprsh3 :: Tasks Alternative String Integer
-sprsh3 "B1" = Just $ \fetch -> (+) <$> fetch "A1" <*> (pure 1 <|> pure 2)
+sprsh3 "B1" = Just $ Task $ \fetch -> (+) <$> fetch "A1" <*> (pure 1 <|> pure 2)
 sprsh3 _    = Nothing
 
 sprsh4 :: Tasks MonadFail String Integer
-sprsh4 "B1" = Just $ \fetch -> do
+sprsh4 "B1" = Just $ Task $ \fetch -> do
     a1 <- fetch "A1"
     a2 <- fetch "A2"
     if a2 == 0 then fail "division by 0" else return (a1 `div` a2)
@@ -94,11 +94,11 @@ sprsh4 _ = Nothing
 
 indirect :: Tasks Monad String Integer
 indirect key | key /= "B1" = Nothing
-             | otherwise   = Just $ \fetch -> do c1 <- fetch "C1"
-                                                 fetch ("A" ++ show c1)
+             | otherwise   = Just $ Task $ \fetch -> do c1 <- fetch "C1"
+                                                        fetch ("A" ++ show c1)
 
 staticIF :: Bool -> Tasks Applicative String Int
-staticIF b "B1" = Just $ \fetch ->
+staticIF b "B1" = Just $ Task $ \fetch ->
     if b then fetch "A1" else (+) <$> fetch "A2" <*> fetch "A3"
 staticIF _ _    = Nothing
 
@@ -107,9 +107,9 @@ staticIF _ _    = Nothing
 data Key = A Integer | B Integer | D Integer Integer
 
 editDistance :: Tasks Monad Key Integer
-editDistance (D i 0) = Just $ const $ pure i
-editDistance (D 0 j) = Just $ const $ pure j
-editDistance (D i j) = Just $ \fetch -> do
+editDistance (D i 0) = Just $ Task $ const $ pure i
+editDistance (D 0 j) = Just $ Task $ const $ pure j
+editDistance (D i j) = Just $ Task $ \fetch -> do
     ai <- fetch (A i)
     bj <- fetch (B j)
     if ai == bj
