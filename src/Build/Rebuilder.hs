@@ -3,7 +3,7 @@
 -- | Rebuilders take care of deciding whether a key needs to be rebuild and
 -- running the corresponding task if need be.
 module Build.Rebuilder (
-    Rebuilder, perpetualRebuilder,
+    Rebuilder, unliftRebuilder, perpetualRebuilder,
     modTimeRebuilder, Time, MakeInfo,
     approximationRebuilder, DependencyApproximation (..), ApproximationInfo,
     vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
@@ -25,12 +25,13 @@ import Build.Trace
 -- rebuilding a key if it is up to date.
 type Rebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
 
+-- | Get an applicative rebuilder out of a monadic one.
+unliftRebuilder :: Rebuilder Monad i k v -> Rebuilder Applicative i k v
+unliftRebuilder rebuilder key value task = rebuilder key value $ Task $ run task
+
 -- | Always rebuilds the key.
 perpetualRebuilder :: Rebuilder Monad () k v
-perpetualRebuilder _key _value task = liftTask task
-
-liftTask :: Task Monad k v -> Task (MonadState i) k v
-liftTask task = Task $ \fetch -> run task fetch
+perpetualRebuilder _key _value task = Task $ run task
 
 ------------------------------------- Make -------------------------------------
 type Time = Integer
