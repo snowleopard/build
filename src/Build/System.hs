@@ -62,8 +62,8 @@ excel = reordering approximationRebuilder
 
 -- | A model of Shake: a monadic build system that uses verifying traces to
 -- check if a key is up to date.
-shake :: (Ord k, Hashable v) => Build Monad (Step, ST k v) k v
-shake = recursive stRebuilder
+shake :: (Ord k, Hashable v) => Build Monad (VT k v) k v
+shake = recursive vtRebuilder
 
 -- | A model of Bazel: a monadic build system that uses constructive traces
 -- to check if a key is up to date as well as for caching build results. Note

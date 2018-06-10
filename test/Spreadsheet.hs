@@ -10,7 +10,7 @@ import Text.Read
 
 -- | A 'Cell' is described by a pair integers: 'row' and 'column'. We provide
 -- @IsString@ instance for convenience, so @"A8"@ corresponds to @Cell 8 0@.
-data Cell = Cell { row :: Int, column :: Int } deriving (Eq, Ord, Show)
+data Cell = Cell { row :: Int, column :: Int } deriving (Eq, Ord)
 
 -- | Get the name of a 'Cell', e.g. @name (Cell 8 0) == "A8"@.
 name :: Cell -> String
@@ -27,6 +27,9 @@ instance IsString Cell where
         _ -> fail
       where
         fail = error $ "Cannot parse cell name " ++ string
+
+instance Show Cell where
+    show = name
 
 instance Hashable Cell where
     hash (Cell row column) = Cell <$> hash row <*> hash column

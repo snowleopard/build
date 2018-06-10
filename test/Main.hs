@@ -6,9 +6,9 @@ import Data.Maybe
 import System.Exit
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import Build
-import Build.Rebuilder
 import Build.Store
 import Build.System
 import Build.Task
@@ -29,11 +29,11 @@ sequentialMultiBuildA build task outputs store = case outputs of
     []     -> store
     (k:ks) -> sequentialMultiBuildA build task ks (build task k store)
 
+inputCells :: [Cell]
+inputCells = [ "A1", "A2", "A3" ]
+
 inputs :: i -> Store i Cell Int
-inputs i = initialise i $ \cell -> fromMaybe 0 $ lookup cell
-    [ ("A1", 1)
-    , ("A2", 2)
-    , ("A3", 3) ]
+inputs i = initialise i $ \cell -> fromMaybe 0 $ lookup cell $ zip inputCells [1..]
 
 spreadsheet :: Spreadsheet
 spreadsheet cell = case name cell of
@@ -70,22 +70,26 @@ tasks = spreadsheetTask spreadsheet
 tasksA :: Tasks Applicative Cell Int
 tasksA = spreadsheetTaskA acyclicSpreadsheet
 
-test :: String -> Build Monad i Cell Int -> i -> IO Bool
+test :: Show i => String -> Build Monad i Cell Int -> i -> IO Bool
 test name build i = do
     let store   = inputs i
         result  = sequentialMultiBuild build tasks targets store
         correct = all (correctBuild tasks store result) targets
+        info    = show (getInfo result)
+    unless correct $ putStrLn $ "============\n" ++ info ++ "\n============"
     putStr $ name ++ " is "
     case (trim name, correct) of
         ("dumb", False) -> do putStr "incorrect, which is [OK]\n"; return True
         (_     , False) -> do putStr "incorrect: [FAIL]\n"       ; return False
         (_     , True ) -> do putStr "correct: [OK]\n"           ; return True
 
-testA :: String -> Build Applicative i Cell Int -> i -> IO Bool
+testA :: Show i => String -> Build Applicative i Cell Int -> i -> IO Bool
 testA name build i = do
     let store   = inputs i
         result  = sequentialMultiBuildA build tasksA targets store
         correct = all (correctBuild tasks store result) targets
+        info    = show (getInfo result)
+    unless correct $ putStrLn $ "============\n" ++ info ++ "\n============"
     putStrLn $ name ++ " is " ++ bool "incorrect: [FAIL]" "correct: [OK]" correct
     return correct
 
@@ -96,7 +100,7 @@ testSuite = and <$> sequence
     , test  "memo      " memo       ()
     , testA "make      " make       (Map.empty, 0)
     , testA "ninja     " ninja      mempty
-    , test  "excel     " excel      ((const True, const Unknown), mempty)
+    , test  "excel     " excel      ((Set.fromList inputCells, Map.empty), mempty)
     , test  "shake     " shake      mempty
     , test  "bazel     " bazel      mempty
     , test  "cloudShake" cloudShake mempty

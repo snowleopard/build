@@ -37,7 +37,7 @@ data Trace k h r = Trace
 
 -- | An abstract data type for a set of verifying traces equipped with 'recordVT',
 -- 'verifyVT' and a 'Monoid' instance.
-newtype VT k v = VT [Trace k (Hash v) (Hash v)] deriving (Monoid, Semigroup)
+newtype VT k v = VT [Trace k (Hash v) (Hash v)] deriving (Monoid, Semigroup, Show)
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values by using @fetchHash@.
@@ -107,7 +107,7 @@ instance Hashable a => Hashable (Tree a) where
 -- | Invariant: if a DCT contains a trace for a key @k@, then it must also
 -- contain traces for each of its non-input dependencies. Input keys cannot
 -- appear in a DCT because they are never built.
-newtype DCT k v = DCT [Trace k (Hash (Tree (Hash v))) v] deriving (Monoid, Semigroup)
+newtype DCT k v = DCT [Trace k (Hash (Tree (Hash v))) v] deriving (Monoid, Semigroup, Show)
 
 -- | Extract the tree of input dependencies of a given key.
 inputTree :: Eq k => DCT k v -> k -> Tree k

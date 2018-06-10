@@ -5,14 +5,16 @@
 module Build.Rebuilder (
     Rebuilder, unliftRebuilder, perpetualRebuilder,
     modTimeRebuilder, Time, MakeInfo,
-    approximationRebuilder, DependencyApproximation (..), ApproximationInfo,
+    approximationRebuilder, DependencyApproximation, ApproximationInfo,
     vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
     ) where
 
 import Control.Monad.State
 import Data.Map (Map)
+import Data.Set (Set)
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import Build.Store
 import Build.Task
@@ -52,21 +54,26 @@ modTimeRebuilder key value task = Task $ \fetch -> do
         run task fetch
 
 --------------------------- Dependency approximation ---------------------------
-data DependencyApproximation k = SubsetOf [k] | Unknown
+-- | If there is an entry for a key, it is an conservative approximation of its
+-- dependencies. Otherwise, we have no reasonable approximation and assume the
+-- key is always dirty (e.g. it uses an INDIRECT reference).
+type DependencyApproximation k = Map k [k]
 
-type ApproximationInfo k = (k -> Bool, k -> DependencyApproximation k)
+-- | A set of dirty keys and information about dependencies.
+type ApproximationInfo k = (Set k, DependencyApproximation k)
 
 -- | This rebuilders uses approximate dependencies to decide whether a key
 -- needs to be rebuilt. Used by Excel.
 approximationRebuilder :: Ord k => Rebuilder Monad (ApproximationInfo k) k v
 approximationRebuilder key value task = Task $ \fetch -> do
     (isDirty, deps) <- get
-    let dirty = isDirty key || case deps key of SubsetOf ks -> any isDirty ks
-                                                Unknown     -> True
+    let dirty = key `Set.member` isDirty || case Map.lookup key deps of
+                                                Nothing -> True
+                                                Just ks -> any (`Set.member` isDirty) ks
     if not dirty
     then return value
     else do
-        put (\k -> k == key || isDirty k, deps)
+        put (Set.insert key isDirty, deps)
         run task fetch
 
 ------------------------------- Verifying traces -------------------------------

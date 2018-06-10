@@ -4,7 +4,6 @@ import Build.Task
 import Control.Applicative
 import Control.Monad.Fail (MonadFail)
 
-
 -- | A useful fetch for experimenting with build systems in interactive GHC.
 fetchIO :: (Show k, Read v) => k -> IO v
 fetchIO k = do putStr (show k ++ ": "); read <$> getLine
