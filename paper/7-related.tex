@@ -157,6 +157,7 @@ type Task c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
 Which looks tantalisingly close to the profunctor optics definition by
 \cite{pickering2017profunctor}:
 
+%TODO: Add a reference to the paper about forall f. c f => (k -> f v) -> f a
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Optic p a b s t = p a b -> p s t
 \end{minted}
