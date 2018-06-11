@@ -72,10 +72,12 @@ sprsh1 "B2" = Just $ Task $ \fetch -> ((*2) <$> fetch "B1")
 sprsh1 _    = Nothing
 
 sprsh2 :: Tasks Monad String Integer
-sprsh2 "B1" = Just $ Task $ \fetch -> do c1 <- fetch "C1"
-                                         if c1 == 1 then fetch "B2" else fetch "A2"
-sprsh2 "B2" = Just $ Task $ \fetch -> do c1 <- fetch "C1"
-                                         if c1 == 1 then fetch "A1" else fetch "B1"
+sprsh2 "B1" = Just $ Task $ \fetch -> do
+    c1 <- fetch "C1"
+    if c1 == 1 then fetch "B2" else fetch "A2"
+sprsh2 "B2" = Just $ Task $ \fetch -> do
+    c1 <- fetch "C1"
+    if c1 == 1 then fetch "A1" else fetch "B1"
 sprsh2 _ = Nothing
 
 sprsh3 :: Tasks Alternative String Integer

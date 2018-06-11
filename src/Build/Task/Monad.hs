@@ -3,7 +3,9 @@
 -- | Monadic tasks, as used by Excel, Shake and other build systems.
 -- Dependencies of monadic tasks can only be discovered dynamically, i.e. during
 -- their execution.
-module Build.Task.Monad (track, trackM, isInput, compute, partial, exceptional) where
+module Build.Task.Monad (
+    track, trackM, isInput, computePure, compute, partial, exceptional
+    ) where
 
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
@@ -12,6 +14,7 @@ import Control.Monad.Writer
 import Data.Functor.Identity
 import Data.Maybe
 
+import Build.Store
 import Build.Task
 
 -- | Execute a monadic task on a pure store @k -> v@, tracking the dependencies.
@@ -31,8 +34,12 @@ isInput :: Tasks Monad k v -> k -> Bool
 isInput tasks = isNothing . tasks
 
 -- | Run a task with a pure lookup function.
-compute :: Task Monad k v -> (k -> v) -> v
-compute task store = runIdentity $ run task (Identity . store)
+computePure :: Task Monad k v -> (k -> v) -> v
+computePure task store = runIdentity $ run task (Identity . store)
+
+-- | Run a task in a given store.
+compute :: Task Monad k v -> Store i k v -> v
+compute task store = runIdentity $ run task (\k -> Identity (getValue k store))
 
 -- | Convert a task with a total lookup function @k -> m v@ into a task with a
 -- partial lookup function @k -> m (Maybe v)@. This essentially lifts the task

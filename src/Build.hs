@@ -29,7 +29,7 @@ correctBuild tasks store result = all correct . reachable deps
     deps = maybe [] (\task -> snd $ track task (flip getValue result)) . tasks
     correct k = case tasks k of
         Nothing   -> getValue k result == getValue k store
-        Just task -> getValue k result == compute task (flip getValue result)
+        Just task -> getValue k result == compute task result
 
 -- | Given a @build@ and @tasks@, check that @build@ produces a correct result
 -- for any initial store and a target key.
