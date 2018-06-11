@@ -461,15 +461,14 @@ the actual work}. Here is the code:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-dependencies :: Task Applicative k v -> k -> [k]
-dependencies task key = case task (\k -> Const [k]) key of
-                            Nothing         -> []
-                            Just (Const ks) -> ks
+dependencies :: Task Applicative k v -> [k]
+dependencies task = getConst $ run task (\k -> Const [k])
 \end{minted}
 \vspace{1mm}
 
+\noindent
 Here \hs{Const} is a standard Haskell type defined in Fig.~\ref{fig-types}. We
-instantiate \hs{f} to \hs{Const}~\hs{[@@k]}.  So a value of type \hs{f}~\hs{v},
+instantiate \hs{f} to \hs{Const}~\hs{[@@k]}. So a value of type \hs{f}~\hs{v},
 or in this case \hs{Const}~\hs{[@@k]}~\hs{v}, contains no value \hs{v}, but does
 contain a list of keys of type \hs{[@@k]} which we use to record dependencies.
 The \hs{fetch} callback that we pass to \hs{task} records a single dependency;
@@ -480,11 +479,11 @@ accumulate a list of the task's dependencies -- and that is just what
 \hs{dependencies} does:
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ dependencies sprsh1 "A1"
+@\ghci@ dependencies $ fromJust $ sprsh1 "A1"
 [@@]
 \end{minted}
 \begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ dependencies sprsh1 "B1"
+@\ghci@ dependencies $ fromJust $ sprsh1 "B1"
 ["A1", "A2"]
 \end{minted}
 \vspace{1mm}
@@ -500,12 +499,12 @@ see~\cite{free-applicatives}, but it is cool.
 So much for applicative tasks. What about monadic tasks with dynamic
 dependencies? As we have seen in~\S\ref{sec-background-shake}, dynamic
 dependencies need to be tracked too. This cannot be done statically; notice that
-the application of the function \hs{dependencies} to a \hs{Task}~\hs{Monad} will
-not typecheck. We need to run a monadic task on a store with concrete values,
-which will determine the discovered dependencies. Accordingly, we introduce
-the function \hs{track}: a combination of \hs{compute} and \hs{dependencies}
-that computes both the resulting value and the list of its dependencies in an
-arbitrary monadic context~\hs{m}:
+we cannot apply the function \hs{dependencies} to a \hs{Task}~\hs{Monad} because
+the \hs{Const} functor has no \hs{Monad} instance. We need to run a monadic task
+on a store with concrete values, which will determine the discovered
+dependencies. Accordingly, we introduce the function \hs{track}: a combination
+of \hs{compute} and \hs{dependencies} that computes both the resulting value and
+the list of its dependencies in an arbitrary monadic context~\hs{m}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -513,8 +512,8 @@ import Control.Monad.Writer
 \end{minted}
 \vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-track :: Monad m => Task Monad k v -> (k -> m v) -> k -> Maybe (m (v, [k]))
-track task fetch = fmap runWriterT . task trackingFetch
+track :: Monad m => Task Monad k v -> (k -> m v) -> m (v, [k])
+track task fetch = runWriterT $ run task trackingFetch
   where
     trackingFetch :: k -> WriterT [k] m v
     trackingFetch k = tell [k] >> lift (fetch k)
@@ -528,21 +527,20 @@ to record additional information -- a list of keys of type \hs{[@@k]} -- when
 computing a task in an arbitrary monad~\hs{m}. We substitute the given \hs{fetch}
 with a \hs{trackingFetch} that, in addition to fetching a value, tracks the
 corresponding key. The \hs{task} returns the value of type
-\hs{Maybe}~\hs{(@@WriterT}~\hs{[@@k]}~\hs{m}~\hs{v)}, which we unwrap by applying
-\hs{runWriterT} to the contents of \hs{Maybe}.
-Below we give an example of \hs{track}ing monadic tasks when \hs{m}~\hs{=}~\hs{IO}.
+\hs{WriterT}~\hs{[@@k]}~\hs{m}~\hs{v}, which we unwrap by \hs{runWriterT}. Here
+is an example of \hs{track}ing monadic tasks when \hs{m}~\hs{=}~\hs{IO}.
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 @\ghci@ fetchIO k = do putStr (k ++ ": "); read <$> getLine
-@\ghci@ fromJust $ track sprsh2 fetchIO "B1"
+@\ghci@ track (fromJust $ sprsh2 "B1") fetchIO
 C1: 1
 B2: 10
 (10,["C1","B2"])
 \end{minted}
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ fromJust $ track sprsh2 fetchIO "B1"
+@\ghci@ track (fromJust $ sprsh2 "B1") fetchIO
 C1: 2
 A2: 20
 (20,["C1","A2"])
