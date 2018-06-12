@@ -19,48 +19,59 @@ Setting aside the explicit manipulation of file modification times, which in
 reality is taken care of by the file system, the function \hs{make} captures
 the essence of \Make in a clear and precise manner.
 
-% Type signature for process. Not sure we really want this, as it's quite long
-% and is repeated in topological.
-% process :: k -> [k] -> State@\,@(Store@\,@(MakeInfo@\,\blk{k}@)@\,\blk{k}@@\,\blk{v}@)@\,\blk{v}@ -> State@\,@(Store@\,@(MakeInfo@\,\blk{k}@)@\,\blk{k}@@\,\blk{v}@)@\,@(@@)
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
--- Persistent build information
+-- Build information: current time and file modification times
 type Time       = Integer
-type MakeInfo k = (k -> Time, Time)
+type MakeInfo k = (Time, Map k Time)
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Make build system
-make :: Eq k => Build Applicative (MakeInfo k) k v
-make = topological process
+make :: Ord k => Build Applicative (MakeInfo k) k v
+make = topological modTimeRebuilder
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Topological scheduler
+topological :: Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
+topological rebuilder tasks key = execState $ forM_ chain $ \k -> case tasks k of
+    Nothing   -> return ()
+    Just task -> do
+        value <- gets (getValue k)
+        let newTask :: Task (MonadState i) k v
+            newTask = rebuilder k value task
+            newFetch :: k -> StateT i (State (Store i k v)) v
+            newFetch = lift . gets . getValue
+        info <- gets getInfo
+        (newValue, newInfo) <- runStateT (run newTask newFetch) info
+        modify $ putInfo newInfo . putValue k newValue
   where
-    process key deps act = do
-        (modTime, now) <- gets getInfo
-        let dirty = or [ modTime dep > modTime key | dep <- deps ]
-        when dirty $ do
-            v <- act
-            let newModTime k = if k == key then now else modTime k
-            modify $ putInfo (newModTime, now + 1) . putValue key v
+    deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
+    chain  = case topSort (reachable deps key) of
+        Nothing -> error "Cannot build tasks with cyclic dependencies"
+        Just xs -> xs
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Standard graph algorithms (implementation omitted)
-reachable :: Eq a => (a -> [a]) ->  a  -> [a]
-topSort   :: Eq a => (a -> [a]) -> [a] -> [a]
+reachable :: Ord k => (k -> [k]) -> k -> Graph k
+topSort   :: Ord k => Graph k -> Maybe [k]
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Topological dependency strategy
-topological :: Eq k => (k -> [k] -> State (Store i k v) v -> State (Store i k v) ())
-            -> Build Applicative i k v
-topological process task key = execState $ forM_ chain $ \k -> do
-    let fetch k = gets (getValue k)
-    case task fetch k of
-        Nothing  -> return ()
-        Just act -> process k (deps k) act
-  where
-    deps  = dependencies task -- dependencies is defined in @\S\ref{secdeps}@
-    chain = topSort deps (reachable deps key)
+-- A task rebuilder based on file modification times
+modTimeRebuilder :: Ord k => Rebuilder Applicative (MakeInfo k) k v
+modTimeRebuilder key value task = Task $ \fetch -> do
+    (now, modTime) <- get
+    let dirty = case Map.lookup key modTime of
+            Nothing -> True
+            time -> any (\d -> Map.lookup d modTime > time) (dependencies task)
+    if not dirty
+    then return value
+    else do
+        put (now + 1, Map.insert key now modTime)
+        run task fetch
 \end{minted}
 \vspace{-2mm}
 \caption{An implementation of \Make using our framework.}\label{fig-make-implementation}
@@ -100,53 +111,74 @@ the same \hs{topological} approach will also inherit the same restriction.
 We define \Excel, with its reordering dependency strategy, in  Fig.~\ref{fig-excel-implementation}.
 \Excel's persistently stored information is a triple: (i) the dirty bit
 function \hs{k}~\hs{->}~\hs{Bool}, (ii) an approximation of key dependencies
-\hs{k}~\hs{->}~\hs{DependencyApproximation}~\hs{k} that \Excel uses to handle
+\hs{k}~\hs{->}~\hs{ApproximateDependencies}~\hs{k} that \Excel uses to handle
 dynamic dependencies, and (iii) the calculation chain \hs{[@@k]} recorded in the
 previous build (\S\ref{sec-background-excel}).
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
--- Approximation of task dependencies
-data DependencyApproximation k = SubsetOf [k] | Unknown
+-- Approximation of task dependencies: a map of known upper bounds of dependencies
+type ApproximateDependencies k = Map k [k]
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Persistent build information
+-- Build information: dirty keys, dependency approximation, and calculation chain
 type CalcChain k = [k]
-type ExcelInfo k = ((k -> Bool, k -> DependencyApproximation k), CalcChain k)
-\end{minted}
-\vspace{1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- Result of speculative task execution
-data Result k v = MissingDependency k | Result v [k]
-\end{minted}
-\vspace{1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- Reordering dependency strategy (implementation omitted, 21 lines)
-reordering :: Ord k
-    => (k -> State (Store i k v) (Result k v) -> State (Store i k v) (Maybe (Result k v)))
-    -> Build Monad (i, CalcChain k) k v
+type ExcelInfo k = ((Set k, ApproximateDependencies k), CalcChain k)
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Excel build system
 excel :: Ord k => Build Monad (ExcelInfo k) k v
-excel = reordering process
+excel = restarting approximateRebuilder
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Restarting scheduler
+restarting :: Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
+restarting rebuilder tasks key = execState $ do
+    chain    <- gets (snd . getInfo)
+    newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
+    modify . mapInfo $ \(i, _) -> (i, newChain)
   where
-    process key act = do
-        (dirty, deps) <- gets getInfo
-        let rebuild = dirty key || case deps key of SubsetOf ks -> any dirty ks
-                                                    Unknown     -> True
-        if not rebuild
-            then return Nothing
-            else do
-                result <- act
-                case result of
-                    MissingDependency _ -> return ()
-                    Result v dynamicDependencies -> do
-                        let newDirty k = if k == key then True else dirty k
-                        modify $ putInfo (newDirty, deps) . putValue key v
-                return (Just result)
+    go :: Set k -> Chain k -> State (Store (i, Chain k) k v) (Chain k)
+    go _    []     = return []
+    go done (k:ks) = case tasks k of
+        Nothing -> (k :) <$> go (Set.insert k done) ks
+        Just task -> do
+            store <- get
+            let value = getValue k store
+                newTask :: Task (MonadState i) k (Either k v)
+                newTask = try $ rebuilder k value task -- `try' is defined below
+                newFetch :: k -> State i (Either k v)
+                newFetch k | k `Set.member` done = return $ Right (getValue k store)
+                           | otherwise           = return $ Left k
+            case runState (run newTask newFetch) (fst $ getInfo store) of
+                (Left dep, _) -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
+                (Right newValue, newInfo) -> do
+                    modify $ putInfo (newInfo, []) . updateValue k value newValue
+                    (k :) <$> go (Set.insert k done) ks
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Convert a total task into a task accepting a partial fetch callback
+try :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
+try task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Rebuilder based on approximate dependencies
+approximateRebuilder :: Ord k => Rebuilder Monad (Set k, ApproximateDependencies k) k v
+approximateRebuilder key value task = Task $ \fetch -> do
+    (isDirty, deps) <- get
+    let dirty = key `Set.member` isDirty || case Map.lookup key deps of
+                                                Nothing -> True
+                                                Just ks -> any (`Set.member` isDirty) ks
+    if not dirty
+    then return value
+    else do
+        put (Set.insert key isDirty, deps)
+        run task fetch
 \end{minted}
 \vspace{-2mm}
 \caption{An implementation of \Excel using our framework.}\label{fig-excel-implementation}
