@@ -98,7 +98,7 @@ testSuite = and <$> sequence
     [ test  "dumb      " dumb       ()
     , test  "busy      " busy       ()
     , test  "memo      " memo       ()
-    , testA "make      " make       (Map.empty, 0)
+    , testA "make      " make       (0, Map.empty)
     , testA "ninja     " ninja      mempty
     , test  "excel     " excel      ((Set.fromList inputCells, Map.empty), mempty)
     , test  "shake     " shake      mempty

@@ -5,7 +5,7 @@
 module Build.Rebuilder (
     Rebuilder, unliftRebuilder, perpetualRebuilder,
     modTimeRebuilder, Time, MakeInfo,
-    approximationRebuilder, DependencyApproximation, ApproximationInfo,
+    approximateRebuilder, ApproximateDependencies, ApproximationInfo,
     vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
     ) where
 
@@ -37,35 +37,35 @@ perpetualRebuilder _key _value task = Task $ run task
 
 ------------------------------------- Make -------------------------------------
 type Time = Integer
-type MakeInfo k = (Map k Time, Time)
+type MakeInfo k = (Time, Map k Time)
 
 -- | This rebuilder uses modification time to decide whether a key is dirty and
 -- needs to be rebuilt. Used by Make.
 modTimeRebuilder :: Ord k => Rebuilder Applicative (MakeInfo k) k v
 modTimeRebuilder key value task = Task $ \fetch -> do
-    (modTime, now) <- get
+    (now, modTime) <- get
     let dirty = case Map.lookup key modTime of
             Nothing -> True
             time -> any (\d -> Map.lookup d modTime > time) (dependencies task)
     if not dirty
     then return value
     else do
-        put (Map.insert key now modTime, now + 1)
+        put (now + 1, Map.insert key now modTime)
         run task fetch
 
---------------------------- Dependency approximation ---------------------------
+--------------------------- Approximate dependencies ---------------------------
 -- | If there is an entry for a key, it is an conservative approximation of its
 -- dependencies. Otherwise, we have no reasonable approximation and assume the
 -- key is always dirty (e.g. it uses an INDIRECT reference).
-type DependencyApproximation k = Map k [k]
+type ApproximateDependencies k = Map k [k]
 
 -- | A set of dirty keys and information about dependencies.
-type ApproximationInfo k = (Set k, DependencyApproximation k)
+type ApproximationInfo k = (Set k, ApproximateDependencies k)
 
 -- | This rebuilders uses approximate dependencies to decide whether a key
 -- needs to be rebuilt. Used by Excel.
-approximationRebuilder :: Ord k => Rebuilder Monad (ApproximationInfo k) k v
-approximationRebuilder key value task = Task $ \fetch -> do
+approximateRebuilder :: Ord k => Rebuilder Monad (ApproximationInfo k) k v
+approximateRebuilder key value task = Task $ \fetch -> do
     (isDirty, deps) <- get
     let dirty = key `Set.member` isDirty || case Map.lookup key deps of
                                                 Nothing -> True

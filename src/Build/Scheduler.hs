@@ -3,8 +3,8 @@
 -- | Build schedulers execute task rebuilders in the right order.
 module Build.Scheduler (
     topological,
-    reordering, Chain,
-    restarting,
+    restarting, Chain,
+    restartingB,
     recursive,
     independent
     ) where
@@ -15,13 +15,13 @@ import Data.Set (Set)
 
 import Build
 import Build.Task
+import Build.Task.Applicative
 import Build.Task.Monad
 import Build.Store
 import Build.Rebuilder
 import Build.Utilities
 
 import qualified Data.Set               as Set
-import qualified Build.Task.Applicative as A
 
 -- | Update the value of a key in the store. The function takes both the current
 -- value (the first parameter of type @v@) and the new value (the second
@@ -35,21 +35,21 @@ updateValue key _value newValue = putValue key newValue
 -- | This scheduler constructs the dependency graph of the target key by
 -- extracting all (static) dependencies upfront, and then traversing the graph
 -- in the topological order, rebuilding keys using the supplied rebuilder.
-topological :: Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
-topological rebuilder tasks key = execState $ forM_ chain $ \k ->
-    case tasks k of
-        Nothing   -> return ()
-        Just task -> do
-            value <- gets (getValue k)
-            let newTask = rebuilder k value task
-                newFetch :: k -> StateT i (State (Store i k v)) v
-                newFetch = lift . gets . getValue
-            info <- gets getInfo
-            (newValue, newInfo) <- runStateT (run newTask newFetch) info
-            modify $ putInfo newInfo . updateValue k value newValue
+topological :: forall i k v. Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
+topological rebuilder tasks key = execState $ forM_ chain $ \k -> case tasks k of
+    Nothing   -> return ()
+    Just task -> do
+        value <- gets (getValue k)
+        let newTask :: Task (MonadState i) k v
+            newTask = rebuilder k value task
+            newFetch :: k -> StateT i (State (Store i k v)) v
+            newFetch = lift . gets . getValue
+        info <- gets getInfo
+        (newValue, newInfo) <- runStateT (run newTask newFetch) info
+        modify $ putInfo newInfo . updateValue k value newValue
   where
-    deps  = maybe [] A.dependencies . tasks
-    chain = case topSort (graph deps key) of
+    deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
+    chain  = case topSort (graph deps key) of
         Nothing -> error "Cannot build tasks with cyclic dependencies"
         Just xs -> xs
 
@@ -72,9 +72,9 @@ type Chain k = [k]
 -- changed and a new dependency is still dirty, the corresponding build task is
 -- abandoned and the key is moved at the end of the calculation chain, so it can
 -- be restarted when all its dependencies are up to date.
-reordering :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
-reordering rebuilder tasks key = execState $ do
-    chain    <- snd . getInfo <$> get
+restarting :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
+restarting rebuilder tasks key = execState $ do
+    chain    <- gets (snd . getInfo)
     newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
     modify . mapInfo $ \(i, _) -> (i, newChain)
   where
@@ -85,12 +85,12 @@ reordering rebuilder tasks key = execState $ do
         Just task -> do
             store <- get
             let value = getValue k store
-                newTask :: Task (MonadState i) k v
-                newTask = rebuilder k value task
+                newTask :: Task (MonadState i) k (Either k v)
+                newTask = try $ rebuilder k value task
                 newFetch :: k -> State i (Either k v)
                 newFetch k | k `Set.member` done = return $ Right (getValue k store)
                            | otherwise           = return $ Left k
-            case runState (run (try newTask) newFetch) (fst $ getInfo store) of
+            case runState (run newTask newFetch) (fst $ getInfo store) of
                 (Left dep, _) -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
                 (Right newValue, newInfo) -> do
                     modify $ putInfo (newInfo, []) . updateValue k value newValue
@@ -125,8 +125,8 @@ type IsDirty i k v = k -> Store i k v -> Bool
 --    case we add the dirty dependency to the queue, listing K as blocked by it.
 -- 2. The build succeeds, in which case we add all keys that were previously
 --    blocked by K to the queue.
-restarting :: forall i k v. Eq k => IsDirty i k v -> Rebuilder Monad i k v -> Build Monad i k v
-restarting isDirty rebuilder tasks key = execState $ go (enqueue key [] mempty)
+restartingB :: forall i k v. Eq k => IsDirty i k v -> Rebuilder Monad i k v -> Build Monad i k v
+restartingB isDirty rebuilder tasks key = execState $ go (enqueue key [] mempty)
   where
     go :: Queue k -> State (Store i k v) ()
     go queue = case dequeue queue of
@@ -137,12 +137,12 @@ restarting isDirty rebuilder tasks key = execState $ go (enqueue key [] mempty)
                 store <- get
                 let value = getValue k store
                     upToDate k = isInput tasks k || not (isDirty k store)
-                    newTask :: Task (MonadState i) k v
-                    newTask = rebuilder k value task
+                    newTask :: Task (MonadState i) k (Either k v)
+                    newTask = try $ rebuilder k value task
                     newFetch :: k -> State i (Either k v)
                     newFetch k | upToDate k = return (Right (getValue k store))
                                | otherwise  = return (Left k)
-                case runState (run (try newTask) newFetch) (getInfo store) of
+                case runState (run newTask newFetch) (getInfo store) of
                     (Left dirtyDependency, _) -> go (enqueue dirtyDependency (k:bs) q)
                     (Right newValue, newInfo) -> do
                         modify $ putInfo newInfo . updateValue k value newValue

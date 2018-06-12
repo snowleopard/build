@@ -45,7 +45,7 @@ memo = recursive perpetualRebuilder
 
 -- | A model of Make: an applicative build system that uses file modification
 -- times to check if a key is up to date.
-make :: forall k v. Ord k => Build Applicative (MakeInfo k) k v
+make :: Ord k => Build Applicative (MakeInfo k) k v
 make = topological modTimeRebuilder
 
 -- | A model of Ninja: an applicative build system that uses verifying traces
@@ -58,7 +58,7 @@ type ExcelInfo k = (ApproximationInfo k, Chain k)
 -- | A model of Excel: a monadic build system that stores the calculation chain
 -- from the previuos build and approximate dependencies.
 excel :: Ord k => Build Monad (ExcelInfo k) k v
-excel = reordering approximationRebuilder
+excel = restarting approximateRebuilder
 
 -- | A model of Shake: a monadic build system that uses verifying traces to
 -- check if a key is up to date.
@@ -70,7 +70,7 @@ shake = recursive vtRebuilder
 -- that Bazel currently does not allow users to write monadic build rules: only
 -- built-in rules have access to dynamic dependencies.
 bazel :: (Ord k, Hashable v) => Build Monad (CT k v) k v
-bazel = restarting isDirtyCT ctRebuilder
+bazel = restartingB isDirtyCT ctRebuilder
 
 -- | A model of Cloud Shake: a monadic build system that uses constructive
 -- traces to check if a key is up to date as well as for caching build results.
