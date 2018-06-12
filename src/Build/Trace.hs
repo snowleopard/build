@@ -152,6 +152,10 @@ constructDCT key fetchHash dct@(DCT ts) = do
             return $ if sameInputs then Just result else Nothing
 
 ----------------- Step traces: a refinement of verifying traces ----------------
+-- Step traces are an optimised version of the direct implementation of
+-- verifying traces (as given by the 'VT' datatype), which is used by Shake.
+-- They support the same high-level interface that allows to verify if a key is
+-- up to date ('verifyST') as well as record new traces ('recordST').
 
 newtype Step = Step Int deriving (Enum, Eq, Ord, Show)
 instance Semigroup Step where Step a <> Step b = Step $ a + b
