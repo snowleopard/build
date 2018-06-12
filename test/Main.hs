@@ -75,8 +75,7 @@ test name build i = do
     let store   = inputs i
         result  = sequentialMultiBuild build tasks targets store
         correct = all (correctBuild tasks store result) targets
-        info    = show (getInfo result)
-    unless correct $ putStrLn $ "============\n" ++ info ++ "\n============"
+    when False $ putStrLn $ "========\n" ++ show (getInfo result) ++ "\n========"
     putStr $ name ++ " is "
     case (trim name, correct) of
         ("dumb", False) -> do putStr "incorrect, which is [OK]\n"; return True
@@ -88,8 +87,7 @@ testA name build i = do
     let store   = inputs i
         result  = sequentialMultiBuildA build tasksA targets store
         correct = all (correctBuild tasks store result) targets
-        info    = show (getInfo result)
-    unless correct $ putStrLn $ "============\n" ++ info ++ "\n============"
+    when False $ putStrLn $ "========\n" ++ show (getInfo result) ++ "\n========"
     putStrLn $ name ++ " is " ++ bool "incorrect: [FAIL]" "correct: [OK]" correct
     return correct
 
