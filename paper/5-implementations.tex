@@ -117,12 +117,12 @@ previous build (\S\ref{sec-background-excel}).
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
--- Approximation of task dependencies: a map of known upper bounds of dependencies
+-- Approximate task dependencies: a map of known upper bounds of dependencies
 type ApproximateDependencies k = Map k [k]
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Build information: dirty keys, dependency approximation, and calculation chain
+-- Build information: dirty keys, approximate dependencies, and calculation chain
 type CalcChain k = [k]
 type ExcelInfo k = ((Set k, ApproximateDependencies k), CalcChain k)
 \end{minted}
@@ -234,46 +234,48 @@ The \Shake approach for dependency tracking involves recording traces and verify
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
--- Determine whether a trace is relevant to the current state
-traceMatch :: (Monad m, Eq k)
-    => (k -> Hash v -> m Bool) -> k -> [Trace k v] -> m [Hash v]
-traceMatch check key ts = mapMaybeM f ts
-    where f (Trace k dkv v) = do
-                b <- return (key == k) &&^ allM (uncurry check) dkv
-                return $ if b then Just v else Nothing
+-- Shake build system
+shake :: (Ord k, Hashable v) => Build Monad (VT k v) k v
+shake = recursive vtRebuilder
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Recursive dependency strategy
-recursive :: Eq k => (k -> (k -> State (Store i k v, [k]) v)
-                  -> State (Store i k v, [k]) (v, [k])
-                  -> State (Store i k v, [k]) ())
-                  -> Build Monad i k v
-recursive process task key store = fst $ execState (ensure key) (store, [@@])
-    where
-        ensure key = do
-            let fetch k = do ensure k; gets (getValue k . fst)
+recursive :: Ord k => Rebuilder Monad i k v -> Build Monad i k v
+recursive rebuilder tasks key store = fst $ execState (fetch key) (store, Set.empty)
+  where
+    fetch :: k -> State (Store i k v, Set k) v
+    fetch key = case tasks key of
+        Nothing -> gets (getValue key . fst)
+        Just task -> do
             done <- gets snd
-            when (key `notElem` done) $ do
-                modify $ \(s, done) -> (s, key:done)
-                case track task fetch key of -- track is defined in @\S\ref{secdeps}@
-                    Nothing -> return ()
-                    Just act -> process key fetch act
+            when (key `Set.notMember` done) $ do
+                value <- gets (getValue key . fst)
+                let newTask :: Task (MonadState i) k v
+                    newTask = rebuilder key value task
+                    newFetch :: k -> StateT i (State (Store i k v, Set k)) v
+                    newFetch k = do v <- lift $ fetch k
+                                    put =<< lift (gets (getInfo . fst))
+                                    return v
+                info <- gets (getInfo . fst)
+                (newValue, newInfo) <- runStateT (run newTask newFetch) info
+                modify $ \(s, _) ->
+                    (putInfo newInfo $ putValue key newValue s, Set.insert key done)
+            gets (getValue key . fst)
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Shake build system
-shake :: (Eq k, Hashable v) => Build Monad [Trace k v] k v
-shake = recursive $ \key fetch act -> do
-    traces <- gets (getInfo . fst)
-    poss <- traceMatch (\k v -> (==) v . hash <$> fetch k) key traces
-    current <- gets (getHash key . fst)
-    when (current `notElem` poss) $ do
-        (v, ds) <- act
-        modify $ \(s, done) ->
-            let t = Trace key [(d, getHash d s) | d <- ds] (getHash key s)
-            in (putInfo (t : getInfo s) (putValue key v s), done)
-
+-- Rebuilder based on verifying traces
+vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
+vtRebuilder key value task = Task $ \fetch -> do
+    vt <- get
+    dirty <- not <$> verifyVT key value (fmap hash . fetch) vt
+    if not dirty
+    then return value
+    else do
+        (newValue, deps) <- trackM task fetch
+        put =<< recordVT key newValue deps (fmap hash . fetch) =<< get
+        return newValue
 \end{minted}
 \vspace{-3mm}
 \caption{An implementation of \Shake using our framework.}\label{fig-shake-implementation}
