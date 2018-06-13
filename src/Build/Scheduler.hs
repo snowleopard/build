@@ -163,15 +163,15 @@ recursive rebuilder tasks key store = fst $ execState (fetch key) (store, Set.em
             done <- gets snd
             when (key `Set.notMember` done) $ do
                 value <- gets (getValue key . fst)
-                let newTask = rebuilder key value task
+                let newTask :: Task (MonadState i) k v
+                    newTask = rebuilder key value task
                     newFetch :: k -> StateT i (State (Store i k v, Set k)) v
                     newFetch k = do v <- lift $ fetch k
-                                    i <- lift $ gets (getInfo . fst)
-                                    put i
+                                    put =<< lift (gets (getInfo . fst))
                                     return v
                 info <- gets (getInfo . fst)
                 (newValue, newInfo) <- runStateT (run newTask newFetch) info
-                modify $ \(s, done) ->
+                modify $ \(s, _) ->
                     ( putInfo newInfo $ updateValue key value newValue s
                     , Set.insert key done )
             gets (getValue key . fst)
