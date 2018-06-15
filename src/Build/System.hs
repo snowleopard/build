@@ -41,7 +41,7 @@ busy tasks key store = execState (fetch key) store
 -- if they are up to date. However, it performs memoization, therefore it never
 -- builds a key twice.
 memo :: Ord k => Build Monad () k v
-memo = recursive perpetualRebuilder
+memo = suspending perpetualRebuilder
 
 -- | A model of Make: an applicative build system that uses file modification
 -- times to check if a key is up to date.
@@ -63,7 +63,7 @@ excel = restarting approximateRebuilder
 -- | A model of Shake: a monadic build system that uses verifying traces to
 -- check if a key is up to date.
 shake :: (Ord k, Hashable v) => Build Monad (VT k v) k v
-shake = recursive vtRebuilder
+shake = suspending vtRebuilder
 
 -- | A model of Bazel: a monadic build system that uses constructive traces
 -- to check if a key is up to date as well as for caching build results. Note
@@ -75,7 +75,7 @@ bazel = restarting2 ctRebuilder
 -- | A model of Cloud Shake: a monadic build system that uses constructive
 -- traces to check if a key is up to date as well as for caching build results.
 cloudShake :: (Ord k, Hashable v) => Build Monad (CT k v) k v
-cloudShake = recursive ctRebuilder
+cloudShake = suspending ctRebuilder
 
 -- | A model of Buck: an applicative build system that uses deterministic
 -- constructive traces to check if a key is up to date as well as for caching
@@ -86,4 +86,4 @@ buck = topological (unliftRebuilder dctRebuilder)
 -- | A model of Nix: a monadic build system that uses deterministic constructive
 -- traces to check if a key is up to date as well as for caching build results.
 nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v
-nix = recursive dctRebuilder
+nix = suspending dctRebuilder

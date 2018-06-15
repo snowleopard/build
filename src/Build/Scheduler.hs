@@ -5,7 +5,7 @@ module Build.Scheduler (
     topological,
     restarting, Chain,
     restartingB, restarting2,
-    recursive,
+    suspending,
     independent
     ) where
 
@@ -153,13 +153,14 @@ restartingB isDirty rebuilder tasks key = execState $ go (enqueue key [] mempty)
 restarting2 :: (Hashable v, Eq k) => Rebuilder Monad (CT k v) k v -> Build Monad (CT k v) k v
 restarting2 = restartingB isDirtyCT
 
------------------------------------ Recursive ----------------------------------
--- | This scheduler builds keys recursively: to build a key it first makes sure
--- that all its dependencies are up to date and then executes the key's task.
+---------------------------------- Suspending ----------------------------------
+-- | This scheduler builds keys recursively: to build a key it executes the
+-- associated task, discovering its dependencies on the fly, and if one of the
+-- dependencies is dirty, the task is suspended until the dependency is rebuilt.
 -- It stores the set of keys that have already been built as part of the state
 -- to avoid executing the same task twice.
-recursive :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad i k v
-recursive rebuilder tasks key store = fst $ execState (fetch key) (store, Set.empty)
+suspending :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad i k v
+suspending rebuilder tasks key store = fst $ execState (fetch key) (store, Set.empty)
   where
     fetch :: k -> State (Store i k v, Set k) v
     fetch key = case tasks key of
