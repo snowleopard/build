@@ -4,7 +4,7 @@
 module Build.Scheduler (
     topological,
     restarting, Chain,
-    restartingB,
+    restartingB, restarting2,
     recursive,
     independent
     ) where
@@ -17,11 +17,12 @@ import Build
 import Build.Task
 import Build.Task.Applicative
 import Build.Task.Monad
+import Build.Trace
 import Build.Store
 import Build.Rebuilder
 import Build.Utilities
 
-import qualified Data.Set               as Set
+import qualified Data.Set as Set
 
 -- | Update the value of a key in the store. The function takes both the current
 -- value (the first parameter of type @v@) and the new value (the second
@@ -147,6 +148,10 @@ restartingB isDirty rebuilder tasks key = execState $ go (enqueue key [] mempty)
                     (Right newValue, newInfo) -> do
                         modify $ putInfo newInfo . updateValue k value newValue
                         go (foldr (\b -> enqueue b []) q bs)
+
+-- | A model of the scheduler used by Bazel, specialised to constructive traces.
+restarting2 :: (Hashable v, Eq k) => Rebuilder Monad (CT k v) k v -> Build Monad (CT k v) k v
+restarting2 = restartingB isDirtyCT
 
 ----------------------------------- Recursive ----------------------------------
 -- | This scheduler builds keys recursively: to build a key it first makes sure
