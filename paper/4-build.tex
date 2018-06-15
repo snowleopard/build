@@ -36,7 +36,7 @@ which requires the build system to choose \hs{c}~\hs{=}~\hs{Applicative}, ruling
 out dynamic dependencies.
 
 \vspace{-2mm}
-\subsubsection{Reordering}\label{sec-reordering}
+\subsubsection{Reordering}\label{sec-restarting}
 
 The topological approach has two downsides: it is limited to \hs{Applicative}
 build systems and requires a fresh topological sort each time.  So, while the
@@ -51,7 +51,7 @@ meaningful work, then abort. However, in the case of an \hs{Applicative} system,
 that work is zero.
 
 \vspace{-2mm}
-\subsubsection{Recursive}\label{sec-recursive}
+\subsubsection{Recursive}\label{sec-suspending}
 
 An alternative approach, utilised by the \hs{busy} build system
 (\S\ref{sec-general-build}), is to simply build dependencies when they are
@@ -172,7 +172,7 @@ We have a list of traces, plus a \hs{Map} from the hash to the actual contents. 
 \centering
 \begin{tabular}{l||c|c|c}
 \hline
-Property           & Topological\hspace{2mm}\S\ref{sec-topological} & Reordering\hspace{2mm}\S\ref{sec-reordering} & Recursive\hspace{2mm}\S\ref{sec-recursive}    \\\hline
+Property           & Topological\hspace{2mm}\S\ref{sec-topological} & Restarting\hspace{2mm}\S\ref{sec-restarting} & Suspending\hspace{2mm}\S\ref{sec-suspending}    \\\hline
 \hline
 Dirty bit\hfill\S\ref{sec-dirty-bit}                    & \Make    & \Excel                   & Approximate \Shake*  \\\hline
 Verifying trace\hfill\S\ref{sec-verifying-traces}       & \Ninja   & Traced \Excel*            & \Shake                      \\\hline

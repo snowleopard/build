@@ -1,10 +1,10 @@
 \section{Build systems, concretely}\label{sec-implementations}
 
 In the previous sections we discussed the types of build systems, and how they
-can be broken down. But these divisions were not obvious to us, and only by
-concretely implementing and refactoring each build system did we determine the
-underlying commonalities. In this section we share some of the code that got us
-there.
+can be broken down into two main components: a scheduler and a rebuilder. This
+decomposition was not obvious to us, and only by concretely implementing and
+refactoring each build system did we determine the underlying commonalities.
+In this section we share some of the code that got us there.
 
 \subsection{\Make}\label{sec-implementation-make}
 
@@ -13,8 +13,12 @@ Fig.~\ref{fig-make-implementation}. \Make processes keys in a linear order based
 on a topological sort (see~\S\ref{sec-parallelism} for parallel \Make). For
 each key, it builds it if it is older than any of its dependencies. We capture
 the persistent build information that \Make stores by a pair
-\hs{(@@modTime,}~\hs{now)} comprising the \emph{file modification time} function
-\hs{modTime}~\hs{::}~\hs{k}~\hs{->}~\hs{Time} and the \emph{current time} \hs{now}.
+\hs{(@@now,}~\hs{modTime)} comprising the \emph{current time} \hs{now} and the
+dictionary \hs{modTime}~\hs{::}~\hs{Map}~\hs{k}~\hs{Time} that stores \emph{file
+modification times}. The top-level definition
+\hs{make}~\hs{=}~\hs{topological}~\hs{modTimeRebuilder} is a direct translation
+of the scheduler-rebuilder decomposition, illustrated in Table~\ref{tab-build-systems}.
+
 Setting aside the explicit manipulation of file modification times, which in
 reality is taken care of by the file system, the function \hs{make} captures
 the essence of \Make in a clear and precise manner.
@@ -33,7 +37,7 @@ make = topological modTimeRebuilder
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Topological scheduler
+-- A topological task scheduler
 topological :: Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
 topological rebuilder tasks key = execState $ forM_ chain $ \k -> case tasks k of
     Nothing   -> return ()
@@ -134,7 +138,7 @@ excel = restarting approximateRebuilder
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Restarting scheduler
+-- A restarting task scheduler
 restarting :: Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
 restarting rebuilder tasks key = execState $ do
     chain    <- gets (snd . getInfo)
@@ -167,7 +171,7 @@ try task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Rebuilder based on approximate dependencies
+-- A task rebuilder based on approximate dependencies
 approximateRebuilder :: Ord k => Rebuilder Monad (Set k, ApproximateDependencies k) k v
 approximateRebuilder key value task = Task $ \fetch -> do
     (isDirty, deps) <- get
@@ -257,13 +261,13 @@ be projected using \hs{fst} before it is used.
 \begin{minted}[fontsize=\small]{haskell}
 -- Shake build system
 shake :: (Ord k, Hashable v) => Build Monad (VT k v) k v
-shake = recursive vtRebuilder
+shake = suspending vtRebuilder
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Recursive dependency strategy
-recursive :: Ord k => Rebuilder Monad i k v -> Build Monad i k v
-recursive rebuilder tasks key store = fst $ execState (fetch key) (store, Set.empty)
+-- A suspending task scheduler
+suspending :: Ord k => Rebuilder Monad i k v -> Build Monad i k v
+suspending rebuilder tasks key store = fst $ execState (fetch key) (store, Set.empty)
   where
     fetch :: k -> State (Store i k v, Set k) v
     fetch key = case tasks key of
@@ -315,9 +319,9 @@ bazel = restarting2 ctRebuilder
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Cloud Shake build system, implementation of 'recursive' is given in Fig. 8
+-- Cloud Shake build system, implementation of 'suspending' is given in Fig. 8
 cloudShake :: (Ord k, Hashable v) => Build Monad (CT k v) k v
-cloudShake = recursive ctRebuilder
+cloudShake = suspending ctRebuilder
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
@@ -401,9 +405,9 @@ unliftRebuilder rebuilder key value task = rebuilder key value $ Task $ run task
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Nix build system, implementation of 'recursive' is given in Fig. 8
+-- Nix build system, implementation of 'suspending' is given in Fig. 8
 nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v
-nix = recursive dctRebuilder
+nix = suspending dctRebuilder
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
