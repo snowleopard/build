@@ -217,19 +217,40 @@ fitted to \Excel alone.
 %  (additional implementations will be submitted to the
 % Artefact Evaluation).
 
-In reality \Excel works slightly differently (as far as we are able to ascertain) --
-on a change it propagates the dirty bits forward using the \hs{dynamicDependencies}, then only checks if the current \hs{key} is dirty. While both methods are equivalent, merely changing the interleaving, our approach allows us to model more of the behaviour of \Excel.
+In reality \Excel works slightly differently (as far as we are able to
+ascertain)~--~on a change it propagates the dirty bits forward using the
+\hs{dynamicDependencies}, then only checks if the current \hs{key} is dirty.
+While both methods are equivalent, merely changing the interleaving, our
+approach allows us to model more of the behaviour of \Excel.
 
 \vspace{-2mm}
 \subsection{\Shake}\label{sec-implementation-shake}
 \vspace{-1mm}
 
-The \Shake approach for dependency tracking involves recording traces and verifying them, for which we use the \hs{Trace} type defined in \ref{sec-verifying-traces}. Complete code is given in \S\ref{fig-shake-implementation}, split into three functions:
+The \Shake approach for dependency tracking involves recording traces and
+verifying them, for which we use the \hs{Trace} type defined
+in~\ref{sec-verifying-traces}. Complete code is given
+in~\S\ref{fig-shake-implementation}, split into three functions:
 
 \begin{description}
-\item[\hs{traceMatch}] takes a list of all recorded \hs{Trace} values, the \hs{key} you are currently building, and a function \hs{check} which checks a specified dependency. It returns the \hs{result} field of all traces that match. Since \hs{check} is in an arbitrary monad, the function has to use \hs{allM}/\hs{&&^} instead of the more usual \hs{all}/\hs{&&} functions\footnote{These functions are all available in the \cmd{extra} library on Hackage.}.
-\item[\hs{recursive}] defines the dependency ordering pattern. It requires a \hs{process} function that builds a key given a way to recursively build a dependency, and a way to run task to produce result. The main purpose of \hs{recursive} is to ensure that in a single run no key is built twice~--~for which it extends the \hs{State} monad with a list of \hs{done} keys.
-\item[\hs{shake}] ties everything together. First it tests if the traces allow the current state of the target key. If not, it builds the key and updates the store. The only subtlety is that Shake calls \hs{fetch} on the keys while checking them~--~building the last-recorded dependencies before checking them. One minor annoyance is that the \hs{State} has been extended and thus needs to be projected using \hs{fst} before it is used.
+\item[\hs{traceMatch}] takes a list of all recorded \hs{Trace} values, the
+    \hs{key} you are currently building, and a function \hs{check} which checks
+    a specified dependency. It returns the \hs{result} field of all traces that
+    match. Since \hs{check} is in an arbitrary monad, the function has to use
+    \hs{allM}/\hs{&&^} instead of the more usual \hs{all}/\hs{&&}
+    functions\footnote{These functions are all available in the \cmd{extra}
+    library on Hackage.}.
+\item[\hs{recursive}] defines the dependency ordering pattern. It requires a
+    \hs{process} function that builds a key given a way to recursively build a
+    dependency, and a way to run task to produce result. The main purpose of
+    \hs{recursive} is to ensure that in a single run no key is built twice~--~for
+    which it extends the \hs{State} monad with a list of \hs{done} keys.
+\item[\hs{shake}] ties everything together. First it tests if the traces allow
+the current state of the target key. If not, it builds the key and updates the
+store. The only subtlety is that Shake calls \hs{fetch} on the keys while
+checking them~--~building the last-recorded dependencies before checking them.
+One minor annoyance is that the \hs{State} has been extended and thus needs to
+be projected using \hs{fst} before it is used.
 \end{description}
 
 \begin{figure}
@@ -288,30 +309,61 @@ vtRebuilder key value task = Task $ \fetch -> do
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
-bazel :: (Eq k, Hashable v) => Build Applicative (Traces k v) k v
-bazel = topological $ \key ds act -> do
-    s <- get
-    let Traces traces contents = getInfo s
-    poss <- traceMatch (\k v -> return $ getHash k s == v) key traces
-    if null poss then do
-        v <- act
-        modify $ \s ->
-            let t = Trace key [(d, getHash d s) | d <- ds] (getHash key s)
-                ts = Traces (t : traces) (Map.insert (hash v) v contents)
-            in putInfo ts (putValue key v s)
-    else do
-        when (getHash key s `notElem` poss) $
-            modify $ putValue key (contents Map.! head poss)
+-- Bazel build system, implementation of 'restarting2' is omitted (22 lines)
+bazel :: (Ord k, Hashable v) => Build Monad (CT k v) k v
+bazel = restarting2 ctRebuilder
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Cloud Shake build system, implementation of 'recursive' is given in Fig. 8
+cloudShake :: (Ord k, Hashable v) => Build Monad (CT k v) k v
+cloudShake = recursive ctRebuilder
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Rebuilder based on constructive traces
+ctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (CT k v) k v
+ctRebuilder key value task = Task $ \fetch -> do
+    ct <- get
+    maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
+    case maybeCachedValue of
+        Just cachedValue -> return cachedValue
+        Nothing -> do
+            (newValue, deps) <- track task fetch
+            put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
+            return newValue
 \end{minted}
 \vspace{-2mm}
-\caption{An implementation of \Bazel using our framework; \hs{topological} is
-defined in Fig.~\ref{fig-make-implementation}.}\label{fig-bazel-implementation}
+\caption{Implementations of \Bazel and Cloud \Shake using our framework;
+\hs{restarting2} differs from the restarting scheduler used by Excel
+(Fig.~\ref{fig-excel-implementation}) in that it does not rely on the
+calculation chain.}
+% \hs{topological} is defined in Fig.~\ref{fig-make-implementation}.
+\label{fig-bazel-cloud-shake-implementation}
 \vspace{-2mm}
 \end{figure}
 
-Now we have seen all three dependency schemes, we can directly reuse \hs{topological} to define \Bazel. Furthermore, as \Bazel is a tracing build system, we can reuse \hs{Trace} and \hs{traceMatch}, along with the \hs{Traces} type from \S\ref{sec-constructive-traces}. With these pieces in place, the implementation of \Bazel is given in Fig.~\ref{fig-bazel-implementation}. We first figure out the possible results given the current state. If there are no recorded traces for the current dependencies we run it and record the results, otherwise grab a suitable result from the \hs{contents} cache.
+Now we have seen all three dependency schemes, we can directly reuse
+\hs{topological} to define \Bazel. Furthermore, as \Bazel is a tracing build
+system, we can reuse \hs{Trace} and \hs{traceMatch}, along with the \hs{Traces}
+type from \S\ref{sec-constructive-traces}. With these pieces in place, the
+implementation of \Bazel is given in
+Fig.~\ref{fig-bazel-cloud-shake-implementation}. We first figure out the
+possible results given the current state. If there are no recorded traces for
+the current dependencies we run it and record the results, otherwise grab a
+suitable result from the \hs{contents} cache.
 
-The program presented above captures certain aspects of \Bazel, but the real implementation makes one important additional assumption on \hs{Task} -- namely that it is \textit{deterministic}. With that assumption \Bazel is able to create the result hash in a trace by hashing together the result hashes of the dependencies and the key -- as the mapping between dependencies and results is deterministic. As a consequence \Bazel can compute the results of traces locally, without looking at \hs{Traces} (potentially saving a roundtrip to the server). To model this change in the code would require storing an additional transient piece of information \hs{done} of type \hs{Map}~\hs{k}~\hs{(Hash}~\hs{v)}, storing the computed hashes so far this run. With that available, \hs{getHash}~\hs{key}~\hs{s} would become:
+The program presented above captures certain aspects of \Bazel, but the real
+implementation makes one important additional assumption on \hs{Task} -- namely
+that it is \textit{deterministic}. With that assumption \Bazel is able to create
+the result hash in a trace by hashing together the result hashes of the
+dependencies and the key -- as the mapping between dependencies and results is
+deterministic. As a consequence \Bazel can compute the results of traces locally,
+without looking at \hs{Traces} (potentially saving a roundtrip to the server).
+To model this change in the code would require storing an additional transient
+piece of information \hs{done} of type \hs{Map}~\hs{k}~\hs{(Hash}~\hs{v)},
+storing the computed hashes so far this run. With that available,
+\hs{getHash}~\hs{key}~\hs{s} would become:
 \begin{minted}[xleftmargin=10pt]{haskell}
 hash (key, [ done Map.! d | d <- ds ])
 \end{minted}
@@ -319,36 +371,59 @@ And that new hash would have to be stored in \hs{done}.
 
 \subsection{Cloud \Shake}\label{sec-implementation-cloud-shake}
 
-Using the abstractions and approaches built thus far, we have shown how to combine dependency scheme and change approach to reproduce existing build systems. In the attached materials we have implemented 9~build systems corresponding to all three dependency schemes, matched with all three change approaches. To us, the most interesting build system as yet unavailable would matching recursive ordering with constructive traces~--~providing a cloud-capable build system with minimality, cutoff and monadic dependencies. Using our framework it is possible to define and test such a system as per Fig.~\ref{fig-cloudshake-implementation}.
-
-\begin{figure}
-\begin{minted}[fontsize=\small]{haskell}
-cloudShake :: (Eq k, Hashable v) => Build Monad (Traces k v) k v
-cloudShake = recursive $ \key fetch act -> do
-    s <- gets fst
-    let Traces traces contents = getInfo s
-    poss <- traceMatch (\k v -> (==) v . hash <$> fetch k) key traces
-    if null poss then do
-        (v, ds) <- act
-        modify $ \(s,done) ->
-            let t = Trace key [(d, getHash d s) | d <- ds] (getHash key s)
-                ts = Traces (t : traces) (Map.insert (hash v) v contents)
-            in (putInfo ts (putValue key v s), done)
-    else do
-        s <- gets fst
-        when (getHash key s `notElem` poss) $
-            modify $ \(s, done) -> (putValue key (contents Map.! head poss) s, done)
-\end{minted}
-\vspace{-2mm}
-\caption{An implementation of Cloud \Shake using our framework.}\label{fig-cloudshake-implementation}
-\vspace{-4mm}
-\end{figure}
+Using the abstractions and approaches built thus far, we have shown how to
+combine dependency scheme and change approach to reproduce existing build
+systems. In the attached materials we have implemented 9~build systems
+corresponding to all three dependency schemes, matched with all three change
+approaches. To us, the most interesting build system as yet unavailable would
+matching recursive ordering with constructive traces~--~providing a cloud-capable
+build system with minimality, cutoff and monadic dependencies. Using our
+framework it is possible to define and test such a system as per
+Fig.~\ref{fig-bazel-cloud-shake-implementation}.
 
 The differences from \hs{bazel} are minor~--~the dependency scheme has changed
 from \hs{topological} to \hs{recursive}, and thus the dependency keys \hs{dk}
 are captured from the action rather than in advance, the transient state has
 gained a list of keys, and the checking calls \hs{fetch} to get the result
 instead of accessing the store directly.
+
+\begin{figure}
+\begin{minted}[fontsize=\small]{haskell}
+-- Buck build system, implementation of 'topological' is given in Fig. 6
+buck :: (Hashable k, Hashable v) => Build Applicative (DCT k v) k v
+buck = topological (unliftRebuilder dctRebuilder)
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Convert a monadic rebuilder to the corresponding applicative one
+unliftRebuilder :: Rebuilder Monad i k v -> Rebuilder Applicative i k v
+unliftRebuilder rebuilder key value task = rebuilder key value $ Task $ run task
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Nix build system, implementation of 'recursive' is given in Fig. 8
+nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v
+nix = recursive dctRebuilder
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Rebuilder based on deterministic constructive traces
+dctRebuilder :: (Hashable k, Hashable v) => Rebuilder Monad (DCT k v) k v
+dctRebuilder key _value task = Task $ \fetch -> do
+    dct <- get
+    maybeCachedValue <- constructDCT key (fmap hash . fetch) dct
+    case maybeCachedValue of
+        Just cachedValue -> return cachedValue
+        Nothing -> do
+            (newValue, deps) <- trackM task fetch
+            put =<< recordDCT key newValue deps (fmap hash . fetch) =<< get
+            return newValue
+\end{minted}
+\vspace{-2mm}
+\caption{Implementations of \Buck and \Nix using our framework.}
+\label{fig-buck-nix-implementation}
+\vspace{-2mm}
+\end{figure}
 
 \vspace{-1mm}
 \subsection{Smarter \hs{[Trace]} data structures}\label{sec-smart-traces}
