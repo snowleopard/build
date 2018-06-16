@@ -43,10 +43,10 @@ topological rebuilder tasks target = execState $ forM_ order $ \key -> case task
         value <- gets (getValue key)
         let newTask :: Task (MonadState i) k v
             newTask = rebuilder key value task
-            newFetch :: k -> StateT i (State (Store i k v)) v
-            newFetch = lift . gets . getValue
+            fetch :: k -> StateT i (State (Store i k v)) v
+            fetch = lift . gets . getValue
         info <- gets getInfo
-        (newValue, newInfo) <- runStateT (run newTask newFetch) info
+        (newValue, newInfo) <- runStateT (run newTask fetch) info
         modify $ putInfo newInfo . updateValue key value newValue
   where
     deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
@@ -88,10 +88,10 @@ restarting rebuilder tasks target = execState $ do
             let value = getValue key store
                 newTask :: Task (MonadState i) k (Either k v)
                 newTask = try $ rebuilder key value task
-                newFetch :: k -> State i (Either k v)
-                newFetch k | k `Set.member` done = return $ Right (getValue k store)
-                           | otherwise           = return $ Left k
-            case runState (run newTask newFetch) (fst $ getInfo store) of
+                fetch :: k -> State i (Either k v)
+                fetch k | k `Set.member` done = return $ Right (getValue k store)
+                        | otherwise           = return $ Left k
+            case runState (run newTask fetch) (fst $ getInfo store) of
                 (Left dep, _) -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [key]
                 (Right newValue, newInfo) -> do
                     modify $ putInfo (newInfo, []) . updateValue key value newValue
@@ -140,10 +140,10 @@ restartingB isDirty rebuilder tasks target = execState $ go (enqueue target [] m
                     upToDate k = isInput tasks k || not (isDirty k store)
                     newTask :: Task (MonadState i) k (Either k v)
                     newTask = try $ rebuilder key value task
-                    newFetch :: k -> State i (Either k v)
-                    newFetch k | upToDate k = return (Right (getValue k store))
-                               | otherwise  = return (Left k)
-                case runState (run newTask newFetch) (getInfo store) of
+                    fetch :: k -> State i (Either k v)
+                    fetch k | upToDate k = return (Right (getValue k store))
+                            | otherwise  = return (Left k)
+                case runState (run newTask fetch) (getInfo store) of
                     (Left dep, _) -> go (enqueue dep (key:bs) q)
                     (Right newValue, newInfo) -> do
                         modify $ putInfo newInfo . updateValue key value newValue
@@ -160,10 +160,10 @@ restarting2 = restartingB isDirtyCT
 -- It stores the set of keys that have already been built as part of the state
 -- to avoid executing the same task twice.
 suspending :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad i k v
-suspending rebuilder tasks target store = fst $ execState (fetch target) (store, Set.empty)
+suspending rebuilder tasks target store = fst $ execState (build target) (store, Set.empty)
   where
-    fetch :: k -> State (Store i k v, Set k) v
-    fetch key = case tasks key of
+    build :: k -> State (Store i k v, Set k) v
+    build key = case tasks key of
         Nothing -> gets (getValue key . fst)
         Just task -> do
             done <- gets snd
@@ -171,12 +171,12 @@ suspending rebuilder tasks target store = fst $ execState (fetch target) (store,
                 value <- gets (getValue key . fst)
                 let newTask :: Task (MonadState i) k v
                     newTask = rebuilder key value task
-                    newFetch :: k -> StateT i (State (Store i k v, Set k)) v
-                    newFetch k = do v <- lift $ fetch k
-                                    put =<< lift (gets (getInfo . fst))
-                                    return v
+                    fetch :: k -> StateT i (State (Store i k v, Set k)) v
+                    fetch k = do v <- lift (build k)
+                                 put =<< lift (gets (getInfo . fst))
+                                 return v
                 info <- gets (getInfo . fst)
-                (newValue, newInfo) <- runStateT (run newTask newFetch) info
+                (newValue, newInfo) <- runStateT (run newTask fetch) info
                 modify $ \(s, _) ->
                     ( putInfo newInfo $ updateValue key value newValue s
                     , Set.insert key done )
@@ -191,7 +191,7 @@ independent rebuilder tasks target store = case tasks target of
     Just task ->
         let value   = getValue target store
             newTask = rebuilder target value task
-            newFetch :: k -> State i v
-            newFetch k = return (getValue k store)
-            (newValue, newInfo) = runState (run newTask newFetch) (getInfo store)
+            fetch :: k -> State i v
+            fetch k = return (getValue k store)
+            (newValue, newInfo) = runState (run newTask fetch) (getInfo store)
         in putInfo newInfo $ updateValue target value newValue store
