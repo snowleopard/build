@@ -37,8 +37,8 @@ updateValue key _value newValue = putValue key newValue
 -- extracting all (static) dependencies upfront, and then traversing the graph
 -- in the topological order, rebuilding keys using the supplied rebuilder.
 topological :: forall i k v. Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
-topological rebuilder tasks target = execState $ forM_ chain $ \key -> case tasks key of
-    Nothing   -> return ()
+topological rebuilder tasks target = execState $ forM_ order $ \key -> case tasks key of
+    Nothing -> return ()
     Just task -> do
         value <- gets (getValue key)
         let newTask :: Task (MonadState i) k v
@@ -50,7 +50,7 @@ topological rebuilder tasks target = execState $ forM_ chain $ \key -> case task
         modify $ putInfo newInfo . updateValue key value newValue
   where
     deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
-    chain  = case topSort (graph deps target) of
+    order  = case topSort (graph deps target) of
         Nothing -> error "Cannot build tasks with cyclic dependencies"
         Just xs -> xs
 
