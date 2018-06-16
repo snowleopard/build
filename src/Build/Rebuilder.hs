@@ -66,14 +66,14 @@ type ApproximationInfo k = (Set k, ApproximateDependencies k)
 -- needs to be rebuilt. Used by Excel.
 approximateRebuilder :: Ord k => Rebuilder Monad (ApproximationInfo k) k v
 approximateRebuilder key value task = Task $ \fetch -> do
-    (isDirty, deps) <- get
-    let dirty = key `Set.member` isDirty || case Map.lookup key deps of
-                                                Nothing -> True
-                                                Just ks -> any (`Set.member` isDirty) ks
+    (dirtyKeys, deps) <- get
+    let dirty = key `Set.member` dirtyKeys ||
+                case Map.lookup key deps of Nothing -> True
+                                            Just ks -> any (`Set.member` dirtyKeys) ks
     if not dirty
     then return value
     else do
-        put (Set.insert key isDirty, deps)
+        put (Set.insert key dirtyKeys, deps)
         run task fetch
 
 ------------------------------- Verifying traces -------------------------------

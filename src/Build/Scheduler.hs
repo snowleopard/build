@@ -40,13 +40,13 @@ topological :: forall i k v. Ord k => Rebuilder Applicative i k v -> Build Appli
 topological rebuilder tasks target = execState $ forM_ order $ \key -> case tasks key of
     Nothing -> return ()
     Just task -> do
-        value <- gets (getValue key)
-        let newTask :: Task (MonadState i) k v
+        store <- get
+        let value = getValue key store
+            newTask :: Task (MonadState i) k v
             newTask = rebuilder key value task
-            fetch :: k -> StateT i (State (Store i k v)) v
-            fetch = lift . gets . getValue
-        info <- gets getInfo
-        (newValue, newInfo) <- runStateT (run newTask fetch) info
+            fetch :: k -> State i v
+            fetch k = pure (getValue k store)
+            (newValue, newInfo) = runState (run newTask fetch) (getInfo store)
         modify $ putInfo newInfo . updateValue key value newValue
   where
     deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
