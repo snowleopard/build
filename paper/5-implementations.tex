@@ -40,13 +40,12 @@ topological :: Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
 topological rebuilder tasks target = execState $ forM_ order $ \key -> case tasks key of
     Nothing   -> return ()
     Just task -> do
-        value <- gets (getValue key)
+        store <- get
         let newTask :: Task (MonadState i) k v
-            newTask = rebuilder key value task
-            fetch :: k -> StateT i (State (Store i k v)) v
-            fetch = lift . gets . getValue
-        info <- gets getInfo
-        (newValue, newInfo) <- runStateT (run newTask fetch) info
+            newTask = rebuilder key (getValue key store) task
+            fetch :: k -> State i v
+            fetch k = pure (getValue k store)
+            (newValue, newInfo) = runState (run newTask fetch) (getInfo store)
         modify $ putInfo newInfo . putValue key newValue
   where
     deps k = case tasks k of { Nothing -> [@@]; Just task -> dependencies task }
@@ -98,11 +97,10 @@ build information \hs{i} and is therefore compatible with any applicative
 \hs{newValue} and updated build information \hs{newInfo}, which are subsequently
 written to the store. The computation runs in the
 \hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v)} monad, similar to the \hs{busy}
-build system (\S\ref{sec-general-build}), but we need to use an additional
-\hs{StateT}~\hs{i} wrapper to run the \hs{newTask} since it only has access to
-the \hs{i} part of the \hs{Store}~\hs{i}~\hs{k}~\hs{v}. The \hs{newTask} can
-find values of the \hs{key}'s dependencies via the \hs{fetch} callback that
-reads the store by executing \hs{getValue} in the inner state monad.
+build system (\S\ref{sec-general-build}), however since \hs{newTask} has access
+only to the \hs{i} part of the \hs{Store}~\hs{i}~\hs{k}~\hs{v}, we need to use
+\hs{runState} to execute it. The \hs{newTask} finds values of the \hs{key}'s
+dependencies via the \hs{fetch} callback that directly reads the \hs{store}.
 
 The \hs{where} clause corresponds to the pre-processing stage, which uses the
 function \hs{dependencies}, defined in~\S\ref{sec-deps}, to extract static
@@ -120,14 +118,66 @@ the same \hs{topological} scheduler will also inherit the same restriction.
 \subsection{\Excel}\label{sec-implementation-excel}
 
 Fig.~\ref{fig-excel-implementation} shows an implementation of \Excel in our
-framework as a combination of the \hs{restarting} scheduler and an
+framework as a composition of the \hs{restarting} scheduler and an
 \hs{approximateRebuilder}.
 
-\Excel's persistently stored information is a triple: (i) the set of dirty keys
-\hs{Set}~\hs{k}, (ii) a map storing known upper bounds of dependencies
-\hs{Map}~\hs{k}~\hs{[@@k]} that \Excel uses to handle dynamic dependencies, and
-(iii) the calculation chain \hs{[@@k]} recorded in the previous build
-(\S\ref{sec-background-excel}).
+\Excel's persistently stored build information is a triple:
+
+\begin{itemize}
+    \item A set of dirty keys \hs{Set}~\hs{k}, i.e. all cells whose contents
+          has changed since the previous build, including cells that contain
+          input values as well as formulas.
+    \item A map \hs{Map}~\hs{k}~\hs{[@@k]} that stores known upper bounds of
+          dependencies. If there is an entry for a key, it is a conservative
+          approximation of its dependencies (e.g. the dependencies of the
+          formula \cmd{IF(C1=1,B2,A2)} can be approximated by the list
+          \hs{[}\cmd{C1}\hs{,}\cmd{B2}\hs{,}\cmd{A2}\hs{]}). Otherwise, there is
+          no upper bound (e.g. the key uses an \cmd{INDIRECT} reference) and
+          the key is assumed to be dirty.
+    \item A calculation \hs{Chain} recorded in the previous build
+          (\S\ref{sec-background-excel}), represented by a list of keys \hs{[@@k]}.
+\end{itemize}
+
+The \hs{approximateRebuilder} uses the first two elements of the above triple
+to decide whether a given \hs{key} is \hs{dirty} and hence needs to be rebuilt.
+The logic is similar to that of \Make's \hs{modTimeRebuilder}, but instead of
+relying on file modification times, \Excel stores the information about dirty
+keys more directly. Furthermore, \Excel's dependency approximation makes it
+possible to build tasks with dynamic dependencies: a \hs{key} is declared
+\hs{dirty} if any of its approximate dependencies is in the \hs{dirtyKeys} set,
+or if there is no known upper bound on dependencies, i.e. if the lookup in the
+map \hs{deps}~\hs{::}~\hs{Map}~\hs{k}~\hs{[@@k]} fails. Note that when a
+\hs{key} is rebuilt it is added to the \hs{dirtyKeys} set to trigger further
+rebuilds.
+
+\Excel's \hs{restarting} scheduler processes keys in the order specified by the
+calculation \hs{chain}, constructing a \hs{newChain} for the next build and
+maintaining a set of keys \hs{done} that have already been processed. For each
+non-input \hs{key}, the scheduler tries to rebuild it using a partial \hs{fetch}
+callback that returns \hs{Either}~\hs{k}~\hs{v} instead of \hs{v}. The callback
+is defined to fail with \hs{Left}~\hs{dep} when asked for the value of a
+dependency \hs{dep} that has not yet been processed (and hence may potentially
+be dirty); otherwise it returns the current value of the dependency in the
+\hs{store}.
+
+After the \hs{newTask} is executed with \hs{runState} there are two cases to
+consider:
+
+\begin{itemize}
+    \item The \hs{newTask} has failed, because one of its dependencies \hs{dep}
+    has not yet been processed. This indicates that the calculation \hs{chain}
+    from the previous build is incorrect and needs to be adjusted by making sure
+    it contains \hs{dep} and moving the \hs{key} to the end, so that its build
+    can be restarted after the \hs{dep} is ready.
+    \item The \hs{newTask} succeeded. The resulting \hs{newValue} and
+    \hs{newInto} are written to the store, and \Excel continues to build the
+    \hs{chain} after marking the \hs{key} as \hs{done}.
+\end{itemize}
+
+Note that the task returned by the \hs{rebuilder} expects a total callback
+function and cannot be directly executed with the partial callback \hs{fetch}.
+We fix the mismatch with the function \hs{try} that relies on the standard
+monad transformer \hs{ExceptT} from the \cmd{transformers} library.
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -135,58 +185,52 @@ framework as a combination of the \hs{restarting} scheduler and an
 excel :: Ord k => Build Monad (ExcelInfo k) k v
 excel = restarting approximateRebuilder
 \end{minted}
-\vspace{1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- Approximate task dependencies: a map of known upper bounds of dependencies
-type ApproximateDependencies k = Map k [k]
-\end{minted}
-\vspace{1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- A task rebuilder based on the set of dirty keys and approximate dependencies
-approximateRebuilder :: Ord k => Rebuilder Monad (Set k, ApproximateDependencies k) k v
-approximateRebuilder key value task = Task $ \fetch -> do
-    (isDirty, deps) <- get
-    let dirty = key `Set.member` isDirty || case Map.lookup key deps of
-                                                Nothing -> True
-                                                Just ks -> any (`Set.member` isDirty) ks
-    if not dirty then return value else do
-        put (Set.insert key isDirty, deps)
-        run task fetch
-\end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Build information: dirty keys, approximate dependencies, and calculation chain
 type Chain k = [k]
-type ExcelInfo k = ((Set k, ApproximateDependencies k), Chain k)
+type ExcelInfo k = ((Set k, Map k [k]), Chain k)
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- A task rebuilder based on the set of dirty keys and approximate dependencies
+approximateRebuilder :: Ord k => Rebuilder Monad (Set k, Map k [k]) k v
+approximateRebuilder key value task = Task $ \fetch -> do
+    (dirtyKeys, deps) <- get
+    let dirty = key `Set.member` dirtyKeys ||
+                case Map.lookup key deps of Nothing -> True
+                                            Just ks -> any (`Set.member` dirtyKeys) ks
+    if not dirty then return value else do
+        put (Set.insert key dirtyKeys, deps)
+        run task fetch
+\end{minted}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A restarting task scheduler
 restarting :: Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
-restarting rebuilder tasks key = execState $ do
+restarting rebuilder tasks target = execState $ do
     chain    <- gets (snd . getInfo)
-    newChain <- go Set.empty $ chain ++ [key | key `notElem` chain]
+    newChain <- go Set.empty $ chain ++ [target | target `notElem` chain]
     modify . mapInfo $ \(i, _) -> (i, newChain)
   where
     go :: Set k -> Chain k -> State (Store (i, Chain k) k v) (Chain k)
-    go _    []     = return []
-    go done (k:ks) = case tasks k of
-        Nothing -> (k :) <$> go (Set.insert k done) ks
+    go _    [@@]       = return [@@]
+    go done (key:ks) = case tasks key of
+        Nothing -> (key :) <$> go (Set.insert key done) ks
         Just task -> do
             store <- get
-            let value = getValue k store
-                newTask :: Task (MonadState i) k (Either k v)
-                newTask = try $ rebuilder k value task -- `try' is defined below
+            let newTask :: Task (MonadState i) k (Either k v)
+                newTask = try $ rebuilder key (getValue key store) task
                 fetch :: k -> State i (Either k v)
                 fetch k | k `Set.member` done = return $ Right (getValue k store)
                         | otherwise           = return $ Left k
             case runState (run newTask fetch) (fst $ getInfo store) of
-                (Left dep, _) -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [k]
+                (Left dep, _) -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [key]
                 (Right newValue, newInfo) -> do
-                    modify $ putInfo (newInfo, []) . updateValue k value newValue
-                    (k :) <$> go (Set.insert k done) ks
+                    modify $ putInfo (newInfo, [@@]) . putValue key newValue
+                    (key :) <$> go (Set.insert key done) ks
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Convert a total task into a task accepting a partial fetch callback
 try :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
@@ -194,46 +238,8 @@ try task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
 \end{minted}
 \vspace{-2mm}
 \caption{An implementation of \Excel using our framework.}\label{fig-excel-implementation}
-\vspace{-2mm}
+\vspace{-4mm}
 \end{figure}
-
-The helper function \hs{reordering}, whose implementation we omit since it is
-technical and not particularly enlightening, calls the function \hs{process} to
-\emph{try to build} a \hs{key} by executing the action \hs{act}, in the order
-determined by the calculation chain. To decide whether to \hs{rebuild} the
-\hs{key}, \hs{process} checks if the \hs{key} itself is marked dirty or the
-approximation of its dependencies contains a dirty key. Notice that if the
-dependencies of the \hs{key} are \hs{Unknown}, e.g. when it uses the
-\cmd{INDIRECT} function, the \hs{key} is always rebuilt. If a \hs{rebuild} is
-not needed, \hs{process} returns \hs{Nothing} to indicate that. Otherwise, it
-executes \hs{act} leading to one of two possible \hs{result}s:
-
-\begin{itemize}
-    \item \hs{MissingDependency}~\hs{k} indicates that the execution of \hs{act} has
-    failed, because one of its dependencies \hs{k} was out-of-date, i.e. the
-    calculation chain from the previous build was incorrect and therefore needs
-    to be reordered, deferring the \hs{key} to be rebuilt later.
-    \item \hs{Result}~\hs{v}~\hs{dynamicDependencies} indicates that the
-    execution has succeeded producing the value~\hs{v} and the list of the
-    \hs{key}'s dynamic dependencies. We store the value, and mark it dirty to
-    trigger the rebuilding of keys that depend on it.
-\end{itemize}
-
-In both of the above cases, we notify the parent \hs{reordering} function of
-the outcome by returning \hs{Just}~\hs{result}. The astute reader may notice
-that \hs{process} ignores \hs{dynamicDependencies} available in the \hs{result}.
-While not required for \Excel, we have implemented build systems using
-\hs{reordering} which use verifying and constructive traces, effectively turning
-\Excel into a cloud build system and ensuring \hs{reordering} is not overly
-fitted to \Excel alone.
-%  (additional implementations will be submitted to the
-% Artefact Evaluation).
-
-In reality \Excel works slightly differently (as far as we are able to
-ascertain)~--~on a change it propagates the dirty bits forward using the
-\hs{dynamicDependencies}, then only checks if the current \hs{key} is dirty.
-While both methods are equivalent, merely changing the interleaving, our
-approach allows us to model more of the behaviour of \Excel.
 
 \vspace{-2mm}
 \subsection{\Shake}\label{sec-implementation-shake}

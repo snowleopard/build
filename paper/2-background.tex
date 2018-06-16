@@ -149,16 +149,16 @@ produced by the previous build as an approximation to the correct topological
 order. During recalculation, \Excel processes cells in this order, but can
 \emph{defer recalculation of a cell} by moving it down the chain if a newly
 discovered dependency has not yet been rebuilt. We refer to this
-algorithm as \emph{reordering}, and will discuss it in more detail
+algorithm as \emph{restarting}, and will discuss it in more detail
 in~\S\ref{sec-implementation-excel}.
 
-Dynamic dependencies complicate minimality.  In the above example,
-\cmd{B1} should only be recomputed if \cmd{A1} or \cmd{C1} change, but
-not if (say) \cmd{A2} changes; but these facts are not statically apparent.
-In pracice Excel implements a conservative approximation to
-minimality: roughly, it recomputes a formula if (a) the formula
-text mentions a changed cell, or (b) the formula uses a function like \cmd{INDIRECT}
-whose dependencies are not statically visible.
+Dynamic dependencies complicate minimality.  In the above example, \cmd{B1}
+should only be recomputed if \cmd{A1} or \cmd{C1} change, but not if (say)
+\cmd{A2} changes; but these facts are not statically apparent. In practice
+\Excel implements a conservative approximation to minimality: roughly, it
+recomputes a formula if (i) the formula text mentions a changed cell, or (ii)
+the formula uses a function like \cmd{INDIRECT} whose dependencies are not
+statically visible.
 
 Another distinguishing feature of \Excel is \emph{self-tracking}. Most build
 systems only track changes of inputs and intermediate results, but \Excel can
