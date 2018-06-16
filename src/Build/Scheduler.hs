@@ -157,30 +157,23 @@ restarting2 = restartingB isDirtyCT
 -- | This scheduler builds keys recursively: to build a key it executes the
 -- associated task, discovering its dependencies on the fly, and if one of the
 -- dependencies is dirty, the task is suspended until the dependency is rebuilt.
--- It stores the set of keys that have already been built as part of the state
--- to avoid executing the same task twice.
 suspending :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad i k v
-suspending rebuilder tasks target store = fst $ execState (build target) (store, Set.empty)
+suspending rebuilder tasks target store = execState (build target) store
   where
-    build :: k -> State (Store i k v, Set k) v
+    build :: k -> State (Store i k v) ()
     build key = case tasks key of
-        Nothing -> gets (getValue key . fst)
+        Nothing -> return ()
         Just task -> do
-            done <- gets snd
-            when (key `Set.notMember` done) $ do
-                value <- gets (getValue key . fst)
-                let newTask :: Task (MonadState i) k v
-                    newTask = rebuilder key value task
-                    fetch :: k -> StateT i (State (Store i k v, Set k)) v
-                    fetch k = do v <- lift (build k)
-                                 put =<< lift (gets (getInfo . fst))
-                                 return v
-                info <- gets (getInfo . fst)
-                (newValue, newInfo) <- runStateT (run newTask fetch) info
-                modify $ \(s, _) ->
-                    ( putInfo newInfo $ updateValue key value newValue s
-                    , Set.insert key done )
-            gets (getValue key . fst)
+            value <- gets (getValue key)
+            let newTask :: Task (MonadState i) k v
+                newTask = rebuilder key value task
+                fetch :: k -> StateT i (State (Store i k v)) v
+                fetch k = do lift (build k)              -- build the key
+                             put =<< lift (gets getInfo) -- collect new traces
+                             lift (gets $ getValue k)    -- lookup the value
+            info <- gets getInfo
+            (newValue, newInfo) <- runStateT (run newTask fetch) info
+            modify $ putInfo newInfo . updateValue key value newValue
 
 -- | An incorrect scheduler that builds the target key without respecting its
 -- dependencies. It produces the correct result only if all dependencies of the
