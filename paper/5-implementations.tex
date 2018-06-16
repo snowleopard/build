@@ -8,61 +8,19 @@ In this section we share some of the code that got us there.
 
 \subsection{\Make}\label{sec-implementation-make}
 
-We provide an implementation of \Make using our framework in
-Fig.~\ref{fig-make-implementation}. \Make processes keys in a linear order based
-on a topological sort (see~\S\ref{sec-parallelism} for parallel \Make). For
-each key, it builds it if it is older than any of its dependencies. We capture
-the persistent build information that \Make stores by a pair
-\hs{(@@now,}~\hs{modTime)} comprising the \emph{current time} \hs{now} and the
-dictionary \hs{modTime}~\hs{::}~\hs{Map}~\hs{k}~\hs{Time} that stores \emph{file
-modification times}. The top-level definition
-\hs{make}~\hs{=}~\hs{topological}~\hs{modTimeRebuilder} is a direct translation
-of the scheduler-rebuilder decomposition, illustrated in Table~\ref{tab-build-systems}.
-
-Setting aside the explicit manipulation of file modification times, which in
-reality is taken care of by the file system, the function \hs{make} captures
-the essence of \Make in a clear and precise manner.
-
 \begin{figure}
-\begin{minted}[fontsize=\small]{haskell}
--- Build information: current time and file modification times
-type Time       = Integer
-type MakeInfo k = (Time, Map k Time)
-\end{minted}
-\vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Make build system
 make :: Ord k => Build Applicative (MakeInfo k) k v
 make = topological modTimeRebuilder
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
--- A topological task scheduler
-topological :: Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
-topological rebuilder tasks key = execState $ forM_ chain $ \k -> case tasks k of
-    Nothing   -> return ()
-    Just task -> do
-        value <- gets (getValue k)
-        let newTask :: Task (MonadState i) k v
-            newTask = rebuilder k value task
-            newFetch :: k -> StateT i (State (Store i k v)) v
-            newFetch = lift . gets . getValue
-        info <- gets getInfo
-        (newValue, newInfo) <- runStateT (run newTask newFetch) info
-        modify $ putInfo newInfo . putValue k newValue
-  where
-    deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
-    chain  = case topSort (reachable deps key) of
-        Nothing -> error "Cannot build tasks with cyclic dependencies"
-        Just xs -> xs
+-- Build information: current time and file modification times
+type Time       = Integer
+type MakeInfo k = (Time, Map k Time)
 \end{minted}
-\vspace{1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- Standard graph algorithms (implementation omitted)
-reachable :: Ord k => (k -> [k]) -> k -> Graph k
-topSort   :: Ord k => Graph k -> Maybe [k]
-\end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A task rebuilder based on file modification times
 modTimeRebuilder :: Ord k => Rebuilder Applicative (MakeInfo k) k v
@@ -77,38 +35,87 @@ modTimeRebuilder key value task = Task $ \fetch -> do
         put (now + 1, Map.insert key now modTime)
         run task fetch
 \end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- A topological task scheduler
+topological :: Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
+topological rebuilder tasks target = execState $ forM_ order $ \key -> case tasks key of
+    Nothing   -> return ()
+    Just task -> do
+        value <- gets (getValue key)
+        let newTask :: Task (MonadState i) k v
+            newTask = rebuilder key value task
+            newFetch :: k -> StateT i (State (Store i k v)) v
+            newFetch = lift . gets . getValue
+        info <- gets getInfo
+        (newValue, newInfo) <- runStateT (run newTask newFetch) info
+        modify $ putInfo newInfo . putValue key newValue
+  where
+    deps k = case tasks k of { Nothing -> [@@]; Just task -> dependencies task }
+    order  = case topSort (reachable deps target) of
+        Nothing -> error "Cannot build tasks with cyclic dependencies"
+        Just xs -> xs
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Standard graph algorithms (implementation omitted)
+reachable :: Ord k => (k -> [k]) -> k -> Graph k
+topSort   :: Ord k => Graph k -> Maybe [k]
+\end{minted}
 \vspace{-2mm}
 \caption{An implementation of \Make using our framework.}\label{fig-make-implementation}
-\vspace{-2mm}
+\vspace{-4mm}
 \end{figure}
 
-The helper function \hs{topological} calls \hs{process} on every \hs{key} in
-a topological order, providing the list of its dependencies \hs{deps} and the
-action \hs{act} to compute the resulting value if it needs to be rebuilt. To
-determine if the \hs{key} is \hs{dirty}, \hs{process} compares its modification
-time with those of its dependencies. If the \hs{key} needs to be rebuilt, the
-action \hs{act} is executed and the obtained result is stored, along with an
-updated file modification timestamp.
+An implementation of \Make using our framework is shown in
+Fig.~\ref{fig-make-implementation}. The top-level definition
+\hs{make}~\hs{=}~\hs{topological}~\hs{modTimeRebuilder} is a direct translation
+of the scheduler-rebuilder decomposition in Table~\ref{tab-build-systems}. Below
+we describe both components, starting with \hs{modTimeRebuilder}.
 
-The implementation of \hs{topological} encodes the dependency strategy that
-\Make has chosen to use. The \hs{where} clause corresponds to the pre-processing
-stage, which uses the function \hs{dependencies}, defined in~\S\ref{sec-deps},
-to extract static dependencies from the provided applicative \hs{task}. We
-compute the linear processing \hs{chain} by taking the keys \hs{reachable}
-from \hs{key} via dependencies, and performing the topological sort of the
-result. We omit implementation of textbook graph algorithms
-\hs{reachable} and \hs{topSort}, e.g.
-see~\cite{cormen2001introduction}.
+We capture persistent build information that \Make stores by the pair
+\hs{(@@now,}~\hs{modTime)} comprising the \emph{current time} \hs{now} and the
+dictionary \hs{modTime}~\hs{::}~\hs{Map}~\hs{k}~\hs{Time} that stores \emph{file
+modification times}. The rebuilder receives three arguments: a \hs{key}, its
+current \hs{value}, and the \hs{task} of type
+\hs{Task}~\hs{Applicative}~\hs{k}~\hs{v} that can be used to rebuild the
+\hs{key} if necessary. The rebuilder returns a modified monadic task of type
+\hs{Task}~\hs{(@@MonadState}~\hs{(@@MakeInfo}~\hs{k))}~\hs{k}~\hs{v} that has
+access to the build information and uses it to decide whether to return the
+current \hs{value} as is or rebuild the \hs{key} if it is \hs{dirty}, i.e.
+if it is older than any of its dependencies\footnote{Since the \hs{task} is
+applicative we can statically find its dependencies using the function
+\hs{dependencies} defined in~\S\ref{sec-deps}.} or has never been built before
+(in which case \hs{modTime} has no entry for it). Note that in our model we
+update the current time and file modification time whenever the \hs{key} is
+rebuilt, which in reality is taken care of by the file system.
 
-The \hs{chain} is processed in the \hs{State} monad, with each non-input key
-\hs{k} in the chain passed to the provided \hs{process} function, along with
-\hs{k}'s dependencies and the action \hs{act}, which when executed recomputes
-the \hs{k}'s value by fetching its dependencies from the store.
+\Make's scheduler processes keys in a linear \hs{order} based on a
+\hs{topological} sort of the statically known dependency graph
+(see~\S\ref{sec-parallelism} for parallel \Make). Our definition in
+Fig.~\ref{fig-make-implementation} is polymorphic with respect to the type of
+build information \hs{i} and is therefore compatible with any applicative
+\hs{rebuilder}. The scheduler calls the supplied \hs{rebuilder} on every
+\hs{key} in the \hs{order}, and runs the obtained \hs{newTask} to compute the
+\hs{newValue} and updated build information \hs{newInfo}, which are subsequently
+written to the store. The computation runs in the
+\hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v)} monad, similar to the \hs{busy}
+build system (\S\ref{sec-general-build}), but we also need to use an additional
+\hs{StateT}~\hs{i} wrapper to run the \hs{newTask} since it only has access to
+the \hs{i} part of the \hs{Store}~\hs{i}~\hs{k}~\hs{v}.
+
+The \hs{where} clause corresponds to the pre-processing stage, which uses the
+function \hs{dependencies}, defined in~\S\ref{sec-deps}, to extract static
+dependencies from the provided applicative \hs{task}. We compute the linear
+processing \hs{order} by constructing the graph of keys \hs{reachable} from the
+\hs{target} via dependencies, and performing the topological sort of the result.
+We omit implementation of textbook graph algorithms
+\hs{reachable} and \hs{topSort}, e.g. see~\cite{cormen2001introduction}.
 
 Note that \hs{dependencies} is only defined for applicative tasks, which is what
 restricts \Make to static dependencies, as reflected in the
-type~\hs{Build}~\hs{Applicative}. Moreover, any other build system following
-the same \hs{topological} approach will also inherit the same restriction.
+type~\hs{Build}~\hs{Applicative}. Moreover, any other build system using
+the same \hs{topological} scheduler will also inherit the same restriction.
 
 \subsection{\Excel}\label{sec-implementation-excel}
 
