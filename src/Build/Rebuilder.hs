@@ -81,8 +81,8 @@ approximateRebuilder key value task = Task $ \fetch -> do
 vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
 vtRebuilder key value task = Task $ \fetch -> do
     vt <- get
-    dirty <- not <$> verifyVT key value (fmap hash . fetch) vt
-    if not dirty
+    upToDate <- verifyVT key value (fmap hash . fetch) vt
+    if upToDate
     then return value
     else do
         (newValue, deps) <- trackM task fetch
