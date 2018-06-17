@@ -44,7 +44,7 @@ topological rebuilder tasks target = execState $ forM_ order $ \key -> case task
         let newTask :: Task (MonadState i) k v
             newTask = rebuilder key (getValue key store) task
             fetch :: k -> State i v
-            fetch k = pure (getValue k store)
+            fetch k = return (getValue k store)
             (newValue, newInfo) = runState (run newTask fetch) (getInfo store)
         modify $ putInfo newInfo . putValue key newValue
   where
@@ -232,44 +232,23 @@ restarting rebuilder tasks target = execState $ do
 \end{minted}
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Convert a total task into a task accepting a partial fetch callback
+-- Convert a total task into a task that accepts a partial fetch callback
 try :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
 try task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
 \end{minted}
 \vspace{-2mm}
 \caption{An implementation of \Excel using our framework.}\label{fig-excel-implementation}
-\vspace{-4mm}
+\vspace{-5mm}
 \end{figure}
 
-\vspace{-2mm}
+\vspace{-1mm}
 \subsection{\Shake}\label{sec-implementation-shake}
 \vspace{-1mm}
 
-The \Shake approach for dependency tracking involves recording traces and
-verifying them, for which we use the \hs{Trace} type defined
-in~\ref{sec-verifying-traces}. Complete code is given
-in~\S\ref{fig-shake-implementation}, split into three functions:
-
-\begin{description}
-\item[\hs{traceMatch}] takes a list of all recorded \hs{Trace} values, the
-    \hs{key} you are currently building, and a function \hs{check} which checks
-    a specified dependency. It returns the \hs{result} field of all traces that
-    match. Since \hs{check} is in an arbitrary monad, the function has to use
-    \hs{allM}/\hs{&&^} instead of the more usual \hs{all}/\hs{&&}
-    functions\footnote{These functions are all available in the \cmd{extra}
-    library on Hackage.}.
-\item[\hs{recursive}] defines the dependency ordering pattern. It requires a
-    \hs{process} function that builds a key given a way to recursively build a
-    dependency, and a way to run task to produce result. The main purpose of
-    \hs{recursive} is to ensure that in a single run no key is built twice~--~for
-    which it extends the \hs{State} monad with a list of \hs{done} keys.
-\item[\hs{shake}] ties everything together. First it tests if the traces allow
-the current state of the target key. If not, it builds the key and updates the
-store. The only subtlety is that Shake calls \hs{fetch} on the keys while
-checking them~--~building the last-recorded dependencies before checking them.
-One minor annoyance is that the \hs{State} has been extended and thus needs to
-be projected using \hs{fst} before it is used.
-\end{description}
+Our model of \Shake is shown in Fig.~\ref{fig-shake-implementation}. It stores
+verifying traces \hs{VT}~\hs{k}~\hs{v} defined in~\S\ref{sec-verifying-traces}
+as persistent build information and is composed of the \hs{suspending} scheduler
+and \hs{vtRebuilder}.
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -277,15 +256,26 @@ be projected using \hs{fst} before it is used.
 shake :: (Ord k, Hashable v) => Build Monad (VT k v) k v
 shake = suspending vtRebuilder
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- A task rebuilder based on verifying traces
+vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
+vtRebuilder key value task = Task $ \fetch -> do
+    upToDate <- verifyVT key value (fmap hash . fetch) =<< get
+    if upToDate then return value else do
+        (newValue, deps) <- track task fetch
+        put =<< recordVT key newValue deps (fmap hash . fetch) =<< get
+        return newValue
+\end{minted}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A suspending task scheduler
 suspending :: Ord k => Rebuilder Monad i k v -> Build Monad i k v
-suspending rebuilder tasks key store = fst $ execState (build key) (store, Set.empty)
+suspending rebuilder tasks target store = fst $ execState (build target) (store, Set.empty)
   where
-    build :: k -> State (Store i k v, Set k) v
+    build :: k -> State (Store i k v, Set k) (@@)
     build key = case tasks key of
-        Nothing -> gets (getValue key . fst)
+        Nothing -> return (@@)
         Just task -> do
             done <- gets snd
             when (key `Set.notMember` done) $ do
@@ -293,33 +283,53 @@ suspending rebuilder tasks key store = fst $ execState (build key) (store, Set.e
                 let newTask :: Task (MonadState i) k v
                     newTask = rebuilder key value task
                     fetch :: k -> StateT i (State (Store i k v, Set k)) v
-                    fetch k = do v <- lift (build k)
-                                 put =<< lift (gets (getInfo . fst))
-                                 return v
+                    fetch k = do lift (build k)                      -- build the key
+                                 lift (gets (getInfo . fst)) >>= put -- save new traces
+                                 lift (gets (getValue k . fst))      -- fetch the value
                 info <- gets (getInfo . fst)
                 (newValue, newInfo) <- runStateT (run newTask fetch) info
                 modify $ \(s, _) ->
                     (putInfo newInfo $ putValue key newValue s, Set.insert key done)
-            gets (getValue key . fst)
 \end{minted}
-\vspace{1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- Rebuilder based on verifying traces
-vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
-vtRebuilder key value task = Task $ \fetch -> do
-    vt <- get
-    dirty <- not <$> verifyVT key value (fmap hash . fetch) vt
-    if not dirty
-    then return value
-    else do
-        (newValue, deps) <- trackM task fetch
-        put =<< recordVT key newValue deps (fmap hash . fetch) =<< get
-        return newValue
-\end{minted}
-\vspace{-3mm}
+\vspace{-2mm}
 \caption{An implementation of \Shake using our framework.}\label{fig-shake-implementation}
-\vspace{1mm}
+\vspace{-6mm}
 \end{figure}
+
+The rebuilder executes the verification query \hs{verifyVT} to determine if the
+\hs{key} is \hs{upToDate}. If it is, the rebuilder simply returns the \hs{key}'s
+current \hs{value}. Otherwise it executes the \hs{task}, obtaining both a
+\hs{newValue} and the \hs{key}'s dynamic dependencies \hs{deps} (see the
+definition of \hs{track} in~\S\ref{sec-deps}), which are subsequently recorded
+in a new verification trace using \hs{recordVT}.
+
+The \hs{suspending} scheduler is based on a recursive function \hs{build} that
+builds a given \hs{key}, making sure not to duplicate work when called on the
+same \hs{key} again in future. To achieve that, it keeps track of keys that have
+already been built in a set \hs{done}~\hs{::}~\hs{Set}~\hs{k}, running the
+computation in the
+\hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k)} monad.
+
+Given a non-input \hs{key} that has not yet been built, we use the supplied
+\hs{rebuilder} to embed the build information~\hs{i} into the \hs{task}.
+We then execute the obtained \hs{newTask} with the \hs{fetch} callback, which
+performs the following three steps when given a dependency \hs{k}:
+
+\begin{itemize}
+    \item Build \hs{k} by recursively calling the \hs{build} function. Note
+          that if \hs{k} is dirty, this will effectively suspend the build of
+          the current \hs{key} until \hs{k} is brought up to date.
+    \item Save any new traces that have been generated when building \hs{k}.
+    \item Read the up to date value of \hs{k} from the store and return it.
+\end{itemize}
+
+These steps are run in the
+\hs{StateT}~\hs{i}~\hs{(@@State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k))}
+monad, because the \hs{newTask} has access only to the~\hs{i} part of the state;
+we use \hs{lift} to execute commands in the inner monad.
+
+Finally, the \hs{newValue} and \hs{newInfo} obtained by running the \hs{newTask}
+are stored, and \hs{key} is added to the set \hs{done}.
 
 \vspace{-2mm}
 \subsection{\Bazel}\label{sec-implementation-bazel}
