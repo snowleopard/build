@@ -173,7 +173,7 @@ suspending rebuilder tasks target store = fst $ execState (build target) (store,
                     newTask = rebuilder key value task
                     fetch :: k -> StateT i (State (Store i k v, Set k)) v
                     fetch k = do lift (build k)                      -- build the key
-                                 lift (gets (getInfo . fst)) >>= put -- collect new traces
+                                 lift (gets (getInfo . fst)) >>= put -- save new traces
                                  lift (gets (getValue k . fst))      -- fetch the value
                 info <- gets (getInfo . fst)
                 (newValue, newInfo) <- runStateT (run newTask fetch) info

@@ -80,8 +80,7 @@ approximateRebuilder key value task = Task $ \fetch -> do
 -- | This rebuilder relies on verifying traces.
 vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
 vtRebuilder key value task = Task $ \fetch -> do
-    vt <- get
-    upToDate <- verifyVT key value (fmap hash . fetch) vt
+    upToDate <- verifyVT key value (fmap hash . fetch) =<< get
     if upToDate
     then return value
     else do
@@ -93,8 +92,7 @@ vtRebuilder key value task = Task $ \fetch -> do
 -- | This rebuilder relies on constructive traces.
 ctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (CT k v) k v
 ctRebuilder key value task = Task $ \fetch -> do
-    ct <- get
-    maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
+    maybeCachedValue <- constructCT key value (fmap hash . fetch) =<< get
     case maybeCachedValue of
         Just cachedValue -> return cachedValue
         Nothing -> do
@@ -106,8 +104,7 @@ ctRebuilder key value task = Task $ \fetch -> do
 -- | This rebuilder relies on deterministic constructive traces.
 dctRebuilder :: (Hashable k, Hashable v) => Rebuilder Monad (DCT k v) k v
 dctRebuilder key _value task = Task $ \fetch -> do
-    dct <- get
-    maybeCachedValue <- constructDCT key (fmap hash . fetch) dct
+    maybeCachedValue <- constructDCT key (fmap hash . fetch) =<< get
     case maybeCachedValue of
         Just cachedValue -> return cachedValue
         Nothing -> do
@@ -119,8 +116,8 @@ dctRebuilder key _value task = Task $ \fetch -> do
 -- | This rebuilder relies on version/step traces.
 stRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (Step, ST k v) k v
 stRebuilder key value task = Task $ \fetch -> do
-    dirty <- not <$> verifyST key value (void . fetch) (gets snd)
-    if not dirty
+    upToDate <- verifyST key value (void . fetch) (gets snd)
+    if upToDate
     then return value
     else do
         (newValue, deps) <- trackM task fetch
