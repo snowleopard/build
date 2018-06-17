@@ -45,7 +45,7 @@ topological rebuilder tasks target = execState $ forM_ order $ \key -> case task
             newTask :: Task (MonadState i) k v
             newTask = rebuilder key value task
             fetch :: k -> State i v
-            fetch k = pure (getValue k store)
+            fetch k = return (getValue k store)
             (newValue, newInfo) = runState (run newTask fetch) (getInfo store)
         modify $ putInfo newInfo . updateValue key value newValue
   where
