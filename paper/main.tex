@@ -3,11 +3,11 @@
 %% For double-blind review submission, w/ CCS and ACM Reference
 %\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true}
 % For single-blind review submission, w/o CCS and ACM Reference (max submission space)
-\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+% \documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For single-blind review submission, w/ CCS and ACM Reference
 %\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true}
 %% For final camera-ready submission, w/ required CCS and ACM Reference
-%\documentclass[acmsmall]{acmart}\settopmatter{}
+\documentclass[acmsmall]{acmart}\settopmatter{}
 
 %% Journal information
 %% Supplied to authors by publisher for camera-ready submission;
@@ -68,6 +68,7 @@
 % Abbreviations for build systems
 \newcommand{\Make}{\textsc{Make}\xspace}
 \newcommand{\Shake}{\textsc{Shake}\xspace}
+\newcommand{\Cloud}{\textsc{Cloud}\xspace}
 \newcommand{\Ninja}{\textsc{Ninja}\xspace}
 \newcommand{\Bazel}{\textsc{Bazel}\xspace}
 \newcommand{\Buck}{\textsc{Buck}\xspace}
@@ -87,7 +88,7 @@
 %% [Short title] Title
 \title[Build Systems \`a la Carte]{Build Systems \`a la Carte}
 % \titlenote{with title note}
-\subtitle{(Under review, feedback is sought)}
+% \subtitle{(Under review, feedback is sought)}
 % \subtitlenote{with subtitle note}
 
 %% An author may have multiple affiliations and/or emails; repeat the
@@ -118,34 +119,6 @@
 }
 \email{simonpj@microsoft.com}
 
-%% Author with two affiliations and emails.
-% \author{First2 Last2}
-% \authornote{with author2 note}          %% \authornote is optional;
-%                                         %% can be repeated if necessary
-% \orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
-% \affiliation{
-%   \position{Position2a}
-%   \department{Department2a}             %% \department is recommended
-%   \institution{Institution2a}           %% \institution is required
-%   \streetaddress{Street2a Address2a}
-%   \city{City2a}
-%   \state{State2a}
-%   \postcode{Post-Code2a}
-%   \country{Country2a}                   %% \country is recommended
-% }
-% \email{first2.last2@inst2a.com}         %% \email is recommended
-% \affiliation{
-%   \position{Position2b}
-%   \department{Department2b}             %% \department is recommended
-%   \institution{Institution2b}           %% \institution is required
-%   \streetaddress{Street3b Address2b}
-%   \city{City2b}
-%   \state{State2b}
-%   \postcode{Post-Code2b}
-%   \country{Country2b}                   %% \country is recommended
-% }
-% \email{first2.last2@inst2b.org}         %% \email is recommended
-
 \begin{abstract}
 Build systems are awesome, terrifying -- and unloved.
 They power developers around the world, but are rarely the object of study.
@@ -161,22 +134,21 @@ system that combines dynamic dependencies and cloud builds.
 \begin{CCSXML}
 <ccs2012>
 <concept>
-<concept_id>10011007.10011006.10011008</concept_id>
-<concept_desc>Software and its engineering~General programming languages</concept_desc>
+<concept_id>10011007</concept_id>
+ <concept_desc>Software and its engineering</concept_desc>
 <concept_significance>500</concept_significance>
 </concept>
 <concept>
-<concept_id>10003456.10003457.10003521.10003525</concept_id>
-<concept_desc>Social and professional topics~History of programming languages</concept_desc>
+<concept_id>10002950</concept_id>
+ <concept_desc>Mathematics of computing</concept_desc>
 <concept_significance>300</concept_significance>
 </concept>
 </ccs2012>
 \end{CCSXML}
-
-\ccsdesc[500]{Software and its engineering~General programming languages}
-\ccsdesc[300]{Social and professional topics~History of programming languages}
+\ccsdesc[500]{Software and its engineering}
+\ccsdesc[300]{Mathematics of computing}
 %% End of generated code
-% \keywords{build systems, functional programming, algorithms}
+\keywords{build systems, functional programming, algorithms}
 
 \maketitle
 
