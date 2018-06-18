@@ -331,9 +331,7 @@ we use \hs{lift} to execute commands in the inner monad.
 Finally, the \hs{newValue} and \hs{newInfo} obtained by running the \hs{newTask}
 are stored, and \hs{key} is added to the set \hs{done}.
 
-\vspace{-2mm}
 \subsection{\Bazel}\label{sec-implementation-bazel}
-\vspace{-1mm}
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -349,11 +347,10 @@ cloudShake = suspending ctRebuilder
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Rebuilder based on constructive traces
+-- A rebuilder based on constructive traces
 ctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (CT k v) k v
 ctRebuilder key value task = Task $ \fetch -> do
-    ct <- get
-    maybeCachedValue <- constructCT key value (fmap hash . fetch) ct
+    maybeCachedValue <- constructCT key value (fmap hash . fetch) =<< get
     case maybeCachedValue of
         Just cachedValue -> return cachedValue
         Nothing -> do
@@ -371,33 +368,43 @@ calculation chain.}
 \vspace{-2mm}
 \end{figure}
 
-Now we have seen all three dependency schemes, we can directly reuse
-\hs{topological} to define \Bazel. Furthermore, as \Bazel is a tracing build
-system, we can reuse \hs{Trace} and \hs{traceMatch}, along with the \hs{Traces}
-type from \S\ref{sec-constructive-traces}. With these pieces in place, the
-implementation of \Bazel is given in
-Fig.~\ref{fig-bazel-cloud-shake-implementation}. We first figure out the
-possible results given the current state. If there are no recorded traces for
-the current dependencies we run it and record the results, otherwise grab a
-suitable result from the \hs{contents} cache.
+In this section we show how constructive traces can be used to implement cloud
+build systems. Fig.~\ref{fig-bazel-cloud-shake-implementation} shows our models
+of \Bazel and Cloud \Shake, which both rely on \hs{ctRebuilder} -- a
+rebuilder based on constructive traces (\S\ref{sec-constructive-traces}).
 
-The program presented above captures certain aspects of \Bazel, but the real
-implementation makes one important additional assumption on \hs{Task} -- namely
-that it is \textit{deterministic}. With that assumption \Bazel is able to create
-the result hash in a trace by hashing together the result hashes of the
-dependencies and the key -- as the mapping between dependencies and results is
-deterministic. As a consequence \Bazel can compute the results of traces locally,
-without looking at \hs{Traces} (potentially saving a roundtrip to the server).
-To model this change in the code would require storing an additional transient
-piece of information \hs{done} of type \hs{Map}~\hs{k}~\hs{(Hash}~\hs{v)},
-storing the computed hashes so far this run. With that available,
-\hs{getHash}~\hs{key}~\hs{s} would become:
-\begin{minted}[xleftmargin=10pt]{haskell}
-hash (key, [ done Map.! d | d <- ds ])
-\end{minted}
-And that new hash would have to be stored in \hs{done}.
+The implementation of \hs{ctRebuilder} is analogous to that of \hs{vtRebuilder}
+in Fig.~\ref{fig-shake-implementation}, but the \hs{verifyVT} query is replaced
+with a more powerful query to \hs{constructCT} that can construct a resulting
+\hs{cachedValue} by looking it up the cloud cache. If the cache lookup fails, we
+fall back to executing the \hs{task}. The obtained \hs{newValue} and the
+\hs{task}'s dependencies are recorded as a new constructive trace for future
+use.
+
+The \Bazel build system uses a restarting scheduler whose implementation we
+omit. It is similar to \Excel's \hs{restarting} scheduler defined in
+Fig.~\ref{fig-excel-implementation}, but instead of building keys in the order
+specified by the persistently stored calculation chain, \Bazel uses a
+\emph{build queue}. The build starts with the queue containing all dirty keys.
+Similar to \Excel, the rebuilding of a key extracted from the queue may fail
+because one of its dynamic dependencies is dirty. In this case the key is marked
+as \emph{blocked} and its rebuilding is deferred. Whenever a key is successfully
+rebuilt, all keys that were previously blocked on it are added back to the
+queue, and their build is eventually restarted.
+
+Note that although both our model and \Bazel's actual implementation supports
+dynamic dependencies, it is currently not possible to define new monadic build
+rules in the language available to users. Instead, users have to rely on a
+(rich) collection of predefined built-in rules, which cover most but not all
+practically important cases.
 
 \subsection{Cloud \Shake}\label{sec-implementation-cloud-shake}
+
+By changing to \Shake's \hs{suspending} scheduler, we obtain an implementation
+of Cloud \Shake.
+
+\textbf{TODO:} A real implementation of Cloud \Shake is now available... It was
+obtained by directly applying the presented ideas.
 
 Using the abstractions and approaches built thus far, we have shown how to
 combine dependency scheme and change approach to reproduce existing build
@@ -408,12 +415,6 @@ matching recursive ordering with constructive traces~--~providing a cloud-capabl
 build system with minimality, cutoff and monadic dependencies. Using our
 framework it is possible to define and test such a system as per
 Fig.~\ref{fig-bazel-cloud-shake-implementation}.
-
-The differences from \hs{bazel} are minor~--~the dependency scheme has changed
-from \hs{topological} to \hs{recursive}, and thus the dependency keys \hs{dk}
-are captured from the action rather than in advance, the transient state has
-gained a list of keys, and the checking calls \hs{fetch} to get the result
-instead of accessing the store directly.
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -452,6 +453,25 @@ dctRebuilder key _value task = Task $ \fetch -> do
 \label{fig-buck-nix-implementation}
 \vspace{-2mm}
 \end{figure}
+
+\subsection{Buck and Nix}
+
+The program presented above captures certain aspects of \Bazel, but the real
+implementation makes one important additional assumption on \hs{Task} -- namely
+that it is \textit{deterministic}. With that assumption \Bazel is able to create
+the result hash in a trace by hashing together the result hashes of the
+dependencies and the key -- as the mapping between dependencies and results is
+deterministic. As a consequence \Bazel can compute the results of traces locally,
+without looking at \hs{Traces} (potentially saving a roundtrip to the server).
+To model this change in the code would require storing an additional transient
+piece of information \hs{done} of type \hs{Map}~\hs{k}~\hs{(Hash}~\hs{v)},
+storing the computed hashes so far this run. With that available,
+\hs{getHash}~\hs{key}~\hs{s} would become:
+\begin{minted}[xleftmargin=10pt]{haskell}
+hash (key, [ done Map.! d | d <- ds ])
+\end{minted}
+And that new hash would have to be stored in \hs{done}.
+
 
 \vspace{-1mm}
 \subsection{Smarter \hs{[Trace]} data structures}\label{sec-smart-traces}
