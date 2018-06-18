@@ -98,6 +98,7 @@ testSuite = and <$> sequence
     , test  "memo      " memo       ()
     , testA "make      " make       (0, Map.empty)
     , testA "ninja     " ninja      mempty
+    , testA "cloudBuild" cloudBuild mempty
     , test  "excel     " excel      ((Set.fromList inputCells, Map.empty), mempty)
     , test  "shake     " shake      mempty
     , test  "bazel     " bazel      mempty

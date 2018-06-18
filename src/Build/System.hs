@@ -6,10 +6,10 @@ module Build.System (
     dumb, busy, memo,
 
     -- * Applicative build systems
-    make, ninja, bazel, buck,
+    make, ninja, cloudBuild, buck,
 
     -- * Monadic build systems
-    excel, shake, cloudShake, nix
+    excel, shake, cloudShake, bazel, nix
     ) where
 
 import Control.Monad.State
@@ -76,6 +76,11 @@ bazel = restarting2 ctRebuilder
 -- traces to check if a key is up to date as well as for caching build results.
 cloudShake :: (Ord k, Hashable v) => Build Monad (CT k v) k v
 cloudShake = suspending ctRebuilder
+
+-- | A model of CloudBuild: an applicative build system that uses constructive
+-- traces to check if a key is up to date as well as for caching build results.
+cloudBuild :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
+cloudBuild = topological (unliftRebuilder ctRebuilder)
 
 -- | A model of Buck: an applicative build system that uses deterministic
 -- constructive traces to check if a key is up to date as well as for caching
