@@ -4,7 +4,7 @@
 module Build.Scheduler (
     topological,
     restarting, Chain,
-    restartingB, restarting2,
+    restarting2,
     suspending,
     independent
     ) where
@@ -116,9 +116,9 @@ dequeue :: Queue k -> Maybe (k, [k], Queue k)
 dequeue []          = Nothing
 dequeue ((k, bs):q) = Just (k, bs, q)
 
--- | Check if a key is dirty by examining its dependencies, as well as the
--- stored build information.
-type IsDirty i k v = k -> Store i k v -> Bool
+-- TODO: The implementation below is specialised to constructive traces @CT@.
+-- Can we make it polymorphic over the type of build information @i@ like other
+-- schedulers?
 
 -- | A model of the scheduler used by Bazel. We extract a key K from the queue
 -- and try to build it. There are now two cases:
@@ -126,10 +126,10 @@ type IsDirty i k v = k -> Store i k v -> Bool
 --    case we add the dirty dependency to the queue, listing K as blocked by it.
 -- 2. The build succeeds, in which case we add all keys that were previously
 --    blocked by K to the queue.
-restartingB :: forall i k v. Eq k => IsDirty i k v -> Rebuilder Monad i k v -> Build Monad i k v
-restartingB isDirty rebuilder tasks target = execState $ go (enqueue target [] mempty)
+restarting2 :: forall k v. (Hashable v, Eq k) => Rebuilder Monad (CT k v) k v -> Build Monad (CT k v) k v
+restarting2 rebuilder tasks target = execState $ go (enqueue target [] mempty)
   where
-    go :: Queue k -> State (Store i k v) ()
+    go :: Queue k -> State (Store (CT k v) k v) ()
     go queue = case dequeue queue of
         Nothing -> return ()
         Just (key, bs, q) -> case tasks key of
@@ -137,10 +137,10 @@ restartingB isDirty rebuilder tasks target = execState $ go (enqueue target [] m
             Just task -> do
                 store <- get
                 let value = getValue key store
-                    upToDate k = isInput tasks k || not (isDirty k store)
-                    newTask :: Task (MonadState i) k (Either k v)
+                    upToDate k = isInput tasks k || not (isDirtyCT k store)
+                    newTask :: Task (MonadState (CT k v)) k (Either k v)
                     newTask = try $ rebuilder key value task
-                    fetch :: k -> State i (Either k v)
+                    fetch :: k -> State (CT k v) (Either k v)
                     fetch k | upToDate k = return (Right (getValue k store))
                             | otherwise  = return (Left k)
                 case runState (run newTask fetch) (getInfo store) of
@@ -148,10 +148,6 @@ restartingB isDirty rebuilder tasks target = execState $ go (enqueue target [] m
                     (Right newValue, newInfo) -> do
                         modify $ putInfo newInfo . updateValue key value newValue
                         go (foldr (\b -> enqueue b []) q bs)
-
--- | A model of the scheduler used by Bazel, specialised to constructive traces.
-restarting2 :: (Hashable v, Eq k) => Rebuilder Monad (CT k v) k v -> Build Monad (CT k v) k v
-restarting2 = restartingB isDirtyCT
 
 ---------------------------------- Suspending ----------------------------------
 -- | This scheduler builds keys recursively: to build a key it executes the
