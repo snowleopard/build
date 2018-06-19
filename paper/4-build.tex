@@ -165,6 +165,10 @@ data Traces k v = Traces
 
 We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{contents} \emph{without} recomputing it. We split the traces and contents because in cloud interactions to a remote server the checking system may have to examine many traces/hashes, but only retrieve at most one complete file per key.
 
+\subsubsection{Deterministic constructive traces}\label{sec-deterministic-constructive-traces}
+
+\textbf{TODO}
+
 \subsection{Smarter \hs{[Trace]} data structures}\label{sec-smart-traces}
 
 In the examples above, we have used \hs{[Trace}~\hs{k}~\hs{v]} to capture a list
@@ -194,12 +198,13 @@ Here the \hs{Choice} encodes a tree, asking successive questions about keys, and
 \hline
 Property           & Topological\hspace{2mm}\S\ref{sec-topological} & Restarting\hspace{2mm}\S\ref{sec-restarting} & Suspending\hspace{2mm}\S\ref{sec-suspending}    \\\hline
 \hline
-Dirty bit\hfill\S\ref{sec-dirty-bit}                    & \Make    & \Excel                   & Approximate \Shake*  \\\hline
-Verifying trace\hfill\S\ref{sec-verifying-traces}       & \Ninja   & Traced \Excel*            & \Shake                      \\\hline
-Constructive trace\hspace{2mm}\hfill\S\ref{sec-constructive-traces} & \Bazel   & Cloud \Excel*             & Cloud \Shake*                \\\hline
+Dirty bit\hfill\S\ref{sec-dirty-bit}                                                             & \Make       & \Excel & -              \\\hline
+Verifying traces\hfill\S\ref{sec-verifying-traces}                                               & \Ninja      & -      & \Shake         \\\hline
+Constructive traces\hspace{2mm}\hfill\S\ref{sec-constructive-traces}                             & \CloudBuild & \Bazel & \Cloud \Shake  \\\hline
+Deterministic constructive traces\hspace{2mm}\hfill\S\ref{sec-deterministic-constructive-traces} & \Buck       & -      & \Nix           \\\hline
 \end{tabular}
 \vspace{2mm}
-\caption{Build systems \`a la carte. Systems marked * are hypothetical systems that do not currently exist.\label{tab-build-systems}}
+\caption{Build systems \`a la carte.\label{tab-build-systems}}
 \vspace{-2mm}
 \end{table}
 
