@@ -28,13 +28,13 @@ dependencies~\S\ref{sec-polymorphism}.
 
 \item \CloudBuild~\cite{esfahani2016cloudbuild}
 differs from \Bazel by allowing non-determinism~\S\ref{sec-non-determinism}, thus more closely modelling
-our original definition of \Bazel from \S\ref{sec-implementation-bazel-cloud-shake}.
+our original definition of \Bazel from \S\ref{sec-implementation-cloud}.
 
 \item \Nix~\cite{dolstra2004nix} has coarse-grained dependencies, with precise
 hashing of dependencies and downloading of precomputed build products. When
 combined with \cmd{import-from-derivation}, \Nix can also be considered monadic,
 making it similar to \Cloud \Shake
-from~\S\ref{sec-implementation-bazel-cloud-shake}.
+from~\S\ref{sec-implementation-cloud}.
 However, \Nix is not intended as a build system, and the coarse grained nature
 (packages, not individual files) makes it targeted to a different purpose.
 % John Ericson suggested in a blog comment that nix may be somewhat monadic, see:

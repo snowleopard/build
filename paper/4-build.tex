@@ -165,6 +165,26 @@ data Traces k v = Traces
 
 We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{contents} \emph{without} recomputing it. We split the traces and contents because in cloud interactions to a remote server the checking system may have to examine many traces/hashes, but only retrieve at most one complete file per key.
 
+\subsection{Smarter \hs{[Trace]} data structures}\label{sec-smart-traces}
+
+In the examples above, we have used \hs{[Trace}~\hs{k}~\hs{v]} to capture a list
+of traces~--~however, using a list necessarily means that finding the right trace
+takes $O(n)$. For each of the \hs{Trace} based systems it is possible to devise
+a smarter representation, which we sketch below. Note that these implementations
+do not avoid calls to \hs{compute}, merely overheads in the build system itself.
+
+\begin{enumerate}
+\item Any system using verifying traces, e.g. \Shake, is unlikely to see significant benefit from storing more than one \hs{Trace} per key\footnote{There is a small chance of a benefit if the dependencies change but the result does not, and then the dependencies change back to what they were before.}. Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v)}, where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
+\item Any system using \hs{Applicative} dependencies can omit the dependency keys from the \hs{Trace} as they can be recovered from the \hs{key} field.
+\item Any \hs{Applicative} build system storing constructive traces, e.g. \Bazel, can index directly from the key and results to the output result~--~i.e. \hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{(Hash}~\hs{v)}. Importantly, assuming the traces are stored on a central server, the client can compute the key and the hashes of its dependencies, then make a single call to the server to retrieve the result hash. In this formulation we have removed the possibility for a single key/dependency state to map to multiple different hashes, e.g. on a non-deterministic build~--~something \Bazel already prohibits which is discussed more in~\S\ref{sec-non-determinism}.
+\item Finally, a \hs{Monad} build system with constructive traces can be stored as \hs{Map}~\hs{k}~\hs{(Choice}~\hs{k}~\hs{v)}, assuming a definition of \hs{Choice} as:
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Choice k v = Choice k (Map (Hash v) (Choice k v))
+                | Result (Hash v)
+\end{minted}
+Here the \hs{Choice} encodes a tree, asking successive questions about keys, and taking different branches based on the answers, until it reaches a final result. Implementing this structure over client-server communication requires either a chatty interface with lots of round-trips per \hs{Choice} step, or sending over a part of the tree that is not subsequently explored.
+\end{enumerate}
+
 \subsection{Build Systems \`a la Carte}\label{sec-design-space}
 
 \begin{table}[h]
@@ -196,4 +216,4 @@ information database, but that advantage is minor compared to the technical
 restrictions and approximations it would provide, so we consider it unlikely
 to be built. The Cloud \Shake system is an interesting and important point in
 the design space, which we explore further
-in~\S\ref{sec-implementation-bazel-cloud-shake}.
+in~\S\ref{sec-implementation-cloud}.
