@@ -51,7 +51,7 @@ make = topological modTimeRebuilder
 -- | A model of Ninja: an applicative build system that uses verifying traces
 -- to check if a key is up to date.
 ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
-ninja = topological (unliftRebuilder vtRebuilder)
+ninja = topological (adaptRebuilder vtRebuilder)
 
 type ExcelInfo k = (ApproximationInfo k, Chain k)
 
@@ -80,13 +80,13 @@ cloudShake = suspending ctRebuilder
 -- | A model of CloudBuild: an applicative build system that uses constructive
 -- traces to check if a key is up to date as well as for caching build results.
 cloudBuild :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
-cloudBuild = topological (unliftRebuilder ctRebuilder)
+cloudBuild = topological (adaptRebuilder ctRebuilder)
 
 -- | A model of Buck: an applicative build system that uses deterministic
 -- constructive traces to check if a key is up to date as well as for caching
 -- build results.
 buck :: (Hashable k, Hashable v) => Build Applicative (DCT k v) k v
-buck = topological (unliftRebuilder dctRebuilder)
+buck = topological (adaptRebuilder dctRebuilder)
 
 -- | A model of Nix: a monadic build system that uses deterministic constructive
 -- traces to check if a key is up to date as well as for caching build results.
