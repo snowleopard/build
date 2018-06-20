@@ -1,10 +1,25 @@
 \section{Build systems, concretely}\label{sec-implementations}
 
 In the previous sections we discussed the types of build systems, and how they
-can be broken down into two main components: a scheduler and a rebuilder. This
-decomposition was not obvious to us, and only by concretely implementing and
-refactoring each build system did we determine the underlying commonalities.
-In this section we share some of the code that got us there.
+can be broken down into two main components: a scheduler and a rebuilder.
+In this section we make this abstract distinction concrete, by actually
+implementing a number of build systems as a composition of a schedulear
+and a rebuilder.  Our design is expressed by these types:
+\begin{minted}[xleftmargin=10pt]{haskell}
+type Scheduler c i k v = Rebuilder c i k v -> Build c k v
+type Rebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
+\end{minted}
+That is:
+\begin{itemize}
+\item A \hs{Scheduler} is just a function that takes a \hs{Rebuilder} and uses
+  it to construct \hs{Build} system, by choosing which keys to rebuild in which order.
+\item A \hs{Rebuilder} is a function that is given a key, the key's ``old'' value,
+  and a \hs{Task} that can compute the value of the key if necessary. It uses
+  the persistent build state \hs{i} (carried by the state monad) to decide
+  whether to re-build the value.  If doing so is unnecesary, it returns the
+  old value; otherwise it runs the supplied \hs{Task} to rebuild it.  In both
+  cases it updates the persistent build information \hs{i} to reflect what happened.
+\end{itemize}
 
 \subsection{\Make}\label{sec-implementation-make}
 
