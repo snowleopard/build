@@ -2,8 +2,8 @@
 
 In the previous sections we discussed the types of build systems, and how they
 can be broken down into two main components: a scheduler and a rebuilder.
-In this section we make this abstract distinction concrete, by actually
-implementing a number of build systems as a composition of a schedulear
+In this section we make this abstract distinction concrete, by
+implementing a number of build systems as a composition of a scheduler
 and a rebuilder.  Our design is expressed by these types:
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Scheduler c i k v = Rebuilder c i k v -> Build c k v
@@ -20,6 +20,9 @@ That is:
   old value; otherwise it runs the supplied \hs{Task} to rebuild it.  In both
   cases it updates the persistent build information \hs{i} to reflect what happened.
 \end{itemize}
+We write a scheduler for each column of Table~\ref{tab-build-systems}, and a
+rebuilder for each row; then applying the former to the latter, in any combination,
+gives a correct build system.
 
 \subsection{\Make}\label{sec-implementation-make}
 
@@ -100,8 +103,8 @@ applicative we can statically find its dependencies using the function
 to update the current time and file modification time whenever the \hs{key} is
 rebuilt, which in reality is taken care of by the file system.
 
-\Make's scheduler processes keys in a linear \hs{order} based on a
-\hs{topological} sort of the statically known dependency graph
+\Make's scheduler, \hs{topological}, processes keys in a linear \hs{order} based on a
+topological sort of the statically known dependency graph
 (see~\S\ref{sec-parallelism} for parallel \Make). Our definition in
 Fig.~\ref{fig-make-implementation} is polymorphic with respect to the type of
 build information \hs{i} and is therefore compatible with any applicative
