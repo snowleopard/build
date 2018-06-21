@@ -145,18 +145,18 @@ of computing the dependency graph prior to calc.
 To support dynamic dependencies, \Excel's build
 algorithm~\cite{excel_recalc} is significantly different from
 \Make. \Excel{} arranges the cells into a linear sequence, called the
-\emph{calculation chain}.  During recalculation, \Excel{} processes
-cells the calc-chain sequence, but if computing a cell C requires the
+\emph{calc chain}.  During recalculation, \Excel{} processes
+cells in the calc-chain sequence, but if computing a cell C requires the
 value of a cell D that has not yet beeen computed, \Excel{}
 \emph{aborts} computation of C, moves D before C in the calc chain,
 and resumes recalculation starting with D.  When a calc cycle is
 complete, the calc chain respects all the dynamic dependencies of the
 spreadsheet.  When an input value (or formula) is changed, \Excel{}
 uses the final calc chain from the \emph{previous} calc cycle as its
-starting point so that, in the common case where chaning an input
-value does not change dependencies, there are zero aborts.  Notice
+starting point so that, in the common case where changing an input
+value does not change dependencies, there are no aborts.  Notice
 that calc always succeeds regardless of the initial calc chain
-(barring truly circular dependencies); the calc chain is ``just'' an optimisation.
+(barring truly circular dependencies); the calc chain is just an optimisation.
 We refer to this algorithm as \emph{restarting}, and will discuss it
 in more detail in~\S\ref{sec-implementation-excel}.
 

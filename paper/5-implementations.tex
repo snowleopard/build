@@ -26,9 +26,11 @@ So a \hs{Rebuilder} wraps a \hs{Task c k v}, which unconditionally rebulds the k
 to make a \hs{Task (Monadstate i) k v}, which rebuilds the key only if necessary, and
 does the necessary book-keeping. \simon{I'm puzzled by the absence of 'c' in the return type.}
 
-We write a scheduler for each column of Table~\ref{tab-build-systems}, and a
-rebuilder for each row; then applying the former to the latter, in any combination,
-gives a correct build system.
+These two abstractions are the key to modularity: \emph{we can combine any scheduler
+  with any rebuilder, and obtain a correct build system}.
+In this section we will write a scheduler for each column of Table~\ref{tab-build-systems},
+and a rebuilder for each row; then combine them to obtain the build systems in the
+body of the Table.
 
 \subsection{\Make}\label{sec-implementation-make}
 
@@ -90,10 +92,9 @@ An implementation of \Make using our framework is shown in
 Fig.~\ref{fig-make-implementation}. As promised, its definition
 is just the application of a \hs{Scheduler}, \hs{topological},
 to a \hs{Rebuilder}, \hs{modTimeRebuilder}.
-of the scheduler-rebuilder decomposition in Table~\ref{tab-build-systems}. We discuss
-each component in turn, starting with the rebuilder.
+We discuss each component in turn, starting with the rebuilder.
 
-The rebuilder \hs{modTimeRebuilder} uses the pair
+The \hs{modTimeRebuilder} uses the pair
 \hs{MakeInfo}~\hs{k}~\hs{=}~\hs{(@@now,}~\hs{modTimes)} as persistent
 build information, carried by a \hs{MonadState} monad. This
 \hs{MakeInfo} comprises the \emph{current time} \hs{now} and the map
