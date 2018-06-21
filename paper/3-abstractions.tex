@@ -42,6 +42,7 @@ instance Monad       (State s)
 get       :: State s s
 gets      :: (s -> a) -> State s a
 modify    :: (s -> s) -> State s ()
+runState  :: State s a -> s -> (a, s)
 execState :: State s a -> s -> s
 \end{minted}
 \vspace{1mm}
@@ -494,7 +495,8 @@ case, spreadsheet arithmetic). They cannot: we are not supplying a store or any
 input numbers. So, through the wonders of polymorphism, we are able to extract
 the dependencies of the spreadsheet formula, and to do so efficiently, simply by
 running its code in a different \hs{Applicative}! This is not new, for example
-see~\cite{free-applicatives}, but it is cool.
+see~\cite{free-applicatives}, but it is etremely cool.  We will see a practical
+use for \hs{dependencies} in \S\ref{sec-implementation-make}.
 
 So much for applicative tasks. What about monadic tasks with dynamic
 dependencies? As we have seen in~\S\ref{sec-background-shake}, dynamic
@@ -551,6 +553,7 @@ A2: 20
 As expected, the dependencies of the cell \cmd{B1} from \hs{sprsh2} (see the
 spreadsheet in~\S\ref{sec-task-monad}) are determined by the value of \cmd{C1},
 which in this case is obtained by reading from the standard input.
+We will see a use for \hs{track} in \S\ref{sec-implementation-shake}.
 
 % Furthermore, the above example highlights the static cycle between cells
 % \cmd{B1} and \cmd{B2}: in \hs{store1}, we have \cmd{B1 = B2 = A1 = 10},

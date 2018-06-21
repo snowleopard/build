@@ -6,20 +6,26 @@ In this section we make this abstract distinction concrete, by
 implementing a number of build systems as a composition of a scheduler
 and a rebuilder.  Our design is expressed by these types:
 \begin{minted}[xleftmargin=10pt]{haskell}
-type Scheduler c i k v = Rebuilder c i k v -> Build c k v
+type Scheduler c is ib k v = Rebuilder c ib k v -> Build c is k v
 type Rebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
 \end{minted}
-That is:
-\begin{itemize}
-\item A \hs{Scheduler} is just a function that takes a \hs{Rebuilder} and uses
-  it to construct \hs{Build} system, by choosing which keys to rebuild in which order.
-\item A \hs{Rebuilder} is a function that is given a key, the key's ``old'' value,
-  and a \hs{Task} that can compute the value of the key if necessary. It uses
-  the persistent build state \hs{i} (carried by the state monad) to decide
-  whether to re-build the value.  If doing so is unnecesary, it returns the
-  old value; otherwise it runs the supplied \hs{Task} to rebuild it.  In both
-  cases it updates the persistent build information \hs{i} to reflect what happened.
-\end{itemize}
+So a \hs{Scheduler} is just a function that takes a \hs{Rebuilder} and uses
+it to construct \hs{Build} system, by choosing which keys to rebuild in which order.
+The \hs{Rebuilder} makes uses of the persistent build information \hs{ib}, while
+the scheduler might augment that with further persistent information of its own,
+yielding \hs{is}.
+
+A \hs{Rebuilder} is a function which the \hs{Scheduler} uses to rebuild
+a particular key, passing to it the key, the key's ``old'' value,
+and a \hs{Task} that can compute the value of the key if necessary. It uses
+the persistent build state \hs{i} (carried by the state monad) to decide
+whether to re-build the value.  If doing so is unnecesary, it returns the
+old value; otherwise it runs the supplied \hs{Task} to rebuild it.  In both
+cases it updates the persistent build information \hs{i} to reflect what happened.
+So a \hs{Rebuilder} wraps a \hs{Task c k v}, which unconditionally rebulds the key,
+to make a \hs{Task (Monadstate i) k v}, which rebuilds the key only if necessary, and
+does the necessary book-keeping. \simon{I'm puzzled by the absence of 'c' in the return type.}
+
 We write a scheduler for each column of Table~\ref{tab-build-systems}, and a
 rebuilder for each row; then applying the former to the latter, in any combination,
 gives a correct build system.
@@ -43,18 +49,18 @@ type MakeInfo k = (Time, Map k Time)
 -- A task rebuilder based on file modification times
 modTimeRebuilder :: Ord k => Rebuilder Applicative (MakeInfo k) k v
 modTimeRebuilder key value task = Task $ \fetch -> do
-    (now, modTime) <- get
-    let dirty = case Map.lookup key modTime of
+    (now, modTimes) <- get
+    let dirty = case Map.lookup key modTimes of
             Nothing -> True
-            time -> any (\d -> Map.lookup d modTime > time) (dependencies task)
+            time -> any (\d -> Map.lookup d modTimes > time) (dependencies task)
     if not dirty then return value else do
-        put (now + 1, Map.insert key now modTime)
+        put (now + 1, Map.insert key now modTimes)
         run task fetch
 \end{minted}
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A topological task scheduler
-topological :: Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
+topological :: Ord k => Scheduler Applicative i i k v
 topological rebuilder tasks target = execState $ forM_ order $ \key -> case tasks key of
     Nothing   -> return ()
     Just task -> do
@@ -81,27 +87,29 @@ topSort   :: Ord k => Graph k -> Maybe [k] -- Returns Nothing on a cyclic graph
 \end{figure}
 
 An implementation of \Make using our framework is shown in
-Fig.~\ref{fig-make-implementation}. The top-level definition
-\hs{make}~\hs{=}~\hs{topological}~\hs{modTimeRebuilder} is a direct translation
-of the scheduler-rebuilder decomposition in Table~\ref{tab-build-systems}. Below
-we describe both components, starting with \hs{modTimeRebuilder}.
+Fig.~\ref{fig-make-implementation}. As promised, its definition
+is just the application of a \hs{Scheduler}, \hs{topological},
+to a \hs{Rebuilder}, \hs{modTimeRebuilder}.
+of the scheduler-rebuilder decomposition in Table~\ref{tab-build-systems}. We discuss
+each component in turn, starting with the rebuilder.
 
-\Make stores the pair \hs{MakeInfo}~\hs{k}~\hs{=}~\hs{(@@now,}~\hs{modTime)}
-as persistent build information. It comprises the \emph{current time} \hs{now}
-and the map \hs{modTime}~\hs{::}~\hs{Map}~\hs{k}~\hs{Time} of \emph{file
-modification times}. The rebuilder receives three arguments: a \hs{key}, its
-current \hs{value}, and the \hs{task} of type
-\hs{Task}~\hs{Applicative}~\hs{k}~\hs{v} that can be used to rebuild the
-\hs{key} if necessary. The rebuilder returns a modified monadic task of type
-\hs{Task}~\hs{(@@MonadState}~\hs{(@@MakeInfo}~\hs{k))}~\hs{k}~\hs{v} that has
-access to \Make's build information and uses it to decide whether to return the
-current \hs{value} as is, or rebuild the \hs{key} if it is \hs{dirty}, i.e.
-if it is older than any of its dependencies\footnote{Since the \hs{task} is
-applicative we can statically find its dependencies using the function
-\hs{dependencies} defined in~\S\ref{sec-deps}.} or has never been built before
-(in which case \hs{modTime} has no entry for it). Note that in our model we need
-to update the current time and file modification time whenever the \hs{key} is
-rebuilt, which in reality is taken care of by the file system.
+The rebuilder \hs{modTimeRebuilder} uses the pair
+\hs{MakeInfo}~\hs{k}~\hs{=}~\hs{(@@now,}~\hs{modTimes)} as persistent
+build information, carried by a \hs{MonadState} monad. This
+\hs{MakeInfo} comprises the \emph{current time} \hs{now} and the map
+\hs{modTimes}~\hs{::}~\hs{Map}~\hs{k}~\hs{Time} of \emph{file
+modification times}. The rebuilder receives three arguments: a
+\hs{key}, its current \hs{value}, and the \hs{task} of type
+\hs{Task}~\hs{Applicative}~\hs{k}~\hs{v} that can be used to rebuild
+the \hs{key} if necessary.  The rebuilder first decides if the
+\hs{key} is \hs{dirty} by consulting \hs{modTime}: if the key is not
+found, that must mean it has never been built before; otherwise
+\hs{modTimeRebuilder} can see if any of the task's dependencies
+(computed by \hs{dependencies}) are out of date.  If the key is
+\hs{dirty}, we use `run task` to rebuild it, and update the state with
+the new modification time of the key\footnote{The real \hs{make}
+relies on the file system to track modification times, but we prefer
+to make it explicit here.}; othewise we can just return the old vale.
 
 \Make's scheduler, \hs{topological}, processes keys in a linear \hs{order} based on a
 topological sort of the statically known dependency graph
@@ -136,7 +144,7 @@ the \hs{topological} scheduler will also inherit the same restriction.
 
 Our \Excel's model is a composition of the \hs{restarting} scheduler and the
 \hs{approximateRebuilder}, as shown in Fig.~\ref{fig-excel-implementation}.
-Persistently stored build information \hs{ExcelInfo}~\hs{k} is a triple:
+The persistent build information \hs{ExcelInfo}~\hs{k} is a triple:
 
 \begin{itemize}
     \item A set of dirty keys \hs{Set}~\hs{k}, i.e. all cells whose contents
@@ -222,7 +230,7 @@ approximateRebuilder key value task = Task $ \fetch -> do
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A restarting task scheduler
-restarting :: Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
+restarting :: Ord k => Scheduler Monad i (i, Chain k) k v
 restarting rebuilder tasks target = execState $ do
     chain    <- gets (snd . getInfo)
     newChain <- go Set.empty $ chain ++ [target | target `notElem` chain]
@@ -285,7 +293,7 @@ vtRebuilder key value task = Task $ \fetch -> do
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A suspending task scheduler
-suspending :: Ord k => Rebuilder Monad i k v -> Build Monad i k v
+suspending :: Ord k => Scheduler Monad i i k v
 suspending rebuilder tasks target store = fst $ execState (build target) (store, Set.empty)
   where
     build :: k -> State (Store i k v, Set k) (@@)
