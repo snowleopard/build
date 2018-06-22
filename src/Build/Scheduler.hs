@@ -24,6 +24,8 @@ import Build.Utilities
 
 import qualified Data.Set as Set
 
+type Scheduler c i j k v = Rebuilder c j k v -> Build c i k v
+
 -- | Update the value of a key in the store. The function takes both the current
 -- value (the first parameter of type @v@) and the new value (the second
 -- parameter of type @v@), and can potentially avoid touching the store if the
@@ -36,7 +38,7 @@ updateValue key _value newValue = putValue key newValue
 -- | This scheduler constructs the dependency graph of the target key by
 -- extracting all (static) dependencies upfront, and then traversing the graph
 -- in the topological order, rebuilding keys using the supplied rebuilder.
-topological :: forall i k v. Ord k => Rebuilder Applicative i k v -> Build Applicative i k v
+topological :: forall i k v. Ord k => Scheduler Applicative i i k v
 topological rebuilder tasks target = execState $ forM_ order $ \key -> case tasks key of
     Nothing -> return ()
     Just task -> do
@@ -73,7 +75,7 @@ type Chain k = [k]
 -- changed and a new dependency is still dirty, the corresponding build task is
 -- abandoned and the key is moved at the end of the calculation chain, so it can
 -- be restarted when all its dependencies are up to date.
-restarting :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad (i, Chain k) k v
+restarting :: forall i k v. Ord k => Scheduler Monad (i, Chain k) i k v
 restarting rebuilder tasks target = execState $ do
     chain    <- gets (snd . getInfo)
     newChain <- go Set.empty $ chain ++ [target | target `notElem` chain]
@@ -126,7 +128,7 @@ dequeue ((k, bs):q) = Just (k, bs, q)
 --    case we add the dirty dependency to the queue, listing K as blocked by it.
 -- 2. The build succeeds, in which case we add all keys that were previously
 --    blocked by K to the queue.
-restarting2 :: forall k v. (Hashable v, Eq k) => Rebuilder Monad (CT k v) k v -> Build Monad (CT k v) k v
+restarting2 :: forall k v. (Hashable v, Eq k) => Scheduler Monad (CT k v) (CT k v) k v
 restarting2 rebuilder tasks target = execState $ go (enqueue target [] mempty)
   where
     go :: Queue k -> State (Store (CT k v) k v) ()
@@ -155,7 +157,7 @@ restarting2 rebuilder tasks target = execState $ go (enqueue target [] mempty)
 -- dependencies is dirty, the task is suspended until the dependency is rebuilt.
 -- It stores the set of keys that have already been built as part of the state
 -- to avoid executing the same task twice.
-suspending :: forall i k v. Ord k => Rebuilder Monad i k v -> Build Monad i k v
+suspending :: forall i k v. Ord k => Scheduler Monad i i k v
 suspending rebuilder tasks target store = fst $ execState (build target) (store, Set.empty)
   where
     build :: k -> State (Store i k v, Set k) ()
@@ -180,7 +182,7 @@ suspending rebuilder tasks target store = fst $ execState (build target) (store,
 -- | An incorrect scheduler that builds the target key without respecting its
 -- dependencies. It produces the correct result only if all dependencies of the
 -- target key are up to date.
-independent :: forall i k v. Eq k => Rebuilder Monad i k v -> Build Monad i k v
+independent :: forall i k v. Eq k => Scheduler Monad i i k v
 independent rebuilder tasks target store = case tasks target of
     Nothing -> store
     Just task ->
