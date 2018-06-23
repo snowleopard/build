@@ -64,7 +64,7 @@ type ApproximationInfo k = (Set k, ApproximateDependencies k)
 
 -- | This rebuilders uses approximate dependencies to decide whether a key
 -- needs to be rebuilt. Used by Excel.
-approximateRebuilder :: Ord k => Rebuilder Monad (ApproximationInfo k) k v
+approximateRebuilder :: (Ord k, Eq v) => Rebuilder Monad (ApproximationInfo k) k v
 approximateRebuilder key value task = Task $ \fetch -> do
     (dirtyKeys, deps) <- get
     let dirty = key `Set.member` dirtyKeys ||
@@ -73,8 +73,9 @@ approximateRebuilder key value task = Task $ \fetch -> do
     if not dirty
     then return value
     else do
-        put (Set.insert key dirtyKeys, deps)
-        run task fetch
+        newValue <- run task fetch
+        when (value /= newValue) $ put (Set.insert key dirtyKeys, deps)
+        return newValue
 
 ------------------------------- Verifying traces -------------------------------
 -- | This rebuilder relies on verifying traces.

@@ -57,7 +57,7 @@ type ExcelInfo k = (ApproximationInfo k, Chain k)
 
 -- | A model of Excel: a monadic build system that stores the calculation chain
 -- from the previuos build and approximate dependencies.
-excel :: Ord k => Build Monad (ExcelInfo k) k v
+excel :: (Ord k, Eq v) => Build Monad (ExcelInfo k) k v
 excel = restarting approximateRebuilder
 
 -- | A model of Shake: a monadic build system that uses verifying traces to
