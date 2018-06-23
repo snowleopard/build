@@ -75,22 +75,22 @@ type Chain k = [k]
 -- changed and a new dependency is still dirty, the corresponding build task is
 -- abandoned and the key is moved at the end of the calculation chain, so it can
 -- be restarted when all its dependencies are up to date.
-restarting :: forall i k v. Ord k => Scheduler Monad (i, Chain k) i k v
+restarting :: forall ir k v. Ord k => Scheduler Monad (ir, Chain k) ir k v
 restarting rebuilder tasks target = execState $ do
     chain    <- gets (snd . getInfo)
     newChain <- go Set.empty $ chain ++ [target | target `notElem` chain]
-    modify . mapInfo $ \(i, _) -> (i, newChain)
+    modify . mapInfo $ \(ir, _) -> (ir, newChain)
   where
-    go :: Set k -> Chain k -> State (Store (i, Chain k) k v) (Chain k)
+    go :: Set k -> Chain k -> State (Store (ir, Chain k) k v) (Chain k)
     go _    []       = return []
     go done (key:ks) = case tasks key of
         Nothing -> (key :) <$> go (Set.insert key done) ks
         Just task -> do
             store <- get
             let value = getValue key store
-                newTask :: Task (MonadState i) k (Either k v)
+                newTask :: Task (MonadState ir) k (Either k v)
                 newTask = try $ rebuilder key value task
-                fetch :: k -> State i (Either k v)
+                fetch :: k -> State ir (Either k v)
                 fetch k | k `Set.member` done = return $ Right (getValue k store)
                         | otherwise           = return $ Left k
             case runState (run newTask fetch) (fst $ getInfo store) of

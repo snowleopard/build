@@ -43,14 +43,14 @@ type MakeInfo k = (Time, Map k Time)
 -- needs to be rebuilt. Used by Make.
 modTimeRebuilder :: Ord k => Rebuilder Applicative (MakeInfo k) k v
 modTimeRebuilder key value task = Task $ \fetch -> do
-    (now, modTime) <- get
-    let dirty = case Map.lookup key modTime of
+    (now, modTimes) <- get
+    let dirty = case Map.lookup key modTimes of
             Nothing -> True
-            time -> any (\d -> Map.lookup d modTime > time) (dependencies task)
+            time -> any (\d -> Map.lookup d modTimes > time) (dependencies task)
     if not dirty
     then return value
     else do
-        put (now + 1, Map.insert key now modTime)
+        put (now + 1, Map.insert key now modTimes)
         run task fetch
 
 --------------------------- Approximate dependencies ---------------------------
