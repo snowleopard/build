@@ -6,31 +6,33 @@ In this section we make this abstract distinction concrete, by
 implementing a number of build systems as a composition of a scheduler
 and a rebuilder.  Our design is expressed by these types:
 \begin{minted}[xleftmargin=10pt]{haskell}
-type Scheduler c is ib k v = Rebuilder c ib k v -> Build c is k v
-type Rebuilder c i k v = k -> v -> Task c k v -> Task (MonadState i) k v
+type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
+type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 \end{minted}
 So a \hs{Scheduler} is just a function that takes a \hs{Rebuilder} and uses
 it to construct \hs{Build} system, by choosing which keys to rebuild in which order.
-The \hs{Rebuilder} makes uses of the persistent build information \hs{ib}, while
+The \hs{Rebuilder} makes uses of the persistent build information \hs{ir}, while
 the scheduler might augment that with further persistent information of its own,
-yielding \hs{is}.
+yielding \hs{i}.
 
-A \hs{Rebuilder} is a function which the \hs{Scheduler} uses to rebuild
-a particular key, passing to it the key, the key's ``old'' value,
-and a \hs{Task} that can compute the value of the key if necessary. It uses
-the persistent build state \hs{i} (carried by the state monad) to decide
-whether to re-build the value.  If doing so is unnecesary, it returns the
-old value; otherwise it runs the supplied \hs{Task} to rebuild it.  In both
-cases it updates the persistent build information \hs{i} to reflect what happened.
-So a \hs{Rebuilder} wraps a \hs{Task c k v}, which unconditionally rebulds the key,
-to make a \hs{Task (Monadstate i) k v}, which rebuilds the key only if necessary, and
-does the necessary book-keeping. \simon{I'm puzzled by the absence of 'c' in the return type.}
+A \hs{Rebuilder} is a function which the \hs{Scheduler} uses to rebuild a
+particular key, passing to it the key, the key's current value, and a \hs{Task}
+that can compute the value of the key if necessary. It uses the persistent build
+information \hs{ir} (carried by the state monad) to decide whether to rebuild
+the value. If doing so is unnecessary, it returns the current value; otherwise
+it runs the supplied \hs{Task} to rebuild it. In both cases it can choose to
+update the persistent build information \hs{ir} to reflect what happened. So a
+\hs{Rebuilder} wraps a \hs{Task}~\hs{c}~\hs{k}~\hs{v}, which unconditionally
+rebuilds the key, to make a \hs{Task}~\hs{(MonadState}~\hs{ir)}~\hs{k}~\hs{v},
+which rebuilds the key only if necessary, and does the necessary book-keeping.
+Note that the resulting \hs{Task} is always monadic; static dependency analysis
+can be performed on the original \hs{Task}~\hs{Applicative} if need be.
 
-These two abstractions are the key to modularity: \emph{we can combine any scheduler
-  with any rebuilder, and obtain a correct build system}.
-In this section we will write a scheduler for each column of Table~\ref{tab-build-systems},
-and a rebuilder for each row; then combine them to obtain the build systems in the
-body of the Table.
+These two abstractions are the key to modularity: \emph{we can combine any
+scheduler with any rebuilder, and obtain a correct build system}.
+In this section we will write a scheduler for each column of
+Table~\ref{tab-build-systems}, and a rebuilder for each row; then combine them
+to obtain the build systems in the table's body.
 
 \subsection{\Make}\label{sec-implementation-make}
 
@@ -103,14 +105,16 @@ modification times}. The rebuilder receives three arguments: a
 \hs{key}, its current \hs{value}, and the \hs{task} of type
 \hs{Task}~\hs{Applicative}~\hs{k}~\hs{v} that can be used to rebuild
 the \hs{key} if necessary.  The rebuilder first decides if the
-\hs{key} is \hs{dirty} by consulting \hs{modTime}: if the key is not
+\hs{key} is \hs{dirty} by consulting \hs{modTimes}: if the key is not
 found, that must mean it has never been built before; otherwise
-\hs{modTimeRebuilder} can see if any of the task's dependencies
-(computed by \hs{dependencies}) are out of date.  If the key is
-\hs{dirty}, we use `run task` to rebuild it, and update the state with
-the new modification time of the key\footnote{The real \hs{make}
+\hs{modTimeRebuilder} can see if any of the \hs{task}'s dependencies
+(computed by \hs{dependencies}) are out of date. If the key is
+\hs{dirty}, we use \hs{run}~\hs{task} to rebuild it, and update the state with
+the new modification time of the key\footnote{The real \Make
 relies on the file system to track modification times, but we prefer
-to make it explicit here.}; othewise we can just return the old vale.
+to make it explicit here.}; otherwise we can just return the current value.
+We assume that the external system, which invokes the build system, updates
+\hs{MakeInfo}~\hs{k} reflecting any file changes between successive builds.
 
 \Make's scheduler, \hs{topological}, processes keys in a linear \hs{order} based on a
 topological sort of the statically known dependency graph
@@ -231,21 +235,21 @@ approximateRebuilder key value task = Task $ \fetch -> do
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A restarting task scheduler
-restarting :: Ord k => Scheduler Monad i (i, Chain k) k v
+restarting :: Ord k => Scheduler Monad (ir, Chain k) ir k v
 restarting rebuilder tasks target = execState $ do
     chain    <- gets (snd . getInfo)
     newChain <- go Set.empty $ chain ++ [target | target `notElem` chain]
-    modify . mapInfo $ \(i, _) -> (i, newChain)
+    modify . mapInfo $ \(ir, _) -> (ir, newChain)
   where
-    go :: Set k -> Chain k -> State (Store (i, Chain k) k v) (Chain k)
+    go :: Set k -> Chain k -> State (Store (ir, Chain k) k v) (Chain k)
     go _    [@@]       = return [@@]
     go done (key:ks) = case tasks key of
         Nothing -> (key :) <$> go (Set.insert key done) ks
         Just task -> do
             store <- get
-            let newTask :: Task (MonadState i) k (Either k v)
+            let newTask :: Task (MonadState ir) k (Either k v)
                 newTask = try $ rebuilder key (getValue key store) task
-                fetch :: k -> State i (Either k v)
+                fetch :: k -> State ir (Either k v)
                 fetch k | k `Set.member` done = return $ Right (getValue k store)
                         | otherwise           = return $ Left k
             case runState (run newTask fetch) (fst $ getInfo store) of
