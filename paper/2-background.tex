@@ -354,22 +354,22 @@ to the information that build systems persistently store between builds:
 \centering
 \begin{tabular}{l||l|l||l|c|c|c}
 \hline
-$\!$Build system$\!$& Persistent build information & Algorithm   & Dependencies   & Minimal & Cutoff & Cloud$\!$\\\hline
-$\!$\Make       $\!$& File modification times      & Topological & Static         & Yes     & No     & No   $\!$\\
-$\!$\Excel      $\!$& Dirty cells, calc chain      & Restarting  & Dynamic        & No      & No     & No   $\!$\\
-$\!$\Shake      $\!$& Previous dependency graph    & Suspending  & Dynamic        & Yes     & Yes    & No   $\!$\\
-$\!$\Bazel      $\!$& Cloud cache, command history & Restarting  & Static$^{(*)}$ & No      & Yes    & Yes  $\!$\\\hline
+$\!$Build system$\!$& Persistent build information & Algorithm   & Dependencies    & Minimal & Cutoff & Cloud$\!$\\\hline
+$\!$\Make       $\!$& File modification times      & Topological & Static          & Yes     & No     & No   $\!$\\
+$\!$\Excel      $\!$& Dirty cells, calc chain      & Restarting  & Dynamic         & No      & No     & No   $\!$\\
+$\!$\Shake      $\!$& Previous dependency graph    & Suspending  & Dynamic         & Yes     & Yes    & No   $\!$\\
+$\!$\Bazel      $\!$& Cloud cache, command history & Restarting  & Dynamic$^{(*)}$ & No      & Yes    & Yes  $\!$\\\hline
 \hline
 \end{tabular}
 \vspace{0.5mm}
-\caption{Summary of build system differences; $^{(*)}$predefined build rules can
-have dynamic dependencies.\label{tab-summary}}
+\caption{Summary of build system differences; $^{(*)}$used-defined build rules
+cannot have dynamic dependencies.\label{tab-summary}}
 \vspace{-6mm}
 \end{table}
 
 In this paper we elucidate which build system properties are consequences of
 specific implementation choices (stored metadata and task scheduling algorithm),
 and how one can obtain new build systems with desired properties by recombining
-parts of existing implementations. As a compelling example, we demonstrate how
-to combine the advantages of \Shake and \Bazel in a cloud build system with
-dynamic dependencies, see~\S\ref{sec-implementation-cloud}.
+parts of existing implementations. As a compelling example,
+in~\S\ref{sec-implementation-cloud} we demonstrate how to combine the advantages
+of \Shake and \Bazel.
