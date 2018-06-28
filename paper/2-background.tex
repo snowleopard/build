@@ -296,8 +296,9 @@ As of writing, it is not possible to express dynamic dependencies in
 user-defined build rules, however some of the predefined build rules require
 dynamic dependencies and the internal build engine can cope with them by using
 a \emph{restarting} task scheduler, which is similar to that of \Excel but does
-not use the calc chain. \Bazel is minimal and supports the early cutoff
-optimisation.
+not use the calc chain. \Bazel is not minimal in the sense that it may restart a
+task multiple times as new dependencies are discovered and rebuilt, but it
+supports the early cutoff optimisation.
 
 To support cloud builds, \Bazel maintains (i) a \emph{content-addressable cache}
 that can be used to download a previously built file given the hash of its
@@ -357,7 +358,7 @@ $\!$Build system$\!$& Persistent build information & Algorithm   & Dependencies 
 $\!$\Make       $\!$& File modification times      & Topological & Static         & Yes     & No     & No   $\!$\\
 $\!$\Excel      $\!$& Dirty cells, calc chain      & Restarting  & Dynamic        & No      & No     & No   $\!$\\
 $\!$\Shake      $\!$& Previous dependency graph    & Suspending  & Dynamic        & Yes     & Yes    & No   $\!$\\
-$\!$\Bazel      $\!$& Cloud cache, command history & Restarting  & Static$^{(*)}$ & Yes     & Yes    & Yes  $\!$\\\hline
+$\!$\Bazel      $\!$& Cloud cache, command history & Restarting  & Static$^{(*)}$ & No      & Yes    & Yes  $\!$\\\hline
 \hline
 \end{tabular}
 \vspace{0.5mm}
