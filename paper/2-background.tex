@@ -1,16 +1,14 @@
 \section{Background}\label{sec-background}
 
-Build systems automate the execution of simple repeatable tasks for individual
-users, as well as for large organisations. In this section we explore the design
-space of build systems, using four concrete examples:
-\Make~\cite{feldman1979make}, \Shake~\cite{mitchell2012shake},
-\Bazel~\cite{bazel}, and \Excel~\cite{advanced_excel}\footnote{\Excel appears
-very different to the others but, seen through the lens of this paper, it is
-very close indeed.}.
-We have carefully chosen these four to illustrate the various axes on which build systems
-differ; we discuss many other notable examples
-of build systems, and their relationships,
-in~\S\ref{sec-related}.
+Build systems automate the execution of repeatable tasks for individual users
+and large organisations. In this section we explore the design space of build
+systems, using four concrete examples: \Make~\cite{feldman1979make},
+\Shake~\cite{mitchell2012shake}, \Bazel~\cite{bazel}, and
+\Excel~\cite{advanced_excel}\footnote{\Excel appears very different to the
+others but, seen through the lens of this paper, it is very close indeed.}.
+We have carefully chosen these four to illustrate the various axes on which
+build systems differ; we discuss many other notable examples of build systems,
+and their relationships, in~\S\ref{sec-related}.
 
 \subsection{The venerable \Make: static dependencies and file modification times}
 \label{sec-background-make}
@@ -21,9 +19,7 @@ approximation to a real \Make that you might find on your machine.} was develope
 more than 40 years ago to automatically build software libraries and executable
 programs from source code. It uses \emph{makefiles} to describe tasks (often
 referred to as \emph{build rules}) and their dependencies in a simple textual form.
-For example\footnote{Do not worry about the dependency on \cmd{stdio.h}, and
-its transitive (perhaps dynamic) dependencies.
-We will deal with these in Section~\S\ref{sec-task-monad}.}:
+For example:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{makefile}
@@ -45,14 +41,14 @@ main.exe: util.o main.o
 \noindent
 The above makefile lists three tasks: (i) compile a utility library comprising
 files \cmd{util.h} and \cmd{util.c} into \cmd{util.o} by
-executing\footnote{In this example we pretend \cmd{gcc} is a pure function for the
-sake of simplicity. In reality, there are multiple versions of \cmd{gcc} and the
-actual binary that is used to compile and link files is often also listed as a task
-dependency.} the command \cmd{gcc -c util.c}, (ii) compile the main source file
-\cmd{main.c} into \cmd{main.o}, and (iii) link object files \cmd{util.o} and
-\cmd{main.o} into the executable \cmd{main.exe}. The makefile contains the
-complete information about the \emph{task dependency graph}, which is shown in
-Fig.~\ref{fig-make}(a).
+executing\footnote{In this example we pretend \cmd{gcc} is a pure function for
+the sake of simplicity. In reality, there are multiple versions of \cmd{gcc}
+and the actual binary used to compile and link files, and standard libraries
+such that \cmd{stdio.h}, are often also listed as dependencies.} the command
+\cmd{gcc -c util.c}, (ii) compile the main source file \cmd{main.c} into
+\cmd{main.o}, and (iii) link object files \cmd{util.o} and \cmd{main.o} into the
+executable \cmd{main.exe}. The makefile contains the complete information about
+the \emph{task dependency graph}, which is shown in Fig.~\ref{fig-make}(a).
 
 \begin{figure}[h]
 \begin{subfigure}[b]{0.32\linewidth}
@@ -96,7 +92,7 @@ since the previous build.}\label{def-minimal}
 \vspace{2mm}
 
 To achieve minimality \Make relies on two main ideas: (i) it uses \emph{file
-modification time} to detect which files changed\footnote{Technically, you
+modification times} to detect which files changed\footnote{Technically, you
 can fool \Make by altering the modification time of a file without changing its
 content, e.g. by using the command \cmd{touch}. \Make is therefore minimal only
 under the assumption that you do not do that.}, and (ii) it constructs a task
@@ -133,48 +129,46 @@ A2: 20
 \vspace{1mm}
 
 \noindent
-The formula in \cmd{B1} uses the \cmd{INDIRECT} function, which takes a string and
-returns the value of the cell with that name.  The string evaluates
-to \cmd{"A1"}, so \cmd{B1} evaluates to \cmd{10}. However, the dependencies of the
+The formula in \cmd{B1} uses the \cmd{INDIRECT} function, which takes a string
+and returns the value of the cell with that name.  The string evaluates to
+\cmd{"A1"}, so \cmd{B1} evaluates to \cmd{10}. However, the dependencies of the
 formula in \cmd{B1} are determined by the value of \cmd{C1}, so there is no
-possibility\footnote{In this particular example one might say that
-the value of \cmd{C1} is statically known, but imagine that it is the result of a long computation
-chain -- its value will only become available during the build.}
-of computing the dependency graph prior to calc.
+possibility\footnote{In this particular example one might say that the value of
+\cmd{C1} is statically known, but imagine that it is the result of a long
+computation chain -- its value will only become available during the build.}
+of computing the dependency graph before the build starts.
 
-To support dynamic dependencies, \Excel's build
-algorithm~\cite{excel_recalc} is significantly different from
-\Make. \Excel{} arranges the cells into a linear sequence, called the
-\emph{calc chain}.  During recalculation, \Excel{} processes
-cells in the calc-chain sequence, but if computing a cell C requires the
-value of a cell D that has not yet beeen computed, \Excel{}
-\emph{aborts} computation of C, moves D before C in the calc chain,
-and resumes recalculation starting with D.  When a calc cycle is
-complete, the calc chain respects all the dynamic dependencies of the
-spreadsheet.  When an input value (or formula) is changed, \Excel{}
-uses the final calc chain from the \emph{previous} calc cycle as its
-starting point so that, in the common case where changing an input
-value does not change dependencies, there are no aborts.  Notice
-that calc always succeeds regardless of the initial calc chain
-(barring truly circular dependencies); the calc chain is just an optimisation.
+To support dynamic dependencies, \Excel's build algorithm~\cite{excel_recalc} is
+significantly different from \Make. \Excel arranges the cells into a linear
+sequence, called the \emph{calc chain}.  During the build, \Excel processes
+cells in the calc-chain sequence, but if computing a cell \cmd{C} requires the
+value of a cell \cmd{D} that has not yet been computed, \Excel \emph{aborts}
+computation of \cmd{C}, moves \cmd{D} before \cmd{C} in the calc chain, and
+resumes the build starting with \cmd{D}. When a build is complete, the resulting
+calc chain respects all the dynamic dependencies of the spreadsheet. When an
+input value (or formula) is changed, \Excel uses the final calc chain from the
+\emph{previous} build as its starting point so that, in the common case where
+changing an input value does not change dependencies, there are no aborts.
+Notice that build always succeeds regardless of the initial calc chain (barring
+truly circular dependencies); the calc chain is just an optimisation.
 We refer to this algorithm as \emph{restarting}, and will discuss it
 in more detail in~\S\ref{sec-implementation-excel}.
 
 Dynamic dependencies complicate minimality.  In the above example, \cmd{B1}
 should only be recomputed if \cmd{A1} or \cmd{C1} change, but not if (say)
 \cmd{A2} changes; but these facts are not statically apparent. In practice
-\Excel implements a conservative approximation to minimality: roughly, it
-recomputes a formula if (i) the formula text mentions a changed cell, or (ii)
-the formula uses a function like \cmd{INDIRECT} whose dependencies are not
-statically visible.
+\Excel implements a conservative approximation to minimality: it recomputes a
+formula if~(i)~the formula mentions a changed cell, or~(ii)~the formula uses a
+function like \cmd{INDIRECT} whose dependencies are not statically visible,
+or~(iii)~the formula itself has changed.
 
-Another distinguishing feature of \Excel is \emph{self-tracking}. Most build
-systems only track changes of inputs and intermediate results, but \Excel
-also tracks changes in the tasks themselves: if a formula is modified, \Excel
-will recompute it and propagate the changes. Self-tracking is uncommon in
-software build systems, where one often needs to manually initiate a full
-rebuild even if just a single build task has changed. We discuss
-self-tracking further in~\S\ref{sec-tracking-aspects}.
+Item (iii) in the above list highlights a distinguishing feature of \Excel: it
+is \emph{self-tracking}. Most build systems only track changes of inputs and
+intermediate results, but \Excel also tracks changes in the tasks themselves: if
+a formula is modified, \Excel will recompute it and propagate the changes.
+Self-tracking is uncommon in software build systems, where one often needs to
+manually initiate a full rebuild even if just a single build task has changed.
+We discuss self-tracking further in~\S\ref{sec-tracking-aspects}.
 
 \begin{figure}[h]
 \vspace{-2mm}
@@ -205,8 +199,8 @@ dependencies are shown in Fig.~\ref{fig-shake}(a):
 \begin{itemize}
     \item \cmd{LICENSE} is an input text file containing the project license.
     \item \cmd{release.txt} is a text file listing all files that should be in the release. This file
-    is produced by concatenating input files \cmd{bins.txt} and \cmd{docs.txt}
-    that list all binary and documentation files of the project.
+    is produced by concatenating input files \cmd{bins.txt} and \cmd{docs.txt},
+    which list all binary and documentation files of the project.
     \item \cmd{release.tar} is the release archive built by executing the
     command \cmd{tar} on the release files.
 \end{itemize}
@@ -239,12 +233,11 @@ First, it uses the dependency graph from the previous build to decide which
 files need to be rebuilt. This idea has a long history, going back to
 \emph{incremental}~\cite{demers1981incremental},
 \emph{adaptive}~\cite{acar2002adaptive}, and
-\emph{self-adjusting computations} (see \cite{acar2007selfadjusting} and \S\ref{sec-related}).
-Second, instead of abandoning
-and deferring the execution of tasks whose newly discovered dependencies have
-not yet been built (as \Excel does), \Shake \emph{pauses} their execution until
-the dependencies are brought up to date. We refer to this build algorithm as
-\emph{recursive}.
+\emph{self-adjusting computations} (see \cite{acar2007selfadjusting} and
+\S\ref{sec-related}). Second, instead of aborting and deferring the execution of
+tasks whose newly discovered dependencies have not yet been built (as \Excel
+does), \Shake \emph{suspends} their execution until the dependencies are brought
+up to date. We refer to this build algorithm as \emph{suspending}.
 
 \begin{figure}[h]
 \vspace{-5mm}
