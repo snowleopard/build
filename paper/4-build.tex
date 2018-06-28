@@ -2,8 +2,8 @@
 
 The focus of this paper is on a variety of implementations of
 \hs{Build}~\hs{c}~\hs{i}~\hs{k}~\hs{v}, given
-a \emph{client-supplied} implementation of \hs{Task}~\hs{c}~\hs{k}~\hs{v}. That
-is, we are going to take \hs{Task} as given from now on, and explore variants of
+a \emph{client-supplied} implementation of \hs{Tasks}~\hs{c}~\hs{k}~\hs{v}. That
+is, we are going to take \hs{Tasks} as given from now on, and explore variants of
 \hs{Build}: first abstractly (in this section) and then concretely
 in~\S\ref{sec-implementations}.
 
@@ -68,7 +68,7 @@ of doing additional work.
 
 \subsection{Determining out-of-date keys} \label{sec-out-of-date}
 
-The second aspect, determining what to rebuild, can be addressed in one of three
+The second aspect, determining what to rebuild, can be addressed in one of four
 fundamental ways, with a number of tweaks and variations within them.
 
 \vspace{-2mm}
@@ -134,9 +134,9 @@ which we can use to \emph{verify} existing values. We can describe a trace as:
 
 \begin{minted}{haskell}
 data Trace k v = Trace
-    { key          :: k
-    , dependencies :: [(k, Hash v)]
-    , result       :: Hash v }
+    { key     :: k
+    , depends :: [(k, Hash v)]
+    , result  :: Hash v }
 \end{minted}
 
 We assume that \hs{Hash}~\hs{v} is a small constant size, constructed from hashing the
@@ -155,19 +155,30 @@ in~\S\ref{sec-smart-traces}.
 
 \subsubsection{Constructive traces}\label{sec-constructive-traces}
 
-A verifying trace allows us to mark a key dirty and rebuild it. Extending that information we can store a \emph{constructive} trace which is the trace plus the actual result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality. We can represent that as:
+A verifying trace allows us to mark a key dirty and rebuild it. Extending that information we can store a \emph{constructive} trace which is the trace plus the actual result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality. We can represent that by changing \hs{Trace} to:
 
 \begin{minted}{haskell}
-data Traces k v = Traces
-    { traces    :: [Trace k v]
-    , contents  :: Map (Hash v) v }
+data Trace k v = Trace
+    { key     :: k
+    , depends :: [(k, Hash v)]
+    , result  :: v }
 \end{minted}
 
-We have a list of traces, plus a \hs{Map} from the hash to the actual contents. Checking a trace is the same as before, but if the result is the only thing that is different we can simply retrieve a fresh result from \hs{contents} \emph{without} recomputing it. We split the traces and contents because in cloud interactions to a remote server the checking system may have to examine many traces/hashes, but only retrieve at most one complete file per key.
+The change from~\S\ref{sec-verifying-traces} is that instead of storing the \hs{Hash}~\hs{v} for \hs{result}, we now store the full value \hs{v}. Checking a trace follows the same pattern as before, but if the result is the only thing that is different we can simply use the result \emph{without} recomputing it.
 
 \subsubsection{Deterministic constructive traces}\label{sec-deterministic-constructive-traces}
 
-\textbf{TODO}
+If we assume all actions are \emph{deterministic} (specifically that given the same inputs they produce the same output) then we can make a further optimisation to arrive at deterministic constructive traces:
+
+\begin{minted}{haskell}
+data Trace k v = Trace
+    { key     :: k
+    , depends :: [(k, Hash (Tree (Hash v)))]
+    , result  :: v
+    }
+\end{minted}
+
+Instead of storing the hash of the immediate dependencies, a determinstic constructive trace only ever takes the hash of initial inputs. To form the hash of a dependency, it forms the tree of dependencies all the way to the inputs, and hashes that. As an example, if \hs{a} depends on the input \hs{b}, then the dependency value used for \hs{a} uses \hs{hash}~\hs{b}, \emph{but not} \hs{hash}~\hs{a}. As a consequence, given the hashes of all inputs, and dependency information (e.g. from an \hs{Applicative} constraint) it is possible to compute the dependency hash of \emph{any} node, without having built any intermediate nodes. This property is particularly useful for ``shallow builds'', as discussed in~\S\ref{sec-cloud-aspects}.
 
 \subsection{Smarter \hs{[Trace]} data structures}\label{sec-smart-traces}
 
@@ -180,7 +191,8 @@ do not avoid calls to \hs{compute}, merely overheads in the build system itself.
 \begin{enumerate}
 \item Any system using verifying traces, e.g. \Shake, is unlikely to see significant benefit from storing more than one \hs{Trace} per key\footnote{There is a small chance of a benefit if the dependencies change but the result does not, and then the dependencies change back to what they were before.}. Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v)}, where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
 \item Any system using \hs{Applicative} dependencies can omit the dependency keys from the \hs{Trace} as they can be recovered from the \hs{key} field.
-\item Any \hs{Applicative} build system storing constructive traces, e.g. \Bazel, can index directly from the key and results to the output result~--~i.e. \hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{(Hash}~\hs{v)}. Importantly, assuming the traces are stored on a central server, the client can compute the key and the hashes of its dependencies, then make a single call to the server to retrieve the result hash. In this formulation we have removed the possibility for a single key/dependency state to map to multiple different hashes, e.g. on a non-deterministic build~--~something \Bazel already prohibits which is discussed more in~\S\ref{sec-non-determinism}.
+\item Any \hs{Applicative} build system storing constructive traces, e.g. \Bazel, can index directly from the key and results to the output result~--~i.e. \hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces are stored on a central server, the client can compute the key and the hashes of its dependencies, then make a single call to the server to retrieve the result.
+\item Many cloud build systems store hashes of values in the trace information, then have a separate ``blob server'' which associates hashes with their actual contents.
 \item Finally, a \hs{Monad} build system with constructive traces can be stored as \hs{Map}~\hs{k}~\hs{(Choice}~\hs{k}~\hs{v)}, assuming a definition of \hs{Choice} as:
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Choice k v = Choice k (Map (Hash v) (Choice k v))
@@ -200,7 +212,7 @@ Property           & Topological\hspace{2mm}\S\ref{sec-topological} & Restarting
 \hline
 Dirty bit\hfill\S\ref{sec-dirty-bit}                                                             & \Make       & \Excel & -              \\\hline
 Verifying traces\hfill\S\ref{sec-verifying-traces}                                               & \Ninja      & -      & \Shake         \\\hline
-Constructive traces\hspace{2mm}\hfill\S\ref{sec-constructive-traces}                             & \CloudBuild & \Bazel & \Cloud \Shake  \\\hline
+Constructive traces\hspace{2mm}\hfill\S\ref{sec-constructive-traces}                             & \CloudBuild & \Bazel & -              \\\hline
 Deterministic constructive traces\hspace{2mm}\hfill\S\ref{sec-deterministic-constructive-traces} & \Buck       & -      & \Nix           \\\hline
 \end{tabular}
 \vspace{2mm}
@@ -209,16 +221,10 @@ Deterministic constructive traces\hspace{2mm}\hfill\S\ref{sec-deterministic-cons
 \end{table}
 
 With the information in this section we can build a table comparing the
-dependency order strategy with the out-of-date keys strategy, providing 9~possible
-build systems \simon{Or perhaps 12 now?}, 5~of which are actually inhabited by existing build systems
-(we discuss \Ninja \cite{ninja} in \S\ref{sec-related-build}). Of the
-remaining 4~spots, we believe neither Traced or Cloud \Excel make sense~--~the
-\Excel approach of reordering combined with static approximations reduces
-the memory usage significantly. However, as soon as you are paying the cost of
-storing traces, that benefit is gone. The advantage of Approximate \Shake over
-\Shake would be that it could avoid storing traces and having a separate
-information database, but that advantage is minor compared to the technical
-restrictions and approximations it would provide, so we consider it unlikely
-to be built. The Cloud \Shake system is an interesting and important point in
-the design space, which we explore further
-in~\S\ref{sec-implementation-cloud}.
+dependency order strategy with the out-of-date keys strategy, providing 12~possible
+build systems, 8~of which are actually inhabited by existing build systems
+(we discuss all these systems in \S\ref{sec-related-build}). Of the
+remaining 4~spots, all result in workable build systems. The most interesting
+unfilled spot in the table is suspending constructive traces, which would provide
+many benefits, and which we title \Cloud \Shake (as we plan on extending \Shake to occupy that spot)
+and further explore further in~\S\ref{sec-implementation-cloud}.
