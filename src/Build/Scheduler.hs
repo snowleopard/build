@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
 
 -- | Build schedulers execute task rebuilders in the right order.
 module Build.Scheduler (
@@ -26,6 +26,30 @@ import qualified Data.Set as Set
 
 type Scheduler c i j k v = Rebuilder c j k v -> Build c i k v
 
+-- | Lift a computation operating on @i@ to @Store i k v@.
+liftStore :: State i a -> State (Store i k v) a
+liftStore x = do
+    store <- get
+    let (a, newInfo) = runState x (getInfo store)
+    modify $ putInfo newInfo
+    return a
+
+-- | Lift a computation operating on @Store i k v@ to @Store (i, j) k v@.
+liftInfo :: State (Store i k v) a -> State (Store (i, j) k v) a
+liftInfo x = do
+    store <- get
+    let (a, newStore) = runState x (mapInfo fst store)
+    put $ mapInfo (, snd $ getInfo $ store) newStore
+    return a
+
+-- | Remove one layer of computation.
+lowerInfo :: StateT i (State (Store i k v, j)) a -> State (Store i k v, j) a
+lowerInfo x = do
+    info <- gets (getInfo . fst)
+    (a, newInfo) <- runStateT x info
+    modify $ \(s, j) -> (putInfo newInfo s, j)
+    return a
+
 -- | Update the value of a key in the store. The function takes both the current
 -- value (the first parameter of type @v@) and the new value (the second
 -- parameter of type @v@), and can potentially avoid touching the store if the
@@ -48,8 +72,8 @@ topological rebuilder tasks target = execState $ forM_ order $ \key -> case task
             newTask = rebuilder key value task
             fetch :: k -> State i v
             fetch k = return (getValue k store)
-            (newValue, newInfo) = runState (run newTask fetch) (getInfo store)
-        modify $ putInfo newInfo . updateValue key value newValue
+        newValue <- liftStore (run newTask fetch)
+        modify $ updateValue key value newValue
   where
     deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
     order  = case topSort (graph deps target) of
@@ -78,10 +102,10 @@ type Chain k = [k]
 restarting :: forall ir k v. Ord k => Scheduler Monad (ir, Chain k) ir k v
 restarting rebuilder tasks target = execState $ do
     chain    <- gets (snd . getInfo)
-    newChain <- go Set.empty $ chain ++ [target | target `notElem` chain]
+    newChain <- liftInfo $ go Set.empty $ chain ++ [target | target `notElem` chain]
     modify . mapInfo $ \(ir, _) -> (ir, newChain)
   where
-    go :: Set k -> Chain k -> State (Store (ir, Chain k) k v) (Chain k)
+    go :: Set k -> Chain k -> State (Store ir k v) (Chain k)
     go _    []       = return []
     go done (key:ks) = case tasks key of
         Nothing -> (key :) <$> go (Set.insert key done) ks
@@ -93,10 +117,11 @@ restarting rebuilder tasks target = execState $ do
                 fetch :: k -> State ir (Either k v)
                 fetch k | k `Set.member` done = return $ Right (getValue k store)
                         | otherwise           = return $ Left k
-            case runState (run newTask fetch) (fst $ getInfo store) of
-                (Left dep, _) -> go done $ [ dep | dep `notElem` ks ] ++ ks ++ [key]
-                (Right newValue, newInfo) -> do
-                    modify $ putInfo (newInfo, []) . updateValue key value newValue
+            result <- liftStore (run newTask fetch)
+            case result of
+                Left dep -> go done $ dep : filter (/= dep) ks ++ [key]
+                Right newValue -> do
+                    modify $ updateValue key value newValue
                     (key :) <$> go (Set.insert key done) ks
 
 -- | An item in the queue comprises a key that needs to be built and a list of
@@ -145,10 +170,11 @@ restarting2 rebuilder tasks target = execState $ go (enqueue target [] mempty)
                     fetch :: k -> State (CT k v) (Either k v)
                     fetch k | upToDate k = return (Right (getValue k store))
                             | otherwise  = return (Left k)
-                case runState (run newTask fetch) (getInfo store) of
-                    (Left dep, _) -> go (enqueue dep (key:bs) q)
-                    (Right newValue, newInfo) -> do
-                        modify $ putInfo newInfo . updateValue key value newValue
+                result <- liftStore (run newTask fetch)
+                case result of
+                    Left dep -> go (enqueue dep (key:bs) q)
+                    Right newValue -> do
+                        modify $ updateValue key value newValue
                         go (foldr (\b -> enqueue b []) q bs)
 
 ---------------------------------- Suspending ----------------------------------
@@ -173,11 +199,8 @@ suspending rebuilder tasks target store = fst $ execState (build target) (store,
                     fetch k = do lift (build k)                      -- build the key
                                  lift (gets (getInfo . fst)) >>= put -- save new traces
                                  lift (gets (getValue k . fst))      -- fetch the value
-                info <- gets (getInfo . fst)
-                (newValue, newInfo) <- runStateT (run newTask fetch) info
-                modify $ \(s, _) ->
-                    ( putInfo newInfo $ updateValue key value newValue s
-                    , Set.insert key done )
+                newValue <- lowerInfo (run newTask fetch)
+                modify $ \(s, d) -> (updateValue key value newValue s, Set.insert key d)
 
 -- | An incorrect scheduler that builds the target key without respecting its
 -- dependencies. It produces the correct result only if all dependencies of the

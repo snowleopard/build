@@ -6,7 +6,6 @@ import Data.Maybe
 import System.Exit
 
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 import Build
 import Build.Store
@@ -70,24 +69,24 @@ tasks = spreadsheetTask spreadsheet
 tasksA :: Tasks Applicative Cell Int
 tasksA = spreadsheetTaskA acyclicSpreadsheet
 
-test :: Show i => String -> Build Monad i Cell Int -> i -> IO Bool
+test :: String -> Build Monad i Cell Int -> i -> IO Bool
 test name build i = do
     let store   = inputs i
         result  = sequentialMultiBuild build tasks targets store
         correct = all (correctBuild tasks store result) targets
-    when False $ putStrLn $ "========\n" ++ show (getInfo result) ++ "\n========"
+    -- when False $ putStrLn $ "========\n" ++ show (getInfo result) ++ "\n========"
     putStr $ name ++ " is "
     case (trim name, correct) of
         ("dumb", False) -> do putStr "incorrect, which is [OK]\n"; return True
         (_     , False) -> do putStr "incorrect: [FAIL]\n"       ; return False
         (_     , True ) -> do putStr "correct: [OK]\n"           ; return True
 
-testA :: Show i => String -> Build Applicative i Cell Int -> i -> IO Bool
+testA :: String -> Build Applicative i Cell Int -> i -> IO Bool
 testA name build i = do
     let store   = inputs i
         result  = sequentialMultiBuildA build tasksA targets store
         correct = all (correctBuild tasks store result) targets
-    when False $ putStrLn $ "========\n" ++ show (getInfo result) ++ "\n========"
+    -- when False $ putStrLn $ "========\n" ++ show (getInfo result) ++ "\n========"
     putStrLn $ name ++ " is " ++ bool "incorrect: [FAIL]" "correct: [OK]" correct
     return correct
 
@@ -99,7 +98,7 @@ testSuite = and <$> sequence
     , testA "make      " make       (0, Map.empty)
     , testA "ninja     " ninja      mempty
     , testA "cloudBuild" cloudBuild mempty
-    , test  "excel     " excel      ((Set.fromList inputCells, Map.empty), mempty)
+    , test  "excel     " excel      (const True, mempty)
     , test  "shake     " shake      mempty
     , test  "bazel     " bazel      mempty
     , test  "cloudShake" cloudShake mempty

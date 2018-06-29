@@ -53,12 +53,13 @@ make = topological modTimeRebuilder
 ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
 ninja = topological (adaptRebuilder vtRebuilder)
 
-type ExcelInfo k = (ApproximationInfo k, Chain k)
+-- | Excel stores a dirty bit per key and a calc chain.
+type ExcelInfo k = (k -> Bool, Chain k)
 
 -- | A model of Excel: a monadic build system that stores the calculation chain
 -- from the previuos build and approximate dependencies.
-excel :: (Ord k, Eq v) => Build Monad (ExcelInfo k) k v
-excel = restarting approximateRebuilder
+excel :: Ord k => Build Monad (ExcelInfo k) k v
+excel = restarting dirtyBitRebuilder
 
 -- | A model of Shake: a monadic build system that uses verifying traces to
 -- check if a key is up to date.

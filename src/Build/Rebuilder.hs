@@ -5,6 +5,7 @@
 module Build.Rebuilder (
     Rebuilder, adaptRebuilder, perpetualRebuilder,
     modTimeRebuilder, Time, MakeInfo,
+    dirtyBitRebuilder,
     approximateRebuilder, ApproximateDependencies, ApproximationInfo,
     vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
     ) where
@@ -53,6 +54,13 @@ modTimeRebuilder key value task = Task $ \fetch -> do
         put (now + 1, Map.insert key now modTimes)
         run task fetch
 
+----------------------------------- Dirty bit ----------------------------------
+-- | If the key is dirty, rebuild it. Used by Excel.
+dirtyBitRebuilder :: Rebuilder Monad (k -> Bool) k v
+dirtyBitRebuilder key value task = Task $ \fetch -> do
+    isDirty <- get
+    if isDirty key then run task fetch else return value
+
 --------------------------- Approximate dependencies ---------------------------
 -- | If there is an entry for a key, it is an conservative approximation of its
 -- dependencies. Otherwise, we have no reasonable approximation and assume the
@@ -63,7 +71,7 @@ type ApproximateDependencies k = Map k [k]
 type ApproximationInfo k = (Set k, ApproximateDependencies k)
 
 -- | This rebuilders uses approximate dependencies to decide whether a key
--- needs to be rebuilt. Used by Excel.
+-- needs to be rebuilt.
 approximateRebuilder :: (Ord k, Eq v) => Rebuilder Monad (ApproximationInfo k) k v
 approximateRebuilder key value task = Task $ \fetch -> do
     (dirtyKeys, deps) <- get
