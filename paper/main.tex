@@ -1,46 +1,27 @@
-%% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
-% \documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
-%% For double-blind review submission, w/ CCS and ACM Reference
-%\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true}
-% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
-% \documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
-%% For single-blind review submission, w/ CCS and ACM Reference
-%\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true}
-%% For final camera-ready submission, w/ required CCS and ACM Reference
-\documentclass[acmsmall]{acmart}\settopmatter{}
+\documentclass[acmsmall,screen]{acmart}\settopmatter{}
 
-%% Journal information
-%% Supplied to authors by publisher for camera-ready submission;
-%% use defaults for review submission.
-\acmJournal{PACMPL}
-\acmVolume{1}
-\acmNumber{ICFP}
-\acmArticle{1}
+%%% If you see 'ACMUNKNOWN' in the 'setcopyright' statement below,
+%%% please first submit your publishing-rights agreement with ACM (follow link on submission page).
+%%% Then please update our instructions page and copy-and-paste the NEW commands into your article.
+%%% Please contact us in case of questions; allow up to 10 min for the system to propagate the information.
+%%%
+%%% The following is specific to ICFP'18 and the paper
+%%% 'Build Systems à la Carte'
+%%% by Andrey Mokhov, Neil Mitchell, and Simon Peyton Jones.
+%%%
+\setcopyright{acmlicensed} %ACMUNKNOWN
+\acmPrice{}
+\acmDOI{10.1145/3234602}
 \acmYear{2018}
-\acmMonth{1}
-\acmDOI{}
-\startPage{1}
-
-%% Copyright information
-%% Supplied to authors (based on authors' rights management selection;
-%% see authors.acm.org) by publisher for camera-ready submission;
-%% use 'none' for review submission.
-\setcopyright{none}
-%\setcopyright{acmcopyright}
-%\setcopyright{acmlicensed}
-%\setcopyright{rightsretained}
-%\copyrightyear{2018}           %% If different from \acmYear
+\copyrightyear{2018}
+\acmJournal{PACMPL}
+\acmVolume{2}
+\acmNumber{ICFP}
+\acmArticle{13}
+\acmMonth{9}
 
 \bibliographystyle{ACM-Reference-Format}
-%% Note: author/year citations are required for papers published as an
-%% issue of PACMPL.
 \citestyle{acmauthoryear}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Note: Authors migrating a paper from PACMPL format to traditional
-%% SIGPLAN proceedings format must update the '\documentclass' and
-%% topmatter commands above; see 'acmart-sigplanproc-template.tex'.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \usepackage{bookmark}
 \usepackage{booktabs}
@@ -90,7 +71,6 @@
 %% [Short title] Title
 \title[Build Systems \`a la Carte]{Build Systems \`a la Carte}
 % \titlenote{with title note}
-% \subtitle{(Under review, feedback is sought)}
 % \subtitlenote{with subtitle note}
 
 %% An author may have multiple affiliations and/or emails; repeat the
@@ -122,13 +102,12 @@
 \email{simonpj@microsoft.com}
 
 \begin{abstract}
-Build systems are awesome, terrifying -- and unloved.
-They power developers around the world, but are rarely the object of study.
-In this paper we offer a systematic, and executable, framework for developing and comparing
-build systems, viewing them as related points in landscape rather than as isolated phenomena.
-By teasing apart existing build systems, we can recombine their components,
-allowing us to prototype the first build
-system that combines dynamic dependencies and cloud builds.
+Build systems are awesome, terrifying -- and unloved. They power developers
+around the world, but are rarely the object of study. In this paper we offer a
+systematic, and executable, framework for developing and comparing build
+systems, viewing them as related points in landscape rather than as isolated
+phenomena. By teasing apart existing build systems, we can recombine their
+components, allowing us to prototype new build systems with desired properties.
 \end{abstract}
 
 %% 2012 ACM Computing Classification System (CSS) concepts

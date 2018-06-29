@@ -36,17 +36,16 @@ four carefully-chosen build systems.
   These choices turn out to be orthogonal, which leads us to a new
   classification of the design space (\S\ref{sec-design-space}).
 
-\item We show that we can instantiate
-our abstractions to describe the essence of a variety of different
-real-life build systems, including \Make, \Shake, \Bazel, and \Excel, each in
-a dozen lines of code or so (\S\ref{sec-implementations}).
-Doing this modelling in a single setting allows
-the differences and similarities between these huge systems to be
+\item We show that we can instantiate our abstractions to describe the essence
+of a variety of different real-life build systems, including \Make, \Shake,
+\Bazel, \CloudBuild, \Buck, \Nix, and \Excel, each in a dozen lines of code
+or so (\S\ref{sec-implementations}). Doing this modelling in a single setting
+allows the differences and similarities between these huge systems to be
 brought out clearly.
 
-\item Moreover, we can readily remix the ingredients to describe the first
-  build system that supports both \emph{dynamic dependencies}
-  and \emph{cloud build} (\S\ref{sec-implementation-cloud}).
+\item Moreover, we can readily remix the ingredients to design new build systems
+with desired properties, for example, to combine the advantages of \Shake and
+\Bazel (\S\ref{sec-implementation-cloud}).
 
 \end{itemize}
 In short, instead of seeing build systems as unrelated
