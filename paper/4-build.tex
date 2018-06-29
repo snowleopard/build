@@ -20,51 +20,58 @@ We have bolded two different phrases above, and tackle each aspect separately.
 \label{sec-dependency-orderings}
 
 The build systems overview (\S\ref{sec-background-summary}) highlighted three
-distinct approaches to respecting the dependency order. This subsection explores
-their properties and possible implementations.
+distinct task schedulers respecting the dependency order. This subsection
+explores their properties and possible implementations.
 
 \vspace{-2mm}
 \subsubsection{Topological}\label{sec-topological}
 
-The topological approach pre-computes a linear order, which when followed, ensures
-the \hs{build} is correct regardless of the initial \hs{store}. Given a function
-from a key to its dependencies, and the output \hs{key}, you can compute the
-linear order by first finding the reachable dependencies of \hs{key},
-and then computing a topological sort. However, as we have seen
-in~\S\ref{sec-deps}, we can only extract dependencies from an applicative task,
-which requires the build system to choose \hs{c}~\hs{=}~\hs{Applicative}, ruling
-out dynamic dependencies.
+The topological scheduler pre-computes a linear order, which when followed,
+ensures the build result is correct regardless of the initial store. Given a
+task description and the output \hs{key}, you can compute the linear order by
+first finding the (acyclic) graph of the \hs{key}'s reachable dependencies, and
+then computing a topological sort. However, as we have seen in~\S\ref{sec-deps},
+we can only extract dependencies from an applicative task, which requires the
+build system to choose \hs{c}~\hs{=}~\hs{Applicative}, ruling out dynamic
+dependencies.
 
 \vspace{-2mm}
-\subsubsection{Reordering}\label{sec-restarting}
+\subsubsection{Restarting}\label{sec-restarting}
 
-The topological approach has two downsides: it is limited to \hs{Applicative}
-build systems and requires a fresh topological sort each time.  So, while the
-actions themselves may be incremental (i.e. unnecessary tasks will not be performed),
-the pre-processing is not. We can try to incrementalise the topological sort by
-storing the topological order between build runs and assume it to
-be correct, but if the build discovers it is wrong, fix it up.
+The topological scheduler has two downsides: it is limited to \hs{Applicative}
+build systems and requires a fresh topological sort each time. So, while the
+actions themselves may be incremental (i.e. unnecessary tasks will not be
+performed), the pre-processing is not. We can try to incrementalise the
+topological sort by storing the topological order between build runs and assume
+it to be correct, fixing it up if the build discovers any inconsistency, as
+\Excel does.
 
 This approach requires a way to abort tasks that have failed due to out-of-date
 dependencies. It is also not minimal in the sense that a task may start, do some
-meaningful work, then abort. However, in the case of an \hs{Applicative} system,
-that work is zero.
+meaningful work, and then abort. However, in the case of an \hs{Applicative}
+system, that work is zero.
+
+\Bazel's restarting scheduler does not store the topological order between build
+runs; instead, it stores the most recent task dependency information. Since this
+information may become outdated, \Bazel may also need to abort a task if a
+newly discovered dependency is out-of-date.
 
 \vspace{-2mm}
-\subsubsection{Recursive}\label{sec-suspending}
+\subsubsection{Suspending}\label{sec-suspending}
 
 An alternative approach, utilised by the \hs{busy} build system
-(\S\ref{sec-general-build}), is to simply build dependencies when they are
-requested. By combining that with a transient set of which keys have already
-been built, you can obtain a minimal build system.
+(\S\ref{sec-general-build}) and \Shake, is to simply build dependencies when
+they are requested, suspending the currently running task. By combining that
+with tracking the keys that have already been built, one can obtain a minimal
+build system with dynamic dependencies.
 
-This approach requires that a task may be started, then during that execution
-another task will have to be run. Assuming an IO-driven task structure,
-that requires suspending a running task, which can be done with cheap
-green threads and blocking (the original approach of \Shake) or using
-continuation-passing style (what \Shake does currently). An alternative approach to
-suspending a task is to abort it and restart it again later, at the cost
-of doing additional work.
+This approach requires that a task may be started and then suspended until
+another task is complete. This can be done with cheap green threads and blocking
+(the original approach of \Shake) or using continuation-passing style (what
+\Shake does currently).
+
+% An alternative approach to suspending a task is to abort
+% it and restart it again later, at the cost of doing additional work.
 
 \subsection{Determining out-of-date keys} \label{sec-out-of-date}
 
