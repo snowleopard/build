@@ -14,7 +14,12 @@ result (\S\ref{sec-build-correctness}) is to \textbf{build all keys in an
 order that respects their dependencies}.
 
 \vspace{1mm}
-We have bolded two different phrases above, and tackle each aspect separately.
+We have bolded two different phrases above and, as we will see, the part of the
+build system responsible for scheduling tasks in the dependency order
+(a `scheduler') can be cleanly separated from the part responsible for deciding
+whether a key needs to be rebuilt (a `rebuilder'). We therefore tackle each
+aspect separately in subsections~\S\ref{sec-dependency-orderings}
+and~\S\ref{sec-out-of-date}.
 
 \subsection{Respecting the dependency order}
 \label{sec-dependency-orderings}

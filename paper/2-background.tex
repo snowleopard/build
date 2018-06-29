@@ -354,7 +354,7 @@ to the information that build systems persistently store between builds:
 \centering
 \begin{tabular}{l||l|l||l|c|c|c}
 \hline
-$\!$Build system$\!$& Persistent build information & Algorithm   & Dependencies    & Minimal & Cutoff & Cloud$\!$\\\hline
+$\!$Build system$\!$& Persistent build information & Scheduler   & Dependencies    & Minimal & Cutoff & Cloud$\!$\\\hline
 $\!$\Make       $\!$& File modification times      & Topological & Static          & Yes     & No     & No   $\!$\\
 $\!$\Excel      $\!$& Dirty cells, calc chain      & Restarting  & Dynamic         & No      & No     & No   $\!$\\
 $\!$\Shake      $\!$& Previous dependency graph    & Suspending  & Dynamic         & Yes     & Yes    & No   $\!$\\
