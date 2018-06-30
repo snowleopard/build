@@ -72,19 +72,20 @@ Modified inputs and files that are rebuilt are highlighted.
 \end{figure}
 
 If the user runs \Make specifying \cmd{main.exe} as the desired output, \Make
-will first build \cmd{util.o} and \cmd{main.o}, in any order since these
-tasks are independent, and then build \cmd{main.exe}. If the
-user modifies the sources of \cmd{util.h} and runs \Make again, it will
-perform a \emph{full rebuild}, because all three tasks transitively depend on
-\cmd{util.h}, as illustrated in Fig.~\ref{fig-make}(b). On the other hand, if
-the user modifies \cmd{main.c} then a \emph{partial rebuild} is sufficient:
-the file \cmd{util.o} does not need to be rebuilt, since its inputs have not
-changed, see Fig.~\ref{fig-make}(c). Note that if the dependency graph is
-\emph{acyclic} then each task needs to be executed at most once. Cyclic task
-dependencies are typically not allowed in build systems although there are rare
+will build~\cmd{util.o}~and~\cmd{main.o}, in any order since these tasks are
+independent, and then \cmd{main.exe}. If the user modifies \cmd{util.h} and runs
+\Make again, it will perform a \emph{full rebuild}, because all three tasks
+transitively depend on \cmd{util.h}, as illustrated in Fig.~\ref{fig-make}(b).
+On the other hand, if the user modifies \cmd{main.c} then a \emph{partial
+rebuild} is sufficient: \cmd{util.o} does not need to be rebuilt, since its
+inputs have not changed, see Fig.~\ref{fig-make}(c). Note that if the dependency
+graph is \emph{acyclic} then each task needs to be executed at most once. Cyclic
+task dependencies are typically not allowed in build systems but there are rare
 exceptions, see~\S\ref{sec-iterative-compute}.
 
-The following property is essential for build systems; indeed, it is their raison d'\^etre:
+\noindent
+The following property is essential for build systems; indeed, it is their
+raison d'\^etre:
 
 \definition[Minimality]{A build system is \emph{minimal} if it executes tasks at
 most once per build and only if they transitively depend on inputs that changed
@@ -170,8 +171,7 @@ Self-tracking is uncommon in software build systems, where one often needs to
 manually initiate a full rebuild even if just a single build task has changed.
 We discuss self-tracking further in~\S\ref{sec-tracking-aspects}.
 
-\begin{figure}[h]
-\vspace{-2mm}
+\begin{figure}
 \begin{subfigure}[b]{0.90\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/shake-example.pdf}}
 \caption{Dependency graph produced after the previous build.}
@@ -237,17 +237,18 @@ files need to be rebuilt. This idea has a long history, going back to
 \S\ref{sec-related}). Second, instead of aborting and deferring the execution of
 tasks whose newly discovered dependencies have not yet been built (as \Excel
 does), \Shake \emph{suspends} their execution until the dependencies are brought
-up to date. We refer to this task scheduling algorithm as \emph{suspending}.
+up to date. We refer to this task scheduling algorithm as \emph{suspending},
+see a concrete implementation in~\S\ref{sec-implementation-shake}.
 
-\begin{figure}[h]
-\vspace{-5mm}
+\begin{figure}
+\vspace{-2mm}
 \centerline{\includegraphics[scale=0.28]{fig/shake-example-cutoff.pdf}}
 \vspace{-3mm}
 \caption{An early cutoff example: if a comment is added to \cmd{main.c}, the
 rebuild is stopped after detecting that \cmd{main.o} is unchanged, since this
 indicates that \cmd{main.exe} and its dependents do not need to be
 rebuilt.\label{fig-cutoff}}
-\vspace{-2mm}
+\vspace{-4mm}
 \end{figure}
 
 \Shake also supports the \emph{early cutoff optimisation}. When it
@@ -308,7 +309,7 @@ of a task, by predicting the hash of the result from the hashes of its
 dependencies, and subsequently download the result from the cache. A concrete
 implementation is provided in~\S\ref{sec-implementations}.
 
-\begin{figure}[t]
+\begin{figure}
 \begin{subfigure}[b]{0.25\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-checkout.pdf}}
 \caption{Download source files}
@@ -321,14 +322,15 @@ implementation is provided in~\S\ref{sec-implementations}.
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-rebuild.pdf}}
 \caption{Modify \cmd{util.c} and rebuild}
 \end{subfigure}
+\vspace{-2mm}
 \caption{A cloud build example: (a)~download sources, (b)~build \cmd{main.exe}
 by downloading it from the cloud and skipping intermediate files (only their
 hashes are needed), (c)~modify \cmd{util.c} and rebuild \cmd{main.exe}, which
 requires building \cmd{util.o} (nobody has compiled \cmd{util.c} before) and
 downloading \cmd{main.o} (it is needed for linking \cmd{main.exe}). File hashes
 are shown in circles, and non-materialised intermediates in dashed rounded
-rectangles.
-\label{fig-bazel}}
+rectangles.\label{fig-bazel}}
+\vspace{-4mm}
 \end{figure}
 
 \subsection{Summary}
@@ -349,7 +351,14 @@ to the information that build systems persistently store between builds:
     shared among all users of the build system.
 \end{itemize}
 
-\begin{table}[h]
+In this paper we elucidate which build system properties are consequences of
+specific implementation choices (stored metadata and task scheduling algorithm),
+and how one can obtain new build systems with desired properties by recombining
+parts of existing implementations. As a compelling example,
+in~\S\ref{sec-implementation-cloud} we demonstrate how to combine the advantages
+of \Shake and \Bazel.
+
+\begin{table}
 \smaller
 \centering
 \begin{tabular}{l||l|l||l|c|c|c}
@@ -362,14 +371,7 @@ $\!$\Bazel      $\!$& Cloud cache, command history & Restarting  & Dynamic$^{(*)
 \hline
 \end{tabular}
 \vspace{0.5mm}
-\caption{Summary of build system differences; $^{(*)}$user-defined build rules
+\caption{Build system differences; $^{(*)}$at present, user-defined build rules
 cannot have dynamic dependencies.\label{tab-summary}}
 \vspace{-6mm}
 \end{table}
-
-In this paper we elucidate which build system properties are consequences of
-specific implementation choices (stored metadata and task scheduling algorithm),
-and how one can obtain new build systems with desired properties by recombining
-parts of existing implementations. As a compelling example,
-in~\S\ref{sec-implementation-cloud} we demonstrate how to combine the advantages
-of \Shake and \Bazel.
