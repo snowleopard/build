@@ -42,9 +42,9 @@ liftInfo x = do
     put $ mapInfo (, snd $ getInfo $ store) newStore
     return a
 
--- | Remove one layer of computation.
-lowerInfo :: StateT i (State (Store i k v, j)) a -> State (Store i k v, j) a
-lowerInfo x = do
+-- | Collapse two layers of stateful computations into one.
+flattenInfo :: StateT i (State (Store i k v, j)) a -> State (Store i k v, j) a
+flattenInfo x = do
     info <- gets (getInfo . fst)
     (a, newInfo) <- runStateT x info
     modify $ \(s, j) -> (putInfo newInfo s, j)
@@ -199,7 +199,7 @@ suspending rebuilder tasks target store = fst $ execState (build target) (store,
                     fetch k = do lift (build k)                      -- build the key
                                  lift (gets (getInfo . fst)) >>= put -- save new traces
                                  lift (gets (getValue k . fst))      -- fetch the value
-                newValue <- lowerInfo (run newTask fetch)
+                newValue <- flattenInfo (run newTask fetch)
                 modify $ \(s, d) -> (updateValue key value newValue s, Set.insert key d)
 
 -- | An incorrect scheduler that builds the target key without respecting its
