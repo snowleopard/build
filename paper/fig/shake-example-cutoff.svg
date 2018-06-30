@@ -10,8 +10,8 @@
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="160.5802mm"
-   height="111.51413mm"
-   viewBox="0 0 568.98496 395.12878"
+   height="104.15887mm"
+   viewBox="0 0 568.98496 369.06683"
    id="svg2"
    version="1.1"
    inkscape:version="0.91 r13725"
@@ -65,22 +65,6 @@
          transform="matrix(-0.8,0,0,-0.8,-10,0)"
          inkscape:connector-curvature="0" />
     </marker>
-    <marker
-       inkscape:isstock="true"
-       style="overflow:visible"
-       id="marker4181-9"
-       refX="0"
-       refY="0"
-       orient="auto"
-       inkscape:stockid="Arrow1Lend"
-       inkscape:collect="always">
-      <path
-         inkscape:connector-curvature="0"
-         transform="matrix(-0.8,0,0,-0.8,-10,0)"
-         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1"
-         d="M 0,0 5,-5 -12.5,0 5,5 0,0 Z"
-         id="path4183-8" />
-    </marker>
   </defs>
   <sodipodi:namedview
      id="base"
@@ -89,15 +73,15 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.4"
-     inkscape:cx="298.94184"
+     inkscape:zoom="0.7"
+     inkscape:cx="134.29898"
      inkscape:cy="175.83232"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="1858"
-     inkscape:window-height="1177"
-     inkscape:window-x="1974"
+     inkscape:window-width="1445"
+     inkscape:window-height="841"
+     inkscape:window-x="83"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
      fit-margin-top="5"
@@ -120,7 +104,7 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(-82.147745,-114.13782)">
+     transform="translate(-82.147745,-140.19979)">
     <rect
        rx="28.294779"
        style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:1.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:8;stroke-opacity:1;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate"
@@ -291,23 +275,5 @@
          id="tspan4142-7"
          sodipodi:role="line"
          style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Century Schoolbook';-inkscape-font-specification:'Century Schoolbook Italic'">early cutoff</tspan></text>
-    <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker4181-9)"
-       d="m 430.29534,170.93181 66.3071,-28.64187"
-       id="path4313-1"
-       inkscape:connector-curvature="0"
-       sodipodi:nodetypes="cc" />
-    <text
-       sodipodi:linespacing="125%"
-       id="text4140-41-6"
-       y="135.57993"
-       x="506.05499"
-       style="font-style:normal;font-weight:normal;font-size:35px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       xml:space="preserve"><tspan
-         y="135.57993"
-         x="506.05499"
-         id="tspan4142-7-2"
-         sodipodi:role="line"
-         style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Century Schoolbook';-inkscape-font-specification:'Century Schoolbook Italic'">...</tspan></text>
   </g>
 </svg>

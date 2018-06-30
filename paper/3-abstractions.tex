@@ -1,121 +1,92 @@
 \section{Build systems, abstractly}\label{sec-abstractions}
 
-This section presents purely functional abstractions that allow us to express
-all the intricacies of build systems discussed previously in \S\ref{sec-background},
-and design complex build systems from simple
-primitives. Specifically, we present the \emph{task} and \emph{build}
-abstractions in~\S\ref{sec-task} and~\S\ref{sec-general-build}, respectively.
-Sections~\S\ref{sec-build} and~\S\ref{sec-implementations} scrutinise the
-abstractions further and provide concrete implementations for several build
-systems.
-
-\subsection{Common vocabulary for build systems}\label{sec-vocabulary}
 \begin{figure}
+\vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- An abstract store
+-- An abstract store containing a key/value map and persistent build information
 data Store i k v -- i = info, k = key, v = value
+initialise :: i -> (k -> v) -> Store i k v
 getInfo    :: Store i k v -> i
 putInfo    :: i -> Store i k v -> Store i k v
 getValue   :: k -> Store i k v -> v
 putValue   :: Eq k => k -> v -> Store i k v -> Store i k v
 getHash    :: Hashable v => k -> Store i k v -> Hash v
-initialise :: i -> (k -> v) -> Store i k v
+hash       :: Hashable v => v -> Hash v -- provides a fast equality check
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Hashing
-hash :: Hashable a => a -> Hash a
+-- Build tasks (see §3.2)
+newtype Task  c k v = Task { run :: @\std{forall}@ f. c f => (k -> f v) -> f v }
+type    Tasks c k v = k -> Maybe (Task c k v)
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Applicative functors
-pure  :: Applicative f => a -> f a
-(<$>) :: Applicative f =>   (a -> b) -> f a -> f b -- Left-associative
-(<*>) :: Applicative f => f (a -> b) -> f a -> f b -- Left-associative
+-- Build system (see §3.3)
+type Build c i k v = Tasks c k v -> k -> Store i k v -> Store i k v
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Standard State monad from Control.Monad.State
-data State s a
-instance Applicative (State s)
-instance Monad       (State s)
-get       :: State s s
-gets      :: (s -> a) -> State s a
-modify    :: (s -> s) -> State s ()
-runState  :: State s a -> s -> (a, s)
-execState :: State s a -> s -> s
-\end{minted}
-\vspace{1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- Standard types from Data.Functor.Identity and Data.Functor.Const
-newtype Identity a = Identity { runIdentity :: a }
-newtype Const m a  = Const    { getConst    :: m }
-\end{minted}
-\vspace{0.5mm}
-\begin{minted}[fontsize=\small]{haskell}
-instance Functor (Const m) where
-    fmap _ (Const m) = Const m
-\end{minted}
-\vspace{0.5mm}
-\begin{minted}[fontsize=\small]{haskell}
-instance Monoid m => Applicative (Const m) where
-    pure _              = Const mempty
-    Const x <*> Const y = Const (x <> y)
+-- Build system components: a scheduler and a rebuilder (see §5)
+type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
+type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 \end{minted}
 \vspace{-3mm}
-\caption{Signatures of main data types and library functions.}\label{fig-types}
-\vspace{-4mm}
+\caption{Type signatures of key build systems abstractions.}\label{fig-types}
+\vspace{-3mm}
 \end{figure}
-We begin by establishing a common vocabulary for build systems:
 
-\vspace{-2mm}
-\paragraph{Keys, values, and the store} The goal of any build system is to
+This section presents purely functional abstractions that allow us to express
+all the intricacies of build systems discussed in~\S\ref{sec-background},
+and design complex build systems from simple primitives. Specifically, we
+present the \emph{task} and \emph{build} abstractions in~\S\ref{sec-task}
+and~\S\ref{sec-general-build}, respectively. Sections~\S\ref{sec-build}
+and~\S\ref{sec-implementations} scrutinise the abstractions further and provide
+concrete implementations for several build systems.
+
+\vspace{-1.5mm}
+\subsection{Common vocabulary for build systems}\label{sec-vocabulary}
+\vspace{-0.5mm}
+% We begin by establishing a common vocabulary for build systems:
+
+\emph{Keys, values, and the store.} The goal of any build system is to
 bring up to date a \emph{store} that implements a mapping from \emph{keys} to
 \emph{values}. In software build systems the store is the file system, the
 keys are filenames, and the values are file contents. In \Excel, the store is
-the worksheets, the keys are cell names (such as \cmd{A2}) and the values are
-numbers, strings etc, displayed as the cell contents. Many build systems use
+the worksheets, the keys are cell names (such as \cmd{A1}) and the values are
+numbers, strings, etc., displayed as the cell contents. Many build systems use
 \emph{hashes} of values as compact summaries with a fast equality check.
 
-\vspace{-2mm}
-\paragraph{Input, output, and intermediate values}
-Some values must be provided by the user as \emph{input}. For example,
-\cmd{main.c} can be edited by the user who relies on the build system to
-compile it into \cmd{main.o} and subsequently \cmd{main.exe}. End build products,
-such as \cmd{main.exe}, are \emph{output} values. All other values (in this case
-\cmd{main.o}) are \emph{intermediate}; they are not interesting for the user
-but are produced in the process of turning inputs into outputs.
+\emph{Input, output, and intermediate values.} Some values must be provided by
+the user as \emph{input}. For example, \cmd{main.c} can be edited by the user
+who relies on the build system to compile it into \cmd{main.o} and subsequently
+\cmd{main.exe}. End build products, such as \cmd{main.exe}, are \emph{output}
+values. All other values (in this case \cmd{main.o}) are \emph{intermediate};
+they are not interesting for the user but are produced in the process of turning
+inputs into outputs.
 
-\vspace{-2mm}
-\paragraph{Persistent build information} As well as the key/value mapping, the store
-also contains information maintained by the build system itself, which persists
-from one invocation of the build system to the next -- its ``memory''.
+\emph{Persistent build information.} As well as the key/value mapping, the
+store also contains information maintained by the build system itself, which
+persists from one invocation of the build system to the next -- its ``memory''.
 
-\vspace{-2mm}
-\paragraph{Task description} Any build system requires the user to specify how to
-compute the new value for one key, using the (up to date) values of its
-dependencies. We call this specification the \emph{task description}.  For
+\emph{Task description.} Any build system requires the user to specify how
+to compute the new value for one key, using the (up to date) values of its
+dependencies. We call this specification the \emph{task description}. For
 example, in \Excel, the formulae of the spreadsheet constitute the task
 description; in \Make the rules in the makefile are the task description.
 
-\vspace{-2mm}
-\paragraph{Build system} A \emph{build system} takes a task description, a
+\emph{Build system.} A \emph{build system} takes a task description, a
 \emph{target} key, and a store, and returns a new store in which the target key
 and all its dependencies have an up to date value.
 
-\vspace{-2mm}
-\paragraph{Modelling in Haskell} We will model all our build systems concretely,
-as Haskell programs. To that end, Fig.~\ref{fig-types} gives the type
-declarations and function signatures of the library functions. For example,
-\hs{Store}~\hs{i}~\hs{k}~\hs{v} is the type of stores, with several associate
-functions (\hs{getValue}, etc.). We use \hs{k} as a type
-variable ranging over keys, \hs{v} for values, and \hs{i} for the persistent
-build information.
+We will model build systems concretely, as Haskell programs. To that end,
+Fig.~\ref{fig-types} provides the type signatures for all key abstractions
+introduced in the paper. For example, \hs{Store}~\hs{i}~\hs{k}~\hs{v} is the
+type of stores, with several associate functions (\hs{getValue}, etc.). We use
+\hs{k} as a type variable ranging over keys, \hs{v} for values, and \hs{i} for
+the persistent build information. Fig.~\ref{fig-stdlib} lists standard library
+definitions.
 
 \subsection{The Task abstraction}\label{sec-task}
-
-% Old type:
-% type Task c k v = @\std{forall}@ f. c f => (k -> f v) -> k -> Maybe (f v)
 
 Our first main abstraction is for \emph{task descriptions}:
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -131,17 +102,20 @@ task description to every non-input key; input keys are associated with
 We discuss this in~\S\ref{sec-related-optics}.} \hs{Task} is best introduced by
 an example. Consider this \Excel spreadsheet:
 
-\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{text}
 A1: 10     B1: A1 + A2
 A2: 20     B2: B1 * 2
 \end{minted}
-\vspace{1mm}
 
 \noindent
-Here cell \cmd{A1} contains the value \cmd{10}, cell \cmd{B1} contains
-the formula \cmd{A1+A2}, etc. We can represent the formulae of this spreadsheet
-with the following task description:
+Here cell \cmd{A1} contains the value \cmd{10}, cell \cmd{B1} contains the
+formula \cmd{A1+A2}, etc.
+
+% \newpage
+
+\noindent
+We can represent the formulae of this spreadsheet with the following task
+description:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -163,17 +137,57 @@ cell, it returns the \hs{Task} to compute the value of the formula. Every
 \hs{Task} is given a \emph{callback} \hs{fetch} to find the value of any keys on
 which it depends.
 
+\begin{figure}
+\begin{minted}[fontsize=\small]{haskell}
+-- Applicative functors
+pure  :: Applicative f => a -> f a
+(<$>) :: Applicative f =>   (a -> b) -> f a -> f b -- Left-associative
+(<*>) :: Applicative f => f (a -> b) -> f a -> f b -- Left-associative
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Standard State monad from Control.Monad.State
+data State s a
+instance Monad (State s)
+get       :: State s s
+gets      :: (s -> a) -> State s a
+put       :: s -> State s ()
+modify    :: (s -> s) -> State s ()
+runState  :: State s a -> s -> (a, s)
+execState :: State s a -> s -> s
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Standard types from Data.Functor.Identity and Data.Functor.Const
+newtype Identity a = Identity { runIdentity :: a }
+newtype Const m a  = Const    { getConst    :: m }
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+instance Functor (Const m) where
+    fmap _ (Const m) = Const m
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+instance Monoid m => Applicative (Const m) where
+    pure _              = Const mempty
+    Const x <*> Const y = Const (x <> y)
+\end{minted}
+\vspace{-3mm}
+\caption{Standard library definitions.}\label{fig-stdlib}
+\vspace{-4mm}
+\end{figure}
+
 The code to ``compute the value of a formula'' in \hs{sprsh1} looks a bit
 mysterious because it takes place in an \hs{Applicative}
 computation~\cite{mcbride2008applicative} -- the relevant type signatures are
-given in Fig.~\ref{fig-types}. We will explain why in~\S\ref{sec-general-build}.
+given in Fig.~\ref{fig-stdlib}. We will explain why in~\S\ref{sec-general-build}.
 
 For now, we content ourselves with observing that a task description, of type
 \hs{Tasks}~\hs{c}~\hs{k}~\hs{v}, is completely isolated from the world of
-compilers, calculation chains, file systems, caches, and all other
-complexities of real build systems.  It just computes a single output, in
-a side-effect-free way, using a callback (\hs{fetch}) to find the values
-of its dependencies.
+compilers, calc chains, file systems, caches, and all other complexities of real
+build systems. It just computes a single output, in a side-effect-free way,
+using a callback (\hs{fetch}) to find the values of its dependencies.
 
 \subsection{The Build abstraction}\label{sec-general-build}
 
@@ -207,7 +221,7 @@ busy tasks key store = execState (fetch key) store
 The \hs{busy} build system defines the callback \hs{fetch} so that, when given a
 key, it brings the key up to date in the store, and returns its value.
 The function \hs{fetch} runs in the standard Haskell \hs{State} monad -- see
-Fig.~\ref{fig-types} -- initialised with the incoming \hs{store} by \hs{execState}.
+Fig.~\ref{fig-stdlib} -- initialised with the incoming \hs{store} by \hs{execState}.
 To bring a key up to date, \hs{fetch} asks the task description \hs{tasks} how
 to compute the value of \hs{k}. If \hs{tasks} returns \hs{Nothing} the key is an
 input, so \hs{fetch} simply reads the result from the store. Otherwise \hs{fetch}
@@ -247,6 +261,7 @@ that \hs{busy} is not minimal, imagine that the formula in cell \cmd{B2} was
 formula.
 
 \subsection{The need for polymorphism in \hs{Task}}\label{sec-why-polymorphism}
+\vspace{-0.5mm}
 
 The previous example shows why the \hs{Task} abstraction is polymorphic in \hs{f}, recall the definition:
 
@@ -272,20 +287,18 @@ descriptions (e.g. \hs{sprsh1} in \S\ref{sec-task}) require that \hs{f}
 satisfies certain properties, such as \hs{Applicative} or \hs{Monad}. That is
 why \hs{Task} has the ``\hs{c}~\hs{f}~\hs{=>}'' constraint in its type,
 expressing that \hs{f} can only be instantiated by types that satisfy the
-constraint \hs{c}.
-
-So the type \hs{Task} emerges naturally, almost inevitably.  But now that
-it \emph{has} emerged, we find that constraints \hs{c} classify task descriptions
-in a very interesting way:
+constraint \hs{c}. So the type \hs{Task} emerges naturally, almost inevitably.
+But now that it \emph{has} emerged, we find that constraints \hs{c} classify
+task descriptions in a very interesting way:
 \begin{itemize}
 \item \hs{Task}~\hs{Applicative}. In \hs{sprsh1} we needed only \hs{Applicative}
   operations, expressing the fact that the dependencies between cells can be
   determined \emph{statically}; that is, by looking at the formulae, without
   ``computing'' them (see \S\ref{sec-deps}).
-\item \hs{Task}~\hs{Monad}. As we shall see in \S\ref{sec-task-monad}, a monadic task
-  description allows \emph{dynamic} dependencies, in which a formula may depend
-  on the value of cell \cmd{C}, but \emph{which} cell \cmd{C} depends on the
-  value of another cell \cmd{D}.
+\item \hs{Task}~\hs{Monad}. As we shall see in \S\ref{sec-task-monad}, a monadic
+  task allows \emph{dynamic} dependencies, in which a formula may depend on cell
+  \cmd{C}, but \emph{which} cell \cmd{C} depends on the value of another cell
+  \cmd{D}.
 %TODO: Add a reference for Docker?
 \item \hs{Task}~\hs{Functor} is somewhat degenerate: the task description cannot
   even use the application operator \hs{<*>}, which limits dependencies to a
@@ -316,6 +329,7 @@ in a very interesting way:
 % sub-typing, but is actually just ordinary higher-rank polymorphism at
 % work~\cite{jones2007practical}.
 
+\vspace{-0.5mm}
 \subsection{Monadic tasks}\label{sec-task-monad}
 
 As explained in~\S\ref{sec-background-excel}, some task descriptions have
@@ -323,11 +337,12 @@ dynamic dependencies, which are determined by values of intermediate
 computations. In our framework, such task descriptions correspond to the type
 \hs{Tasks}~\hs{Monad}~\hs{k}~\hs{v}. Consider this spreadsheet example:
 
-\vspace{1mm}
+\vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{text}
 A1: 10      B1: IF(C1=1,B2,A2)      C1: 1
 A2: 20      B2: IF(C1=1,A1,B1)
 \end{minted}
+\vspace{0.5mm}
 
 \noindent
 Note that \cmd{B1} and \cmd{B2} statically form a dependency cycle, but \Excel
@@ -338,7 +353,7 @@ spreadsheet using our task abstraction as:
 % the \hs{INDIRECT} function can be expressed very similarly: simply replace the
 % line containing the \cmd{if} statement with \hs{fetch ("A" ++ show c1)}.
 
-\vspace{1mm}
+\vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 sprsh2 :: Tasks Monad String Integer
 sprsh2 "B1" = Just $ Task $ \fetch -> do
@@ -349,7 +364,7 @@ sprsh2 "B2" = Just $ Task $ \fetch -> do
     if c1 == 1 then fetch "A1" else fetch "B1"
 sprsh2 _ = Nothing
 \end{minted}
-\vspace{1mm}
+\vspace{0.5mm}
 
 \noindent
 The big difference compared to \hs{sprsh1} is that the computation now takes
@@ -382,7 +397,7 @@ compute task store = runIdentity $ run task (\k -> Identity (getValue k store))
 
 \noindent
 Here we do not need any effects in the \hs{fetch} callback to \hs{task}, so
-we can use the standard Haskell \hs{Identity} monad (Fig.~\ref{fig-types}).
+we can use the standard Haskell \hs{Identity} monad (Fig.~\ref{fig-stdlib}).
 The use of \hs{Identity} just fixes the `impedance mismatch' between the
 function \hs{getValue}, which returns a pure value~\hs{v}, and the \hs{fetch}
 argument of the \hs{task}, which must return an \hs{f}~\hs{v} for some \hs{f}.
@@ -468,13 +483,13 @@ dependencies task = getConst $ run task (\k -> Const [k])
 \vspace{1mm}
 
 \noindent
-Here \hs{Const} is a standard Haskell type defined in Fig.~\ref{fig-types}. We
+Here \hs{Const} is a standard Haskell type defined in Fig.~\ref{fig-stdlib}. We
 instantiate \hs{f} to \hs{Const}~\hs{[@@k]}. So a value of type \hs{f}~\hs{v},
 or in this case \hs{Const}~\hs{[@@k]}~\hs{v}, contains no value \hs{v}, but does
 contain a list of keys of type \hs{[@@k]} which we use to record dependencies.
 The \hs{fetch} callback that we pass to \hs{task} records a single dependency;
 and the standard definition of \hs{Applicative} for \hs{Const} (which we give
-in Fig.~\ref{fig-types}) combines the dependencies from different parts of the
+in Fig.~\ref{fig-stdlib}) combines the dependencies from different parts of the
 task. Running the task with \hs{f}~=~\hs{Const}~\hs{[@@k]} will thus
 accumulate a list of the task's dependencies -- and that is just what
 \hs{dependencies} does:
@@ -495,8 +510,9 @@ case, spreadsheet arithmetic). They cannot: we are not supplying a store or any
 input numbers. So, through the wonders of polymorphism, we are able to extract
 the dependencies of the spreadsheet formula, and to do so efficiently, simply by
 running its code in a different \hs{Applicative}! This is not new, for example
-see~\cite{free-applicatives}, but it is etremely cool.  We will see a practical
-use for \hs{dependencies} in \S\ref{sec-implementation-make}.
+see~\cite{free-applicatives}, but it is extremely cool. We will see a practical
+use for \hs{dependencies} when implementing applicative build systems,
+see~\S\ref{sec-implementation-make}.
 
 So much for applicative tasks. What about monadic tasks with dynamic
 dependencies? As we have seen in~\S\ref{sec-background-shake}, dynamic
@@ -529,10 +545,11 @@ to record additional information -- a list of keys of type \hs{[@@k]} -- when
 computing a task in an arbitrary monad~\hs{m}. We substitute the given \hs{fetch}
 with a \hs{trackingFetch} that, in addition to fetching a value, tracks the
 corresponding key. The \hs{task} returns the value of type
-\hs{WriterT}~\hs{[@@k]}~\hs{m}~\hs{v}, which we unwrap by \hs{runWriterT}. Here
-is an example of \hs{track}ing monadic tasks when \hs{m}~\hs{=}~\hs{IO}.
+\hs{WriterT}~\hs{[@@k]}~\hs{m}~\hs{v}, which we unwrap by \hs{runWriterT}. We
+will use \hs{track} when implementing monadic build systems,
+see~\S\ref{sec-implementation-shake}; here we show an example of \hs{track}ing
+monadic tasks when \hs{m}~\hs{=}~\hs{IO}.
 
-\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 @\ghci@ fetchIO k = do putStr (k ++ ": "); read <$> getLine
 @\ghci@ track (fromJust $ sprsh2 "B1") fetchIO
@@ -553,71 +570,3 @@ A2: 20
 As expected, the dependencies of the cell \cmd{B1} from \hs{sprsh2} (see the
 spreadsheet in~\S\ref{sec-task-monad}) are determined by the value of \cmd{C1},
 which in this case is obtained by reading from the standard input.
-We will see a use for \hs{track} in \S\ref{sec-implementation-shake}.
-
-% Furthermore, the above example highlights the static cycle between cells
-% \cmd{B1} and \cmd{B2}: in \hs{store1}, we have \cmd{B1 = B2 = A1 = 10},
-% whereas in \hs{store2}, we have \cmd{B2 = B1 = A2 = 20}.
-
-% \subsection{Free tasks}
-% \todo{AM}{Introduce free constructions \hs{TaskA} and \hs{TaskM} giving
-% intuitions on what tasks really are. This will take at least one page.}
-%
-% data TaskA k v a = InputA | TaskA [k] ([v] -> a)
-%
-% data TaskM k v a = InputM | DoneM a | TaskM [k] ([v] -> Task k v a)
-
-% \subsection{Recognising an applicative task wearing a monadic hat}
-% Although dynamic dependencies are very useful, they typically represent only a
-% small fraction of all dependencies. One can exploit this in a build system by
-% recognising applicative tasks even though they have the type
-% \hs{Task}~\hs{Monad} and treating them specially.
-
-%------------------------- Old correctness definition -------------------------%
-
-% \definition[Correctness]{Suppose \hs{build} is a build system, \hs{task} is a
-% build task description, \hs{key} is an output key, \hs{store} is an initial
-% store, and \hs{result} is the store produced by running the build system with
-% parameters \hs{task}, \hs{key} and \hs{store}. Or, using the precise language of
-% our abstractions:
-% \vspace{1mm}
-% \begin{minted}[xleftmargin=10pt]{haskell}
-% build         :: Build c i k v
-% task          :: Task c k v
-% key           :: k
-% store, @@result :: Store i k v
-% result = @@build @@task @@key @@store
-% \end{minted}
-% \vspace{1mm}
-% \noindent
-% Then the \hs{result} is~\emph{correct} if there exists an \hs{ideal} store, such
-% that:
-% \begin{itemize}
-%     \item The \hs{ideal} store is \emph{consistent} with the \hs{task}, i.e.
-%     for all possible non-input keys \hs{k}, the result of recomputing the
-%     \hs{task} matches the value in the \hs{ideal} store:
-%     \vspace{-1mm}
-%     \[
-%     \hs{Just}~\hs{(}\hs{getValue}~\hs{ideal}~\hs{k)}~\hs{==}~\hs{compute}~\hs{task}~\hs{ideal}~\hs{k}.
-%     \]
-%     \item The \hs{result} and \hs{ideal} agree on the output \hs{key}, i.e.:
-%     \vspace{-1mm}
-%     \[
-%     \hs{getValue}~\hs{result}~\hs{key}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{key}.
-%     \]
-%     In other words, we require that the output \hs{key} has the correct value,
-%     but do not impose any restrictions on intermediate keys, therefore
-%     permitting shallow cloud builds.
-%     \item The \hs{store}, \hs{result} and \hs{ideal} agree on all input keys
-%     \hs{k} that belong to the transitive closure of \hs{key}'s dependencies:
-%     \[
-%     \,\,\,\,\,\,\,\hs{getValue}~\hs{store}~\hs{k}~\hs{==}~\hs{getValue}~\hs{result}~\hs{k}~\hs{&&}~\hs{getValue}~\hs{store}~\hs{k}~\hs{==}~\hs{getValue}~\hs{ideal}~\hs{k}
-%     \]
-%     This requirement asserts that (i) no inputs were corrupted during the
-%     build, and (ii)~the \hs{ideal} store has constraints not only on the output,
-%     but also on the inputs.
-% \end{itemize}
-% A build system is \emph{correct} if it produces a correct \hs{result} for any
-% given \hs{task}, \hs{key} and \hs{store}.
-% }
-% \label{def-correct}

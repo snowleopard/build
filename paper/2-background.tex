@@ -241,9 +241,9 @@ up to date. We refer to this task scheduling algorithm as \emph{suspending},
 see a concrete implementation in~\S\ref{sec-implementation-shake}.
 
 \begin{figure}
-\vspace{-2mm}
-\centerline{\includegraphics[scale=0.28]{fig/shake-example-cutoff.pdf}}
 \vspace{-3mm}
+\centerline{\includegraphics[scale=0.28]{fig/shake-example-cutoff.pdf}}
+\vspace{-4mm}
 \caption{An early cutoff example: if a comment is added to \cmd{main.c}, the
 rebuild is stopped after detecting that \cmd{main.o} is unchanged, since this
 indicates that \cmd{main.exe} and its dependents do not need to be
@@ -258,39 +258,38 @@ earlier, as illustrated in Fig.~\ref{fig-cutoff}. Not all build systems support
 early cutoff: \Make and \Excel do not, whereas \Shake and \Bazel (introduced
 below) do.
 
-\subsection{\Bazel: a cloud build system}
-\label{sec-background-bazel}
+\vspace{-0.5mm}
+\subsection{\Bazel: a cloud build system}\label{sec-background-bazel}
+\vspace{-0.5mm}
 
 When build systems are used by large teams, different team members often end up
 executing exactly the same tasks on their local machines. A \emph{cloud build
 system} can speed up builds dramatically by sharing build results
-among team members. Furthermore, cloud build systems allow one to perform
-\emph{shallow builds} that materialise only end build products locally, leaving
-all intermediates in the cloud. We illustrate shallow cloud builds by an example
-in Fig.~\ref{fig-bazel}.
+among team members. Furthermore, cloud build systems can support \emph{shallow
+builds} that materialise only end build products locally, leaving all
+intermediates in the cloud.
 
-The user starts by downloading the project sources, whose content hashes are
-(for simplicity)~1,~2 and~3, and requests to build \cmd{main.exe}, see
-Fig.~\ref{fig-bazel}(a,b). By looking up the global history of all previous
-builds of the project\footnote{Here we ignore the issue of limited cloud storage
-resources for the sake of simplicity; in practice, old entries are regularly
-evicted from the storage, as further discussed in~\S\ref{sec-cloud-aspects}.},
-the build system finds that someone has already compiled these exact sources
-before and the resulting files \cmd{util.o} and \cmd{main.o} had hashes
-4~and~5, respectively. Similarly, the build system finds that the hash of the
-resulting \cmd{main.exe} was 6 and downloads the actual binary from the shared
-cloud storage -- it must be materialised, because it is the end build product.
+Consider an example in Fig.~\ref{fig-bazel}. The user starts by downloading the
+sources, whose content hashes are (for simplicity)~1,~2 and~3, and requests to
+build \cmd{main.exe}, see Fig.~\ref{fig-bazel}(a,b). By looking up the global
+history of all previous builds\footnote{In practice, old entries are regularly
+evicted from the cloud storage, as further discussed
+in~\S\ref{sec-cloud-aspects}.}, the build system finds that someone has already
+compiled these exact sources before and the resulting files \cmd{util.o} and
+\cmd{main.o} had hashes 4~and~5, respectively. Similarly, the build system finds
+that the hash of the resulting \cmd{main.exe} was 6 and downloads the actual
+binary from the cloud storage -- it must be materialised, because it is the end
+build product.
 
-In the second scenario, shown in Fig.~\ref{fig-bazel}(c), the user modifies the
-source file \cmd{util.c}, thereby changing its hash from~1~to~7. The cloud
-lookup of the new combination $\{\cmd{util.c}, \cmd{util.h}\}$ fails,
-which means that nobody has ever compiled it. The build system must therefore
-build \cmd{util.o}, which results in materialising it with a new hash~8. The
-combination of hashes of \cmd{util.o} and \cmd{main.o} has not been encountered
-before either, therefore the build system first downloads \cmd{main.o} from the
-cloud and then builds \cmd{main.exe} by linking the two object files. When the
-build is complete, the results can be uploaded to the cloud for future reuse by
-other team members.
+In Fig.~\ref{fig-bazel}(c), the user modifies the source file \cmd{util.c},
+thereby changing its hash from~1~to~7. The cloud lookup of the new combination
+$\{\cmd{util.c}, \cmd{util.h}\}$ fails, which means that nobody has ever
+compiled it. The build system must therefore build \cmd{util.o}, materialising
+it with the new hash~8. The combination of hashes of \cmd{util.o} and
+\cmd{main.o} has not been encountered before either, thus the build system first
+downloads \cmd{main.o} from the cloud and then builds \cmd{main.exe} by linking
+the two object files. When the build is complete, the results can be uploaded to
+the cloud for future reuse by other team members.
 
 \Bazel is one of the first examples of openly available cloud build systems.
 As of writing, it is not possible to express dynamic dependencies in
@@ -307,22 +306,26 @@ content, and (ii) the history of all executed build commands annotated with
 observed file hashes. The latter allows the build engine to bypass the execution
 of a task, by predicting the hash of the result from the hashes of its
 dependencies, and subsequently download the result from the cache. A concrete
-implementation is provided in~\S\ref{sec-implementations}.
+implementation is provided in~\S\ref{sec-implementation-cloud}.
 
 \begin{figure}
+\vspace{-2mm}
 \begin{subfigure}[b]{0.25\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-checkout.pdf}}
+\vspace{-1mm}
 \caption{Download source files}
 \end{subfigure}
 \begin{subfigure}[b]{0.40\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-build.pdf}}
+\vspace{-1mm}
 \caption{Build \cmd{main.exe}}
 \end{subfigure}
 \begin{subfigure}[b]{0.31\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-rebuild.pdf}}
+\vspace{-1mm}
 \caption{Modify \cmd{util.c} and rebuild}
 \end{subfigure}
-\vspace{-2mm}
+\vspace{-2.5mm}
 \caption{A cloud build example: (a)~download sources, (b)~build \cmd{main.exe}
 by downloading it from the cloud and skipping intermediate files (only their
 hashes are needed), (c)~modify \cmd{util.c} and rebuild \cmd{main.exe}, which
@@ -330,11 +333,30 @@ requires building \cmd{util.o} (nobody has compiled \cmd{util.c} before) and
 downloading \cmd{main.o} (it is needed for linking \cmd{main.exe}). File hashes
 are shown in circles, and non-materialised intermediates in dashed rounded
 rectangles.\label{fig-bazel}}
-\vspace{-4mm}
+\vspace{-3mm}
 \end{figure}
 
-\subsection{Summary}
-\label{sec-background-summary}
+\begin{table}[h]
+\vspace{-1mm}
+\smaller
+\centering
+\begin{tabular}{l||l|l||l|c|c|c}
+\hline
+$\!$Build system$\!$& Persistent build information & Scheduler   & Dependencies    & Minimal & Cutoff & Cloud$\!$\\\hline
+$\!$\Make       $\!$& File modification times      & Topological & Static          & Yes     & No     & No   $\!$\\
+$\!$\Excel      $\!$& Dirty cells, calc chain      & Restarting  & Dynamic         & No      & No     & No   $\!$\\
+$\!$\Shake      $\!$& Previous dependency graph    & Suspending  & Dynamic         & Yes     & Yes    & No   $\!$\\
+$\!$\Bazel      $\!$& Cloud cache, command history & Restarting  & Dynamic$^{(*)}$ & No      & Yes    & Yes  $\!$\\\hline
+\hline
+\end{tabular}
+\caption{Build system differences; $^{(*)}$at present, user-defined build rules
+cannot have dynamic dependencies.\label{tab-summary}}
+\vspace{-8mm}
+\end{table}
+
+\vspace{-1.5mm}
+\subsection{Summary}\label{sec-background-summary}
+\vspace{-0.5mm}
 
 We summarise differences between four discussed build systems in
 Table~\ref{tab-summary}. The column \emph{`persistent build information'} refers
@@ -357,21 +379,3 @@ and how one can obtain new build systems with desired properties by recombining
 parts of existing implementations. As a compelling example,
 in~\S\ref{sec-implementation-cloud} we demonstrate how to combine the advantages
 of \Shake and \Bazel.
-
-\begin{table}
-\smaller
-\centering
-\begin{tabular}{l||l|l||l|c|c|c}
-\hline
-$\!$Build system$\!$& Persistent build information & Scheduler   & Dependencies    & Minimal & Cutoff & Cloud$\!$\\\hline
-$\!$\Make       $\!$& File modification times      & Topological & Static          & Yes     & No     & No   $\!$\\
-$\!$\Excel      $\!$& Dirty cells, calc chain      & Restarting  & Dynamic         & No      & No     & No   $\!$\\
-$\!$\Shake      $\!$& Previous dependency graph    & Suspending  & Dynamic         & Yes     & Yes    & No   $\!$\\
-$\!$\Bazel      $\!$& Cloud cache, command history & Restarting  & Dynamic$^{(*)}$ & No      & Yes    & Yes  $\!$\\\hline
-\hline
-\end{tabular}
-\vspace{0.5mm}
-\caption{Build system differences; $^{(*)}$at present, user-defined build rules
-cannot have dynamic dependencies.\label{tab-summary}}
-\vspace{-6mm}
-\end{table}
