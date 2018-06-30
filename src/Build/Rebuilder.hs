@@ -89,22 +89,24 @@ approximateRebuilder key value task = Task $ \fetch -> do
 -- | This rebuilder relies on verifying traces.
 vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
 vtRebuilder key value task = Task $ \fetch -> do
-    upToDate <- verifyVT key value (fmap hash . fetch) =<< get
+    upToDate <- verifyVT key (hash value) (fmap hash . fetch) =<< get
     if upToDate
     then return value
     else do
         (newValue, deps) <- trackM task fetch
-        put =<< recordVT key newValue deps (fmap hash . fetch) =<< get
+        put =<< recordVT key (hash newValue) deps (fmap hash . fetch) =<< get
         return newValue
 
 ------------------------------ Constructive traces -----------------------------
 -- | This rebuilder relies on constructive traces.
 ctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (CT k v) k v
 ctRebuilder key value task = Task $ \fetch -> do
-    maybeCachedValue <- constructCT key value (fmap hash . fetch) =<< get
-    case maybeCachedValue of
-        Just cachedValue -> return cachedValue
-        Nothing -> do
+    cachedValues <- constructCT key (fmap hash . fetch) =<< get
+    if value `elem` cachedValues
+    then return value -- The current value has been verified, let's keep it
+    else case cachedValues of
+        (cachedValue:_) -> return cachedValue -- Any cached value will do
+        _ -> do -- No cached values, need to run the task
             (newValue, deps) <- trackM task fetch
             put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
             return newValue

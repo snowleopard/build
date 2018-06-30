@@ -41,19 +41,19 @@ newtype VT k v = VT [Trace k (Hash v) (Hash v)] deriving (Monoid, Semigroup, Sho
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values by using @fetchHash@.
-recordVT :: (Hashable v, Monad m) => k -> v -> [k] -> (k -> m (Hash v)) -> VT k v -> m (VT k v)
-recordVT key value deps fetchHash (VT ts) = do
+recordVT :: Monad m => k -> Hash v -> [k] -> (k -> m (Hash v)) -> VT k v -> m (VT k v)
+recordVT key valueHash deps fetchHash (VT ts) = do
     hs <- mapM fetchHash deps
-    return $ VT $ Trace key (zip deps hs) (hash value) : ts
+    return $ VT $ Trace key (zip deps hs) valueHash : ts
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
 -- up-to-date.
-verifyVT :: (Monad m, Eq k, Hashable v) => k -> v -> (k -> m (Hash v)) -> VT k v -> m Bool
-verifyVT key value fetchHash (VT ts) = anyM match ts
+verifyVT :: (Monad m, Eq k, Eq v) => k -> Hash v -> (k -> m (Hash v)) -> VT k v -> m Bool
+verifyVT key valueHash fetchHash (VT ts) = anyM match ts
   where
     match (Trace k deps result)
-        | k /= key || result /= hash value = return False
+        | k /= key || result /= valueHash = return False
         | otherwise = andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
 
 ------------------------------ Constructive traces -----------------------------
@@ -81,11 +81,8 @@ recordCT key value deps fetchHash (CT ts) = do
 -- a @key@, and a set of constructive traces, return @Just newValue@ if it is
 -- possible to reconstruct it from the traces. Prefer reconstructing the
 -- currenct value, if it matches one of the traces.
-constructCT :: (Monad m, Eq k, Eq v) => k -> v -> (k -> m (Hash v)) -> CT k v -> m (Maybe v)
-constructCT key value fetchHash (CT ts) = do
-    candidates <- catMaybes <$> mapM match ts
-    if value `elem` candidates then return $ Just value
-                               else return $ listToMaybe candidates
+constructCT :: (Monad m, Eq k, Eq v) => k -> (k -> m (Hash v)) -> CT k v -> m [v]
+constructCT key fetchHash (CT ts) = catMaybes <$> mapM match ts
   where
     match (Trace k deps result)
         | k /= key  = return Nothing
