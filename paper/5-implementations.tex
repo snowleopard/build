@@ -322,6 +322,7 @@ suspending rebuilder tasks target store = fst $ execState (build target) (store,
                 newValue <- flattenInfo (run newTask fetch)
                 modify $ \(s, d) -> (putValue key newValue s, Set.insert key d)
 \end{minted}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Collapse two layers of stateful computations into one (implementation omitted)
 flattenInfo :: StateT i (State (Store i k v, Set k)) a -> State (Store i k v, Set k) a
@@ -379,13 +380,18 @@ bazel = restarting2 ctRebuilder -- implementation of 'restarting2' is omitted (2
 -- A rebuilder based on constructive traces
 ctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (CT k v) k v
 ctRebuilder key value task = Task $ \fetch -> do
-    maybeCachedValue <- constructCT key value (fmap hash . fetch) =<< get
-    case maybeCachedValue of
-        Just cachedValue -> return cachedValue
-        Nothing -> do
-            (newValue, deps) <- track task fetch
-            put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
-            return newValue
+    cachedValues <- constructCT key (fmap hash . fetch) =<< get
+    if value `elem` cachedValues then return value else case cachedValues of
+        (cachedValue:_) -> return cachedValue
+        _ -> do (newValue, deps) <- trackM task fetch
+                put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
+                return newValue
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Cloud Shake build system, implementation of 'suspending' is given in Fig. 9
+cloudShake :: (Ord k, Hashable v) => Build Monad (CT k v) k v
+cloudShake = suspending ctRebuilder
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
@@ -401,21 +407,32 @@ adaptRebuilder rebuilder key value task = rebuilder key value $ Task $ run task
 \end{minted}
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Cloud Shake build system, implementation of 'suspending' is given in Fig. 9
-cloudShake :: (Ord k, Hashable v) => Build Monad (CT k v) k v
-cloudShake = suspending ctRebuilder
+-- Buck build system, implementation of 'topological' is given in Fig. 7
+buck :: (Ord k, Hashable v) => Build Applicative (DCT k v) k v
+buck = topological (adaptRebuilder dctRebuilder)
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Rebuilder based on deep constructive traces, analogous to ctRebuilder
+dctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (DCT k v) k v
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Nix build system, implementation of 'suspending' is given in Fig. 9
+nix :: (Ord k, Hashable v) => Build Monad (DCT k v) k v
+nix = suspending dctRebuilder
 \end{minted}
 \vspace{-2mm}
-\caption{Implementations of \Bazel, \CloudBuild and \Cloud \Shake using our
-framework; \hs{restarting2} differs from the restarting scheduler used by \Excel
-(Fig.~\ref{fig-excel-implementation}) in that it does not rely on the
-calculation chain.}
-\label{fig-bazel-cloud-shake-implementation}
+\caption{\Bazel, \Cloud \Shake, \CloudBuild, \Buck and \Nix implemented in
+our framework; \hs{restarting2} differs from \hs{restarting} used by \Excel
+(Fig.~\ref{fig-excel-implementation}) in that it does not rely on the calc
+chain.}
+\label{fig-cloud-implementations}
 \vspace{-4mm}
 \end{figure}
 
 In this section we use constructive traces to implement cloud build systems.
-Fig.~\ref{fig-bazel-cloud-shake-implementation} shows our models of \Bazel,
+Fig.~\ref{fig-cloud-implementations} shows our models of \Bazel,
 \CloudBuild and \Cloud \Shake, which both rely on the \hs{ctRebuilder} -- a
 rebuilder based on constructive traces (\S\ref{sec-constructive-traces}).
 
@@ -459,42 +476,10 @@ constructive traces~--~providing a cloud-capable build system that is minimal,
 and supports both early cutoff and monadic dependencies. Using our framework it
 is possible to define and test such a system, which we call \Cloud \Shake. All
 we need to do is replace \hs{restarting2} with \hs{suspending} in the definition
-of \Bazel, as shown in Fig.~\ref{fig-bazel-cloud-shake-implementation}.
+of \Bazel, as shown in Fig.~\ref{fig-cloud-implementations}.
 
 \textbf{TODO:} A real implementation of \Cloud \Shake is now available... It was
 obtained by directly applying the presented ideas.
-
-\begin{figure}
-\begin{minted}[fontsize=\small]{haskell}
--- Buck build system, implementation of 'topological' is given in Fig. 7
-buck :: (Hashable k, Hashable v) => Build Applicative (DCT k v) k v
-buck = topological (adaptRebuilder dctRebuilder)
-\end{minted}
-\vspace{1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- Nix build system, implementation of 'suspending' is given in Fig. 9
-nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v
-nix = suspending dctRebuilder
-\end{minted}
-\vspace{1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- Rebuilder based on deterministic constructive traces
-dctRebuilder :: (Hashable k, Hashable v) => Rebuilder Monad (DCT k v) k v
-dctRebuilder key _value task = Task $ \fetch -> do
-    dct <- get
-    maybeCachedValue <- constructDCT key (fmap hash . fetch) dct
-    case maybeCachedValue of
-        Just cachedValue -> return cachedValue
-        Nothing -> do
-            (newValue, deps) <- track task fetch
-            put =<< recordDCT key newValue deps (fmap hash . fetch) =<< get
-            return newValue
-\end{minted}
-\vspace{-2mm}
-\caption{Implementations of \Buck and \Nix using our framework.}
-\label{fig-buck-nix-implementation}
-\vspace{-2mm}
-\end{figure}
 
 \subsection{Buck and Nix}
 
@@ -507,7 +492,7 @@ benefits in practice, but sacrifices the early cutoff property: indeed, with
 this approach addition of a new comment to one of the source files will
 invalidate all dependent keys.
 
-Fig.~\ref{fig-buck-nix-implementation} shows our models of \Buck and \Nix build
+Fig.~\ref{fig-cloud-implementations} shows our models of \Buck and \Nix build
 systems that use the \hs{dctRebuilder} -- a rebuilder based on deterministic
 constructive traces (\S\ref{sec-deterministic-constructive-traces}). As one can
 see, \hs{dctRebuilder} is almost identical to \hs{ctRebuilder}, but it ignores
