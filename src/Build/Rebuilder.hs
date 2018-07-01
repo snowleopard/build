@@ -13,7 +13,6 @@ module Build.Rebuilder (
 import Control.Monad.State
 import Data.Map (Map)
 import Data.Set (Set)
-import Data.Tuple.Extra
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -103,7 +102,7 @@ vtRebuilder key value task = Task $ \fetch -> do
     then return value
     else do
         (newValue, deps) <- trackM task fetch
-        modify $ recordVT key (hash newValue) (map (second hash) deps)
+        modify $ recordVT key (hash newValue) [ (k, hash v) | (k, v) <- deps ]
         return newValue
 
 ------------------------------ Constructive traces -----------------------------
@@ -117,7 +116,7 @@ ctRebuilder key value task = Task $ \fetch -> do
         (cachedValue:_) -> return cachedValue -- Any cached value will do
         _ -> do -- No cached values, need to run the task
             (newValue, deps) <- trackM task fetch
-            modify $ recordCT key newValue (map (second hash) deps)
+            modify $ recordCT key newValue [ (k, hash v) | (k, v) <- deps ]
             return newValue
 
 --------------------------- Deep constructive traces ---------------------------
