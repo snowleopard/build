@@ -522,7 +522,8 @@ the \hs{Const} functor has no \hs{Monad} instance. We need to run a monadic task
 on a store with concrete values, which will determine the discovered
 dependencies. Accordingly, we introduce the function \hs{track}: a combination
 of \hs{compute} and \hs{dependencies} that computes both the resulting value and
-the list of its dependencies in an arbitrary monadic context~\hs{m}:
+the list of its dependencies (key/value pairs) in an arbitrary monadic
+context~\hs{m}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -530,39 +531,39 @@ import Control.Monad.Writer
 \end{minted}
 \vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-track :: Monad m => Task Monad k v -> (k -> m v) -> m (v, [k])
+track :: Monad m => Task Monad k v -> (k -> m v) -> m (v, [(k, v)])
 track task fetch = runWriterT $ run task trackingFetch
   where
-    trackingFetch :: k -> WriterT [k] m v
-    trackingFetch k = tell [k] >> lift (fetch k)
+    trackingFetch :: k -> WriterT [(k, v)] m v
+    trackingFetch k = do v <- lift (fetch k); tell [(k, v)]; return v
 \end{minted}
 \vspace{1mm}
 
 \noindent
 This implementation uses the standard Haskell \hs{WriterT} \emph{monad
-transformer}~\cite{liang1995monad}, which allows us
-to record additional information -- a list of keys of type \hs{[@@k]} -- when
-computing a task in an arbitrary monad~\hs{m}. We substitute the given \hs{fetch}
-with a \hs{trackingFetch} that, in addition to fetching a value, tracks the
-corresponding key. The \hs{task} returns the value of type
-\hs{WriterT}~\hs{[@@k]}~\hs{m}~\hs{v}, which we unwrap by \hs{runWriterT}. We
-will use \hs{track} when implementing monadic build systems,
-see~\S\ref{sec-implementation-shake}; here we show an example of \hs{track}ing
-monadic tasks when \hs{m}~\hs{=}~\hs{IO}.
+transformer}~\cite{liang1995monad}, which allows us to record additional
+information -- a list of key/value pairs \hs{[(@@k,}~\hs{v)]} -- when computing
+a task in an arbitrary monad~\hs{m}. We substitute the given \hs{fetch} with a
+\hs{trackingFetch} that, in addition to fetching a value, tracks the
+corresponding key/value pair. The \hs{task} returns the value of type
+\hs{WriterT}~\hs{[(@@k,}~\hs{v)]}~\hs{m}~\hs{v}, which we unwrap by
+\hs{runWriterT}. We will use \hs{track} when implementing monadic build systems
+with dynamic dependencies, see~\S\ref{sec-implementation-shake}. Here we show an
+example of \hs{track}ing monadic tasks when \hs{m}~\hs{=}~\hs{IO}.
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 @\ghci@ fetchIO k = do putStr (k ++ ": "); read <$> getLine
 @\ghci@ track (fromJust $ sprsh2 "B1") fetchIO
 C1: 1
 B2: 10
-(10,["C1","B2"])
+(10,[("C1",1),("B2",10)])
 \end{minted}
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 @\ghci@ track (fromJust $ sprsh2 "B1") fetchIO
 C1: 2
 A2: 20
-(20,["C1","A2"])
+(20,[("C1",2),("A2",20)])
 \end{minted}
 \vspace{1mm}
 
