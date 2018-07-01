@@ -106,7 +106,7 @@ deepDependencies (DCT ts) valueHash key =
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values from the given @store@.
-recordDCT :: forall k v m. (Hashable k, Hashable v, Monad m)
+recordDCT :: forall k v m. (Eq k, Hashable v, Monad m)
           => k -> v -> [k] -> (k -> m (Hash v)) -> DCT k v -> m (DCT k v)
 recordDCT key value deps fetchHash dct@(DCT ts) = do
     let deepDeps = concatMap (deepDependencies dct $ hash value) deps
@@ -116,7 +116,7 @@ recordDCT key value deps fetchHash dct@(DCT ts) = do
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of deep constructive traces, return
 -- @Just newValue@ if it is possible to reconstruct it from the traces.
-constructDCT :: forall k v m. (Hashable k, Hashable v, Monad m)
+constructDCT :: forall k v m. (Eq k, Hashable v, Monad m)
              => k -> (k -> m (Hash v)) -> DCT k v -> m [v]
 constructDCT key fetchHash (DCT ts) = constructCT key fetchHash (CT ts)
 

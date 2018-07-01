@@ -85,10 +85,10 @@ cloudBuild = topological (adaptRebuilder ctRebuilder)
 
 -- | A model of Buck: an applicative build system that uses deep constructive
 -- traces to check if a key is up to date as well as for caching build results.
-buck :: (Hashable k, Hashable v) => Build Applicative (DCT k v) k v
+buck :: (Ord k, Hashable v) => Build Applicative (DCT k v) k v
 buck = topological (adaptRebuilder dctRebuilder)
 
 -- | A model of Nix: a monadic build system that uses deep constructive traces
 -- to check if a key is up to date as well as for caching build results.
-nix :: (Hashable k, Hashable v) => Build Monad (DCT k v) k v
+nix :: (Ord k, Hashable v) => Build Monad (DCT k v) k v
 nix = suspending dctRebuilder

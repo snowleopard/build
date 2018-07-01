@@ -113,7 +113,7 @@ ctRebuilder key value task = Task $ \fetch -> do
 
 --------------------------- Deep constructive traces ---------------------------
 -- | This rebuilder relies on deep constructive traces.
-dctRebuilder :: (Hashable k, Hashable v) => Rebuilder Monad (DCT k v) k v
+dctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (DCT k v) k v
 dctRebuilder key value task = Task $ \fetch -> do
     cachedValues <- constructDCT key (fmap hash . fetch) =<< get
     if value `elem` cachedValues
