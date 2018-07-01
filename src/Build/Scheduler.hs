@@ -28,11 +28,9 @@ type Scheduler c i j k v = Rebuilder c j k v -> Build c i k v
 
 -- | Lift a computation operating on @i@ to @Store i k v@.
 liftStore :: State i a -> State (Store i k v) a
-liftStore x = do
-    store <- get
-    let (a, newInfo) = runState x (getInfo store)
-    modify $ putInfo newInfo
-    return a
+liftStore x = do (a, newInfo) <- gets (runState x . getInfo)
+                 modify (putInfo newInfo)
+                 return a
 
 -- | Lift a computation operating on @Store i k v@ to @Store (i, j) k v@.
 liftInfo :: State (Store i k v) a -> State (Store (i, j) k v) a
