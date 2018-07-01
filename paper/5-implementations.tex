@@ -28,40 +28,6 @@ which rebuilds the key only if necessary, and does the necessary book-keeping.
 Note that the resulting \hs{Task} is always monadic; static dependency analysis
 can be performed on the original \hs{Task}~\hs{Applicative} if need be.
 
-These two abstractions are the key to modularity: \emph{we can combine any
-scheduler with any rebuilder, and obtain a correct build system}.
-In this section we will write a scheduler for each column of
-Table~\ref{tab-build-systems}, and a rebuilder for each row; then combine them
-to obtain the build systems in the table's body.
-
-\subsection{\Make}\label{sec-implementation-make}
-
-An implementation of \Make using our framework is shown in
-Fig.~\ref{fig-make-implementation}. As promised, its definition
-is just the application of a \hs{Scheduler}, \hs{topological},
-to a \hs{Rebuilder}, \hs{modTimeRebuilder}.
-We discuss each component in turn, starting with the rebuilder.
-
-The \hs{modTimeRebuilder} uses the pair
-\hs{MakeInfo}~\hs{k}~\hs{=}~\hs{(@@now,}~\hs{modTimes)} as persistent
-build information, carried by a \hs{MonadState} monad. This
-\hs{MakeInfo} comprises the \emph{current time} \hs{now} and the map
-\hs{modTimes}~\hs{::}~\hs{Map}~\hs{k}~\hs{Time} of \emph{file
-modification times}. The rebuilder receives three arguments: a
-\hs{key}, its current \hs{value}, and the \hs{task} of type
-\hs{Task}~\hs{Applicative}~\hs{k}~\hs{v} that can be used to rebuild
-the \hs{key} if necessary.  The rebuilder first decides if the
-\hs{key} is \hs{dirty} by consulting \hs{modTimes}: if the \hs{key} is not
-found, that must mean it has never been built before; otherwise
-\hs{modTimeRebuilder} can see if any of the \hs{task}'s dependencies
-(computed by \hs{dependencies}) are out of date. If the \hs{key} is
-\hs{dirty}, we use \hs{run}~\hs{task} to rebuild it, and update the state with
-the new modification time of the \hs{key}\footnote{The real \Make
-relies on the file system to track modification times, but we prefer
-to make it explicit here.}; otherwise we can just return the current \hs{value}.
-We assume that the external system, which invokes the build system, updates
-\hs{MakeInfo}~\hs{k} reflecting any file changes between successive builds.
-
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
 -- Make build system; stores current time and file modification times
@@ -123,6 +89,40 @@ liftStore x = do (a, newInfo) <- gets (runState x . getInfo)
 \vspace{-3mm}
 \end{figure}
 
+These two abstractions are the key to modularity: \emph{we can combine any
+scheduler with any rebuilder, and obtain a correct build system}.
+In this section we will write a scheduler for each column of
+Table~\ref{tab-build-systems}, and a rebuilder for each row; then combine them
+to obtain the build systems in the table's body.
+
+\subsection{\Make}\label{sec-implementation-make}
+
+An implementation of \Make using our framework is shown in
+Fig.~\ref{fig-make-implementation}. As promised, its definition
+is just the application of a \hs{Scheduler}, \hs{topological},
+to a \hs{Rebuilder}, \hs{modTimeRebuilder}.
+We discuss each component in turn, starting with the rebuilder.
+
+The \hs{modTimeRebuilder} uses the pair
+\hs{MakeInfo}~\hs{k}~\hs{=}~\hs{(@@now,}~\hs{modTimes)} as persistent
+build information, carried by a \hs{MonadState} monad. This
+\hs{MakeInfo} comprises the \emph{current time} \hs{now} and the map
+\hs{modTimes}~\hs{::}~\hs{Map}~\hs{k}~\hs{Time} of \emph{file
+modification times}. The rebuilder receives three arguments: a
+\hs{key}, its current \hs{value}, and the \hs{task} of type
+\hs{Task}~\hs{Applicative}~\hs{k}~\hs{v} that can be used to rebuild
+the \hs{key} if necessary.  The rebuilder first decides if the
+\hs{key} is \hs{dirty} by consulting \hs{modTimes}: if the \hs{key} is not
+found, that must mean it has never been built before; otherwise
+\hs{modTimeRebuilder} can see if any of the \hs{task}'s dependencies
+(computed by \hs{dependencies}) are out of date. If the \hs{key} is
+\hs{dirty}, we use \hs{run}~\hs{task} to rebuild it, and update the state with
+the new modification time of the \hs{key}\footnote{The real \Make
+relies on the file system to track modification times, but we prefer
+to make it explicit here.}; otherwise we can just return the current \hs{value}.
+We assume that the external system, which invokes the build system, updates
+\hs{MakeInfo}~\hs{k} reflecting any file changes between successive builds.
+
 \Make's scheduler, \hs{topological}, processes keys in a linear \hs{order} based on a
 topological sort of the statically known dependency graph
 (see~\S\ref{sec-parallelism} for parallel \Make). Our definition in
@@ -152,36 +152,19 @@ the \hs{topological} scheduler will also inherit the same restriction.
 
 \subsection{\Excel}\label{sec-implementation-excel}
 
-Our \Excel's model is a composition of the \hs{restarting} scheduler and the
-\hs{approximateRebuilder}, as shown in Fig.~\ref{fig-excel-implementation}.
-The persistent build information \hs{ExcelInfo}~\hs{k} is a triple:
+Our model of \Excel uses the \hs{restarting} scheduler and the
+\hs{dirtyBitRebuilder}, see Fig.~\ref{fig-excel-implementation}. The persistent
+build information \hs{ExcelInfo}~\hs{k} is a pair: (i) a map
+\hs{k}~\hs{->}~\hs{Bool} associating a dirty bit with every key, and (ii) a
+calc \hs{Chain}~\hs{::}~\hs{[@@k]} recorded in the previous build
+(\S\ref{sec-background-excel}).
 
-\begin{itemize}
-    \item A set of dirty keys \hs{Set}~\hs{k}, i.e. all cells whose contents
-          has changed since the previous build, including input cells and
-          formulas.
-    \item A map \hs{Map}~\hs{k}~\hs{[@@k]} of known upper bounds of
-          dependencies. If there is an entry for a key, it is a conservative
-          approximation of its dependencies (e.g. the dependencies of the
-          formula \cmd{IF(C1=1,B2,A2)} are approximated by the list
-          \hs{[}\cmd{C1}\hs{,}\cmd{B2}\hs{,}\cmd{A2}\hs{]}). Otherwise, there is
-          no upper bound (e.g. because the key uses an \cmd{INDIRECT} reference)
-          and the key is assumed to be dirty.
-    \item A calculation \hs{Chain} recorded in the previous build
-          (\S\ref{sec-background-excel}), represented by a list of keys \hs{[@@k]}.
-\end{itemize}
-
-The \hs{approximateRebuilder} uses the first two elements of the above triple
-to decide whether a given \hs{key} is \hs{dirty} and hence needs to be rebuilt.
-The logic is similar to that of \Make's \hs{modTimeRebuilder}, but instead of
-relying on file modification times, \Excel stores the information about dirty
-keys more directly. Furthermore, \Excel's dependency approximation makes it
-possible to build tasks with dynamic dependencies: a \hs{key} is declared
-\hs{dirty} if any of its approximate dependencies is in the \hs{dirtyKeys} set,
-or if there is no known upper bound on its dependencies, i.e. if the lookup in
-the map \hs{deps}~\hs{::}~\hs{Map}~\hs{k}~\hs{[@@k]} fails. Note that when a
-\hs{key} is rebuilt it is added to the set \hs{dirtyKeys} to trigger further
-rebuilds.
+The \hs{dirtyBitRebuilder} is very simple: if the \hs{key}'s dirty bit is set,
+we \hs{run} the \hs{task} to rebuild the \hs{key}; otherwise we return the
+current \hs{value} as is. The external system, which invokes \Excel's build
+engine, is required to provide a transitively closed set of dirty bits.
+Therefore, unlike \Make's \hs{modTimeRebuilder}, the \hs{dirtyBitRebuilder} does
+not need to modify \hs{i} to trigger rebuilds of dependent keys.
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -217,17 +200,16 @@ restarting rebuilder tasks target = execState $ do
         Nothing -> (key :) <$> go (Set.insert key done) ks
         Just task -> do
             store <- get
-            let value = getValue key store
-                newTask :: Task (MonadState ir) k (Either k v)
-                newTask = try $ rebuilder key value task
+            let newTask :: Task (MonadState ir) k (Either k v)
+                newTask = try $ rebuilder key (getValue key store) task
                 fetch :: k -> State ir (Either k v)
                 fetch k | k `Set.member` done = return $ Right (getValue k store)
                         | otherwise           = return $ Left k
-            result <- liftStore (run newTask fetch)
+            result <- liftStore (run newTask fetch) -- liftStore is defined in Fig. 7
             case result of
                 Left dep -> go done $ dep : filter (/= dep) ks ++ [key]
                 Right newValue -> do
-                    modify $ updateValue key value newValue
+                    modify $ putValue key newValue
                     (key :) <$> go (Set.insert key done) ks
 \end{minted}
 \vspace{0mm}
@@ -247,33 +229,35 @@ liftChain :: State (Store ir k v) a -> State (Store (ir, Chain [k]) k v) a
 \end{figure}
 
 \Excel's \hs{restarting} scheduler processes keys in the order specified by the
-calculation \hs{chain}. During the build, it constructs a \hs{newChain} for the
-next build and maintains a set of keys \hs{done} that have been processed. For
-each non-input \hs{key}, the scheduler tries to rebuild it using a partial
-\hs{fetch} callback that returns \hs{Either}~\hs{k}~\hs{v} instead of \hs{v}.
-The callback is defined to fail with \hs{Left}~\hs{dep} when asked for the value
-of a dependency \hs{dep} that has not yet been processed (and hence may
-potentially be dirty); otherwise it returns the current value of the dependency
-by looking it up in the \hs{store}.
+calc \hs{chain}. During the build, it constructs a \hs{newChain} for the next
+build and maintains a set of keys \hs{done} that have been processed. For each
+non-input \hs{key}, the scheduler tries to rebuild it using a partial \hs{fetch}
+callback that returns \hs{Either}~\hs{k}~\hs{v} instead of \hs{v}. The callback
+is defined to fail with \hs{Left}~\hs{dep} when asked for the value of a
+dependency \hs{dep} that has not yet been processed (and hence may potentially
+be dirty); otherwise it returns the current value of the dependency by looking
+it up in the \hs{store}.
 
-After the \hs{newTask} is executed with \hs{runState} there are two cases to
-consider:
+After the \hs{newTask} is executed (with the help of \hs{liftStore}) there are
+two cases to consider:
 
 \begin{itemize}
     \item The \hs{newTask} has failed, because one of its dependencies \hs{dep}
     has not yet been processed. This indicates that the calculation \hs{chain}
-    from the previous build is incorrect and needs to be adjusted by making sure
-    it contains \hs{dep} and moving the \hs{key} to the end, so that its build
-    can be restarted after the \hs{dep} is ready.
-    \item The \hs{newTask} succeeded. The resulting \hs{newValue} and
-    \hs{newInfo} are written to the store, the \hs{key} is marked as \hs{done},
-    and \Excel continues to build the \hs{chain}.
+    from the previous build is incorrect and needs to be adjusted by moving the
+    \hs{dep} in front of the \hs{key}, so that we can restart building the
+    \hs{key} after the \hs{dep} is ready.
+    \item The \hs{newTask} succeeded. The resulting \hs{newValue} is written to
+    the store, the \hs{key} is marked as \hs{done}, and \Excel continues to
+    build the rest of the \hs{chain}.
 \end{itemize}
 
 Note that the task returned by the \hs{rebuilder} expects a total callback
 function and cannot be directly executed with the partial callback \hs{fetch}.
 We fix the mismatch with the function \hs{try} that relies on the standard
-monad transformer \hs{ExceptT} from the \cmd{transformers} library.
+monad transformer \hs{ExceptT} from the \cmd{transformers} library. We also
+need the \hs{liftChain} helper function, whose implementation we omit since it
+is analogous to \hs{liftStore} defined in Fig.~\ref{fig-make-implementation}.
 
 \vspace{-1mm}
 \subsection{\Shake}\label{sec-implementation-shake}
