@@ -10,10 +10,10 @@ type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
 type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 \end{minted}
 So a \hs{Scheduler} is just a function that takes a \hs{Rebuilder} and uses
-it to construct \hs{Build} system, by choosing which keys to rebuild in which order.
-The \hs{Rebuilder} makes uses of the persistent build information \hs{ir}, while
-the scheduler might augment that with further persistent information of its own,
-yielding \hs{i}.
+it to construct a \hs{Build} system, by choosing which keys to rebuild in which
+order. The \hs{Rebuilder} makes uses of the persistent build information
+\hs{ir}, while the scheduler might augment that with further persistent
+information of its own, yielding \hs{i}.
 
 A \hs{Rebuilder} is a function which the \hs{Scheduler} uses to rebuild a
 particular key, passing to it the key, the key's current value, and a \hs{Task}
@@ -51,14 +51,14 @@ modification times}. The rebuilder receives three arguments: a
 \hs{key}, its current \hs{value}, and the \hs{task} of type
 \hs{Task}~\hs{Applicative}~\hs{k}~\hs{v} that can be used to rebuild
 the \hs{key} if necessary.  The rebuilder first decides if the
-\hs{key} is \hs{dirty} by consulting \hs{modTimes}: if the key is not
+\hs{key} is \hs{dirty} by consulting \hs{modTimes}: if the \hs{key} is not
 found, that must mean it has never been built before; otherwise
 \hs{modTimeRebuilder} can see if any of the \hs{task}'s dependencies
-(computed by \hs{dependencies}) are out of date. If the key is
+(computed by \hs{dependencies}) are out of date. If the \hs{key} is
 \hs{dirty}, we use \hs{run}~\hs{task} to rebuild it, and update the state with
-the new modification time of the key\footnote{The real \Make
+the new modification time of the \hs{key}\footnote{The real \Make
 relies on the file system to track modification times, but we prefer
-to make it explicit here.}; otherwise we can just return the current value.
+to make it explicit here.}; otherwise we can just return the current \hs{value}.
 We assume that the external system, which invokes the build system, updates
 \hs{MakeInfo}~\hs{k} reflecting any file changes between successive builds.
 
@@ -112,8 +112,11 @@ topSort   :: Ord k => Graph k -> Maybe [k] -- Returns Nothing on a cyclic graph
 \end{minted}
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Expand the scope of visibility of a stateful computation (implementation omitted)
+-- Expand the scope of visibility of a stateful computation
 liftStore :: State i a -> State (Store i k v) a
+liftStore x = do (a, newInfo) <- gets (runState x . getInfo)
+                 modify (putInfo newInfo)
+                 return a
 \end{minted}
 \vspace{-3mm}
 \caption{An implementation of \Make using our framework.}\label{fig-make-implementation}
@@ -127,14 +130,12 @@ Fig.~\ref{fig-make-implementation} is polymorphic with respect to the type of
 build information \hs{i} and is therefore compatible with any applicative
 \hs{rebuilder}. The scheduler calls the supplied \hs{rebuilder} on every
 \hs{key} in the \hs{order}, and runs the obtained \hs{newTask} to compute the
-\hs{newValue} and updated build information \hs{newInfo}, which are subsequently
-written to the store. The computation runs in the
-\hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v)} monad, similar to the \hs{busy}
-build system (\S\ref{sec-general-build}), however since \hs{newTask} has access
-only to the \hs{i} part of the \hs{Store}~\hs{i}~\hs{k}~\hs{v}, we need to use
-\hs{runState} to execute it. The \hs{newTask} finds values of the \hs{key}'s
-dependencies via the \hs{fetch} callback, which is defined to directly read the
-\hs{store}.
+\hs{newValue}. Note that \hs{newTask} has access only to the \hs{i} part of the
+\hs{Store}~\hs{i}~\hs{k}~\hs{v}, but the rest of the \hs{do} block runs in the
+\hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v)} monad; we use the (unremarkable)
+helper function \hs{liftStore} to fix the mismatch. The \hs{newTask} finds
+values of the \hs{key}'s dependencies via the \hs{fetch} callback, which is
+defined to directly read the \hs{store}.
 
 The \hs{where} clause corresponds to the pre-processing stage, which uses the
 function \hs{dependencies}, defined in~\S\ref{sec-deps}, to extract static
@@ -375,7 +376,7 @@ stored, and the \hs{key} is added to the set \hs{done}.
 bazel :: (Ord k, Hashable v) => Build Monad (CT k v) k v
 bazel = restarting2 ctRebuilder -- implementation of 'restarting2' is omitted (22 lines)
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A rebuilder based on constructive traces
 ctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (CT k v) k v
@@ -387,36 +388,36 @@ ctRebuilder key value task = Task $ \fetch -> do
                 put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
                 return newValue
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Cloud Shake build system, implementation of 'suspending' is given in Fig. 9
 cloudShake :: (Ord k, Hashable v) => Build Monad (CT k v) k v
 cloudShake = suspending ctRebuilder
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- CloudBuild build system, implementation of 'topological' is given in Fig. 7
 cloudBuild :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
 cloudBuild = topological (adaptRebuilder ctRebuilder)
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Convert a monadic rebuilder to the corresponding applicative one
 adaptRebuilder :: Rebuilder Monad i k v -> Rebuilder Applicative i k v
 adaptRebuilder rebuilder key value task = rebuilder key value $ Task $ run task
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Buck build system, implementation of 'topological' is given in Fig. 7
 buck :: (Ord k, Hashable v) => Build Applicative (DCT k v) k v
 buck = topological (adaptRebuilder dctRebuilder)
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Rebuilder based on deep constructive traces, analogous to ctRebuilder
 dctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (DCT k v) k v
 \end{minted}
-\vspace{1mm}
+\vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Nix build system, implementation of 'suspending' is given in Fig. 9
 nix :: (Ord k, Hashable v) => Build Monad (DCT k v) k v
