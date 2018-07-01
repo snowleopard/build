@@ -111,14 +111,16 @@ ctRebuilder key value task = Task $ \fetch -> do
             put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
             return newValue
 
------------------------ Deterministic constructive traces ----------------------
--- | This rebuilder relies on deterministic constructive traces.
+--------------------------- Deep constructive traces ---------------------------
+-- | This rebuilder relies on deep constructive traces.
 dctRebuilder :: (Hashable k, Hashable v) => Rebuilder Monad (DCT k v) k v
-dctRebuilder key _value task = Task $ \fetch -> do
-    maybeCachedValue <- constructDCT key (fmap hash . fetch) =<< get
-    case maybeCachedValue of
-        Just cachedValue -> return cachedValue
-        Nothing -> do
+dctRebuilder key value task = Task $ \fetch -> do
+    cachedValues <- constructDCT key (fmap hash . fetch) =<< get
+    if value `elem` cachedValues
+    then return value -- The current value has been verified, let's keep it
+    else case cachedValues of
+        (cachedValue:_) -> return cachedValue -- Any cached value will do
+        _ -> do -- No cached values, need to run the task
             (newValue, deps) <- trackM task fetch
             put =<< recordDCT key newValue deps (fmap hash . fetch) =<< get
             return newValue

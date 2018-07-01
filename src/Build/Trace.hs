@@ -11,7 +11,7 @@ module Build.Trace (
     -- * Constructive traces
     CT, isDirtyCT, recordCT, constructCT,
 
-    -- * Constructive traces optimised for deterministic tasks
+    -- * Constructive traces optimised for deep tasks
     DCT, recordDCT, constructDCT,
 
     -- * Step traces
@@ -90,63 +90,35 @@ constructCT key fetchHash (CT ts) = catMaybes <$> mapM match ts
             sameInputs <- andM [ (h==) <$> fetchHash k | (k, h) <- deps ]
             return $ if sameInputs then Just result else Nothing
 
------------------------ Deterministic constructive traces ----------------------
+--------------------------- Deep constructive traces ---------------------------
 
--- | A tree of dependencies. It would be more efficient to use graphs, but
--- trees are simpler and are sufficient for our model.
-data Tree a = Leaf a | Node [Tree a]
-    deriving (Eq, Foldable, Functor, Ord, Show, Traversable)
-
-instance Hashable a => Hashable (Tree a) where
-    hash (Leaf x) = Leaf <$> hash x
-    hash (Node x) = Node <$> hash x
-
--- | Invariant: if a DCT contains a trace for a key @k@, then it must also
--- contain traces for each of its non-input dependencies. Input keys cannot
--- appear in a DCT because they are never built.
-newtype DCT k v = DCT [Trace k (Hash (Tree (Hash v))) v] deriving (Monoid, Semigroup, Show)
+-- | Our current model has the same representation as 'CT', but requires an
+-- additional invariant: if a DCT contains a trace for a key @k@, then it must
+-- also contain traces for each of its non-input dependencies.
+newtype DCT k v = DCT [Trace k (Hash v) v] deriving (Monoid, Semigroup, Show)
 
 -- | Extract the tree of input dependencies of a given key.
-inputTree :: Eq k => DCT k v -> k -> Tree k
-inputTree dct@(DCT ts) key = case [ deps | Trace k deps _ <- ts, k == key ] of
-    [] -> Leaf key
-    deps:_ -> Node $ map (inputTree dct . fst) deps
-
--- | Like 'inputTree', but replaces each key with the hash of its current value.
-inputHashTree :: (Eq k, Monad m) => DCT k v -> (k -> m (Hash v)) -> k -> m (Tree (Hash v))
-inputHashTree dct fetchHash = traverse fetchHash . inputTree dct
+deepDependencies :: (Eq k, Hashable v) => DCT k v -> Hash v -> k -> [k]
+deepDependencies (DCT ts) valueHash key =
+    case [ map fst deps | Trace k deps v <- ts, k == key, hash v == valueHash ] of
+        []       -> [key] -- The @key@ is an input
+        (deps:_) -> deps  -- We assume there is only one record for a pair (k, v)
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values from the given @store@.
 recordDCT :: forall k v m. (Hashable k, Hashable v, Monad m)
           => k -> v -> [k] -> (k -> m (Hash v)) -> DCT k v -> m (DCT k v)
-recordDCT key value deps fetchHash (DCT ts) = do
-    hs <- mapM depHash deps
-    return $ DCT $ Trace key (zip deps hs) value : ts
-  where
-    depHash :: k -> m (Hash (Tree (Hash v)))
-    depHash depKey = case [ deps | Trace k deps _ <- ts, k == depKey ] of
-        [] -> hash . Leaf <$> fetchHash depKey -- depKey is an input
-        deps:_ -> return $ fmap Node $ sequenceA $ map snd deps
+recordDCT key value deps fetchHash dct@(DCT ts) = do
+    let deepDeps = concatMap (deepDependencies dct $ hash value) deps
+    hs <- mapM fetchHash deepDeps
+    return $ DCT $ Trace key (zip deepDeps hs) value : ts
 
 -- | Given a function to compute the hash of a key's current value,
--- a @key@, and a set of deterministic constructive traces, return
+-- a @key@, and a set of deep constructive traces, return
 -- @Just newValue@ if it is possible to reconstruct it from the traces.
 constructDCT :: forall k v m. (Hashable k, Hashable v, Monad m)
-             => k -> (k -> m (Hash v)) -> DCT k v -> m (Maybe v)
-constructDCT key fetchHash dct@(DCT ts) = do
-    candidates <- catMaybes <$> mapM match ts
-    case candidates of
-        []  -> return Nothing
-        [v] -> return (Just v)
-        _   -> error "Non-determinism detected"
-  where
-    match :: Trace k (Hash (Tree (Hash v))) v -> m (Maybe v)
-    match (Trace k deps result)
-        | k /= key  = return Nothing
-        | otherwise = do
-            sameInputs <- andM [ ((h ==) . hash) <$> inputHashTree dct fetchHash k | (k, h) <- deps ]
-            return $ if sameInputs then Just result else Nothing
+             => k -> (k -> m (Hash v)) -> DCT k v -> m [v]
+constructDCT key fetchHash (DCT ts) = constructCT key fetchHash (CT ts)
 
 ----------------- Step traces: a refinement of verifying traces ----------------
 -- Step traces are an optimised version of the direct implementation of
