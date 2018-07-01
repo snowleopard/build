@@ -5,7 +5,7 @@
 module Build.Rebuilder (
     Rebuilder, adaptRebuilder, perpetualRebuilder,
     modTimeRebuilder, Time, MakeInfo,
-    dirtyBitRebuilder,
+    dirtyBitRebuilder, dirtyBitRebuilderWithCleanUp,
     approximateRebuilder, ApproximateDependencies, ApproximationInfo,
     vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
     ) where
@@ -60,6 +60,14 @@ dirtyBitRebuilder :: Rebuilder Monad (k -> Bool) k v
 dirtyBitRebuilder key value task = Task $ \fetch -> do
     isDirty <- get
     if isDirty key then run task fetch else return value
+
+-- | If the key is dirty, rebuild it and clear the dirty bit. Used by Excel.
+dirtyBitRebuilderWithCleanUp :: Ord k => Rebuilder Monad (Set k) k v
+dirtyBitRebuilderWithCleanUp key value task = Task $ \fetch -> do
+    isDirty <- get
+    if key `Set.notMember` isDirty then return value else do
+        put (Set.delete key isDirty)
+        run task fetch
 
 --------------------------- Approximate dependencies ---------------------------
 -- | If there is an entry for a key, it is an conservative approximation of its
