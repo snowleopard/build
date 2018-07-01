@@ -13,6 +13,7 @@ module Build.Rebuilder (
 import Control.Monad.State
 import Data.Map (Map)
 import Data.Set (Set)
+import Data.Tuple.Extra
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -102,7 +103,7 @@ vtRebuilder key value task = Task $ \fetch -> do
     then return value
     else do
         (newValue, deps) <- trackM task fetch
-        put =<< recordVT key (hash newValue) deps (fmap hash . fetch) =<< get
+        modify $ recordVT key (hash newValue) (map (second hash) deps)
         return newValue
 
 ------------------------------ Constructive traces -----------------------------
@@ -116,7 +117,7 @@ ctRebuilder key value task = Task $ \fetch -> do
         (cachedValue:_) -> return cachedValue -- Any cached value will do
         _ -> do -- No cached values, need to run the task
             (newValue, deps) <- trackM task fetch
-            put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
+            modify $ recordCT key newValue (map (second hash) deps)
             return newValue
 
 --------------------------- Deep constructive traces ---------------------------
@@ -130,7 +131,7 @@ dctRebuilder key value task = Task $ \fetch -> do
         (cachedValue:_) -> return cachedValue -- Any cached value will do
         _ -> do -- No cached values, need to run the task
             (newValue, deps) <- trackM task fetch
-            put =<< recordDCT key newValue deps (fmap hash . fetch) =<< get
+            put =<< recordDCT key newValue (map fst deps) (fmap hash . fetch) =<< get
             return newValue
 
 ------------------------------- Version traces -------------------------------
@@ -142,6 +143,5 @@ stRebuilder key value task = Task $ \fetch -> do
     then return value
     else do
         (newValue, deps) <- trackM task fetch
-        (step, st) <- get
-        put . (step,) =<< recordST step key newValue deps st
+        modify $ \(step, st) -> (step, recordST step key newValue (map fst deps) st)
         return newValue

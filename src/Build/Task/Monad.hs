@@ -23,11 +23,14 @@ track task fetch = runWriter $ run task (\k -> writer (fetch k, [k]))
 
 -- | Execute a monadic task using an effectful fetch function @k -> m v@,
 -- tracking the dependencies.
-trackM :: forall m k v. Monad m => Task Monad k v -> (k -> m v) -> m (v, [k])
+trackM :: forall m k v. Monad m => Task Monad k v -> (k -> m v) -> m (v, [(k, v)])
 trackM task fetch = runWriterT $ run task trackingFetch
   where
-    trackingFetch :: k -> WriterT [k] m v
-    trackingFetch k = tell [k] >> lift (fetch k)
+    trackingFetch :: k -> WriterT [(k,v)] m v
+    trackingFetch k = do
+        v <- lift $ fetch k
+        tell [(k,v)]
+        return v
 
 -- | Given a description of tasks, check if a key is input.
 isInput :: Tasks Monad k v -> k -> Bool

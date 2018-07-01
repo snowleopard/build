@@ -41,10 +41,8 @@ newtype VT k v = VT [Trace k (Hash v) (Hash v)] deriving (Monoid, Semigroup, Sho
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values by using @fetchHash@.
-recordVT :: Monad m => k -> Hash v -> [k] -> (k -> m (Hash v)) -> VT k v -> m (VT k v)
-recordVT key valueHash deps fetchHash (VT ts) = do
-    hs <- mapM fetchHash deps
-    return $ VT $ Trace key (zip deps hs) valueHash : ts
+recordVT :: k -> Hash v -> [(k, Hash v)] -> VT k v -> VT k v
+recordVT key valueHash deps (VT ts) = VT $ Trace key deps valueHash : ts
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
@@ -72,10 +70,8 @@ isDirtyCT key store = let CT ts = getInfo store in not (any match ts)
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values by using @fetchHash@.
-recordCT :: Monad m => k -> v -> [k] -> (k -> m (Hash v)) -> CT k v -> m (CT k v)
-recordCT key value deps fetchHash (CT ts) = do
-    hs <- mapM fetchHash deps
-    return $ CT $ Trace key (zip deps hs) value : ts
+recordCT :: k -> v -> [(k,Hash v)] -> CT k v -> CT k v
+recordCT key value deps (CT ts) = CT $ Trace key deps value : ts
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of constructive traces, return @Just newValue@ if it is
@@ -140,14 +136,14 @@ latestST k (ST ts) = fmap snd $ listToMaybe $ reverse $ sortOn fst
     [(step, t) | t@(Trace k2 _ (_, step, _)) <- ts, k == k2]
 
 -- | Record a new trace for building a @key@ with dependencies @deps@.
-recordST :: (Hashable v, Eq k, Monad m) => Step -> k -> v -> [k] -> ST k v -> m (ST k v)
-recordST step key value deps (ST ts) = do
+recordST :: (Hashable v, Eq k) => Step -> k -> v -> [k] -> ST k v -> ST k v
+recordST step key value deps (ST ts) =
     let hv = hash value
-    let lastChange = case latestST key (ST ts) of
+        lastChange = case latestST key (ST ts) of
             -- I rebuilt, didn't change, so use the old change time
             Just (Trace _ _ (hv2, _, chng)) | hv2 == hv -> chng
             _ -> step
-    return $ ST $ Trace key (map (,()) deps) (hash value, step, lastChange) : ts
+    in ST $ Trace key (map (,()) deps) (hash value, step, lastChange) : ts
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
