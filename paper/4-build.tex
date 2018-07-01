@@ -142,41 +142,34 @@ but then it will rerun in every subsequent build.
 An alternative way to determine if a key is dirty is to record what state the
 values/hashes of dependencies were used at last time, and if something has
 changed, the key is dirty and must be recomputed -- in essence a \emph{trace}
-which we can use to \emph{verify} existing values. We can describe a trace as:
+which we can use to \emph{verify} existing values. For traces, there are two essential
+operations -- adding a new value to the trace store, and using the traces to determine if something needs
+rebuilding. Assuming a store of verifying traces \hs{VT}~\hs{k}~\hs{v}, the operations are:
 
 \begin{minted}{haskell}
-data Trace k v = Trace
-    { key     :: k
-    , depends :: [(k, Hash v)]
-    , result  :: Hash v }
+recordVT :: k -> Hash v -> [(k, Hash v)] -> VT k v -> VT k v
+verifyVT :: (Monad m, Eq k, Eq v)
+         => k -> Hash v -> (k -> m (Hash v)) -> VT k v -> m Bool
 \end{minted}
 
 We assume that \hs{Hash}~\hs{v} is a small constant size, constructed from hashing the
-underlying \hs{v} rather than storing it directly. Checking a trace requires
-ensuring all the dependencies are up to date (using whatever ordering strategy
-as per \S\ref{sec-dependency-orderings}), then comparing if the dependencies are
-same as the current value and that the result is the same.
+underlying \hs{v} rather than storing it directly. After successfully building a key, we call \hs{recordVT} passing the key, the hash of its value, and the list of hashes and dependencies. Combined with the existing set of verifying traces, that provides a new set of verifying traces.
 
-A build system that uses verifying traces needs to persistently maintain a set
-of traces. After computing a fresh value we add its \hs{Trace}~\hs{k}~\hs{v} to
-the set. Therefore the information stored by a build system that verifies
-traces can be modelled as a list or set~--~we chose \hs{[Trace}~\hs{k}~\hs{v]}
-for simplicity. In practice, different build systems can optimise the data
-structures used by traces for their specific use cases, which we discuss
-in~\S\ref{sec-smart-traces}.
+More interestingly, to \emph{verify} whether a key needs rebuilding we supply the key and the hash of the current result in the store, along with a function for obtaining the post-build result of any key (using whatever ordering strategy
+as per \S\ref{sec-dependency-orderings}), and the existing \hs{VT} information. The result will be a \hs{Bool} where \hs{True} indicates that the trace could be verified, or \hs{False} to indicate the key should be rebuilt.
+
+One potential implementation would be to record all arguments passed to \hs{recordVT}, and verify by simply checking if any argument matches the information passed by \hs{verifyVT} (we discuss smarter implementations in~\S\ref{sec-smart-traces}).
 
 \subsubsection{Constructive traces}\label{sec-constructive-traces}
 
-A verifying trace allows us to mark a key dirty and rebuild it. Extending that information we can store a \emph{constructive} trace which is the trace plus the actual result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality. We can represent that by changing \hs{Trace} to:
+A verifying trace allows us to mark a key dirty and rebuild it. Extending that information we can store a \emph{constructive} trace which is the trace plus the actual result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality. We can represent this additional information by providing the operations:
 
 \begin{minted}{haskell}
-data Trace k v = Trace
-    { key     :: k
-    , depends :: [(k, Hash v)]
-    , result  :: v }
+recordCT :: k -> v -> [(k, Hash v)] -> CT k v -> CT k v
+constructCT :: (Monad m, Eq k, Eq v) => k -> (k -> m (Hash v)) -> CT k v -> m [v]
 \end{minted}
 
-The change from~\S\ref{sec-verifying-traces} is that instead of storing the \hs{Hash}~\hs{v} for \hs{result}, we now store the full value \hs{v}. Checking a trace follows the same pattern as before, but if the result is the only thing that is different we can simply use the result \emph{without} recomputing it.
+The function \hs{recordCT} looks like \hs{recordVT}, but instead of just passing the hash of the result, we require the whole result. The \hs{verifyVT} has been replaced with \hs{constructCT}, which instead of taking the hash of the value, instead returns a list of suitable values. If the current value in the store matches one of the possible values, the build can skip this rule. If the resulting list is empty, the build must rerun. However, if the current value does not match the store, and there is a possible value, we can use any value from the constructive list \emph{without} doing any work to compute it.
 
 \subsubsection{Deterministic constructive traces}\label{sec-deterministic-constructive-traces}
 
@@ -199,6 +192,13 @@ of traces~--~however, using a list necessarily means that finding the right trac
 takes $O(n)$. For each of the \hs{Trace} based systems it is possible to devise
 a smarter representation, which we sketch below. Note that these implementations
 do not avoid calls to \hs{compute}, merely overheads in the build system itself.
+
+\begin{minted}{haskell}
+data Trace k v = Trace
+    { key     :: k
+    , depends :: [(k, Hash v)]
+    , result  :: Hash v }
+\end{minted}
 
 \begin{enumerate}
 \item Any system using verifying traces, e.g. \Shake, is unlikely to see significant benefit from storing more than one \hs{Trace} per key\footnote{There is a small chance of a benefit if the dependencies change but the result does not, and then the dependencies change back to what they were before.}. Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v)}, where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
