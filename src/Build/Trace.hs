@@ -27,9 +27,9 @@ import Data.Semigroup
 
 -- | A trace is parameterised by the types of keys @k@, hashes @h@, as well as the
 -- result @r@. For verifying traces, @r = h@; for constructive traces, @Hash r = h@.
-data Trace k h r = Trace
+data Trace k v r = Trace
     { key     :: k
-    , depends :: [(k, h)]
+    , depends :: [(k, Hash v)]
     , result  :: r }
     deriving Show
 
@@ -37,7 +37,7 @@ data Trace k h r = Trace
 
 -- | An abstract data type for a set of verifying traces equipped with 'recordVT',
 -- 'verifyVT' and a 'Monoid' instance.
-newtype VT k v = VT [Trace k (Hash v) (Hash v)] deriving (Monoid, Semigroup, Show)
+newtype VT k v = VT [Trace k v (Hash v)] deriving (Monoid, Semigroup, Show)
 
 -- | Record a new trace for building a @key@ with dependencies @deps@, obtaining
 -- the hashes of up-to-date values by using @fetchHash@.
@@ -58,7 +58,7 @@ verifyVT key valueHash fetchHash (VT ts) = anyM match ts
 
 -- | An abstract data type for a set of constructive traces equipped with
 -- 'recordCT', 'isDirtyCT', 'constructCT' and a 'Monoid' instance.
-newtype CT k v = CT [Trace k (Hash v) v] deriving (Monoid, Semigroup, Show)
+newtype CT k v = CT [Trace k v v] deriving (Monoid, Semigroup, Show)
 
 -- | Check if a given @key@ is dirty w.r.t a @store@.
 isDirtyCT :: (Eq k, Hashable v) => k -> Store (CT k v) k v -> Bool
@@ -91,7 +91,7 @@ constructCT key fetchHash (CT ts) = catMaybes <$> mapM match ts
 -- | Our current model has the same representation as 'CT', but requires an
 -- additional invariant: if a DCT contains a trace for a key @k@, then it must
 -- also contain traces for each of its non-input dependencies.
-newtype DCT k v = DCT [Trace k (Hash v) v] deriving (Monoid, Semigroup, Show)
+newtype DCT k v = DCT [Trace k v v] deriving (Monoid, Semigroup, Show)
 
 -- | Extract the tree of input dependencies of a given key.
 deepDependencies :: (Eq k, Hashable v) => DCT k v -> Hash v -> k -> [k]
@@ -126,14 +126,16 @@ newtype Step = Step Int deriving (Enum, Eq, Ord, Show)
 instance Semigroup Step where Step a <> Step b = Step $ a + b
 instance Monoid Step where mempty = Step 0; mappend = (<>)
 
+data TraceST k r = TraceST k [k] r deriving Show
+
 -- | A step trace, records the resulting value, the step it last build, the step
 -- where it changed.
-newtype ST k v = ST [Trace k () (Hash v, Step, Step)]
+newtype ST k v = ST [TraceST k (Hash v, Step, Step)]
     deriving (Monoid, Semigroup, Show)
 
-latestST :: Eq k => k -> ST k v -> Maybe (Trace k () (Hash v, Step, Step))
+latestST :: Eq k => k -> ST k v -> Maybe (TraceST k (Hash v, Step, Step))
 latestST k (ST ts) = fmap snd $ listToMaybe $ reverse $ sortOn fst
-    [(step, t) | t@(Trace k2 _ (_, step, _)) <- ts, k == k2]
+    [(step, t) | t@(TraceST k2 _ (_, step, _)) <- ts, k == k2]
 
 -- | Record a new trace for building a @key@ with dependencies @deps@.
 recordST :: (Hashable v, Eq k) => Step -> k -> v -> [k] -> ST k v -> ST k v
@@ -141,9 +143,9 @@ recordST step key value deps (ST ts) =
     let hv = hash value
         lastChange = case latestST key (ST ts) of
             -- I rebuilt, didn't change, so use the old change time
-            Just (Trace _ _ (hv2, _, chng)) | hv2 == hv -> chng
+            Just (TraceST _ _ (hv2, _, chng)) | hv2 == hv -> chng
             _ -> step
-    in ST $ Trace key (map (,()) deps) (hash value, step, lastChange) : ts
+    in ST $ TraceST key deps (hash value, step, lastChange) : ts
 
 -- | Given a function to compute the hash of a key's current value,
 -- a @key@, and a set of verifying traces, return 'True' if the @key@ is
@@ -152,9 +154,9 @@ verifyST :: (Monad m, Eq k, Hashable v) => k -> v -> (k -> m ()) -> m (ST k v) -
 verifyST key value demand st = do
     me <- latestST key <$> st
     case me of
-        Just (Trace _ deps (hv, built, _)) | hash value == hv -> do
-            mapM_ (demand . fst) deps
+        Just (TraceST _ deps (hv, built, _)) | hash value == hv -> do
+            mapM_ demand deps
             st <- st
             -- things with no traces must be inputs, which I'm going to ignore for now...
-            return $ and [ built >= chng | Just (Trace _ _ (_, _, chng)) <- map (flip latestST st . fst) deps]
+            return $ and [ built >= chng | Just (TraceST _ _ (_, _, chng)) <- map (flip latestST st) deps]
         _ -> return False
