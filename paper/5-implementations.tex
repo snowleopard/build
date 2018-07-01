@@ -478,8 +478,8 @@ this approach addition of a new comment to one of the source files will
 invalidate all dependent keys.
 
 Fig.~\ref{fig-cloud-implementations} shows our models of \Buck and \Nix build
-systems that use the \hs{dctRebuilder} -- a rebuilder based on deterministic
-constructive traces (\S\ref{sec-deterministic-constructive-traces}). As one can
+systems that use the \hs{dctRebuilder} -- a rebuilder based on deep
+constructive traces (\S\ref{sec-deep-constructive-traces}). As one can
 see, \hs{dctRebuilder} is almost identical to \hs{ctRebuilder}, but it ignores
 the current \hs{value}, since the \hs{constructDCT} query only needs to examine
 the transitive inputs of the given \hs{key}. \Buck uses the \hs{topological}

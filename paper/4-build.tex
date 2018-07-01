@@ -155,7 +155,7 @@ verifyVT :: (Monad m, Eq k, Eq v)
 We assume that \hs{Hash}~\hs{v} is a small constant size, constructed from hashing the
 underlying \hs{v} rather than storing it directly. After successfully building a key, we call \hs{recordVT} passing the key, the hash of its value, and the list of hashes and dependencies. Combined with the existing set of verifying traces, that provides a new set of verifying traces.
 
-More interestingly, to \emph{verify} whether a key needs rebuilding we supply the key and the hash of the current result in the store, along with a function for obtaining the post-build result of any key (using whatever ordering strategy
+More interestingly, to \emph{verify} whether a key needs rebuilding we supply the key and the hash of the current result in the store, along with a function for obtaining the post-build result of any key (using an ordering strategy
 as per \S\ref{sec-dependency-orderings}), and the existing \hs{VT} information. The result will be a \hs{Bool} where \hs{True} indicates that the trace could be verified, or \hs{False} to indicate the key should be rebuilt.
 
 One potential implementation would be to record all arguments passed to \hs{recordVT}, and verify by simply checking if any argument matches the information passed by \hs{verifyVT} (we discuss smarter implementations in~\S\ref{sec-smart-traces}).
@@ -166,51 +166,38 @@ A verifying trace allows us to mark a key dirty and rebuild it. Extending that i
 
 \begin{minted}{haskell}
 recordCT :: k -> v -> [(k, Hash v)] -> CT k v -> CT k v
-constructCT :: (Monad m, Eq k, Eq v) => k -> (k -> m (Hash v)) -> CT k v -> m [v]
+constructCT :: (Monad m, Eq k, Eq v)
+            => k -> (k -> m (Hash v)) -> CT k v -> m [v]
 \end{minted}
 
 The function \hs{recordCT} looks like \hs{recordVT}, but instead of just passing the hash of the result, we require the whole result. The \hs{verifyVT} has been replaced with \hs{constructCT}, which instead of taking the hash of the value, instead returns a list of suitable values. If the current value in the store matches one of the possible values, the build can skip this rule. If the resulting list is empty, the build must rerun. However, if the current value does not match the store, and there is a possible value, we can use any value from the constructive list \emph{without} doing any work to compute it.
 
-\subsubsection{Deterministic constructive traces}\label{sec-deterministic-constructive-traces}
+\subsubsection{Deep constructive traces}\label{sec-deep-constructive-traces}
 
-If we assume all actions are \emph{deterministic} (specifically that given the same inputs they produce the same output) then we can make a further optimisation to arrive at deterministic constructive traces:
+Constructive traces always verify keys by looking at their immediate dependencies, which must have first been brought up to date, meaning that the time to verify a key is based on the number of transitive dependencies. A \emph{deep} constructive trace optimises this process by only looking at the terminal input keys, ignoring any intermediate dependencies. The operations capturing this approach are the same as for constructive traces in~\S\ref{sec-constructive-traces}, but we use the names \hs{constructDCT} and \hs{recordDCT}, where the underlying \hs{DCT} state need only record information about hashes of inputs, not intermediate dependencies.
 
-\begin{minted}{haskell}
-data Trace k v = Trace
-    { key     :: k
-    , depends :: [(k, Hash (Tree (Hash v)))]
-    , result  :: v
-    }
-\end{minted}
+The deep constructive trace approach only works if the operations are \emph{deterministic}, otherwise inconsistencies arise (see~\S\ref{sec-non-determinism}). Concretely, if the result of building a key given a set of immediate dependencies can vary, then it is possible that key \hs{k} will have been computed locally, but something \emph{using} \hs{k} will have been taken as a constructive input using a different value for \hs{k}. If another rule combines those two values then two different values of \hs{k} will have been used in one rule, leading to problems such as link-errors for typical compilers.
 
-Instead of storing the hash of the immediate dependencies, a determinstic constructive trace only ever takes the hash of initial inputs. To form the hash of a dependency, it forms the tree of dependencies all the way to the inputs, and hashes that. As an example, if \hs{a} depends on the input \hs{b}, then the dependency value used for \hs{a} uses \hs{hash}~\hs{b}, \emph{but not} \hs{hash}~\hs{a}. As a consequence, given the hashes of all inputs, and dependency information (e.g. from an \hs{Applicative} constraint) it is possible to compute the dependency hash of \emph{any} node, without having built any intermediate nodes. This property is particularly useful for ``shallow builds'', as discussed in~\S\ref{sec-cloud-aspects}.
+While current build systems using deep constructive traces store only hashes of inputs, that is not a strict requirement, as the technique works equally well by skipping $n$ levels of dependency - where only inputs is the special case of $\infty$. Similarly, constructive traces can be described as taking the direct dependencies, and thus being deep constructive traces of $1$. A downside of deep constructive traces is that they can't support cutoff (\S\ref{sec-background-shake}), other than at the $n$ levels of dependencies. On the otherhand, these traces are particularly useful for ``shallow builds'', as discussed in~\S\ref{sec-cloud-aspects}.
 
 \subsection{Smarter \hs{[Trace]} data structures}\label{sec-smart-traces}
 
-In the examples above, we have used \hs{[Trace}~\hs{k}~\hs{v]} to capture a list
-of traces~--~however, using a list necessarily means that finding the right trace
-takes $O(n)$. For each of the \hs{Trace} based systems it is possible to devise
-a smarter representation, which we sketch below. Note that these implementations
-do not avoid calls to \hs{compute}, merely overheads in the build system itself.
+In the examples above, we have used abstract types for the traces. Concretely, in our example code, they are all recorded as lists of:
 
 \begin{minted}{haskell}
-data Trace k v = Trace
+data Trace k h r = Trace
     { key     :: k
-    , depends :: [(k, Hash v)]
-    , result  :: Hash v }
+    , depends :: [(k, h)]
+    , result  :: r }
 \end{minted}
+
+Where \hs{k} is the key type, \hs{h} is always \hs{Hash}~\hs{v} and \hs{r} is either \hs{Hash}~\hs{v} (verify traces) or \hs{v} (constructive traces). A real system is highly likey to use a more optimised implementation. Some of the most obvious optimisations are:
 
 \begin{enumerate}
 \item Any system using verifying traces, e.g. \Shake, is unlikely to see significant benefit from storing more than one \hs{Trace} per key\footnote{There is a small chance of a benefit if the dependencies change but the result does not, and then the dependencies change back to what they were before.}. Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v)}, where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
 \item Any system using \hs{Applicative} dependencies can omit the dependency keys from the \hs{Trace} as they can be recovered from the \hs{key} field.
 \item Any \hs{Applicative} build system storing constructive traces, e.g. \Bazel, can index directly from the key and results to the output result~--~i.e. \hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces are stored on a central server, the client can compute the key and the hashes of its dependencies, then make a single call to the server to retrieve the result.
 \item Many cloud build systems store hashes of values in the trace information, then have a separate ``blob server'' which associates hashes with their actual contents.
-\item Finally, a \hs{Monad} build system with constructive traces can be stored as \hs{Map}~\hs{k}~\hs{(Choice}~\hs{k}~\hs{v)}, assuming a definition of \hs{Choice} as:
-\begin{minted}[xleftmargin=10pt]{haskell}
-data Choice k v = Choice k (Map (Hash v) (Choice k v))
-                | Result (Hash v)
-\end{minted}
-Here the \hs{Choice} encodes a tree, asking successive questions about keys, and taking different branches based on the answers, until it reaches a final result. Implementing this structure over client-server communication requires either a chatty interface with lots of round-trips per \hs{Choice} step, or sending over a part of the tree that is not subsequently explored.
 \end{enumerate}
 
 \subsection{Build Systems \`a la Carte}\label{sec-design-space}
@@ -225,7 +212,7 @@ Property           & Topological\hspace{2mm}\S\ref{sec-topological} & Restarting
 Dirty bit\hfill\S\ref{sec-dirty-bit}                                                             & \Make       & \Excel & -              \\\hline
 Verifying traces\hfill\S\ref{sec-verifying-traces}                                               & \Ninja      & -      & \Shake         \\\hline
 Constructive traces\hspace{2mm}\hfill\S\ref{sec-constructive-traces}                             & \CloudBuild & \Bazel & -              \\\hline
-Deterministic constructive traces\hspace{2mm}\hfill\S\ref{sec-deterministic-constructive-traces} & \Buck       & -      & \Nix           \\\hline
+Deep constructive traces\hspace{2mm}\hfill\S\ref{sec-deep-constructive-traces} & \Buck       & -      & \Nix           \\\hline
 \end{tabular}
 \vspace{2mm}
 \caption{Build systems \`a la carte.\label{tab-build-systems}}
