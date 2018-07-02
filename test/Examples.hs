@@ -80,6 +80,14 @@ sprsh2 "B2" = Just $ Task $ \fetch -> do
     if c1 == 1 then fetch "A1" else fetch "B1"
 sprsh2 _ = Nothing
 
+sprsh5 :: Tasks Monad String String
+sprsh5 "B1" = Just $ Task $ \fetch -> do
+    formula <- fetch "B1-formula"
+    evalFormula fetch formula
+  where
+    evalFormula = undefined
+sprsh5 _ = Nothing
+
 sprsh3 :: Tasks Alternative String Integer
 sprsh3 "B1" = Just $ Task $ \fetch -> (+) <$> fetch "A1" <*> (pure 1 <|> pure 2)
 sprsh3 _    = Nothing
