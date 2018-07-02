@@ -13,8 +13,12 @@ random (low, high) = Task $ const $ foldr mplus mzero $ map pure [low..high]
 
 -- | Run a non-deterministic task with a pure lookup function, listing all
 -- possible results.
-computeND :: Task MonadPlus k v -> (k -> v) -> [v]
-computeND task store = run task (return . store)
+computePureND :: Task MonadPlus k v -> (k -> v) -> [v]
+computePureND task store = run task (return . store)
+
+-- | Run a task in a given store.
+computeND :: Task MonadPlus k v -> Store i k v -> [v]
+computeND task store = computePureND task (flip getValue store)
 
 -- | Given a description of @tasks@, an initial @store@, and a @result@ produced
 -- by running a build system on a target @key@, this function returns 'True' if
@@ -22,4 +26,4 @@ computeND task store = run task (return . store)
 correctBuildValue :: Eq v => Tasks MonadPlus k v -> Store i k v -> Store i k v -> k -> Bool
 correctBuildValue tasks store result k = case tasks k of
     Nothing   -> getValue k result == getValue k store
-    Just task -> getValue k result `elem` computeND task (flip getValue store)
+    Just task -> getValue k result `elem` computeND task store
