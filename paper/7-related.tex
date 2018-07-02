@@ -24,18 +24,15 @@ rechecking the entire graph, and with automatic deleting of stale results.
 given here, differing only on aspects like polymorphic
 dependencies~\S\ref{sec-polymorphism}.
 
-\item \Buck~\cite{buck} is very similar to \Bazel at the level of abstraction presented here.
+\item \CloudBuild~\cite{esfahani2016cloudbuild} uses constructive traces with a topological sort.
 
-\item \CloudBuild~\cite{esfahani2016cloudbuild}
-differs from \Bazel by allowing non-determinism~\S\ref{sec-non-determinism}, thus more closely modelling
-our original definition of \Bazel from \S\ref{sec-implementation-cloud}.
+\item \Buck~\cite{buck} uses deep constructive traces with a topological sort,
+meaning that it disallows non-determinism~\S\ref{sec-non-determinism}.
 
 \item \Nix~\cite{dolstra2004nix} has coarse-grained dependencies, with precise
 hashing of dependencies and downloading of precomputed build products. When
-combined with \cmd{import-from-derivation}, \Nix can also be considered monadic,
-making it similar to \Cloud \Shake
-from~\S\ref{sec-implementation-cloud}.
-However, \Nix is not intended as a build system, and the coarse grained nature
+combined with \cmd{import-from-derivation}, \Nix provides monadic dependencies.
+\Nix is not primarily intended as a build system, and the coarse grained nature
 (packages, not individual files) makes it targeted to a different purpose.
 % John Ericson suggested in a blog comment that nix may be somewhat monadic, see:
 % \url{https://blogs.ncl.ac.uk/andreymokhov/cloud-and-dynamic-builds/\#comment-1849}.
