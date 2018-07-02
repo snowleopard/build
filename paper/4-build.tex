@@ -170,7 +170,9 @@ One potential implementation would be to record all arguments passed to
 the information passed by \hs{verifyVT} (we discuss smarter implementations
 in~\S\ref{sec-smart-traces}).
 
-A verifying trace (and all further trace-based systems in this section) support \hs{Monad} dependencies, early cutoff and minimality.
+A verifying trace, and other types of traces discussed in this section, support
+dynamic dependencies and minimality; furthermore, all traces except for deep
+traces~(\S\ref{sec-deep-constructive-traces}) support early cutoff.
 
 \subsubsection{Constructive traces}\label{sec-constructive-traces}
 
