@@ -60,7 +60,10 @@ gcc util.o main.o -o main.exe
 To achieve minimality, each separate command is traced at the OS-level, allowing
 \Fabricate to record a trace entry stating that \cmd{gcc -c util.c} reads from
 \cmd{util.c}. In future runs \Fabricate runs the script from start to finish,
-skipping any commands where no inputs have changed.
+skipping any commands where no inputs have changed. The key difference from our
+\hs{Tasks} abstraction is that instead of supplying a mapping from output to action,
+\Fabricate supplies a list of statements, in an order, without declaring what each line produces.
+There is no need to schedule the statements, and not enough information to do so.
 
 Taking our abstraction, it is possible to encode \Fabricate assuming that
 commands like \cmd{gcc -c util.c} are keys, there is a linear dependency between
