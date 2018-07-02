@@ -279,10 +279,10 @@ shake = suspending vtRebuilder
 -- A task rebuilder based on verifying traces
 vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
 vtRebuilder key value task = Task $ \fetch -> do
-    upToDate <- verifyVT key value (fmap hash . fetch) =<< get
+    upToDate <- verifyVT key (hash value) (fmap hash . fetch) =<< get
     if upToDate then return value else do
         (newValue, deps) <- track task fetch
-        put =<< recordVT key newValue deps (fmap hash . fetch) =<< get
+        modify $ recordVT key (hash newValue) [ (k, hash v) | (k, v) <- deps ]
         return newValue
 \end{minted}
 \vspace{0mm}
@@ -349,10 +349,11 @@ These steps are run in the
 monad, because the \hs{newTask} has access only to the~\hs{i} part of the state;
 we therefore need to use \hs{lift} when executing commands in the inner
 \hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k)} monad.
-The pair \hs{(@@newValue,}~\hs{newInfo)} obtained by running the \hs{newTask} is
+We use the helper function \hs{flattenInfo} to collapse two layers of stateful
+computations into one. The \hs{newValue} obtained by running the \hs{newTask} is
 stored, and the \hs{key} is added to the set \hs{done}.
 
-\subsection{Cloud build systems: \Bazel, \CloudBuild and \Cloud \Shake}\label{sec-implementation-cloud}
+\subsection{Cloud build systems: \Bazel, \CloudBuild, \Cloud \Shake, \Buck and \Nix}\label{sec-implementation-cloud}
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -368,8 +369,8 @@ ctRebuilder key value task = Task $ \fetch -> do
     cachedValues <- constructCT key (fmap hash . fetch) =<< get
     if value `elem` cachedValues then return value else case cachedValues of
         (cachedValue:_) -> return cachedValue
-        _ -> do (newValue, deps) <- trackM task fetch
-                put =<< recordCT key newValue deps (fmap hash . fetch) =<< get
+        _ -> do (newValue, deps) <- track task fetch
+                modify $ recordCT key newValue [ (k, hash v) | (k, v) <- deps ]
                 return newValue
 \end{minted}
 \vspace{0mm}
@@ -416,27 +417,29 @@ chain.}
 \vspace{-4mm}
 \end{figure}
 
-In this section we use constructive traces to implement cloud build systems.
-Fig.~\ref{fig-cloud-implementations} shows our models of \Bazel,
-\CloudBuild and \Cloud \Shake, which both rely on the \hs{ctRebuilder} -- a
-rebuilder based on constructive traces (\S\ref{sec-constructive-traces}).
+Fig.~\ref{fig-cloud-implementations} shows our models of several cloud build
+systems. \Bazel, \CloudBuild and \Cloud \Shake are based on constructive traces
+(\S\ref{sec-constructive-traces}), whereas \Buck and \Nix use their deep
+version (\S\ref{sec-deep-constructive-traces}).
 
 The implementation of \hs{ctRebuilder} is analogous to that of \hs{vtRebuilder}
 in Fig.~\ref{fig-shake-implementation}, but the \hs{verifyVT} query is replaced
-with a more powerful query to \hs{constructCT} that can construct a resulting
-\hs{cachedValue} by looking it up the cloud cache. If the cache lookup fails, we
-fall back to executing the \hs{task}. The obtained \hs{newValue} and the
+with a more powerful query to \hs{constructCT} that returns a list of suitable
+\hs{cachedValues} by looking them up the cloud cache. If the current \hs{value}
+is in the list, we can use it as is. Otherwise, if the list is non-empty, we can
+use an arbitrary \hs{cachedValue}. Finally, if the cache has no suitable values,
+we fall back to executing the \hs{task}. The obtained \hs{newValue} and the
 \hs{task}'s dependencies are recorded as a new constructive trace for future
 use.
 
 The \Bazel build system uses a restarting scheduler whose implementation we
 omit. It is similar to \Excel's \hs{restarting} scheduler defined in
 Fig.~\ref{fig-excel-implementation}, but instead of building keys in the order
-specified by the persistently stored calculation chain, \Bazel uses a
-\emph{build queue}. The build starts with the queue containing all dirty keys.
-Similar to \Excel, the rebuilding of a key extracted from the queue may fail
-because one of its dynamic dependencies is dirty. In this case the key is marked
-as \emph{blocked} and its rebuilding is deferred. Whenever a key is successfully
+specified by the persistently stored calc chain, \Bazel uses a \emph{build
+queue}. The build starts with the queue containing all dirty keys. Similar to
+\Excel, the rebuilding of a key extracted from the queue may fail because one of
+its dynamic dependencies is dirty. In this case the key is marked as
+\emph{blocked} and its rebuilding is deferred. Whenever a key is successfully
 rebuilt, all keys that were previously blocked on it are added back to the
 queue, and their build is eventually restarted.
 
@@ -463,25 +466,23 @@ is possible to define and test such a system, which we call \Cloud \Shake. All
 we need to do is replace \hs{restarting2} with \hs{suspending} in the definition
 of \Bazel, as shown in Fig.~\ref{fig-cloud-implementations}.
 
-\textbf{TODO:} A real implementation of \Cloud \Shake is now available... It was
-obtained by directly applying the presented ideas.
-
-\subsection{Buck and Nix}
-
-Some build systems allow to exploit \emph{build task determinism} for efficient
-fetching of build results from the cache: one can simply hash the values of all
-transitive inputs of a key (which can be done efficiently by storing all hashes
-in a Merkle tree) and download the matching value from the cache, without the
-need to build any intermediate values. This can bring significant performance
-benefits in practice, but sacrifices the early cutoff property: indeed, with
-this approach addition of a new comment to one of the source files will
-invalidate all dependent keys.
-
-Fig.~\ref{fig-cloud-implementations} shows our models of \Buck and \Nix build
-systems that use the \hs{dctRebuilder} -- a rebuilder based on deep
-constructive traces (\S\ref{sec-deep-constructive-traces}). As one can
-see, \hs{dctRebuilder} is almost identical to \hs{ctRebuilder}, but it ignores
-the current \hs{value}, since the \hs{constructDCT} query only needs to examine
-the transitive inputs of the given \hs{key}. \Buck uses the \hs{topological}
+Our models of \Buck~\cite{buck} and \Nix~\cite{dolstra2004nix} use the
+\hs{dctRebuilder}, a rebuilder based on deep constructive traces
+(\S\ref{sec-deep-constructive-traces}), whose implementation we omit since it
+is very similar to that of \hs{ctRebuilder}. \Buck uses the \hs{topological}
 scheduler and is therefore an applicative build system, whereas \Nix uses the
-\hs{suspending} scheduler and is monadic.
+\hs{suspending} scheduler and is monadic. Deep constructive traces allow these
+build systems to efficiently support shallow builds: the value of the target key
+can be downloaded by examining only the hashes of all transitive inputs,
+skipping the intermediate keys. The downside of this approach is the loss of the
+early cutoff property.
+
+% Some build systems allow to exploit \emph{build task determinism} for efficient
+% fetching of build results from the cache: one can simply hash the values of all
+% transitive inputs of a key (which can be done efficiently by storing all hashes
+% in a Merkle tree) and download the matching value from the cache, without the
+% need to build any intermediate values. This can bring significant performance
+% benefits in practice, but sacrifices the early cutoff property: indeed, with
+% this approach addition of a new comment to one of the source files will
+% invalidate all dependent keys.
+
