@@ -15,18 +15,18 @@ order. The \hs{Rebuilder} makes uses of the persistent build information
 \hs{ir}, while the scheduler might augment that with further persistent
 information of its own, yielding \hs{i}.
 
-A \hs{Rebuilder} is a function which the \hs{Scheduler} uses to rebuild a
-particular key, passing to it the key, the key's current value, and a \hs{Task}
-that can compute the value of the key if necessary. It uses the persistent build
-information \hs{ir} (carried by the state monad) to decide whether to rebuild
-the value. If doing so is unnecessary, it returns the current value; otherwise
-it runs the supplied \hs{Task} to rebuild it. In both cases it can choose to
-update the persistent build information \hs{ir} to reflect what happened. So a
-\hs{Rebuilder} wraps a \hs{Task}~\hs{c}~\hs{k}~\hs{v}, which unconditionally
-rebuilds the key, to make a \hs{Task}~\hs{(MonadState}~\hs{ir)}~\hs{k}~\hs{v},
-which rebuilds the key only if necessary, and does the necessary book-keeping.
-Note that the resulting \hs{Task} is always monadic; static dependency analysis
-can be performed on the original \hs{Task}~\hs{Applicative} if need be.
+A \hs{Rebuilder} takes three arguments: a key, its current value, and a
+\hs{Task} that can (re)compute the value of the key if necessary. It uses the
+persistent build information \hs{ir} (carried by the state monad) to decide
+whether to rebuild the value. If doing so is unnecessary, it returns the current
+value; otherwise it runs the supplied \hs{Task} to rebuild it. In both cases it
+can choose to update the persistent build information \hs{ir} to reflect what
+happened. So a \hs{Rebuilder} wraps a \hs{Task}~\hs{c}~\hs{k}~\hs{v}, which
+unconditionally rebuilds the key, to make a
+\hs{Task}~\hs{(MonadState}~\hs{ir)}~\hs{k}~\hs{v}, which rebuilds the key only
+if necessary, and does the necessary book-keeping. Note that the resulting
+\hs{Task} is always monadic; static dependency analysis can be performed on the
+original \hs{Task}~\hs{Applicative} if needed.
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -256,8 +256,8 @@ Note that the task returned by the \hs{rebuilder} expects a total callback
 function and cannot be directly executed with the partial callback \hs{fetch}.
 We fix the mismatch with the function \hs{try} that relies on the standard
 monad transformer \hs{ExceptT} from the \cmd{transformers} library. We also
-need the \hs{liftChain} helper function, whose implementation we omit since it
-is analogous to \hs{liftStore} defined in Fig.~\ref{fig-make-implementation}.
+need the helper \hs{liftChain}, whose implementation we omit since it
+is analogous to \hs{liftStore} in Fig.~\ref{fig-make-implementation}.
 
 \vspace{-1mm}
 \subsection{\Shake}\label{sec-implementation-shake}
