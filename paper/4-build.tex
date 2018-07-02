@@ -24,14 +24,16 @@ and~\S\ref{sec-out-of-date}.
 \subsection{Respecting the dependency order}
 \label{sec-dependency-orderings}
 
-The build systems overview (\S\ref{sec-background-summary}) highlighted three
-distinct task schedulers respecting the dependency order. This subsection
-explores their properties and possible implementations.
+Section \S\ref{sec-background} introduced three different \emph{task scehedulers}
+that decide which tasks to execute and in what order; see the ``Scheduler'' column
+of Table~\ref{tab-summary} in \S\ref{sec-background-summary}.
+This subsection explores the properties of the three schedulers, and
+possible implementations.
 
 \vspace{-2mm}
 \subsubsection{Topological}\label{sec-topological}
 
-The topological scheduler pre-computes a linear order, which when followed,
+The topological scheduler pre-computes a linear order of tasks, which when followed,
 ensures the build result is correct regardless of the initial store. Given a
 task description and the output \hs{key}, you can compute the linear order by
 first finding the (acyclic) graph of the \hs{key}'s reachable dependencies, and
@@ -47,8 +49,9 @@ The topological scheduler has two downsides: it is limited to \hs{Applicative}
 build systems and requires a fresh topological sort each time. So, while the
 actions themselves may be incremental (i.e. unnecessary tasks will not be
 performed), the pre-processing is not. We can try to incrementalise the
-topological sort by storing the topological order between build runs and assume
-it to be correct, fixing it up if the build discovers any inconsistency, as
+topological sort by storing the topological order between build runs,
+using it as a starting point in the next run, 
+fixing it up if the build discovers any inconsistency, as
 \Excel does.
 
 This approach requires a way to abort tasks that have failed due to out-of-date
@@ -80,7 +83,11 @@ another task is complete. This can be done with cheap green threads and blocking
 
 \subsection{Determining out-of-date keys} \label{sec-out-of-date}
 
-The second aspect, determining what to rebuild, can be addressed in one of four
+Suppose the scheduler decides that that a key \hs{k} should be
+brought up to date.  The next question is: does any work need to be done,
+or is it already up to date?   Or, in a cloud-build system, do we have
+a cached copy of the value we need?
+These questions can be addressed in one of four
 fundamental ways, with a number of tweaks and variations within them.
 
 \vspace{-2mm}
@@ -152,23 +159,25 @@ verifyVT@\,@::@\,@(Monad m,@\,@Eq k,@\,@Eq v) => k -> Hash v -> (k -> m (Hash v)
 \end{minted}
 
 \noindent
-We assume that \hs{Hash}~\hs{v} is a small constant size, constructed from
-hashing the underlying \hs{v} rather than storing it directly. After
-successfully building a key, we call \hs{recordVT} passing the key, the hash of
-its value, and the list of hashes and dependencies. Combined with the existing
-set of verifying traces, that provides a new set of verifying traces.
+Rather than storing (large) values \hs{v}, the verifying trace \hs{VT}
+stores only hashes, of type \hs{Hash}~\hs{v}, of those values.  Since the
+verfying trace persists from one build to the next -- it constitutes the build system's ``memory''
+-- it is helpful for it to be of modest size.
+After successfully building a key, we call \hs{recordVT} to add a record
+to the current \hs{VT}, passing the key, the hash of
+its value, and the list of hashes and dependencies.
 
 More interestingly, to \emph{verify} whether a key needs rebuilding we supply
 the key, the hash of its current value, a function for obtaining the post-build
 value of any key (using a scheduling strategy as per
 \S\ref{sec-dependency-orderings}), and the existing \hs{VT} information. The
 result will be a \hs{Bool} where \hs{True} indicates that the current value is
-up to date, and \hs{False} indicates that it should be rebuilt.
+already up to date, and \hs{False} indicates that it should be rebuilt.
 
 One potential implementation would be to record all arguments passed to
 \hs{recordVT} in a list, and verify by simply checking if any list item matches
-the information passed by \hs{verifyVT} (we discuss smarter implementations
-in~\S\ref{sec-smart-traces}).
+the information passed by \hs{verifyVT}.  We discuss smarter implementations
+in~\S\ref{sec-smart-traces}.
 
 A verifying trace, and other types of traces discussed in this section, support
 dynamic dependencies and minimality; furthermore, all traces except for deep
@@ -176,9 +185,9 @@ traces~(\S\ref{sec-deep-constructive-traces}) support early cutoff.
 
 \subsubsection{Constructive traces}\label{sec-constructive-traces}
 
-A verifying trace allows us to mark a key dirty and rebuild it. Extending that
-information we can store a \emph{constructive} trace which is the trace plus the
-actual resulting value. Once we are storing the complete result it makes sense
+A verifying trace deliberately records only small hashes, so that it can be small.
+A \emph{constructive} trace additionally stores the resulting value.
+Once we are storing the complete result it makes sense
 to record many constructive traces per key, and to share them with other users,
 providing cloud-build functionality. We can represent this additional
 information by providing the operations:
@@ -192,11 +201,13 @@ constructCT :: (Monad m, Eq k, Eq v) => k -> (k -> m (Hash v)) -> CT k v -> m [v
 The function \hs{recordCT} looks like \hs{recordVT}, but instead of just passing
 the hash of the resulting value, we require the whole value. The \hs{verifyVT}
 has been replaced with \hs{constructCT}, which instead of taking the hash of the
-value, returns a list of suitable values. If the current value in the store
+current value as \emph{input}, returns a list of suitable values as \emph{output}.
+If the current value in the store
 matches one of the possible values, the build can skip this rule. If the
 resulting list is empty, the key must be rebuilt. However, if the current value
 does not match the store, and there is a possible value, we can use any value
-from the constructive list \emph{without} doing any work to build it.
+from the constructive list \emph{without} doing any work to build it, and copy
+it into the store from the cloud.
 
 \subsubsection{Deep constructive traces}\label{sec-deep-constructive-traces}
 
@@ -204,15 +215,26 @@ Constructive traces always verify keys by looking at their immediate
 dependencies, which must have first been brought up to date, meaning that the
 time to verify a key is based on the number of transitive dependencies. A
 \emph{deep} constructive trace optimises this process by only looking at the
-terminal input keys, ignoring any intermediate dependencies. The operations
+terminal \emph{input keys}, ignoring any intermediate dependencies. The operations
 capturing this approach are the same as for constructive traces
 in~\S\ref{sec-constructive-traces}, but we use the names \hs{recordDCT} and
 \hs{constructDCT}, where the underlying \hs{DCT} representation need only record
 information about hashes of inputs, not intermediate dependencies.
 
+Current build systems using deep constructive traces always record hashes of
+terminal \emph{input keys}, but the technique works equally well
+if we skip any number dependency levels (say $n$ levels).
+The input-only approach is the special
+case of $n = \infty$, and constructive trances are the special case of 
+$n = 1$.
+
 The deep constructive trace approach only works if the operations are
 \emph{deterministic}, otherwise inconsistencies arise
-(see~\S\ref{sec-non-determinism}). Concretely, if the result of building a key
+(see~\S\ref{sec-non-determinism}). \simon{That section doesn't actually
+  mention ``inconsistencies''.
+  Also I think the inconsistencies are called Frankenbuilds, a term we might
+  want to introduce.}
+Concretely, if the result of building a key
 given a set of immediate dependencies can vary, then it is possible that key
 \hs{k} will have been computed locally, but something \emph{using} \hs{k} will
 have been taken as a constructive input using a different value for \hs{k}. If
@@ -220,12 +242,7 @@ another rule combines those two values then two different values of \hs{k} will
 have been used in one rule, leading to problems such as link-errors for typical
 compilers.
 
-While current build systems using deep constructive traces store only hashes of
-inputs, that is not a strict requirement, as the technique works equally well by
-skipping $n$ dependency levels, where the input-only approach is the special
-case of $n = \infty$. Similarly, constructive traces can be described as taking
-the direct dependencies, and thus having depth $n = 1$. A downside of deep
-constructive traces is that they cannot support cutoff
+A downside of deep constructive traces is that they cannot support cutoff
 (\S\ref{sec-background-shake}), other than at the $n$ levels of dependencies. On
 the other hand, these traces are particularly useful for ``shallow builds'', as
 discussed in~\S\ref{sec-cloud-aspects}.
@@ -250,11 +267,12 @@ is a small chance of a benefit if the dependencies change but the result does
 not, and then the dependencies change back to what they were before.}.
 Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v)},
 where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
+\simon{The data type decl had three args, k, v, r.}
 
 \item Any system using \hs{Applicative} dependencies can omit the dependency
-keys from the \hs{Trace} as they can be recovered from the \hs{key} field.
+keys from the \hs{Trace} since they can be recovered from the \hs{key} field.
 
-\item Any \hs{Applicative} build system storing constructive traces, e.g.
+\item Any \hs{Applicative} build system using constructive traces, e.g.
 \Bazel, can index directly from the key and results to the output result~--~i.e.
 \hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces
 are stored on a central server, the client can compute the key and the hashes of
@@ -273,7 +291,8 @@ their actual contents.
 \centering
 \begin{tabular}{l||c|c|c}
 \hline
-Property           & Topological\hspace{2mm}\S\ref{sec-topological} & Restarting\hspace{2mm}\S\ref{sec-restarting} & Suspending\hspace{2mm}\S\ref{sec-suspending}    \\\hline
+ & \multicolumn{3}{c}{Scheduling strategy} \\
+Out-of-date key strategy  & Topological\hspace{2mm}\S\ref{sec-topological} & Restarting\hspace{2mm}\S\ref{sec-restarting} & Suspending\hspace{2mm}\S\ref{sec-suspending}    \\\hline
 \hline
 Dirty bit\hfill\S\ref{sec-dirty-bit}                                                             & \Make       & \Excel & -              \\\hline
 Verifying traces\hfill\S\ref{sec-verifying-traces}                                               & \Ninja      & -      & \Shake         \\\hline
@@ -285,11 +304,12 @@ Deep constructive traces\hspace{2mm}\hfill\S\ref{sec-deep-constructive-traces} &
 \vspace{-8mm}
 \end{table}
 
-With the information in this section we can build a table comparing the
-dependency order strategy with the out-of-date keys strategy, providing 12~possible
-build systems, 8~of which are actually inhabited by existing build systems
+With the information in this section we can build Table~\ref{tab-build-systems}, which
+tabulates combinations of the schedling strategy and the out-of-date keys strategy,
+providing 12~possible build systems, 8~of which are actually inhabited by existing build systems
 (we discuss all these systems in \S\ref{sec-related-build}). Of the
 remaining 4~spots, all result in workable build systems. The most interesting
 unfilled spot in the table is suspending constructive traces, which would provide
-many benefits, and which we title \Cloud \Shake (as we plan on extending \Shake to occupy that spot)
+many benefits, and which we title \Cloud \Shake
+% (as we plan on extending \Shake to occupy that spot)
 and further explore further in~\S\ref{sec-implementation-cloud}.

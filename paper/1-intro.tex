@@ -7,11 +7,12 @@ focus of attention.
 % Rarely do people ask questions like ``What does it mean for my build
 % system to be correct?'' or ``What are the trade-offs between different
 % approaches?''.  Moreover,
-Complex build systems use subtle algorithms, but they
-are often hidden away, and not the object of study.
+For years \Make{} dominated, but more recently
 Recently, the challenges of scale have driven large software firms
 like Microsoft, Facebook, and Google to develop their own build
 systems, exploring new points in the design space.
+These complex build systems use subtle algorithms, but they
+are often hidden away, and not the object of study.
 
 In this paper we offer a general framework in which to understand
 and compare build systems,
@@ -24,7 +25,7 @@ these contributions:
   dependencies; local vs cloud; deterministic vs non-deterministic build rules;
   support for early cutoff; self-tracking build systems; and the type of
   persistent build information. In~\S\ref{sec-background} we identify some key
-  properties, in the context of four carefully-chosen build systems.
+  properties, illustrated by four carefully-chosen build systems.
 
 \item We describe some simple but novel abstractions that
   crisply encapsulate what a build system is (\S\ref{sec-abstractions}),
@@ -50,7 +51,7 @@ with desired properties, for example, to combine the advantages of \Shake and
 
 \end{itemize}
 In short, instead of seeing build systems as unrelated
-points in space, we now see them as locations in a landscape,
+points in space, we now see them as locations in a connected landscape,
 leading to a better understanding of what they do and how they compare,
 and suggesting exploration of other (as yet unoccupied points) in the
 landscape.

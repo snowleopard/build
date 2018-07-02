@@ -25,8 +25,8 @@ for errors, e.g. early aborting.
 
 \subsection{Parallelism}\label{sec-parallelism}
 
-While we have given simple implementations assuming a single thread of execution,
-all the build systems we address can actually build independent keys in parallel.
+We have given simple implementations assuming a single thread of execution,
+but all the build systems we address can actually build independent keys in parallel.
 While it complicates the model, the complications can be restricted exclusively
 to the scheduler:
 
@@ -58,7 +58,7 @@ it will always produce the same output. Alas, the real-world is not so obliging.
 Some examples of impure tasks include:
 
 \begin{description}
-\item[Untracked state] Some tasks depend on untracked state -- for example
+\item[Untracked dependencies] Some tasks depend on untracked values -- for example
 C compilation will explicitly list the \cmd{source.c} file as a dependency,
 but it may not record that the version of \cmd{gcc} is also a dependency.
 
@@ -73,13 +73,18 @@ number in a specified range~--~on each recalculation it is defined to change.
 Similarly, build systems like \Make and \Shake provide \emph{phony rules} which
 are also volatile.
 \end{description}
+\simon{Is there a difference between non-determinism and volatility?  Perhaps
+  one is accidental non-det while volatility is by-design non-det? But does the
+  distinction matter?   Maybe for accidental non-det you are free to use an
+  earlier cached result, whereas for volatity you should always recompute?
+  Volatility is best handled by a dependency on RealWorld, adn we coudl say that right here.}
 
 Interestingly, there is significant interplay between all three sources of
 impurity. Systems like \Bazel use various sandboxing techniques to guard against
 missing dependencies, but none are likely to capture all dependencies right down
-to CPU model and microcode version. Rules that do have untracked state can be
+to CPU model and microcode version. Rules that do have untracked dependencies can be
 marked as volatile, a technique \Excel takes with the \cmd{INDIRECT} function,
-removing the untracked state at the cost of minimality.
+removing the untracked dependency at the cost of minimality.
 
 Most of the implementations in \S\ref{sec-implementations} can deal with
 non-determinism, apart from \Buck, which relies on deterministic tasks, and
@@ -144,7 +149,9 @@ result in a future run.
 \emph{frankenbuild}~\cite{esfahani2016cloudbuild} if a value is calculated
 locally, but something that depends on that key is pulled from the cache, and
 the value calculated locally does not match what was previously calculated and
-stored in the cloud. Our implementations avoid this issue by storing complete
+stored in the cloud. \simon{Don't understand. The explanation in 4.2.4 is better -- and I think describes
+the same thing?}
+Our implementations avoid this issue by storing complete
 traces, but if a cloud build system was to only reference input nodes this
 situation can arise.
 
@@ -212,10 +219,12 @@ Namely, first look up the formula, then interpret it. It is not possible to
 change dependencies based on the formula in a \hs{Tasks}~\hs{Applicative}, as
 would be required, so instead the formula can be captured as a dependency
 (but its value not used) and \emph{also} baked directly into the \hs{sprsh5}
-function.
+function. \simon{Don't understand.}
 
 The build systems that have precise self-tracking are all ones which use a
 \emph{non-embedded domain specific language} to describe computations.
+\simon{I think you mean that you can find dependencies with executing the function,
+  which seems quite difference from ``backing it into'' the Haskell code.}
 Those which make use of a full programming language, e.g. \Shake, are faced with
 the challenge of implementing equality on arbitrary task functions. For such
 build systems the incredibly pessimistic assumption of saying that any change to

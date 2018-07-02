@@ -95,8 +95,8 @@ type    Tasks c k v = k -> Maybe (Task c k v)
 \end{minted}
 
 \noindent
-Here \hs{Task} describes a single build task, while \hs{Tasks} associates a
-task description to every non-input key; input keys are associated with
+A \hs{Task} describes a single build task, while \hs{Tasks} associates a
+\hs{Task} to every non-input key; input keys are associated with
 \hs{Nothing}. The highly-abstracted type\footnote{Readers familiar with
 \emph{lenses} or \emph{profunctor optics} might recognise a familiar pattern.
 We discuss this in~\S\ref{sec-related-optics}.} \hs{Task} is best introduced by

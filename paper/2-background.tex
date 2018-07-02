@@ -118,7 +118,7 @@ There are two input cells \cmd{A1} and \cmd{A2}, and a single task that computes
 the sum of their values, writing the result into the cell \cmd{B1}. If either of
 the inputs change, \Excel will recompute the result.
 
-Unlike \Make, \Excel does not need to know all task dependencies upfront. Some
+Unlike \Make, \Excel does not need to know all task dependencies upfront. Indeed, some
 dependencies may change \emph{dynamically} according to computation results. For
 example:
 
@@ -139,7 +139,7 @@ possibility\footnote{In this particular example one might say that the value of
 computation chain -- its value will only become available during the build.}
 of computing the dependency graph before the build starts.
 
-To support dynamic dependencies, \Excel's build engine~\cite{excel_recalc} is
+To support dynamic dependencies, \Excel's calc engine~\cite{excel_recalc} is
 significantly different from \Make. \Excel arranges the cells into a linear
 sequence, called the \emph{calc chain}.  During the build, \Excel processes
 cells in the calc-chain sequence, but if computing a cell \cmd{C} requires the
@@ -159,11 +159,11 @@ Dynamic dependencies complicate minimality.  In the above example, \cmd{B1}
 should only be recomputed if \cmd{A1} or \cmd{C1} change, but not if (say)
 \cmd{A2} changes; but these facts are not statically apparent. In practice
 \Excel implements a conservative approximation to minimality: it recomputes a
-formula if~(i)~the formula mentions a changed cell, or~(ii)~the formula uses a
+formula if~(i)~the formula statically mentions a changed cell, or~(ii)~the formula uses a
 function like \cmd{INDIRECT} whose dependencies are not statically visible,
 or~(iii)~the formula itself has changed.
 
-Item (iii) in the above list highlights a distinguishing feature of \Excel: it
+Item (iii) in the above list highlights another distinguishing feature of \Excel: it
 is \emph{self-tracking}. Most build systems only track changes of inputs and
 intermediate results, but \Excel also tracks changes in the tasks themselves: if
 a formula is modified, \Excel will recompute it and propagate the changes.
@@ -291,9 +291,9 @@ downloads \cmd{main.o} from the cloud and then builds \cmd{main.exe} by linking
 the two object files. When the build is complete, the results can be uploaded to
 the cloud for future reuse by other team members.
 
-\Bazel is one of the first examples of openly available cloud build systems.
+\Bazel is one of the first openly-available cloud build systems.
 As of writing, it is not possible to express dynamic dependencies in
-user-defined build rules, however some of the predefined build rules require
+user-defined build rules; however some of the pre-defined build rules require
 dynamic dependencies and the internal build engine can cope with them by using
 a \emph{restarting} task scheduler, which is similar to that of \Excel but does
 not use the calc chain. \Bazel is not minimal in the sense that it may restart a

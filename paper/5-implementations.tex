@@ -4,12 +4,12 @@ In the previous sections we discussed the types of build systems, and how they
 can be broken down into two main components: a scheduler and a rebuilder.
 In this section we make this abstract distinction concrete, by
 implementing a number of build systems as a composition of a scheduler
-and a rebuilder.  Our design is expressed by these types:
+and a rebuilder.  Our design is expressed by these types (Figure~\ref{fig-types})
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
 type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 \end{minted}
-So a \hs{Scheduler} is just a function that takes a \hs{Rebuilder} and uses
+A \hs{Scheduler} is just a function that takes a \hs{Rebuilder} and uses
 it to construct a \hs{Build} system, by choosing which keys to rebuild in which
 order. The \hs{Rebuilder} makes uses of the persistent build information
 \hs{ir}, while the scheduler might augment that with further persistent
@@ -108,7 +108,11 @@ The \hs{modTimeRebuilder} uses the pair
 build information, carried by a \hs{MonadState} monad. This
 \hs{MakeInfo} comprises the \emph{current time} \hs{now} and the map
 \hs{modTimes}~\hs{::}~\hs{Map}~\hs{k}~\hs{Time} of \emph{file
-modification times}. The rebuilder receives three arguments: a
+modification times}.
+We assume that the external system, which invokes the build system, updates
+\hs{MakeInfo}~\hs{k} reflecting any file changes between successive builds.
+
+The rebuilder receives three arguments: a
 \hs{key}, its current \hs{value}, and the \hs{task} of type
 \hs{Task}~\hs{Applicative}~\hs{k}~\hs{v} that can be used to rebuild
 the \hs{key} if necessary.  The rebuilder first decides if the
@@ -120,8 +124,6 @@ found, that must mean it has never been built before; otherwise
 the new modification time of the \hs{key}\footnote{The real \Make
 relies on the file system to track modification times, but we prefer
 to make it explicit here.}; otherwise we can just return the current \hs{value}.
-We assume that the external system, which invokes the build system, updates
-\hs{MakeInfo}~\hs{k} reflecting any file changes between successive builds.
 
 \Make's scheduler, \hs{topological}, processes keys in a linear \hs{order} based on a
 topological sort of the statically known dependency graph
@@ -159,11 +161,17 @@ build information \hs{ExcelInfo}~\hs{k} is a pair: (i) a map
 calc \hs{Chain}~\hs{::}~\hs{[@@k]} recorded in the previous build
 (\S\ref{sec-background-excel}).
 
+The external system, which invokes \Excel's build engine, is required
+to provide a transitively closed set of dirty bits.  That is, if a
+cell is changed, its dirty bit is set, and the dirty bit of any cell
+whose value might perhaps change as a result.  It is OK to mark too many
+cells as dirty; but not OK to mark too few.
+
 The \hs{dirtyBitRebuilder} is very simple: if the \hs{key}'s dirty bit is set,
 we \hs{run} the \hs{task} to rebuild the \hs{key}; otherwise we return the
-current \hs{value} as is. The external system, which invokes \Excel's build
-engine, is required to provide a transitively closed set of dirty bits.
-Therefore, unlike \Make's \hs{modTimeRebuilder}, the \hs{dirtyBitRebuilder} does
+current \hs{value} as is.
+Because the dirty cells are transitively closed,
+unlike \Make's \hs{modTimeRebuilder}, the \hs{dirtyBitRebuilder} does
 not need to modify \hs{i} to trigger rebuilds of dependent keys.
 
 \begin{figure}
