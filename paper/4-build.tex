@@ -86,21 +86,20 @@ fundamental ways, with a number of tweaks and variations within them.
 \vspace{-2mm}
 \subsubsection{A dirty bit}\label{sec-dirty-bit}
 
-The idea of a dirty bit is to have one piece of persistent
-information per key, saying whether the key is
-\emph{dirty} or \emph{clean}. After a build, all bits are set to clean. When the
-next build starts, anything that changed between the two states is marked
-dirty.
+The idea of a dirty bit is to have one piece of persistent information per key,
+saying whether the key is \emph{dirty} or \emph{clean}. After a build, all bits
+are set to clean. When the next build starts, anything that changed between the
+two states is marked dirty.
 % ; and by marking additional things dirty/clean the build system can track
 % what needs to rebuild.
-When reaching a key, if it and all its transitive dependencies are clean, the
-key does not need recomputing.
+If a key and all its transitive dependencies are clean, the key does not need
+to be rebuild.
 
 \Excel models the dirty bit approach most directly, having an actual dirty bit
-associated with each cell, marking the cell dirty if the user modifies it.
-When rebuilding, if a cell only depends on clean cells it is skipped, otherwise
-it is rebuilt and marked dirty so that the cells that depend on it are
-subsequently rebuilt too.
+associated with each cell, marking the cell dirty if the user modifies it, and
+also making sure all cells that depend on it are recursively marked dirty too.
+When rebuilding, if a clean cell only depends on clean cells it is skipped,
+otherwise it is rebuilt.
 
 % AM: I didn't understand this bit, so commented it out.
 % The only wrinkle in this scheme is that \Excel supports
@@ -123,86 +122,149 @@ build systems there is no general way to get all dependencies. Instead \Excel
 computes a \emph{static approximation} of the dependencies. For applicative
 tasks that approximation is correct. For functions such as \cmd{IF} it marks the
 cell dirty if \emph{any} potential dependency has changed, even on the untaken
-\emph{if} branch. For functions such as \cmd{INDIRECT} whose dependencies cannot
+\cmd{IF} branch. For functions such as \cmd{INDIRECT} whose dependencies cannot
 be guessed, it conservatively assumes the dependencies have always changed.
 
-With a dirty bit it is simple to achieve minimality. However, to achieve early cutoff
-(\S\ref{sec-background-shake}) it would be important to not set the dirty bit
-after a computation that did not change the value. \Excel could use this
-approach, but does not. In contrast, \Make cannot implement early cutoff nicely -- to
-do so it would have to mark the node clean (so it would not rebuild in the next
-run) and at the same time not mark the things it depends on dirty -- an
+With a dirty bit it is simple to achieve minimality. However, to achieve early
+cutoff (\S\ref{sec-background-shake}) it would be important to not set the dirty
+bit after a computation that did not change the value. \Excel could use this
+approach, but does not. In contrast, \Make cannot implement early cutoff nicely
+-- to do so it would have to mark the key clean (so it would not rebuild in the next
+run) and at the same time not mark the keys that depend on it dirty -- an
 impossible task with only the ability to update to the latest modification time.
-\Make can approximate early cutoff by not modifying the result file, and not marking it clean,
-but then it will rerun in every subsequent build.
+\Make can approximate early cutoff by not modifying the result file, and not
+marking it clean, but then it will rerun in every subsequent build.
 
 \vspace{-2mm}
 \subsubsection{Verifying traces}\label{sec-verifying-traces}
 
-An alternative way to determine if a key is dirty is to record what state the
-values/hashes of dependencies were used at last time, and if something has
-changed, the key is dirty and must be recomputed -- in essence a \emph{trace}
-which we can use to \emph{verify} existing values. For traces, there are two essential
-operations -- adding a new value to the trace store, and using the traces to determine if something needs
-rebuilding. Assuming a store of verifying traces \hs{VT}~\hs{k}~\hs{v}, the operations are:
+An alternative way to determine if a key is dirty is to record the
+values/hashes of dependencies used last time, and if something has changed, the
+key is dirty and must be rebuilt~--~in essence a \emph{trace} which we can use
+to \emph{verify} existing values. For traces, there are two essential
+operations~--~adding a new value to the trace store, and using the traces to
+determine if a key needs rebuilding. Assuming a store of verifying traces
+\hs{VT}~\hs{k}~\hs{v}, the operations are:
 
-\begin{minted}{haskell}
-recordVT :: k -> Hash v -> [(k, Hash v)] -> VT k v -> VT k v
-verifyVT :: (Monad m, Eq k, Eq v)
-         => k -> Hash v -> (k -> m (Hash v)) -> VT k v -> m Bool
+\begin{minted}[fontsize=\small,xleftmargin=10pt]{haskell}
+recordVT@\,@::@\,@k -> Hash v -> [(k, Hash v)] -> VT k v -> VT k v
+verifyVT@\,@::@\,@(Monad m,@\,@Eq k,@\,@Eq v) => k -> Hash v -> (k -> m (Hash v)) -> VT k v -> m Bool
 \end{minted}
 
-We assume that \hs{Hash}~\hs{v} is a small constant size, constructed from hashing the
-underlying \hs{v} rather than storing it directly. After successfully building a key, we call \hs{recordVT} passing the key, the hash of its value, and the list of hashes and dependencies. Combined with the existing set of verifying traces, that provides a new set of verifying traces.
+\noindent
+We assume that \hs{Hash}~\hs{v} is a small constant size, constructed from
+hashing the underlying \hs{v} rather than storing it directly. After
+successfully building a key, we call \hs{recordVT} passing the key, the hash of
+its value, and the list of hashes and dependencies. Combined with the existing
+set of verifying traces, that provides a new set of verifying traces.
 
-More interestingly, to \emph{verify} whether a key needs rebuilding we supply the key and the hash of the current result in the store, along with a function for obtaining the post-build result of any key (using an ordering strategy
-as per \S\ref{sec-dependency-orderings}), and the existing \hs{VT} information. The result will be a \hs{Bool} where \hs{True} indicates that the trace could be verified, or \hs{False} to indicate the key should be rebuilt.
+More interestingly, to \emph{verify} whether a key needs rebuilding we supply
+the key, the hash of its current value, a function for obtaining the post-build
+value of any key (using a scheduling strategy as per
+\S\ref{sec-dependency-orderings}), and the existing \hs{VT} information. The
+result will be a \hs{Bool} where \hs{True} indicates that the current value is
+up to date, and \hs{False} indicates that it should be rebuilt.
 
-One potential implementation would be to record all arguments passed to \hs{recordVT}, and verify by simply checking if any argument matches the information passed by \hs{verifyVT} (we discuss smarter implementations in~\S\ref{sec-smart-traces}).
+One potential implementation would be to record all arguments passed to
+\hs{recordVT} in a list, and verify by simply checking if any list item matches
+the information passed by \hs{verifyVT} (we discuss smarter implementations
+in~\S\ref{sec-smart-traces}).
 
 \subsubsection{Constructive traces}\label{sec-constructive-traces}
 
-A verifying trace allows us to mark a key dirty and rebuild it. Extending that information we can store a \emph{constructive} trace which is the trace plus the actual result. Once we are storing the complete result it makes sense to record many constructive traces per key, and to share them with other users, providing cloud-build functionality. We can represent this additional information by providing the operations:
+A verifying trace allows us to mark a key dirty and rebuild it. Extending that
+information we can store a \emph{constructive} trace which is the trace plus the
+actual resulting value. Once we are storing the complete result it makes sense
+to record many constructive traces per key, and to share them with other users,
+providing cloud-build functionality. We can represent this additional
+information by providing the operations:
 
-\begin{minted}{haskell}
-recordCT :: k -> v -> [(k, Hash v)] -> CT k v -> CT k v
-constructCT :: (Monad m, Eq k, Eq v)
-            => k -> (k -> m (Hash v)) -> CT k v -> m [v]
+\begin{minted}[fontsize=\small,xleftmargin=10pt]{haskell}
+recordCT    :: k -> v -> [(k, Hash v)] -> CT k v -> CT k v
+constructCT :: (Monad m, Eq k, Eq v) => k -> (k -> m (Hash v)) -> CT k v -> m [v]
 \end{minted}
 
-The function \hs{recordCT} looks like \hs{recordVT}, but instead of just passing the hash of the result, we require the whole result. The \hs{verifyVT} has been replaced with \hs{constructCT}, which instead of taking the hash of the value, instead returns a list of suitable values. If the current value in the store matches one of the possible values, the build can skip this rule. If the resulting list is empty, the build must rerun. However, if the current value does not match the store, and there is a possible value, we can use any value from the constructive list \emph{without} doing any work to compute it.
+\noindent
+The function \hs{recordCT} looks like \hs{recordVT}, but instead of just passing
+the hash of the resulting value, we require the whole value. The \hs{verifyVT}
+has been replaced with \hs{constructCT}, which instead of taking the hash of the
+value, returns a list of suitable values. If the current value in the store
+matches one of the possible values, the build can skip this rule. If the
+resulting list is empty, the key must be rebuilt. However, if the current value
+does not match the store, and there is a possible value, we can use any value
+from the constructive list \emph{without} doing any work to build it.
 
 \subsubsection{Deep constructive traces}\label{sec-deep-constructive-traces}
 
-Constructive traces always verify keys by looking at their immediate dependencies, which must have first been brought up to date, meaning that the time to verify a key is based on the number of transitive dependencies. A \emph{deep} constructive trace optimises this process by only looking at the terminal input keys, ignoring any intermediate dependencies. The operations capturing this approach are the same as for constructive traces in~\S\ref{sec-constructive-traces}, but we use the names \hs{constructDCT} and \hs{recordDCT}, where the underlying \hs{DCT} state need only record information about hashes of inputs, not intermediate dependencies.
+Constructive traces always verify keys by looking at their immediate
+dependencies, which must have first been brought up to date, meaning that the
+time to verify a key is based on the number of transitive dependencies. A
+\emph{deep} constructive trace optimises this process by only looking at the
+terminal input keys, ignoring any intermediate dependencies. The operations
+capturing this approach are the same as for constructive traces
+in~\S\ref{sec-constructive-traces}, but we use the names \hs{recordDCT} and
+\hs{constructDCT}, where the underlying \hs{DCT} representation need only record
+information about hashes of inputs, not intermediate dependencies.
 
-The deep constructive trace approach only works if the operations are \emph{deterministic}, otherwise inconsistencies arise (see~\S\ref{sec-non-determinism}). Concretely, if the result of building a key given a set of immediate dependencies can vary, then it is possible that key \hs{k} will have been computed locally, but something \emph{using} \hs{k} will have been taken as a constructive input using a different value for \hs{k}. If another rule combines those two values then two different values of \hs{k} will have been used in one rule, leading to problems such as link-errors for typical compilers.
+The deep constructive trace approach only works if the operations are
+\emph{deterministic}, otherwise inconsistencies arise
+(see~\S\ref{sec-non-determinism}). Concretely, if the result of building a key
+given a set of immediate dependencies can vary, then it is possible that key
+\hs{k} will have been computed locally, but something \emph{using} \hs{k} will
+have been taken as a constructive input using a different value for \hs{k}. If
+another rule combines those two values then two different values of \hs{k} will
+have been used in one rule, leading to problems such as link-errors for typical
+compilers.
 
-While current build systems using deep constructive traces store only hashes of inputs, that is not a strict requirement, as the technique works equally well by skipping $n$ levels of dependency - where only inputs is the special case of $\infty$. Similarly, constructive traces can be described as taking the direct dependencies, and thus being deep constructive traces of $1$. A downside of deep constructive traces is that they can't support cutoff (\S\ref{sec-background-shake}), other than at the $n$ levels of dependencies. On the otherhand, these traces are particularly useful for ``shallow builds'', as discussed in~\S\ref{sec-cloud-aspects}.
+While current build systems using deep constructive traces store only hashes of
+inputs, that is not a strict requirement, as the technique works equally well by
+skipping $n$ dependency levels, where the input-only approach is the special
+case of $n = \infty$. Similarly, constructive traces can be described as taking
+the direct dependencies, and thus having depth $n = 1$. A downside of deep
+constructive traces is that they cannot support cutoff
+(\S\ref{sec-background-shake}), other than at the $n$ levels of dependencies. On
+the other hand, these traces are particularly useful for ``shallow builds'', as
+discussed in~\S\ref{sec-cloud-aspects}.
 
 \subsection{Smarter \hs{[Trace]} data structures}\label{sec-smart-traces}
 
 In the examples above, we have used abstract types for the traces. Concretely, in our example code, they are all recorded as lists of:
 
-\begin{minted}{haskell}
-data Trace k h r = Trace
-    { key     :: k
-    , depends :: [(k, h)]
-    , result  :: r }
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Trace k v r = Trace { key :: k, depends :: [(k, Hash v)], result :: r }
 \end{minted}
 
-Where \hs{k} is the key type, \hs{h} is always \hs{Hash}~\hs{v} and \hs{r} is either \hs{Hash}~\hs{v} (verify traces) or \hs{v} (constructive traces). A real system is highly likey to use a more optimised implementation. Some of the most obvious optimisations are:
+\noindent
+Here \hs{r} is either \hs{Hash}~\hs{v} (verifying traces) or
+\hs{v} (constructive traces). A real system is highly likely to use a more
+optimised implementation. Some of the most obvious optimisations are:
 
 \begin{enumerate}
-\item Any system using verifying traces, e.g. \Shake, is unlikely to see significant benefit from storing more than one \hs{Trace} per key\footnote{There is a small chance of a benefit if the dependencies change but the result does not, and then the dependencies change back to what they were before.}. Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v)}, where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
-\item Any system using \hs{Applicative} dependencies can omit the dependency keys from the \hs{Trace} as they can be recovered from the \hs{key} field.
-\item Any \hs{Applicative} build system storing constructive traces, e.g. \Bazel, can index directly from the key and results to the output result~--~i.e. \hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces are stored on a central server, the client can compute the key and the hashes of its dependencies, then make a single call to the server to retrieve the result.
-\item Many cloud build systems store hashes of values in the trace information, then have a separate ``blob server'' which associates hashes with their actual contents.
+\item Any system using verifying traces, e.g. \Shake, is unlikely to see
+significant benefit from storing more than one \hs{Trace} per key\footnote{There
+is a small chance of a benefit if the dependencies change but the result does
+not, and then the dependencies change back to what they were before.}.
+Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v)},
+where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
+
+\item Any system using \hs{Applicative} dependencies can omit the dependency
+keys from the \hs{Trace} as they can be recovered from the \hs{key} field.
+
+\item Any \hs{Applicative} build system storing constructive traces, e.g.
+\Bazel, can index directly from the key and results to the output result~--~i.e.
+\hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces
+are stored on a central server, the client can compute the key and the hashes of
+its dependencies, then make a single call to the server to retrieve the result.
+
+\item Many cloud build systems store hashes of values in the trace information,
+then have a separate content-addressable cache which associates hashes with
+their actual contents.
 \end{enumerate}
 
 \subsection{Build Systems \`a la Carte}\label{sec-design-space}
 
-\begin{table}[h]
+\begin{table}
+\vspace{-1mm}
 \smaller
 \centering
 \begin{tabular}{l||c|c|c}
@@ -214,9 +276,9 @@ Verifying traces\hfill\S\ref{sec-verifying-traces}                              
 Constructive traces\hspace{2mm}\hfill\S\ref{sec-constructive-traces}                             & \CloudBuild & \Bazel & -              \\\hline
 Deep constructive traces\hspace{2mm}\hfill\S\ref{sec-deep-constructive-traces} & \Buck       & -      & \Nix           \\\hline
 \end{tabular}
-\vspace{2mm}
+\vspace{1mm}
 \caption{Build systems \`a la carte.\label{tab-build-systems}}
-\vspace{-2mm}
+\vspace{-8mm}
 \end{table}
 
 With the information in this section we can build a table comparing the
