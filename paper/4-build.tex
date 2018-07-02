@@ -170,6 +170,8 @@ One potential implementation would be to record all arguments passed to
 the information passed by \hs{verifyVT} (we discuss smarter implementations
 in~\S\ref{sec-smart-traces}).
 
+A verifying trace (and all further trace-based systems in this section) support \hs{Monad} dependencies, early cutoff and minimality.
+
 \subsubsection{Constructive traces}\label{sec-constructive-traces}
 
 A verifying trace allows us to mark a key dirty and rebuild it. Extending that
