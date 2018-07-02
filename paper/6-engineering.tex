@@ -28,13 +28,14 @@ for errors, e.g. early aborting.
 While we have given simple implementations assuming a single thread of execution,
 all the build systems we address can actually build independent keys in parallel.
 While it complicates the model, the complications can be restricted exclusively
-to the dependency strategy:
+to the scheduler:
 
 \begin{enumerate}
-\item The \hs{topological} function can build the full dependency graph, and
-whenever all dependencies of a task are complete, the task itself can be started.
+\item The \hs{topological} scheduler can build the full dependency graph, and
+whenever all dependencies of a task are complete, the task itself can be
+started.
 
-\item The \hs{reordering} function can be made parallel in a few ways, but the
+\item The \hs{restarting} scheduler can be made parallel in a few ways, but the
 most direct is to have $n$ threads reading entries from the list of keys. As
 before, if a key requires something not yet built, it is added to the end -- the
 difference is that sometimes things will be moved to the back of the queue not
@@ -42,18 +43,18 @@ because they are out of order but because of races with earlier nodes that had
 not yet finished. As a consequence, over successive runs, potentially racey
 dependencies will be separated, giving better parallelism over time.
 
-\item The \hs{recursive} function can be made parallel by starting static
+\item The \hs{suspending} function can be made parallel by starting static
 dependencies of a \hs{Task} in parallel, while dynamic dependencies are being
 resolved, using the strategy described by~\citet{marlow2014haxl}.
 \end{enumerate}
 
-The actual implementation of the parallel strategies is not overly onerous,
+The actual implementation of the parallel schedulers is not overly onerous,
 but neither is it beautiful or informative.
 
 \subsection{Impure computations}\label{sec-non-determinism}
 
-In our model we define \hs{Task} as a function -- when given the same inputs it
-will always produce the same outputs. Alas, the real-world is not so obliging.
+In our model we define a \hs{Task} as a function -- when given the same inputs
+it will always produce the same output. Alas, the real-world is not so obliging.
 Some examples of impure tasks include:
 
 \begin{description}
@@ -73,48 +74,48 @@ Similarly, build systems like \Make and \Shake provide \emph{phony rules} which
 are also volatile.
 \end{description}
 
-Interestingly, there is significant interplay between all three sources of impurity.
-Systems like \Bazel use various sandboxing techniques to guard against missing
-dependencies, but none are likely to capture all dependencies right down to CPU
-model and microcode version. Rules that do have untracked state can be marked as
-volatile, a technique \Excel takes with the \cmd{INDIRECT} function, removing the
-untracked state at the cost of minimality.
+Interestingly, there is significant interplay between all three sources of
+impurity. Systems like \Bazel use various sandboxing techniques to guard against
+missing dependencies, but none are likely to capture all dependencies right down
+to CPU model and microcode version. Rules that do have untracked state can be
+marked as volatile, a technique \Excel takes with the \cmd{INDIRECT} function,
+removing the untracked state at the cost of minimality.
 
-Most of the implementations in \S\ref{sec-implementations} can deal with non-determinism,
-apart from \Bazel, which requires deterministic execution, and in turn can
-optimise the number of roundtrips required to the server.
+Most of the implementations in \S\ref{sec-implementations} can deal with
+non-determinism, apart from \Buck, which relies on deterministic tasks, and
+in turn can optimise the number of roundtrips required to the server.
 
-One tempting way of modelling non-determinism is to enrich \hs{Task} from
+One tempting way of modelling non-determinism is to enrich \hs{Tasks} from
 \hs{Applicative} or \hs{Monad} to \hs{Alternative} or \hs{MonadPlus},
 respectively. More concretely, the following task description corresponds to
 a spreadsheet with the formula \cmd{B1 = A1 + RANDBETWEEN(1,2)}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-sprsh3 :: Task MonadPlus String Integer
-sprsh3 fetch "B1" = Just $ (+) <$> fetch "A1" <*> pure 1 `mplus` pure 2
-sprsh3 _     _    = Nothing
+sprsh3 :: Tasks MonadPlus String Integer
+sprsh3 "B1"@\,@=@\,@Just $ Task $ \fetch -> (+) <$> fetch "A1" <*> (pure 1 <|> pure 2)
+sprsh3 _   @\,@=@\,@Nothing
 \end{minted}
 \vspace{1mm}
 
 \noindent
 Handling such tasks is possible in our framework, but requires an adjustment of
 the correctness definition (\S\ref{sec-build-correctness}): instead of requiring
-that the result of recomputing the \hs{task} matches the value stored in the \hs{result}:
+that the result of recomputing the \hs{task} matches the value stored in the
+\hs{result}:
 \[
-\hs{getValue}~\hs{k}~\hs{result}~\hs{==}~\hs{@\std{fromJust}@}~\hs{(}\hs{compute}~\hs{task}~\hs{result}~\hs{k)}\]
+\hs{getValue}~\hs{k}~\hs{result}~\hs{==}~\hs{compute}~\hs{task}~\hs{result}.
+\]
 \noindent
 we now require that \hs{result} contains \emph{one possible result of recomputing}
 the \hs{task}:
 \[
-\hs{getValue}~\hs{k}~\hs{result}~\hs{`elem`}~\hs{@\std{fromJust}@}~\hs{(}\hs{computeND}~\hs{task}~\hs{result}~\hs{k)}
+\hs{getValue}~\hs{k}~\hs{result}~\hs{`elem`}~\hs{computeND}~\hs{task}~\hs{result}
 \]
 where
-\hs{computeND}~\hs{::}~\hs{Task}~\hs{MonadPlus}~\hs{k}~\hs{v}~\hs{->}~\hs{Store}~\hs{i}~\hs{k}~\hs{v}~\hs{->}~\hs{k}~\hs{->}~\hs{Maybe}~\hs{[@@v]}
+\hs{computeND}~\hs{::}~\hs{Task}~\hs{MonadPlus}~\hs{k}~\hs{v}~\hs{->}~\hs{Store}~\hs{i}~\hs{k}~\hs{v}~\hs{->}~\hs{[@@v]}
 returns the list of all possible results of the \hs{task} instead of just one
 value (`ND' stands for `non-deterministic').
-% (a possible implementation chooses
-% \hs{f}~\hs{=}~\hs{ListT}~\hs{Identity}~\hs{[@@v]}).
 
 Note that \hs{Task}~\hs{MonadPlus} is powerful enough to model dependency-level
 non-determinism, for example, \cmd{INDIRECT("A" \& RANDBETWEEN(1,2))}, whereas
@@ -126,7 +127,8 @@ changed between every run.
 
 \subsection{Cloud implementations}\label{sec-cloud-aspects}
 
-Our model of cloud builds provides a basic framework to discuss and reason about them, but lacks a number of important engineering corners:
+Our model of cloud builds provides a basic framework to discuss and reason
+about them, but lacks a number of important engineering corners:
 
 \begin{description}
 \item[Eviction] The store of traces as shown grows indefinitely, but often
@@ -149,7 +151,7 @@ situation can arise.
 \item[Communication] When traces or contents are stored on a central server
 communication can become a bottleneck, so it is important to send only the
 minimum amount of information, optimising with respect to build-system specific
-invariants~--~see~\S\ref{sec-smart-traces} for some possible optimisations.
+invariants.
 
 \item[Offloading] Once the cloud is storing build products and traces, it is
 possible for the cloud to also contain dedicated workers that can execute tasks
@@ -168,9 +170,9 @@ materialise the file when the user accesses it \cite{gvfs}.
 To legitimise shallow builds, we need to relax the correctness
 Definition~\ref{def-correct} as follows. Let the \hs{shallow} store correspond
 to the result of a shallow build. Then \hs{shallow} is correct, if \emph{there
-exists} \hs{result} which satisfies all requirements of
-Definition~\ref{def-correct}, \emph{such that} \hs{shallow} agrees with
-\hs{result} on the input keys \hs{k}~$\in$~$I$:
+exists} a \hs{result} which satisfies all requirements of the
+Definition~\ref{def-correct}, \emph{such that} \hs{shallow} agrees with the
+\hs{result} on all the input keys \hs{k}~$\in$~$I$:
 \[
 \hs{getValue}~\hs{k}~\hs{shallow}~\hs{==}~\hs{getValue}~\hs{k}~\hs{result}
 \]
@@ -197,19 +199,19 @@ In \Excel the user can alter the value produced by \cmd{B1} by either editing
 the inputs of \cmd{A1} or \cmd{A2}, \emph{or} editing the formula in
 \cmd{B1}~--~e.g. to \cmd{A1 - A2}. This pattern can be captured by describing
 the rule producing \cmd{B1} as also depending on the value \cmd{B1-formula}.
-The implementation can be given very directly in a \hs{Task}~\hs{Monad} as:
+The implementation can be given very directly in a \hs{Tasks}~\hs{Monad} as:
 
 \begin{minted}{haskell}
-task fetch "B1" = do
+sprsh5 "B1" = Just $ Task $ \fetch -> do
     formula <- fetch "B1-formula"
     evalFormula fetch formula
 \end{minted}
 
 \noindent
 Namely, first look up the formula, then interpret it. It is not possible to
-change dependencies based on the formula in a \hs{Task}~\hs{Applicative}, as
+change dependencies based on the formula in a \hs{Tasks}~\hs{Applicative}, as
 would be required, so instead the formula can be captured as a dependency
-(but its value not used) and \emph{also} baked directly into the \hs{task}
+(but its value not used) and \emph{also} baked directly into the \hs{sprsh5}
 function.
 
 The build systems that have precise self-tracking are all ones which use a
