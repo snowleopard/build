@@ -1,9 +1,14 @@
-{-# LANGUAGE ConstraintKinds, RankNTypes #-}
+{-# LANGUAGE ConstraintKinds, RankNTypes, FlexibleInstances, MultiParamTypeClasses, GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
 
 -- | The Task abstractions.
-module Build.Task (Task (..), Tasks, compose, liftTask, liftTasks) where
+module Build.Task (Task (..), Tasks, compose, liftTask, liftTasks, runZoom) where
 
 import Control.Applicative
+import Control.Monad.State.Class
+import Control.Monad.State
+import Control.Monad.Reader
+import Control.Lens
+
 
 -- Ideally we would like to write:
 --
@@ -41,3 +46,22 @@ liftTask (Task task) = Task task
 -- when building applicative tasks with a monadic build system.
 liftTasks :: Tasks Applicative k v -> Tasks Monad k v
 liftTasks = fmap (fmap liftTask)
+
+
+
+newtype StateX ii i a = StateX (ReaderT (ii -> (i, i -> ii)) (State ii) a)
+    deriving (Functor, Applicative, Monad)
+
+instance MonadState i (StateX ii i) where
+    state f = StateX $ ReaderT $ \lens -> state $ \s ->
+        let (i, ii) = lens s
+            (a, i2) = f i
+        in (a, ii i2)
+
+redo :: State ii a -> StateX ii i a
+redo = StateX . lift
+
+runZoom :: forall ii i k v . Lens' ii i -> Task (MonadState i) k v -> (k -> State ii v) -> State ii v
+runZoom lens task fetch = StateT $ \ii ->
+    let StateX kk = run task (redo . fetch) :: StateX ii i v
+    in return $ kk `runReaderT` (\ii -> (view lens ii, flip (set lens) ii)) `runState` ii

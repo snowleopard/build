@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, ScopedTypeVariables, TupleSections, GeneralizedNewtypeDeriving #-}
 
 -- | Build schedulers execute task rebuilders in the right order.
 module Build.Scheduler (
@@ -10,6 +10,7 @@ module Build.Scheduler (
     ) where
 
 import Control.Monad.State
+import Control.Lens
 import Control.Monad.Trans.Except
 import Data.Set (Set)
 
@@ -26,27 +27,6 @@ import qualified Data.Set as Set
 
 type Scheduler c i j k v = Rebuilder c j k v -> Build c i k v
 
--- | Lift a computation operating on @i@ to @Store i k v@.
-liftStore :: State i a -> State (Store i k v) a
-liftStore x = do (a, newInfo) <- gets (runState x . getInfo)
-                 modify (putInfo newInfo)
-                 return a
-
--- | Lift a computation operating on @Store i k v@ to @Store (i, j) k v@.
-liftInfo :: State (Store i k v) a -> State (Store (i, j) k v) a
-liftInfo x = do
-    store <- get
-    let (a, newStore) = runState x (mapInfo fst store)
-    put $ mapInfo (, snd $ getInfo $ store) newStore
-    return a
-
--- | Collapse two layers of stateful computations into one.
-flattenInfo :: StateT i (State (Store i k v, j)) a -> State (Store i k v, j) a
-flattenInfo x = do
-    info <- gets (getInfo . fst)
-    (a, newInfo) <- runStateT x info
-    modify $ \(s, j) -> (putInfo newInfo s, j)
-    return a
 
 -- | Update the value of a key in the store. The function takes both the current
 -- value (the first parameter of type @v@) and the new value (the second
@@ -68,9 +48,9 @@ topological rebuilder tasks target = execState $ forM_ order $ \key -> case task
         let value = getValue key store
             newTask :: Task (MonadState i) k v
             newTask = rebuilder key value task
-            fetch :: k -> State i v
+            fetch :: k -> State (Store i k v) v
             fetch k = return (getValue k store)
-        newValue <- liftStore (run newTask fetch)
+        newValue <- runZoom _info newTask fetch
         modify $ updateValue key value newValue
   where
     deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
@@ -100,10 +80,10 @@ type Chain k = [k]
 restarting :: forall ir k v. Ord k => Scheduler Monad (ir, Chain k) ir k v
 restarting rebuilder tasks target = execState $ do
     chain    <- gets (snd . getInfo)
-    newChain <- liftInfo $ go Set.empty $ chain ++ [target | target `notElem` chain]
+    newChain <- go Set.empty $ chain ++ [target | target `notElem` chain]
     modify . mapInfo $ \(ir, _) -> (ir, newChain)
   where
-    go :: Set k -> Chain k -> State (Store ir k v) (Chain k)
+    go :: Set k -> Chain k -> State (Store (ir, Chain k) k v) (Chain k)
     go _    []       = return []
     go done (key:ks) = case tasks key of
         Nothing -> (key :) <$> go (Set.insert key done) ks
@@ -112,10 +92,10 @@ restarting rebuilder tasks target = execState $ do
             let value = getValue key store
                 newTask :: Task (MonadState ir) k (Either k v)
                 newTask = try $ rebuilder key value task
-                fetch :: k -> State ir (Either k v)
+                fetch :: k -> State (Store (ir, Chain k) k v) (Either k v)
                 fetch k | k `Set.member` done = return $ Right (getValue k store)
                         | otherwise           = return $ Left k
-            result <- liftStore (run newTask fetch)
+            result <- runZoom (_info . _1) newTask fetch
             case result of
                 Left dep -> go done $ dep : filter (/= dep) ks ++ [key]
                 Right newValue -> do
@@ -165,10 +145,10 @@ restarting2 rebuilder tasks target = execState $ go (enqueue target [] mempty)
                     upToDate k = isInput tasks k || not (isDirtyCT k store)
                     newTask :: Task (MonadState (CT k v)) k (Either k v)
                     newTask = try $ rebuilder key value task
-                    fetch :: k -> State (CT k v) (Either k v)
+                    fetch :: k -> State (Store (CT k v) k v) (Either k v)
                     fetch k | upToDate k = return (Right (getValue k store))
                             | otherwise  = return (Left k)
-                result <- liftStore (run newTask fetch)
+                result <- runZoom _info newTask fetch
                 case result of
                     Left dep -> go (enqueue dep (key:bs) q)
                     Right newValue -> do
@@ -193,12 +173,12 @@ suspending rebuilder tasks target store = fst $ execState (build target) (store,
                 value <- gets (getValue key . fst)
                 let newTask :: Task (MonadState i) k v
                     newTask = rebuilder key value task
-                    fetch :: k -> StateT i (State (Store i k v, Set k)) v
-                    fetch k = do lift (build k)                      -- build the key
-                                 lift (gets (getInfo . fst)) >>= put -- save new traces
-                                 lift (gets (getValue k . fst))      -- fetch the value
-                newValue <- flattenInfo (run newTask fetch)
+                    fetch :: k -> State (Store i k v, Set k) v
+                    fetch k = do build k                          -- build the key
+                                 getValue k . fst <$> get
+                newValue <- runZoom (_1 . _info) newTask fetch
                 modify $ \(s, d) -> (updateValue key value newValue s, Set.insert key d)
+
 
 -- | An incorrect scheduler that builds the target key without respecting its
 -- dependencies. It produces the correct result only if all dependencies of the
