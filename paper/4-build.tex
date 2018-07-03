@@ -262,9 +262,8 @@ optimised implementation. Some of the most obvious optimisations are:
 significant benefit from storing more than one \hs{Trace} per key\footnote{There
 is a small chance of a benefit if the dependencies change but the result does
 not, and then the dependencies change back to what they were before.}.
-Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v)},
+Therefore, such systems can store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v}~\hs{(Hash v))},
 where the initial \hs{k} is the \hs{key} field of \hs{Trace}.
-\simon{The data type decl had three args, k, v, r.}
 
 \item Any system using \hs{Applicative} dependencies can omit the dependency
 keys from the \hs{Trace} since they can be recovered from the \hs{key} field.
