@@ -5,8 +5,11 @@ module Build.Store (
 
     -- * Store
     Store, getValue, putValue, getHash, getInfo, putInfo, mapInfo,
+    _info,
     initialise
     ) where
+
+import Control.Lens
 
 -- | A 'Hash' is used for efficient tracking and sharing of build results. We
 -- use @newtype Hash a = Hash a@ for prototyping.
@@ -58,6 +61,9 @@ getHash k = hash . getValue k
 -- | Write the build information.
 putInfo :: i -> Store i k v -> Store i k v
 putInfo i s = s { info = i }
+
+_info :: Lens' (Store i k v) i
+_info = lens getInfo (flip putInfo)
 
 -- | Modify the build information.
 mapInfo :: (i -> j) -> Store i k v -> Store j k v
