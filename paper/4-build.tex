@@ -14,14 +14,14 @@ result (\S\ref{sec-build-correctness}) is to \textbf{build all keys in an
 order that respects their dependencies}.
 
 \vspace{1mm}
-We have bolded two different phrases above and, as we will see, the part of the
+We have emboldened two different aspects above: the part of the
 build system responsible for scheduling tasks in the dependency order
 (a `scheduler') can be cleanly separated from the part responsible for deciding
-whether a key needs to be rebuilt (a `rebuilder'). We therefore tackle each
+whether a key needs to be rebuilt (a `rebuilder'). We tackle each
 aspect separately in subsections~\S\ref{sec-dependency-orderings}
 and~\S\ref{sec-out-of-date}.
 
-\subsection{Respecting the dependency order}
+\subsection{The scheduler: respecting the dependency order}
 \label{sec-dependency-orderings}
 
 Section \S\ref{sec-background} introduced three different \emph{task schedulers}
@@ -77,7 +77,7 @@ another task is complete. This can be done with cheap green threads and blocking
 (the original approach of \Shake) or using continuation-passing style (what
 \Shake does currently).
 
-\subsection{Determining out-of-date keys} \label{sec-out-of-date}
+\subsection{The rebuilder: determining out-of-date keys} \label{sec-out-of-date}
 
 Suppose the scheduler decides that that a key should be brought up to date. The
 next question is: does any work need to be done, or is it already up to date?
