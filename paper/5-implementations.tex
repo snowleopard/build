@@ -31,6 +31,11 @@ if necessary, and does the necessary book-keeping. Note that the resulting
 \hs{Task} is always monadic; static dependency analysis can be performed on the
 original \hs{Task}~\hs{Applicative} if needed.
 
+The scheduler calls the rebuilder, but passes to it a \hs{fetch} function
+that that latter calls when it needs the value of a dependent key.  This
+callback returns control to the scheduler, which may in turn call the
+rebuilder to bring the dependent key up to date, and so on.
+
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
 -- Make build system; stores current time and file modification times
@@ -126,6 +131,9 @@ the new modification time of the \hs{key}\footnote{The real \Make
 relies on the file system to track modification times, but we prefer
 to make it explicit here.}; otherwise we can just return the current \hs{value}.
 
+\simon{topological is hard to read because of the execState and forM stuff.
+  Could we have a local defn, with a type signature, for the $\lambda key. blah$?
+  If necessary we could omit the code for liftStore, leaving only its signature}
 \Make's scheduler, \hs{topological}, processes keys in a linear \hs{order} based on a
 topological sort of the statically known dependency graph
 (see~\S\ref{sec-parallelism} for parallel \Make). Our definition in
@@ -159,7 +167,7 @@ Our model of \Excel uses the \hs{restarting} scheduler and the
 \hs{dirtyBitRebuilder}, see Fig.~\ref{fig-excel-implementation}. The persistent
 build information \hs{ExcelInfo}~\hs{k} is a pair: (i) a map
 \hs{k}~\hs{->}~\hs{Bool} associating a dirty bit with every key, and (ii) a
-calc \hs{Chain}~\hs{::}~\hs{[@@k]} recorded in the previous build
+calc chain of type \hs{[@@k]} recorded in the previous build
 (\S\ref{sec-background-excel}).
 
 The external system, which invokes \Excel's build engine, is required
@@ -465,6 +473,7 @@ we need to convert a monadic \hs{ctRebuilder} into an applicative one by
 applying an adapter function \hs{adaptRebuilder}, which unwraps a given
 \hs{Task Applicative} and wraps it into \hs{Task Monad}.
 
+\simon{New subsection here? Or at least put this para after the next one.}
 Using the abstractions built thus far, we have shown how to combine schedulers
 with rebuilders to reproduce existing build systems. To us, the most interesting
 build system as yet unavailable would combine a suspending scheduler with

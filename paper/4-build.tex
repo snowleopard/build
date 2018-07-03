@@ -24,7 +24,7 @@ and~\S\ref{sec-out-of-date}.
 \subsection{Respecting the dependency order}
 \label{sec-dependency-orderings}
 
-Section \S\ref{sec-background} introduced three different \emph{task scehedulers}
+Section \S\ref{sec-background} introduced three different \emph{task schedulers}
 that decide which tasks to execute and in what order; see the ``Scheduler'' column
 of Table~\ref{tab-summary} in \S\ref{sec-background-summary}.
 This subsection explores the properties of the three schedulers, and
@@ -46,7 +46,9 @@ dependencies.
 \subsubsection{Restarting}\label{sec-restarting}
 
 The topological scheduler has two downsides: it is limited to \hs{Applicative}
-build systems and requires a fresh topological sort each time. So, while the
+build systems and requires a fresh topological sort each time. \simon{If the tasks don't change,
+  the dependencies are unchanged, so the topological sort from the last time
+  will do fine, won't it?}  So, while the
 actions themselves may be incremental (i.e. unnecessary tasks will not be
 performed), the pre-processing is not. We can incrementalise the topological
 sort by storing the topological order between build runs, using it as a starting
@@ -104,8 +106,11 @@ to be rebuild.
 \Excel models the dirty bit approach most directly, having an actual dirty bit
 associated with each cell, marking the cell dirty if the user modifies it, and
 also making sure all cells that depend on it are recursively marked dirty too.
+\simon{Not always (see make) and only possible if we have static dependencies
+  or have recorded dynamic dependencies.}
 When rebuilding, if a clean cell only depends on clean cells it is skipped,
-otherwise it is rebuilt.
+otherwise it is rebuilt. \simon{But if all the dependencies of a dirty cell
+  are marked dirty, we rebuild only dirty cells not clean ones, contradicting this statement.}
 
 % AM: I didn't understand this bit, so commented it out.
 % The only wrinkle in this scheme is that \Excel supports
@@ -120,7 +125,8 @@ existing file-system information that has been repurposed. In particular,
 modifying a file automatically clears its dirty bit, and
 automatically sets the dirty bit of the nodes depending on it. One
 thing \Make does require is that file timestamps only go forward in
-time -- something that can be violated by backup software.
+time -- something that can be violated by backup software. \simon{Also transitive dependencies
+  of dirty files are not made dirty.}
 
 When using a dirty bit, it is necessary to check all the dependencies of a key.
 For applicative build systems that list is easy to obtain, but for monadic
@@ -133,8 +139,11 @@ be guessed, it conservatively assumes the dependencies have always changed.
 
 With a dirty bit it is simple to achieve minimality. However, to achieve early
 cutoff (\S\ref{sec-background-shake}) it would be important to not set the dirty
-bit after a computation that did not change the value. \Excel could use this
-approach, but does not. In contrast, \Make cannot implement early cutoff nicely
+bit after a computation that did not change the value. \simon{And if we'd recursively
+made the transitive dependencies dirty, we could not do early cutoff.}
+\Excel could use this
+approach, but does not. \simon{It'd be tricky becase of setting dirtiness recursively.}
+In contrast, \Make cannot implement early cutoff nicely
 -- to do so it would have to mark the key clean (so it would not rebuild in the next
 run) and at the same time not mark the keys that depend on it dirty -- an
 impossible task with only the ability to update to the latest modification time.
@@ -221,7 +230,7 @@ information about hashes of inputs, not intermediate dependencies.
 
 Current build systems using deep constructive traces always record hashes of
 terminal \emph{input keys}, but the technique works equally well if we skip any
-number $n$ of dependency levels (say $n$ levels). The input-only approach is the
+number of dependency levels (say $n$ levels). The input-only approach is the
 special case of $n = \infty$, and constructive traces are the special case of
 $n = 1$.
 
