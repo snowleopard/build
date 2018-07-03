@@ -4,11 +4,14 @@ In the previous sections we discussed the types of build systems, and how they
 can be broken down into two main components: a scheduler and a rebuilder.
 In this section we make this abstract distinction concrete, by
 implementing a number of build systems as a composition of a scheduler
-and a rebuilder.  Our design is expressed by these types (Figure~\ref{fig-types})
+and a rebuilder.  Our design is expressed by these types (Fig.~\ref{fig-types}):
+
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
 type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 \end{minted}
+
+\noindent
 A \hs{Scheduler} is just a function that takes a \hs{Rebuilder} and uses
 it to construct a \hs{Build} system, by choosing which keys to rebuild in which
 order. The \hs{Rebuilder} makes uses of the persistent build information
@@ -112,14 +115,12 @@ modification times}.
 We assume that the external system, which invokes the build system, updates
 \hs{MakeInfo}~\hs{k} reflecting any file changes between successive builds.
 
-The rebuilder receives three arguments: a
-\hs{key}, its current \hs{value}, and the \hs{task} of type
-\hs{Task}~\hs{Applicative}~\hs{k}~\hs{v} that can be used to rebuild
-the \hs{key} if necessary.  The rebuilder first decides if the
-\hs{key} is \hs{dirty} by consulting \hs{modTimes}: if the \hs{key} is not
-found, that must mean it has never been built before; otherwise
-\hs{modTimeRebuilder} can see if any of the \hs{task}'s dependencies
-(computed by \hs{dependencies}) are out of date. If the \hs{key} is
+The rebuilder receives three arguments: a \hs{key}, its current \hs{value}, and
+the applicative \hs{task} that can be used to rebuild the \hs{key} if necessary.
+The rebuilder first decides if the \hs{key} is \hs{dirty} by consulting
+\hs{modTimes}: if the \hs{key} is not found, that must mean it has never been
+built before; otherwise \hs{modTimeRebuilder} can see if any of the \hs{task}'s
+dependencies (computed by \hs{dependencies}) are out of date. If the \hs{key} is
 \hs{dirty}, we use \hs{run}~\hs{task} to rebuild it, and update the state with
 the new modification time of the \hs{key}\footnote{The real \Make
 relies on the file system to track modification times, but we prefer
@@ -216,9 +217,8 @@ restarting rebuilder tasks target = execState $ do
             result <- liftStore (run newTask fetch) -- liftStore is defined in Fig. 7
             case result of
                 Left dep -> go done $ dep : filter (/= dep) ks ++ [key]
-                Right newValue -> do
-                    modify $ putValue key newValue
-                    (key :) <$> go (Set.insert key done) ks
+                Right newValue -> do modify $ putValue key newValue
+                                     (key :) <$> go (Set.insert key done) ks
 \end{minted}
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
@@ -332,12 +332,12 @@ current \hs{value}. Otherwise it executes the \hs{task}, obtaining both a
 definition of \hs{track} in~\S\ref{sec-deps}), which are subsequently recorded
 in a new verification trace using \hs{recordVT}.
 
-The \hs{suspending} scheduler is based on a recursive function \hs{build} that
-builds a given \hs{key}, making sure not to duplicate work when called on the
-same \hs{key} again in future. To achieve that, it keeps track of keys that have
-already been built in a set \hs{done}~\hs{::}~\hs{Set}~\hs{k}, running the
-computation in the
-\hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k)} monad.
+The \hs{suspending} scheduler uses a recursive function \hs{build} that builds
+a given \hs{key}, making sure not to duplicate work when called on the same
+\hs{key} again in future. To achieve that, it keeps track of keys that have
+already been built in a set \hs{done}~\hs{::}~\hs{Set}~\hs{k}.
+% , running the computation in the
+% \hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k)} monad.
 
 Given a non-input \hs{key} that has not yet been built, we use the supplied
 \hs{rebuilder} to embed the build information~\hs{i} into the \hs{task}.

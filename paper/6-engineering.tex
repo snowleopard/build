@@ -17,12 +17,6 @@ model the values inside the store and the \hs{Task}, but because \hs{v} is
 polymorphic for builds, it does not let the build system apply special behaviour
 for errors, e.g. early aborting.
 
-% Q: {Isn't ``early aborting'' automatically handled by short-circuiting
-% withing monads, i.e. \hs{Nothing} or \hs{Left e} cancel out all subsequent
-% computation?}
-% NM says: The build system could chose an early abort monad, but the tasks are
-% free in the monad, so you can't get the encoding to cross between them.
-
 \subsection{Parallelism}\label{sec-parallelism}
 
 We have given simple implementations assuming a single thread of execution,
