@@ -45,22 +45,20 @@ dependencies.
 \vspace{-2mm}
 \subsubsection{Restarting}\label{sec-restarting}
 
-The topological scheduler has two downsides: it is limited to \hs{Applicative}
-build systems and requires a fresh topological sort each time. \simon{If the tasks don't change,
-  the dependencies are unchanged, so the topological sort from the last time
-  will do fine, won't it?}  So, while the
-actions themselves may be incremental (i.e. unnecessary tasks will not be
-performed), the pre-processing is not. We can incrementalise the topological
-sort by storing the topological order between build runs, using it as a starting
-point in the next run, fixing it up if the build discovers any inconsistency, as
-\Excel does.
+To handle dynamic dependencies we can use the following speculative approach:
+build tasks in an arbitrary order, discovering their dependencies on the fly;
+whenever a task calls \hs{fetch} on an out-of-date key \hs{dep}, abort the task,
+and switch to building the dependency \hs{dep}; eventually the previously
+aborted task is restarted and makes further progress thanks to \hs{dep} now
+being up to date. When a build completes, we can record the resulting order,
+using it as a starting point for the next build and fixing it up if a task's
+dependencies have changed, as \Excel does.
 
 This approach requires a way to abort tasks that have failed due to out-of-date
 dependencies. It is also not minimal in the sense that a task may start, do some
-meaningful work, and then abort. However, in the case of an \hs{Applicative}
-system, that work is zero.
+meaningful work, and then abort.
 
-\Bazel's restarting scheduler does not store the topological order between build
+\Bazel's restarting scheduler does not store the discovered order between build
 runs; instead, it stores the most recent task dependency information. Since this
 information may become outdated, \Bazel may also need to abort a task if a
 newly discovered dependency is out-of-date.
