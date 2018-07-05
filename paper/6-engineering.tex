@@ -47,7 +47,7 @@ but neither is it beautiful or informative.
 
 \subsection{Impure computations}\label{sec-non-determinism}
 
-In our model we define a \hs{Task} as a function -- when given the same inputs
+In our model we define \hs{Task} as a function -- when given the same inputs
 it will always produce the same output. Alas, the real-world is not so obliging.
 Some examples of impure tasks include:
 
@@ -221,8 +221,8 @@ normally not execute anything, but if the ``Iterative Calculations'' feature is
 enabled will execute the formula for a specified maximum number $N$ of times per
 calculation (where $N$ is a setting that defaults to 100).
 
-For examples like \LaTeX~we consider the proper encoding to not be with circular
-tasks, but with a series of iterative steps, as described
+For examples like \LaTeX~we consider the proper encoding to not be circular
+tasks, but a series of iterative steps, as described
 by~\citet{shake-fixed-point}. It is important that the number of executions is
 bounded, otherwise the build system may not terminate (a legitimate concern
 with \LaTeX, which can be put into a situation where it is bistable or diverging
