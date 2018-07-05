@@ -125,26 +125,7 @@ Our model of cloud builds provides a basic framework to discuss and reason
 about them, but lacks a number of important engineering corners:
 
 \begin{description}
-\item[Eviction] The store of traces as shown grows indefinitely, but often
-resource constraints require evicting old items from the store. One option is
-to evict the contents and any trace that mentions the now-defunct
-\hs{Hash}~\hs{v}. However, if the build system can defer materialisation, it
-may be possible to only evict the contents, allowing builds to pass-through
-hashes of values where the underlying value is not known. If so, the build must
-be able to recreate the value if required, potentially dealing with a different
-result in a future run.
-
-% \item[Frankenbuilds] A build is considered a
-% \emph{frankenbuild}~\cite{esfahani2016cloudbuild} if a value is calculated
-% locally, but something that depends on that key is pulled from the cache, and
-% the value calculated locally does not match what was previously calculated and
-% stored in the cloud. \simon{Don't understand. The explanation in 4.2.4 is better -- and I think describes
-% the same thing?}
-% Our implementations avoid this issue by storing complete
-% traces, but if a cloud build system was to only reference input nodes this
-% situation can arise.
-
-\item[Communication] When traces or contents are stored in the cloud
+\item[Communication] When traces or contents are stored in the cloud,
 communication can become a bottleneck, so it is important to send only the
 minimum amount of information, optimising with respect to build system
 invariants. For example, incremental data processing systems in the cloud, such
@@ -155,13 +136,21 @@ possible for the cloud to also contain dedicated workers that can execute tasks
 remotely~--~offloading some of the computation and potentially running vastly
 more commands in parallel.
 
-\item[Shallow builds] Sometimes input files will involve many intermediate tasks
-before producing the end result, e.g. an installer package. These intermediate
-steps may be large, so some cloud build systems are designed to build end
-products \emph{without} downloading or \emph{materialising} the results of
-intermediate tasks~--~only the final result~--~a so-called \emph{shallow build}.
-Some build systems can go even further, integrating with the file system to only
-materialise the file when the user accesses it \cite{gvfs}.
+\item[Eviction] The cloud storage, as modelled
+in~\S\ref{sec-constructive-traces}, grows indefinitely, but often resource
+constraints require evicting old items from the store. When evicting an old
+value \hs{v}, one can also evict all traces mentioning the now-defunct
+\hs{hash}~\hs{v}. However, for shallow builds (see below), it is beneficial to
+keep these traces, allowing builds to ``pass-through'' hashes whose underlying
+values are not known, recreating them only when they must be materialised.
+
+\item[Shallow builds] Building the end result, e.g. an installer package, often
+involves many intermediate tasks. The intermediate results may be large, so some
+cloud build systems are designed to build end products \emph{without
+materialising} intermediate results, producing a so-called \emph{shallow build}
+(see an example in~\S\ref{sec-background-bazel}). Some build systems can go even
+further, integrating with the file system to only materialise the file when the
+user accesses it \cite{gvfs}.
 \end{description}
 
 To legitimise shallow builds, we need to relax the correctness
