@@ -212,14 +212,15 @@ special case of $n = \infty$, and constructive traces are the special case of
 $n = 1$.
 
 The deep constructive trace approach only works if the operations are
-\emph{deterministic}, otherwise it is possible to violate correctness resulting
-in a so-called ``Frankenbuild''~\cite{esfahani2016cloudbuild}. Concretely, if
+\emph{deterministic}, otherwise it is possible to violate correctness.
+Concretely, if
 the result of building a key given a set of immediate dependencies can vary,
 then it is possible that key \hs{k} will have been computed locally, but
 something \emph{using} \hs{k} will have been taken as a constructive input using
 a different value for \hs{k}. If another rule combines those two values then two
 different values of \hs{k} will have been used in one rule, leading to problems
-such as link-errors for typical compilers.
+such as link-errors for typical compilers -- a phenomenon known as a
+\emph{Frankenbuild}~\cite{esfahani2016cloudbuild}.
 
 A downside of deep constructive traces is that they cannot support cutoff
 (\S\ref{sec-background-shake}), other than at the $n$ levels of dependencies. On
