@@ -45,23 +45,24 @@ dependencies.
 \vspace{-2mm}
 \subsubsection{Restarting}\label{sec-restarting}
 
-To handle dynamic dependencies we can use the following speculative approach:
-build tasks in an arbitrary order, discovering their dependencies on the fly;
+To handle dynamic dependencies we can use the following approach:
+build tasks in an arbitrary initial order, discovering their dependencies on the fly;
 whenever a task calls \hs{fetch} on an out-of-date key \hs{dep}, abort the task,
 and switch to building the dependency \hs{dep}; eventually the previously
 aborted task is restarted and makes further progress thanks to \hs{dep} now
-being up to date. When a build completes, we can record the resulting order,
-using it as a starting point for the next build and fixing it up if a task's
-dependencies have changed, as \Excel does.
-
+being up to date.
 This approach requires a way to abort tasks that have failed due to out-of-date
 dependencies. It is also not minimal in the sense that a task may start, do some
 meaningful work, and then abort.
 
-\Bazel's restarting scheduler does not store the discovered order between build
-runs; instead, it stores the most recent task dependency information. Since this
-information may become outdated, \Bazel may also need to abort a task if a
-newly discovered dependency is out-of-date.
+To reduce the number of aborts (often to zero) Excel records the
+discovered task order in its \emph{calc chain}, and uses it as the
+starting point for the next build (\S\ref{sec-background-excel}).
+\Bazel's restarting scheduler does not store the discovered order
+between build runs; instead, it stores the most recent task dependency
+information. Since this information may become outdated, \Bazel may
+also need to abort a task if a newly discovered dependency is
+out-of-date.
 
 \vspace{-2mm}
 \subsubsection{Suspending}\label{sec-suspending}
@@ -92,19 +93,20 @@ The idea of a dirty bit is to have one piece of persistent information per key,
 saying whether the key is \emph{dirty} or \emph{clean}. After a build, all bits
 are set to clean. When the next build starts, anything that changed between the
 two builds is marked dirty. If a key and all its transitive dependencies are
-clean, the key does not need to be rebuild.
+clean, the key does not need to be rebuilt.
 
 \Excel models the dirty bit approach most directly, having an actual dirty bit
-associated with each cell, marking the cell dirty if the user modifies it, and
-also making sure all cells that depend on it are recursively marked dirty too.
-To mark dependent cells dirty, it is necessary to statically know task
-dependencies. This is possible only for applicative tasks (see \S\ref{sec-deps}).
-For monadic tasks, \Excel computes a \emph{static approximation} of task
-dependencies: for functions such as \cmd{IF}, the approximation includes all
-cells that are mentioned in the formula (the \cmd{IF}'s condition and both
-branches), whereas functions such as \cmd{INDIRECT} whose dependencies cannot be
-guessed, are conservatively assumed to depend on all cells and are therefore
-always marked dirty.
+associated with each cell, marking the cell dirty if the user modifies it.
+It also marks dirty all cells that depend (transitively) on the modified cell.
+Excel does not record the dynamic dependencies of each cell,
+so instead it computes a \emph{static over-approximation} -- it is always
+safe for it to make more cells dirty than is strictly necessary, but not
+vice versa.  The over-approximation is as follows: a cell is marked dirty
+if its formula statically refers to a dirty cell, or if
+the formula calls a function like \cmd{INDIRECT} whose dependencies cannot be
+guessed from the formula alone.  The over-approximation is clear for \cmd{INDIRECT},
+but it is also present for \cmd{IF}, where both branches are followed even though
+dynamically only one is used.
 
 \Make uses file modification times, and compares files to their dependencies,
 which can be thought of as a dirty bit which is set when a file is older than
