@@ -74,7 +74,7 @@ topological rebuilder tasks target = execState $ mapM_ build order
                 fetch :: k -> State i v
                 fetch k = return (getValue k store)
             newValue <- liftStore (run newTask fetch)
-            modify $ updateValue key value newValue
+            modify $ putValue key newValue
     order = case topSort (graph deps target) of
         Nothing -> error "Cannot build tasks with cyclic dependencies"
         Just xs -> xs
