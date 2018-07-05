@@ -10,9 +10,12 @@ getInfo    :: Store i k v -> i
 putInfo    :: i -> Store i k v -> Store i k v
 getValue   :: k -> Store i k v -> v
 putValue   :: Eq k => k -> v -> Store i k v -> Store i k v
-data Hash v
-getHash    :: Hashable v => k -> Store i k v -> Hash v
-hash       :: Hashable v => v -> Hash v -- provides a fast equality check
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+data Hash v -- a compact summary of a value with a fast equality check
+hash    :: Hashable v => v -> Hash v
+getHash :: Hashable v => k -> Store i k v -> Hash v
 \end{minted}
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}

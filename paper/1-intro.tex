@@ -15,9 +15,8 @@ object of study.
 
 In this paper we offer a general framework in which to understand and compare
 build systems, in a way that is both abstract (omitting incidental detail)
-and yet precise (implemented as Haskell code:
-\url{https://hackage.haskell.org/package/build-0.0.1.1}). Specifically we make
-these contributions:
+and yet precise (implemented as Haskell code). Specifically we make these
+contributions:
 \begin{itemize}
 \item Build systems vary on many axes, including: static vs dynamic
   dependencies; local vs cloud; deterministic vs non-deterministic build rules;
@@ -43,7 +42,8 @@ different to the others but, seen through the lens of this paper, it is very
 close indeed.}, each by the composition of the two design choices
 (\S\ref{sec-implementations}). Doing this modelling in a single setting
 allows the differences and similarities between these huge systems to be
-brought out clearly.
+brought out clearly\footnote{All our models are executable and are available on
+Hackage: \url{https://hackage.haskell.org/package/build-0.0.1.1}.}.
 
 \item Moreover, we can readily remix the ingredients to design new build systems
 with desired properties, for example, to combine the advantages of \Shake and
