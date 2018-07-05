@@ -114,7 +114,7 @@ A2: 20
 
 \noindent
 There are two input cells \cmd{A1} and \cmd{A2}, and a single task that computes
-the sum of their values, writing the result into the cell \cmd{B1}. If either of
+the sum of their values, producing the result in cell \cmd{B1}. If either of
 the inputs change, \Excel will recompute the result.
 
 Unlike \Make, \Excel does not need to know all task dependencies upfront. Indeed, some
@@ -132,11 +132,11 @@ A2: 20
 The formula in \cmd{B1} uses the \cmd{INDIRECT} function, which takes a string
 and returns the value of the cell with that name.  The string evaluates to
 \cmd{"A1"}, so \cmd{B1} evaluates to \cmd{10}. However, the dependencies of the
-formula in \cmd{B1} are determined by the value of \cmd{C1}, so there is no
-possibility\footnote{In this particular example one might say that the value of
+formula in \cmd{B1} are determined by the value of \cmd{C1}, so it is impossible
+to compute the dependency graph before the build starts\footnote{In
+this particular example one might say that the value of
 \cmd{C1} is statically known, but imagine that it is the result of a long
-computation chain -- its value will only become available during the build.}
-of computing the dependency graph before the build starts.
+computation chain -- its value will only become available during the build.}.
 
 To support dynamic dependencies, \Excel's calc engine~\cite{excel_recalc} is
 significantly different from \Make. \Excel arranges the cells into a linear
@@ -151,7 +151,7 @@ input value (or formula) is changed, \Excel uses the final calc chain from the
 changing an input value does not change dependencies, there are no aborts.
 Notice that build always succeeds regardless of the initial calc chain (barring
 truly circular dependencies); the calc chain is just an optimisation.
-We refer to this algorithm as \emph{restarting}, and will discuss it
+We refer to this algorithm as \emph{restarting}, and discuss it
 in more detail in~\S\ref{sec-implementation-excel}.
 
 Dynamic dependencies complicate minimality.  In the above example, \cmd{B1}
