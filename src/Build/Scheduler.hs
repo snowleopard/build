@@ -61,22 +61,24 @@ updateValue key _value newValue = putValue key newValue
 -- extracting all (static) dependencies upfront, and then traversing the graph
 -- in the topological order, rebuilding keys using the supplied rebuilder.
 topological :: forall i k v. Ord k => Scheduler Applicative i i k v
-topological rebuilder tasks target = execState $ forM_ order $ \key -> case tasks key of
-    Nothing -> return ()
-    Just task -> do
-        store <- get
-        let value = getValue key store
-            newTask :: Task (MonadState i) k v
-            newTask = rebuilder key value task
-            fetch :: k -> State i v
-            fetch k = return (getValue k store)
-        newValue <- liftStore (run newTask fetch)
-        modify $ updateValue key value newValue
+topological rebuilder tasks target = execState $ mapM_ build order
   where
-    deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
-    order  = case topSort (graph deps target) of
+    build :: k -> State (Store i k v) ()
+    build key = case tasks key of
+        Nothing -> return ()
+        Just task -> do
+            store <- get
+            let value = getValue key store
+                newTask :: Task (MonadState i) k v
+                newTask = rebuilder key value task
+                fetch :: k -> State i v
+                fetch k = return (getValue k store)
+            newValue <- liftStore (run newTask fetch)
+            modify $ updateValue key value newValue
+    order = case topSort (graph deps target) of
         Nothing -> error "Cannot build tasks with cyclic dependencies"
         Just xs -> xs
+    deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
 
 ---------------------------------- Restarting ----------------------------------
 -- | Convert a task with a total lookup function @k -> m v@ into a task
