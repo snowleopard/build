@@ -253,8 +253,10 @@ relations. The former is only required because \Excel inherently lacks the
 ability to write mutable state, and the latter is probably better solved using
 explicit recurrence formulae.
 
-Overall we choose not to deal with cyclic rules, a choice that most build
-systems also follow.
+Overall we choose not to deal with cyclic dependencies, a choice that most build
+systems also follow. There are computation frameworks that support tasks with
+cyclic dependencies under the assumption that tasks are \emph{monotonic} in a
+certain sense, e.g. see~\cite{pottier2009lazy} and~\cite{radul2009propagation}.
 
 \subsection{Polymorphism}\label{sec-polymorphism}
 
