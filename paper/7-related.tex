@@ -38,6 +38,11 @@ additionally allows cyclic build rules combined with a user-specific resolution
 strategy. Often such a strategy can be unfolded into the user rules without loss
 of precision, but a fully general resolution handler extends the \hs{Task}
 abstraction with additional features.
+
+\item \Dune~\cite{dune} is a build system designed for OCaml/Reason projects.
+Its distinguishing feature is that it uses
+\emph{arrows}~\cite{hughes2000generalising} rather than monads to model
+dynamic dependencies, which simplifies static dependency approximation.
 \end{itemize}
 
 The one build system we are aware of that cannot be modelled in our framework is
