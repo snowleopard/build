@@ -64,19 +64,24 @@ modTimeRebuilder key value task = Task $ \fetch -> do
 \begin{minted}[fontsize=\small]{haskell}
 -- A topological task scheduler
 topological :: Ord k => Scheduler Applicative i i k v
-topological rebuilder tasks target = execState $ forM_ order $ \key -> case tasks key of
-    Nothing   -> return ()
-    Just task -> do
-        store <- get
-        let newTask :: Task (MonadState i) k v
-            newTask = rebuilder key (getValue key store) task
-            fetch :: k -> State i v
-            fetch k = return (getValue k store)
-        newValue <- liftStore (run newTask fetch)
-        modify $ putValue key newValue
+topological rebuilder tasks target = execState $ mapM_ build order
   where
-    deps k = case tasks k of { Nothing -> [@@]; Just task -> dependencies task }
-    order  = fromJust $ topSort (reachable deps target) -- Assumes acyclic dependencies
+    build :: k -> State (Store i k v) ()
+    build key = case tasks key of
+        Nothing -> return ()
+        Just task -> do
+            store <- get
+            let value = getValue key store
+                newTask :: Task (MonadState i) k v
+                newTask = rebuilder key value task
+                fetch :: k -> State i v
+                fetch k = return (getValue k store)
+            newValue <- liftStore (run newTask fetch)
+            modify $ updateValue key value newValue
+    order = case topSort (graph deps target) of
+        Nothing -> error "Cannot build tasks with cyclic dependencies"
+        Just xs -> xs
+    deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
 \end{minted}
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
@@ -131,11 +136,8 @@ the new modification time of the \hs{key}\footnote{The real \Make
 relies on the file system to track modification times, but we prefer
 to make it explicit here.}; otherwise we can just return the current \hs{value}.
 
-\simon{topological is hard to read because of the execState and forM stuff.
-  Could we have a local defn, with a type signature, for the $\lambda key. blah$?
-  If necessary we could omit the code for liftStore, leaving only its signature}
-\Make's scheduler, \hs{topological}, processes keys in a linear \hs{order} based on a
-topological sort of the statically known dependency graph
+\Make's scheduler, \hs{topological}, processes keys in a linear \hs{order} based
+on a topological sort of the statically known dependency graph
 (see~\S\ref{sec-parallelism} for parallel \Make). Our definition in
 Fig.~\ref{fig-make-implementation} is polymorphic with respect to the type of
 build information \hs{i} and is therefore compatible with any applicative
@@ -148,13 +150,13 @@ helper function \hs{liftStore} to fix the mismatch. The \hs{newTask} finds
 values of the \hs{key}'s dependencies via the \hs{fetch} callback, which is
 defined to directly read the \hs{store}.
 
-The \hs{where} clause corresponds to the pre-processing stage, which uses the
-function \hs{dependencies}, defined in~\S\ref{sec-deps}, to extract static
-dependencies from the provided applicative \hs{task}. We compute the linear
-processing \hs{order} by constructing the graph of keys \hs{reachable} from the
-\hs{target} via dependencies, and performing the topological sort of the result.
-We omit implementation of textbook graph algorithms
-\hs{reachable} and \hs{topSort}, e.g. see~\cite{cormen2001introduction}.
+The pre-processing stage uses the function \hs{dependencies}, defined
+in~\S\ref{sec-deps}, to extract static dependencies from the provided
+applicative \hs{task}. We compute the linear processing \hs{order} by
+constructing the graph of keys \hs{reachable} from the \hs{target} via
+dependencies, and performing the topological sort of the result. We omit
+implementation of textbook graph algorithms \hs{reachable} and \hs{topSort},
+e.g. see~\cite{cormen2001introduction}.
 
 Note that the function \hs{dependencies} can only be applied to applicative
 tasks, which restricts \Make to static dependencies, as reflected in the
