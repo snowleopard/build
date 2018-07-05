@@ -1,27 +1,3 @@
-# Refactoring
-
-
-topological' :: Ord k =>
-    (      k                        -- ^ Key to build @k@
-        -> Task c k v
-        -> State (Store i k v) ())
-    ) -> Build Applicative i k v
-
-recursive' :: Ord k =>
-    (      k                        -- ^ Key to build @k@
-        -> Task c k v
-        -> (k -> State (Store i k v) ())
-        -> State (Store i k v) ())
-    ) -> Build Applicative i k v
-
-
-reordering' :: forall i k v. Ord k => (k -> Task c k v
-                                        -> (k -> Bool)
-                                        -> State (Store i k v) Bool)
-                                  -> Build Monad (i, CalcChain k) k v
-
-
-
 # Meeting with Simon Marlow
 
 * Make:
@@ -174,16 +150,9 @@ change propagation performs well) and performs well with shallow changes
 
 From "A consistent semantics of self-adjusting computation" by Umut Acar et al.
 
-# Some old text
+# TODO:
 
-\begin{minted}[frame=single]{text}
-A1 = 10
-A2 = MIN(A1, 4)
-A3 = SQRT(A2)
-\end{minted}
+* Conclusions
+* Illustration for Frankenbuilds
+* Trade-off between restarting and suspending
 
-After performing the build, XXX computes \textsf{A2 = 4} and \textsf{A3 = 2}
-from the input cell \textsf{A1}. Now if the user changes the \textsf{A1} to 5,
-XXX will recompute both \textsf{A2 = 4}, which is necessary, but also
-\textsf{A3 = 2}, which is unnecessary since its only dependency (\textsf{A1})
-has not changed since the previous build.
