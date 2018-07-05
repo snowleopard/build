@@ -145,11 +145,11 @@ result in a future run.
 % traces, but if a cloud build system was to only reference input nodes this
 % situation can arise.
 
-\item[Communication] When traces or contents are stored on a central server
+\item[Communication] When traces or contents are stored in the cloud
 communication can become a bottleneck, so it is important to send only the
 minimum amount of information, optimising with respect to build system
 invariants. For example, incremental data processing systems in the cloud, such
-as \Reflow~\cite{reflow}, need to orchestrate terabytes of data.
+as \Reflow~\cite{reflow}, need to efficiently orchestrate terabytes of data.
 
 \item[Offloading] Once the cloud is storing build products and traces, it is
 possible for the cloud to also contain dedicated workers that can execute tasks
