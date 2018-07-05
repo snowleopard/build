@@ -9,22 +9,19 @@ abstractions~arise.
 \subsection{Other Build Systems}\label{sec-related-build}
 
 Most build systems, when viewed at the level we talk, can be captured with minor
-variations on the code presented in \S\ref{sec-implementations}. As some
-examples:
+variations on the code presented in \S\ref{sec-implementations}. Below we list
+some notable examples:
 
 \begin{itemize}
+\item \Dune~\cite{dune} is a build system designed for OCaml/Reason projects.
+Its distinguishing feature is that it uses
+\emph{arrows}~\cite{hughes2000generalising} rather than monads to model
+dynamic dependencies, which simplifies static dependency approximation.
+
 \item \Ninja~\cite{ninja} combines the \hs{topological} scheduler of \Make with
 the verifying traces of \Shake~--~our associated implementation provides such a
 combination. \Ninja~is also capable of modelling build rules that produce
 multiple results, a limited form of polymorphism \S\ref{sec-polymorphism}.
-
-\item \Tup~\cite{tup} functions much like \Make, but with a refined dirty-bit
-implementation that watches the file system for changes and can thus avoid
-rechecking the entire graph, and with automatic deleting of stale results.
-
-\item \Redo~\cite{redo-idea}\cite{grosskurth2007redo}\cite{redo} almost exactly
-matches \Shake at the level of detail given here, differing only on aspects like
-polymorphic dependencies~\S\ref{sec-polymorphism}.
 
 \item \Nix~\cite{dolstra2004nix} has coarse-grained dependencies, with precise
 hashing of dependencies and downloading of precomputed build products. We
@@ -39,10 +36,13 @@ strategy. Often such a strategy can be unfolded into the user rules without loss
 of precision, but a fully general resolution handler extends the \hs{Task}
 abstraction with additional features.
 
-\item \Dune~\cite{dune} is a build system designed for OCaml/Reason projects.
-Its distinguishing feature is that it uses
-\emph{arrows}~\cite{hughes2000generalising} rather than monads to model
-dynamic dependencies, which simplifies static dependency approximation.
+\item \Redo~\cite{redo-idea}\cite{grosskurth2007redo}\cite{redo} almost exactly
+matches \Shake at the level of detail given here, differing only on aspects like
+polymorphic dependencies~\S\ref{sec-polymorphism}.
+
+\item \Tup~\cite{tup} functions much like \Make, but with a refined dirty-bit
+implementation that watches the file system for changes and can thus avoid
+rechecking the entire graph, and with automatic deleting of stale results.
 \end{itemize}
 
 The one build system we are aware of that cannot be modelled in our framework is
@@ -118,11 +118,11 @@ We address elements of strings $a_i$ and $b_i$ by keys \hs{A}~$i$ and \hs{B}~$i$
 respectively, while the cost of a subproblem $d_{ij}$ is identified by
 \hs{D}~$i$~$j$.
 
-\begin{minted}[xleftmargin=10pt]{haskell}
-data Key = A Integer | B Integer | D Integer Integer deriving Ord
+\begin{minted}[xleftmargin=10pt, fontsize=\small]{haskell}
+data Key = A Integer | B Integer | D Integer Integer
 \end{minted}
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
+\vspace{0mm}
+\begin{minted}[xleftmargin=10pt, fontsize=\small]{haskell}
 editDistance :: Tasks Monad Key Integer
 editDistance (D i 0) = Just $ Task $ const $ pure i
 editDistance (D 0 j) = Just $ Task $ const $ pure j

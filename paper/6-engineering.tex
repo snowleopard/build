@@ -239,15 +239,14 @@ certain sense, e.g. see~\cite{pottier2009lazy} and~\cite{radul2009propagation}.
 \subsection{Polymorphism}\label{sec-polymorphism}
 
 Our build system abstraction assumes a \hs{k}/\hs{v} store, along with a build
-system that works directly on \hs{k} and \hs{v} values. However, certain build
+system that works directly on \hs{k} and \hs{v} values. However, some build
 systems provide greater flexibility, e.g. \Shake permits polymorphic keys and
-values, allowing types that are only stored in the \Shake information, and never
-persisted to the store.
+values, allowing types that are stored only in the \Shake's build information.
 
 As one example of richer key/value types, consider the version of
 \cmd{gcc}~--~for many builds it should be a dependency. In \Shake it is possible
 to define an \emph{oracle} rule as per~\cite{mitchell2012shake} whose value is
-the result of running \cmd{gcc --version} and which is volatile, making the
+the result of running \cmd{gcc -}\cmd{-version} and which is volatile, making the
 \cmd{gcc} version something that can be depended upon. Of course, provided the
 build can express volatile dependencies and supports cutoff, the version number
 could equally be written to a file and used in a similar way.
