@@ -77,17 +77,13 @@ another task is complete. This can be done with cheap green threads and blocking
 (the original approach of \Shake) or using continuation-passing style (what
 \Shake does currently).
 
-% An alternative approach to suspending a task is to abort
-% it and restart it again later, at the cost of doing additional work.
-
 \subsection{Determining out-of-date keys} \label{sec-out-of-date}
 
-Suppose the scheduler decides that that a key \hs{k} should be
-brought up to date.  The next question is: does any work need to be done,
-or is it already up to date?   Or, in a cloud-build system, do we have
-a cached copy of the value we need?
-These questions can be addressed in one of four
-fundamental ways, with a number of tweaks and variations within them.
+Suppose the scheduler decides that that a key should be brought up to date. The
+next question is: does any work need to be done, or is it already up to date?
+Or, in a cloud-build system, do we have a cached copy of the value we need?
+These questions can be addressed in one of four fundamental ways, with a number
+of tweaks and variations within them.
 
 \vspace{-2mm}
 \subsubsection{A dirty bit}\label{sec-dirty-bit}
@@ -95,58 +91,39 @@ fundamental ways, with a number of tweaks and variations within them.
 The idea of a dirty bit is to have one piece of persistent information per key,
 saying whether the key is \emph{dirty} or \emph{clean}. After a build, all bits
 are set to clean. When the next build starts, anything that changed between the
-two states is marked dirty.
-% ; and by marking additional things dirty/clean the build system can track
-% what needs to rebuild.
-If a key and all its transitive dependencies are clean, the key does not need
-to be rebuild.
+two builds is marked dirty. If a key and all its transitive dependencies are
+clean, the key does not need to be rebuild.
 
 \Excel models the dirty bit approach most directly, having an actual dirty bit
 associated with each cell, marking the cell dirty if the user modifies it, and
 also making sure all cells that depend on it are recursively marked dirty too.
-\simon{Not always (see make) and only possible if we have static dependencies
-  or have recorded dynamic dependencies.}
-When rebuilding, if a clean cell only depends on clean cells it is skipped,
-otherwise it is rebuilt. \simon{But if all the dependencies of a dirty cell
-  are marked dirty, we rebuild only dirty cells not clean ones, contradicting this statement.}
+To mark dependent cells dirty, it is necessary to statically know task
+dependencies. This is possible only for applicative tasks (see \S\ref{sec-deps}).
+For monadic tasks, \Excel computes a \emph{static approximation} of task
+dependencies: for functions such as \cmd{IF}, the approximation includes all
+cells that are mentioned in the formula (the \cmd{IF}'s condition and both
+branches), whereas functions such as \cmd{INDIRECT} whose dependencies cannot be
+guessed, are conservatively assumed to depend on all cells and are therefore
+always marked dirty.
 
-% AM: I didn't understand this bit, so commented it out.
-% The only wrinkle in this scheme is that \Excel supports
-% monadic tasks, and does not separately record the rebuilt, so it has
-% to approximate in this case.
-
-\Make uses file modification times, and compares files to their
-dependencies, which can be thought of as a dirty bit which is set when
-a file is newer than its dependencies. The interesting property of
-this dirty bit is that it is not under the control of \Make; rather it is
-existing file-system information that has been repurposed. In particular,
-modifying a file automatically clears its dirty bit, and
-automatically sets the dirty bit of the nodes depending on it. One
-thing \Make does require is that file timestamps only go forward in
-time -- something that can be violated by backup software. \simon{Also transitive dependencies
-  of dirty files are not made dirty.}
-
-When using a dirty bit, it is necessary to check all the dependencies of a key.
-For applicative build systems that list is easy to obtain, but for monadic
-build systems there is no general way to get all dependencies. Instead \Excel
-computes a \emph{static approximation} of the dependencies. For applicative
-tasks that approximation is correct. For functions such as \cmd{IF} it marks the
-cell dirty if \emph{any} potential dependency has changed, even on the untaken
-\cmd{IF} branch. For functions such as \cmd{INDIRECT} whose dependencies cannot
-be guessed, it conservatively assumes the dependencies have always changed.
+\Make uses file modification times, and compares files to their dependencies,
+which can be thought of as a dirty bit which is set when a file is older than
+its dependencies. The interesting property of this dirty bit is that it is not
+under the control of \Make; rather it is existing file-system information that
+has been repurposed. Modifying a file automatically clears its dirty bit, and
+automatically sets the dirty bit of the files depending on it (but not
+recursively). Note that \Make requires that file timestamps only go forward in
+time, which can be violated by backup software.
 
 With a dirty bit it is simple to achieve minimality. However, to achieve early
-cutoff (\S\ref{sec-background-shake}) it would be important to not set the dirty
-bit after a computation that did not change the value. \simon{And if we'd recursively
-made the transitive dependencies dirty, we could not do early cutoff.}
-\Excel could use this
-approach, but does not. \simon{It'd be tricky becase of setting dirtiness recursively.}
-In contrast, \Make cannot implement early cutoff nicely
--- to do so it would have to mark the key clean (so it would not rebuild in the next
-run) and at the same time not mark the keys that depend on it dirty -- an
-impossible task with only the ability to update to the latest modification time.
-\Make can approximate early cutoff by not modifying the result file, and not
-marking it clean, but then it will rerun in every subsequent build.
+cutoff (\S\ref{sec-background-shake}) it would be important to reset the dirty
+bit after a computation that did not change the value and make sure that cells
+that depend on it are not rebuilt unnecessarily. For \Excel, this is difficult
+because the dependent cells have already been recursively marked dirty. For
+\Make, it is impossible to mark a file clean and at the same time not mark the
+keys that depend on it dirty. \Make can approximate early cutoff by not
+modifying the result file, and not marking it clean, but then it will be rebuilt
+in every subsequent build.
 
 \vspace{-2mm}
 \subsubsection{Verifying traces}\label{sec-verifying-traces}
