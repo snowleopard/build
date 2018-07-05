@@ -42,7 +42,7 @@ polymorphic dependencies~\S\ref{sec-polymorphism}.
 
 \item \Tup~\cite{tup} functions much like \Make, but with a refined dirty-bit
 implementation that watches the file system for changes and can thus avoid
-rechecking the entire graph, and with automatic deleting of stale results.
+rechecking the entire graph. \Tup also automatically deletes stale results.
 \end{itemize}
 
 The one build system we are aware of that cannot be modelled in our framework is
@@ -147,6 +147,7 @@ Self-adjusting computation, memoization and build systems are inherently related
 topics, which poses the question of whether there is an underlying common
 abstraction waiting to be discovered.
 
+\begin{comment}
 \subsection{Profunctor Optics}\label{sec-related-optics}
 
 The definition of \hs{Task} is:
@@ -171,3 +172,4 @@ do. The properties of such optics are well studied, and the functions like
 Alas, we have been unable to remove the \hs{Maybe} used to encode whether a file
 is an input, without complicating other aspects of our definition. Furthermore,
 the \hs{Build} abstraction lacks any further such symmetry.
+\end{comment}
