@@ -160,25 +160,29 @@ exists} a \hs{result} which satisfies all requirements of the
 Definition~\ref{def-correct}, \emph{such that} \hs{shallow} agrees with the
 \hs{result} on all the input keys \hs{k}~$\in$~$I$:
 \[
-\hs{getValue}~\hs{k}~\hs{shallow}~\hs{==}~\hs{getValue}~\hs{k}~\hs{result}
+\hs{getValue}~\hs{k}~\hs{shallow}~\hs{==}~\hs{getValue}~\hs{k}~\hs{result}\text{,}
 \]
 and on the target \hs{key}:
 \[
-\hs{getValue}~\hs{key}~\hs{shallow}~\hs{==}~\hs{getValue}~\hs{key}~\hs{result}.
+\hs{getValue}~\hs{key}~\hs{shallow}~\hs{==}~\hs{getValue}~\hs{key}~\hs{result}\text{.}
 \]
 
 \noindent
 This relaxes the requirements on shallow builds by dropping the constraints on
 the \hs{shallow} store for all intermediate keys \hs{k}~$\in$~$O\setminus \{\hs{key}\}$.
 
-\subsection{Tracking and self-tracking}\label{sec-tracking-aspects}
+\subsection{Self-tracking}\label{sec-tracking-aspects}
 
-Some build systems, for example \Excel and \Ninja, are capable of recomputing a task if either its dependencies change, \emph{or} the rule itself changes. For example:
+Some build systems, for example \Excel and \Ninja, are capable of recomputing a
+task if either its dependencies change, \emph{or} the rule itself changes. For
+example:
 
+\vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{text}
 A1 = 20      B1 = A1 + A2
 A2 = 10
 \end{minted}
+\vspace{0.5mm}
 
 \noindent
 In \Excel the user can alter the value produced by \cmd{B1} by either editing
@@ -189,57 +193,43 @@ The implementation can be given very directly in a
 \hs{Tasks}~\hs{Monad}~--~concretely, first look up the formula, then interpret
 it:
 
-\begin{minted}{haskell}
+\vspace{0.5mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
 sprsh4 "B1" = Just $ Task $ \fetch -> do
     formula <- fetch "B1-formula"
     evalFormula fetch formula
 \end{minted}
-
-% It is not possible to
-% change dependencies based on the formula in a \hs{Tasks}~\hs{Applicative}, as
-% would be required, so instead the formula can be captured as a dependency
-% (but its value not used) and \emph{also} baked directly into the \hs{sprsh4}
-% function. \simon{Don't understand.}
-% \simon{I think you mean that you can find dependencies with executing the function,
-%   which seems quite difference from ``backing it into'' the Haskell code.}
+\vspace{0.5mm}
 
 \noindent
 The build systems that have precise self-tracking are all ones which use a
-\emph{non-embedded domain specific language} to describe computations.
-Those which make use of a full programming language, e.g. \Shake, are faced with
-the challenge of implementing equality on arbitrary task functions. For such
-build systems the incredibly pessimistic assumption of saying that any change to
-the build system potentially changes any build rule can often be used~--~the
-classic example being a makefile depending on itself.
+\emph{non-embedded domain specific language} to describe build tasks. Those
+which use a full programming language, e.g. \Shake, are faced with the challenge
+of implementing equality on arbitrary task functions. For such build systems the
+pessimistic assumption of saying that any change to the build system potentially
+changes any build rule can often be used~--~the classic example being a makefile
+depending on itself.
 
 \subsection{Iterative computations}\label{sec-iterative-compute}
 
 Some computations are best described not by a chain of acyclic dependencies,
-but by a loop~--~for example \LaTeX~requires repeated rebuilding until it
-reaches a fixed point~--~something that can be directly expressed in build
-systems, such as \Pluto~\cite{erdweg2015pluto}. Another example of cyclic
-computations is \Excel, where a cell can depend on itself, for example:
-
-\begin{minted}[xleftmargin=10pt]{text}
-A1 = A1 + 1
-\end{minted}
-
-In such cases \Excel will normally not execute anything, but if the
-``Iterative Calculations'' feature is enabled will execute the formula for a
-specified maximum number $N$ of times per calculation (where $N$ is a
-setting that defaults to 100).
+but by a loop. For example, \LaTeX~requires repeated rebuilding until it
+reaches a fixed point, which can be directly expressed in build systems, such as
+\Pluto~\cite{erdweg2015pluto}. Another example is \Excel, where a cell can
+depend on itself, for example: \cmd{A1 = A1 + 1}. In such cases \Excel will
+normally not execute anything, but if the ``Iterative Calculations'' feature is
+enabled will execute the formula for a specified maximum number $N$ of times per
+calculation (where $N$ is a setting that defaults to 100).
 
 For examples like \LaTeX~we consider the proper encoding to not be with circular
 tasks, but with a series of iterative steps, as described
 by~\citet{shake-fixed-point}. It is important that the number of executions is
 bounded, otherwise the build system may not terminate (a legitimate concern
 with \LaTeX, which can be put into a situation where it is bistable or diverging
-over multiple executions).
-
-The examples in \Excel tend to encode either mutable state, or recurrence
-relations. The former is only required because \Excel inherently lacks the
-ability to write mutable state, and the latter is probably better solved using
-explicit recurrence formulae.
+over multiple executions). The examples in \Excel tend to encode either mutable
+state, or recurrence relations. The former is only required because \Excel
+inherently lacks the ability to write mutable state, and the latter is probably
+better solved using explicit recurrence formulae.
 
 Overall we choose not to deal with cyclic dependencies, a choice that most build
 systems also follow. There are computation frameworks that support tasks with
