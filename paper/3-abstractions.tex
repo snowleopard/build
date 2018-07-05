@@ -301,11 +301,11 @@ task descriptions in a very interesting way:
 %TODO: Add a reference for Docker?
 \item \hs{Task}~\hs{Functor} is somewhat degenerate: the task description cannot
   even use the application operator \hs{<*>}, which limits dependencies to a
-  single linear chain, as e.g. in the Docker build system. It is interesting to
-  note that, when run on such a task description, the \hs{busy} build system
-  will build each key at most once, thus partially fulfilling the minimality
-  requirement~\ref{def-minimal}. Alas, it still has no mechanism to decide which
-  input keys changed since the previous build.
+  linear chain, as e.g. in Docker containers~\cite{docker}. It is
+  interesting to note that, when run on such a task description, the \hs{busy}
+  build system will build each key at most once, thus partially fulfilling the
+  minimality requirement~\ref{def-minimal}. Alas, it still has no mechanism to
+  decide which input keys changed since the previous build.
 \item \hs{Task}~\hs{Alternative}, \hs{Task}~\hs{MonadPlus} and their
   variants can be used for describing tasks with a certain type of
   non-determinism, as discussed in~\S\ref{sec-non-determinism}.
