@@ -61,13 +61,13 @@ result from a possible set. As an example, GHC when compiled using parallelism
 can change the order in which unique variables are obtained from the supply,
 producing different but semantically identical results.
 
-\item[Volatility] Some tasks are defined to change in every execution, for
-example \Excel provides a~``function'' \cmd{RANDBETWEEN} which produces a random
-number in a specified range~--~on each recalculation it is defined to change.
-Similarly, build systems like \Make and \Shake provide \emph{phony rules} which
-are also volatile. The main difference from non-deterministic tasks, is that
-volatile tasks cannot be cached. They are best handled by introducing a special
-key \cmd{RealWorld} whose value is changed between every run.
+\item[Volatility] Some tasks are defined to change in every build, e.g. \Excel
+provides a~``function'' \cmd{RANDBETWEEN} producing a fresh random number in a
+specified range on each recalculation. Similarly, build systems like \Make and
+\Shake provide volatile \emph{phony rules}. The main difference from
+non-deterministic tasks is that volatile tasks cannot be cached. They are best
+modelled as depending on a special key \cmd{RealWorld} whose value is changed
+in every build.
 \end{description}
 
 Interestingly, there is significant interplay between all three sources of
@@ -95,18 +95,17 @@ sprsh3 _   @\,@=@\,@Nothing
 \vspace{1mm}
 
 \noindent
-Handling such tasks is possible in our framework, but requires an adjustment of
-the correctness definition (\S\ref{sec-build-correctness}): instead of requiring
-that the result of recomputing the \hs{task} matches the value stored in the
-\hs{result}:
+Such tasks can be modelled in our framework by adjusting the correctness
+definition (\S\ref{sec-build-correctness}): instead of requiring that the
+\hs{result}ing value \emph{equals} the one obtained by recomputing the \hs{task}:
 \[
-\hs{getValue}~\hs{k}~\hs{result}~\hs{==}~\hs{compute}~\hs{task}~\hs{result}.
+\hs{getValue}~\hs{k}~\hs{result}~\hs{==}~\hs{compute}~\hs{task}~\hs{result}\text{,}
 \]
 \noindent
-we now require that \hs{result} contains \emph{one possible result of recomputing}
-the \hs{task}:
+we now require that \hs{result} contains \emph{one possible result of
+recomputing} the \hs{task}:
 \[
-\hs{getValue}~\hs{k}~\hs{result}~\hs{`elem`}~\hs{computeND}~\hs{task}~\hs{result}
+\hs{getValue}~\hs{k}~\hs{result}~\hs{`elem`}~\hs{computeND}~\hs{task}~\hs{result}\text{,}
 \]
 where
 \hs{computeND}~\hs{::}~\hs{Task}~\hs{MonadPlus}~\hs{k}~\hs{v}~\hs{->}~\hs{Store}~\hs{i}~\hs{k}~\hs{v}~\hs{->}~\hs{[@@v]}
