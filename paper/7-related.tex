@@ -59,6 +59,7 @@ gcc -c main.c
 gcc util.o main.o -o main.exe
 \end{minted}
 
+\noindent
 To achieve minimality, each separate command is traced at the OS-level, allowing
 \Fabricate to record a trace entry stating that \cmd{gcc -c util.c} reads from
 \cmd{util.c}. In future runs \Fabricate runs the script from start to finish,
@@ -163,7 +164,7 @@ Which looks tantalisingly close to the profunctor optics definition by
 type Optic p a b s t = p a b -> p s t
 \end{minted}
 \noindent
-provided we instantiate \hs{p}~\hs{a}~\hs{b} to something like
+Provided we instantiate \hs{p}~\hs{a}~\hs{b} to something like
 \hs{k}~\hs{->}~\hs{f}~\hs{v}~--~which many of the actual instances in that paper
 do. The properties of such optics are well studied, and the functions like
 \hs{dependencies} are very much based on observations from that field of work.

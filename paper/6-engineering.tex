@@ -202,7 +202,7 @@ The implementation can be given very directly in a
 it:
 
 \begin{minted}{haskell}
-sprsh5 "B1" = Just $ Task $ \fetch -> do
+sprsh4 "B1" = Just $ Task $ \fetch -> do
     formula <- fetch "B1-formula"
     evalFormula fetch formula
 \end{minted}
@@ -210,7 +210,7 @@ sprsh5 "B1" = Just $ Task $ \fetch -> do
 % It is not possible to
 % change dependencies based on the formula in a \hs{Tasks}~\hs{Applicative}, as
 % would be required, so instead the formula can be captured as a dependency
-% (but its value not used) and \emph{also} baked directly into the \hs{sprsh5}
+% (but its value not used) and \emph{also} baked directly into the \hs{sprsh4}
 % function. \simon{Don't understand.}
 % \simon{I think you mean that you can find dependencies with executing the function,
 %   which seems quite difference from ``backing it into'' the Haskell code.}

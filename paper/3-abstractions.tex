@@ -95,12 +95,13 @@ type    Tasks c k v = k -> Maybe (Task c k v)
 \end{minted}
 
 \noindent
+% Here \hs{c} stands for \emph{constraint}, such as \hs{Applicative} or \hs{Monad}.
 A \hs{Task} describes a single build task, while \hs{Tasks} associates a
 \hs{Task} to every non-input key; input keys are associated with
-\hs{Nothing}. The highly-abstracted type\footnote{Readers familiar with
-\emph{lenses} or \emph{profunctor optics} might recognise a familiar pattern.
-We discuss this in~\S\ref{sec-related-optics}.} \hs{Task} is best introduced by
-an example. Consider this \Excel spreadsheet:
+\hs{Nothing}. The highly-abstracted type\footnote{Readers
+familiar with \emph{lenses} or \emph{profunctor optics} might recognise a
+familiar pattern. We discuss this in~\S\ref{sec-related-optics}.} \hs{Task} is
+best introduced by an example. Consider this \Excel spreadsheet:
 
 \begin{minted}[xleftmargin=10pt]{text}
 A1: 10     B1: A1 + A2
@@ -110,32 +111,6 @@ A2: 20     B2: B1 * 2
 \noindent
 Here cell \cmd{A1} contains the value \cmd{10}, cell \cmd{B1} contains the
 formula \cmd{A1+A2}, etc.
-
-% \newpage
-
-\noindent
-We can represent the formulae of this spreadsheet with the following task
-description:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-sprsh1 :: Tasks Applicative String Integer
-sprsh1 "B1" = Just $ Task $ \fetch -> ((+)  <$> fetch "A1" <*> fetch "A2")
-sprsh1 "B2" = Just $ Task $ \fetch -> ((*2) <$> fetch "B1")
-sprsh1 _    = Nothing
-\end{minted}
-\vspace{1mm}
-
-\noindent
-We instantiate keys \hs{k} with \hs{String}, and values \hs{v} with \hs{Integer}.
-(Real spreadsheet cells would contain a wider range of values, of course.) The
-task description \hs{sprsh1} embodies all the \emph{formulae} of the spreadsheet,
-but not the input values. It pattern-matches on the key to see if it has a task
-description (in the \Excel case, a formula) for it. If not, it returns
-\hs{Nothing}, indicating that the key is an input. If there is a formula in the
-cell, it returns the \hs{Task} to compute the value of the formula. Every
-\hs{Task} is given a \emph{callback} \hs{fetch} to find the value of any keys on
-which it depends.
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -170,13 +145,37 @@ instance Functor (Const m) where
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 instance Monoid m => Applicative (Const m) where
-    pure _              = Const mempty
-    Const x <*> Const y = Const (x <> y)
+    pure _              = Const mempty   -- mempty is the identity of the monoid m
+    Const x <*> Const y = Const (x <> y) -- <> is the binary operation of the monoid m
 \end{minted}
 \vspace{-3mm}
 \caption{Standard library definitions.}\label{fig-stdlib}
 \vspace{-4mm}
 \end{figure}
+
+\noindent
+We can represent the formulae of this spreadsheet with the following task
+description:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+sprsh1 :: Tasks Applicative String Integer
+sprsh1 "B1" = Just $ Task $ \fetch -> ((+)  <$> fetch "A1" <*> fetch "A2")
+sprsh1 "B2" = Just $ Task $ \fetch -> ((*2) <$> fetch "B1")
+sprsh1 _    = Nothing
+\end{minted}
+\vspace{1mm}
+
+\noindent
+We instantiate keys \hs{k} with \hs{String}, and values \hs{v} with \hs{Integer}.
+(Real spreadsheet cells would contain a wider range of values, of course.) The
+task description \hs{sprsh1} embodies all the \emph{formulae} of the spreadsheet,
+but not the input values. It pattern-matches on the key to see if it has a task
+description (in the \Excel case, a formula) for it. If not, it returns
+\hs{Nothing}, indicating that the key is an input. If there is a formula in the
+cell, it returns the \hs{Task} to compute the value of the formula. Every
+\hs{Task} is given a \emph{callback} \hs{fetch} to find the value of any keys on
+which it depends.
 
 The code to ``compute the value of a formula'' in \hs{sprsh1} looks a bit
 mysterious because it takes place in an \hs{Applicative}
