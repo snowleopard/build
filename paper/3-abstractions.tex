@@ -95,7 +95,7 @@ type    Tasks c k v = k -> Maybe (Task c k v)
 \end{minted}
 
 \noindent
-% Here \hs{c} stands for \emph{constraint}, such as \hs{Applicative} or \hs{Monad}.
+Here \hs{c} stands for \emph{constraint}, such as \hs{Applicative} or \hs{Monad}.
 A \hs{Task} describes a single build task, while \hs{Tasks} associates a
 \hs{Task} to every non-input key; input keys are associated with
 \hs{Nothing}. The highly-abstracted type\footnote{Readers
