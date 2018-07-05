@@ -475,16 +475,6 @@ we need to convert a monadic \hs{ctRebuilder} into an applicative one by
 applying an adapter function \hs{adaptRebuilder}, which unwraps a given
 \hs{Task Applicative} and wraps it into \hs{Task Monad}.
 
-\simon{New subsection here? Or at least put this para after the next one.}
-Using the abstractions built thus far, we have shown how to combine schedulers
-with rebuilders to reproduce existing build systems. To us, the most interesting
-build system as yet unavailable would combine a suspending scheduler with
-constructive traces~--~providing a cloud-capable build system that is minimal,
-and supports both early cutoff and monadic dependencies. Using our framework it
-is possible to define and test such a system, which we call \Cloud \Shake. All
-we need to do is replace \hs{restarting2} with \hs{suspending} in the definition
-of \Bazel, as shown in Fig.~\ref{fig-cloud-implementations}.
-
 Our models of \Buck~\cite{buck} and \Nix~\cite{dolstra2004nix} use the
 \hs{dctRebuilder}, a rebuilder based on deep constructive traces
 (\S\ref{sec-deep-constructive-traces}), whose implementation we omit since it
@@ -496,12 +486,11 @@ can be downloaded by examining only the hashes of all transitive inputs,
 skipping the intermediate keys. The downside of this approach is the loss of the
 early cutoff property.
 
-% Some build systems allow to exploit \emph{build task determinism} for efficient
-% fetching of build results from the cache: one can simply hash the values of all
-% transitive inputs of a key (which can be done efficiently by storing all hashes
-% in a Merkle tree) and download the matching value from the cache, without the
-% need to build any intermediate values. This can bring significant performance
-% benefits in practice, but sacrifices the early cutoff property: indeed, with
-% this approach addition of a new comment to one of the source files will
-% invalidate all dependent keys.
-
+Using the abstractions built thus far, we have shown how to combine schedulers
+with rebuilders to reproduce existing build systems. To us, the most interesting
+build system as yet unavailable would combine a suspending scheduler with
+constructive traces~--~providing a cloud-capable build system that is minimal,
+and supports both early cutoff and monadic dependencies. Using our framework it
+is possible to define and test such a system, which we call \Cloud \Shake. All
+we need to do is replace \hs{restarting2} with \hs{suspending} in the definition
+of \Bazel, as shown in Fig.~\ref{fig-cloud-implementations}.
