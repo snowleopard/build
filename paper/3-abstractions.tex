@@ -10,6 +10,7 @@ getInfo    :: Store i k v -> i
 putInfo    :: i -> Store i k v -> Store i k v
 getValue   :: k -> Store i k v -> v
 putValue   :: Eq k => k -> v -> Store i k v -> Store i k v
+data Hash v
 getHash    :: Hashable v => k -> Store i k v -> Hash v
 hash       :: Hashable v => v -> Hash v -- provides a fast equality check
 \end{minted}
@@ -100,8 +101,9 @@ A \hs{Task} describes a single build task, while \hs{Tasks} associates a
 \hs{Task} to every non-input key; input keys are associated with
 \hs{Nothing}. The highly-abstracted type\footnote{Readers
 familiar with \emph{lenses} or \emph{profunctor optics} might recognise a
-familiar pattern. We discuss this in~\S\ref{sec-related-optics}.} \hs{Task} is
-best introduced by an example. Consider this \Excel spreadsheet:
+familiar pattern. We discuss this in~\S\ref{sec-related-optics}.} \hs{Task}
+describes how to build a value when given a way to build its dependencies, and is
+best explained by an example. Consider this \Excel spreadsheet:
 
 \begin{minted}[xleftmargin=10pt]{text}
 A1: 10     B1: A1 + A2
@@ -116,7 +118,7 @@ formula \cmd{A1+A2}, etc.
 \begin{minted}[fontsize=\small]{haskell}
 -- Applicative functors
 pure  :: Applicative f => a -> f a
-(<$>) :: Applicative f =>   (a -> b) -> f a -> f b -- Left-associative
+(<$>) :: Functor     f =>   (a -> b) -> f a -> f b -- Left-associative
 (<*>) :: Applicative f => f (a -> b) -> f a -> f b -- Left-associative
 \end{minted}
 \vspace{1mm}
@@ -391,7 +393,7 @@ any dependencies}:
 
 \begin{minted}[xleftmargin=5pt]{haskell}
 compute :: Task Monad k v -> Store i k v -> v
-compute task store = runIdentity $ run task (\k -> Identity (getValue k store))
+compute task store = runIdentity $ run task (\k -> return (getValue k store))
 \end{minted}
 
 \noindent
@@ -400,11 +402,8 @@ we can use the standard Haskell \hs{Identity} monad (Fig.~\ref{fig-stdlib}).
 The use of \hs{Identity} just fixes the `impedance mismatch' between the
 function \hs{getValue}, which returns a pure value~\hs{v}, and the \hs{fetch}
 argument of the \hs{task}, which must return an \hs{f}~\hs{v} for some \hs{f}.
-To fix the mismatch, we wrap the result of \hs{getValue} in the \hs{Identity}
-monad: the function
-\hs{\@@k}~\hs{->}~\hs{Identity}~\hs{(@@getValue}~\hs{k}~\hs{store)} has the type
-\hs{k}~\hs{->}~\hs{Identity}~\hs{v}, and can now be passed to a \hs{task}. The
-result comes as \hs{Identity}~\hs{v}, which we unwrap by \hs{runIdentity}.
+To fix the mismatch, we unwrap using the function \hs{runIdentity} of type \hs{Identity}~\hs{a}~\hs{->}~\hs{a},
+which both forces the monad to \hs{Identity} and strips it away.
 
 \vspace{-1mm}
 \definition[Correctness]{Suppose \hs{build} is a build system, \hs{tasks} is a
@@ -490,7 +489,7 @@ The \hs{fetch} callback that we pass to \hs{task} records a single dependency;
 and the standard definition of \hs{Applicative} for \hs{Const} (which we give
 in Fig.~\ref{fig-stdlib}) combines the dependencies from different parts of the
 task. Running the task with \hs{f}~=~\hs{Const}~\hs{[@@k]} will thus
-accumulate a list of the task's dependencies -- and that is just what
+accumulate a list of the task's dependencies -- and that is what
 \hs{dependencies} does:
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -544,8 +543,8 @@ transformer}~\cite{liang1995monad}, which allows us to record additional
 information -- a list of key/value pairs \hs{[(@@k,}~\hs{v)]} -- when computing
 a task in an arbitrary monad~\hs{m}. We substitute the given \hs{fetch} with a
 \hs{trackingFetch} that, in addition to fetching a value, tracks the
-corresponding key/value pair. The \hs{task} returns the value of type
-\hs{WriterT}~\hs{[(@@k,}~\hs{v)]}~\hs{m}~\hs{v}, which we unwrap by
+corresponding key/value pair. The \hs{task} returns a value of type
+\hs{WriterT}~\hs{[(@@k,}~\hs{v)]}~\hs{m}~\hs{v}, which we unwrap with
 \hs{runWriterT}. We will use \hs{track} when implementing monadic build systems
 with dynamic dependencies, see~\S\ref{sec-implementation-shake}. Here we show an
 example of \hs{track}ing monadic tasks when \hs{m}~\hs{=}~\hs{IO}.
