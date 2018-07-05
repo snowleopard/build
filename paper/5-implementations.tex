@@ -78,14 +78,14 @@ topological rebuilder tasks target = execState $ mapM_ build order
                 fetch k = return (getValue k store)
             newValue <- liftStore (run newTask fetch)
             modify $ putValue key newValue
-    order = topSort (graph deps target)
-    deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
+    order = topSort (graph dep target)
+    dep k = case tasks k of { Nothing -> []; Just task -> dependencies task }
 \end{minted}
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Standard graph algorithms (implementation omitted)
 reachable :: Ord k => (k -> [k]) -> k -> Graph k
-topSort   :: Ord k => Graph k -> Maybe [k] -- Throws error on a cyclic graph
+topSort   :: Ord k => Graph k -> [k] -- Throws error on a cyclic graph
 \end{minted}
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
