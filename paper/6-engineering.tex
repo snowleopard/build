@@ -196,7 +196,8 @@ and record deep constructive traces in the cloud, (b)~clean built files locally
 and evict \cmd{main.prof} from the cloud storage, (c)~rebuild \cmd{main.prof} by
 executing the build task (profiling is non-deterministic, hence the new hash),
 rebuild \cmd{report.txt} by downloading it from the cloud, resulting in a
-Frankenbuild. New and evicted cloud storage entries are highlighted.
+Frankenbuild because \cmd{report.txt} and \cmd{main.prof} are inconsistent.
+New and evicted cloud storage entries are highlighted.
 \label{fig-frankenbuild}}
 \vspace{-3mm}
 \end{figure}
