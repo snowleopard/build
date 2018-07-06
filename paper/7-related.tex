@@ -113,11 +113,12 @@ $b$, find the shortest series of edit operations that transforms $a$
 to $b$. The edit operations are typically \emph{inserting}, \emph{deleting} or
 \emph{replacing} a symbol. The dynamic programming solution of this problem is
 so widely known (e.g., see~\cite{cormen2001introduction}) that we provide its
-encoding in our \hs{Task} abstraction without further explanation.
-We address elements of strings $a_i$ and $b_i$ by keys \hs{A}~$i$ and \hs{B}~$i$,
+encoding in our \hs{Tasks} abstraction without further explanation. We address
+elements of strings $a_i$ and $b_i$ by keys \hs{A}~$i$ and \hs{B}~$i$,
 respectively, while the cost of a subproblem $c_{ij}$ is identified by
 \hs{C}~$i$~$j$.
 
+\vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt, fontsize=\small]{haskell}
 data Key = A Int | B Int | C Int Int deriving Eq
 \end{minted}
@@ -137,6 +138,7 @@ editDistance (C i j) = Just $ Task $ \fetch -> do
                 return (1 + minimum [insert, delete, replace])
 editDistance _ = Nothing
 \end{minted}
+\vspace{0.5mm}
 
 \noindent
 When asked to build \hs{C}~$n$~$m$, a minimal build system will calculate the
