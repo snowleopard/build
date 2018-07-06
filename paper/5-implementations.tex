@@ -306,26 +306,24 @@ vtRebuilder key value task = Task $ \fetch -> do
 suspending :: Ord k => Scheduler Monad i i k v
 suspending rebuilder tasks target store = fst $ execState (build target) (store, Set.empty)
   where
-    build :: k -> State (Store i k v, Set k) (@@)
-    build key = case tasks key of
-        Nothing -> return (@@)
-        Just task -> do
-            done <- gets snd
-            when (key `Set.notMember` done) $ do
+    build :: k -> State (Store i k v, Set k) v
+    build key = do
+        done <- gets snd
+        case tasks key of
+            Just task | key `Set.notMember` done -> do
                 value <- gets (getValue key . fst)
                 let newTask :: Task (MonadState i) k v
                     newTask = rebuilder key value task
-                    fetch :: k -> StateT i (State (Store i k v, Set k)) v
-                    fetch k = do lift (build k)                      -- build the key
-                                 lift (gets (getInfo . fst)) >>= put -- save new traces
-                                 lift (gets (getValue k . fst))      -- fetch the value
-                newValue <- flattenInfo (run newTask fetch)
-                modify $ \(s, d) -> (putValue key newValue s, Set.insert key d)
+                newValue <- liftRun newTask build
+                modify $ \(s, d) -> (updateValue key value newValue s, Set.insert key d)
+                return newValue
+            _ -> gets (getValue key . fst) -- fetch the existing value
 \end{minted}
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Collapse two layers of stateful computations into one (implementation omitted)
-flattenInfo :: StateT i (State (Store i k v, Set k)) a -> State (Store i k v, Set k) a
+-- Run a Task using Store to obtain the i
+liftRun :: Task (MonadState i) k v
+        -> (k -> State (Store i k v, Set k) v) -> State (Store i k v, Set k) v
 \end{minted}
 \vspace{-3mm}
 \caption{An implementation of \Shake using our framework.}\label{fig-shake-implementation}
@@ -360,12 +358,11 @@ performs the following three steps when given a dependency \hs{k}:
 \end{itemize}
 
 These steps are run in the
-\hs{StateT}~\hs{i}~\hs{(@@State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k))}
-monad, because the \hs{newTask} has access only to the~\hs{i} part of the state;
-we therefore need to use \hs{lift} when executing commands in the inner
-\hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k)} monad.
-We use the helper function \hs{flattenInfo} to collapse two layers of stateful
-computations into one. The \hs{newValue} obtained by running the \hs{newTask} is
+\hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k)}
+monad. To make \hs{MonadState}~\hs{i} access the \hs{i} inside the \hs{Store}
+we use the helper function \hs{liftRun} (which uses a \hs{newtype} to provide a \hs{MonadState}
+instance that sees through into the \hs{Store}).
+The \hs{newValue} obtained by running the \hs{newTask} is
 stored, and the \hs{key} is added to the set \hs{done}.
 
 \subsection{Cloud build systems: \Bazel, \CloudBuild, \Cloud \Shake, \Buck and \Nix}\label{sec-implementation-cloud}
