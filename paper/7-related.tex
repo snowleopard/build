@@ -149,30 +149,3 @@ that cannot be achieved just with memoization.
 Self-adjusting computation, memoization and build systems are inherently related
 topics, which poses the question of whether there is an underlying common
 abstraction waiting to be discovered.
-
-\begin{comment}
-\subsection{Profunctor Optics}\label{sec-related-optics}
-
-The definition of \hs{Task} is:
-
-\begin{minted}[xleftmargin=10pt]{haskell}
-newtype Task c k v = Task { run :: @\std{forall}@ f. c f => (k -> f v) -> f v }
-\end{minted}
-
-\noindent
-Which looks tantalisingly close to the profunctor optics definition by
-\cite{pickering2017profunctor}:
-
-%TODO: Add a reference to the paper about forall f. c f => (k -> f v) -> f a
-\begin{minted}[xleftmargin=10pt]{haskell}
-type Optic p a b s t = p a b -> p s t
-\end{minted}
-\noindent
-Provided we instantiate \hs{p}~\hs{a}~\hs{b} to something like
-\hs{k}~\hs{->}~\hs{f}~\hs{v}~--~which many of the actual instances in that paper
-do. The properties of such optics are well studied, and the functions like
-\hs{dependencies} are very much based on observations from that field of work.
-Alas, we have been unable to remove the \hs{Maybe} used to encode whether a file
-is an input, without complicating other aspects of our definition. Furthermore,
-the \hs{Build} abstraction lacks any further such symmetry.
-\end{comment}

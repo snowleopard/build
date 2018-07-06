@@ -318,20 +318,6 @@ task descriptions in a very interesting way:
   access to the persistently stored build information~\hs{i}.
 \end{itemize}
 
-% TODO: Shall we describe the lifTask and liftTasks combinators? They aren't pretty.
-%
-%   liftTask :: Task Applicative k v -> Task Monad k v
-%   liftTask (Task task) = Task task
-%
-%   liftTasks :: Tasks Applicative k v -> Tasks Monad k v
-%   liftTasks = fmap (fmap liftTask)
-%
-% Notice also that, even though \hs{busy} takes a \hs{Task}~\hs{Monad} as its
-% argument, an application of \hs{busy} to a \hs{Task}~\hs{Functor} or
-% a \hs{Task}~\hs{Applicative} will typecheck and run just fine. It feels a bit like
-% sub-typing, but is actually just ordinary higher-rank polymorphism at
-% work~\cite{jones2007practical}.
-
 \vspace{-0.5mm}
 \subsection{Monadic tasks}\label{sec-task-monad}
 
@@ -395,7 +381,7 @@ any dependencies}:
 
 \begin{minted}[xleftmargin=5pt]{haskell}
 compute :: Task Monad k v -> Store i k v -> v
-compute task store = runIdentity $ run task (\k -> Identity (getValue k store))
+compute task store = runIdentity $ run task (\k -> Identity@\,@(getValue k store))
 \end{minted}
 
 \noindent
@@ -410,7 +396,8 @@ monad: the function
 \hs{k}~\hs{->}~\hs{Identity}~\hs{v}, and can now be passed to a \hs{task}. The
 result has type \hs{Identity}~\hs{v}, which we unwrap with \hs{runIdentity}.
 
-% To fix the mismatch, we unwrap using the function \hs{runIdentity} of type \hs{Identity}~\hs{a}~\hs{->}~\hs{a},
+% To fix the mismatch, we unwrap using the function \hs{runIdentity} of type
+% \hs{Identity}~\hs{a}~\hs{->}~\hs{a},
 % which both forces the monad to \hs{Identity} and strips it away.
 
 \vspace{-1mm}
@@ -445,7 +432,6 @@ The build \hs{result} is~\emph{correct} if the following two conditions hold:
     \]
     In other words, no inputs were corrupted during the
     build.
-    %\footnote{\todo{SLPJ}{Add the joke that GHC used to delete inputs?}}.
 
     \item The \hs{result} is \emph{consistent} with the \hs{tasks}, i.e.
     for all non-input keys \hs{k}~$\in$~$O$, the result of recomputing the
