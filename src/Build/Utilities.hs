@@ -4,7 +4,7 @@ module Build.Utilities (
     graph, reachable, topSort, reach, reachM,
 
     -- * Logic combinators
-    forall, forallM, exists, existsM, (==>)
+    forall
     ) where
 
 import Algebra.Graph
@@ -55,22 +55,4 @@ reachM successors a = fmap (filter (/= a)) <$> go [] a
 
 -- | Check that a predicate holds for all values of @a@.
 forall :: (a -> Bool) -> Bool
-forall = undefined
-
--- | Check that a monadic predicate holds for all values of @a@.
-forallM :: (a -> m Bool) -> m Bool
-forallM = undefined
-
--- | Check that a predicate holds for some value of @a@.
-exists :: (a -> Bool) -> Bool
-exists = undefined
-
--- | Check that a monadic predicate holds for some value of @a@.
-existsM :: (a -> m Bool) -> m Bool
-existsM = undefined
-
--- | Logical implication.
-(==>) :: Bool -> Bool -> Bool
-x ==> y = not x || y
-
-infixr 0 ==>
+forall = error "This combinator is used only for type checking"
