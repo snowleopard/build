@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 
--- | A Typed version of dependencies where the value type depends on the key.
+-- | A model of polymorphic tasks, where the value type depends on the key.
 -- See the source for an example.
 module Build.Task.Typed (Task, Key (..), showDependencies) where
 

@@ -1,6 +1,5 @@
--- | Given a build system that can work with single keys, generalise that to one
--- that deals with multiple keys at a time.
-module Build.Multi (multi) where
+-- | Support for multiple-output tasks.
+module Build.Multi (Partition, multi) where
 
 import Data.Maybe
 import Build.Task
@@ -13,8 +12,8 @@ import Build.Task
 -- * @forall i \in ks . f i == ks@
 type Partition k = k -> [k]
 
--- | Given a build rule where you can build some combinations of multiple rules,
--- use a partition to enable building lots of multiple rule subsets.
+-- | Given a task description with individual multiple-output keys, compute its
+-- "closure" supporting all possible combinations of keys.
 multi :: Eq k => Partition k -> Tasks Applicative [k] [v] -> Tasks Applicative [k] [v]
 multi partition tasks keys
     | k:_ <- keys, partition k == keys = tasks keys
