@@ -119,7 +119,7 @@ respectively, while the cost of a subproblem $c_{ij}$ is identified by
 \hs{C}~$i$~$j$.
 
 \begin{minted}[xleftmargin=10pt, fontsize=\small]{haskell}
-data Key = A Int | B Int | C Int Int
+data Key = A Int | B Int | C Int Int deriving Eq
 \end{minted}
 \vspace{0mm}
 \begin{minted}[xleftmargin=10pt, fontsize=\small]{haskell}

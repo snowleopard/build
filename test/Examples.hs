@@ -111,7 +111,7 @@ staticIF _ _    = Nothing
 
 -------------------------- Dynamic programming example -------------------------
 
-data Key = A Int | B Int | C Int Int
+data Key = A Int | B Int | C Int Int deriving Eq
 
 editDistance :: Tasks Monad Key Int
 editDistance (C i 0) = Just $ Task $ const $ pure i
