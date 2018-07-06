@@ -1,23 +1,18 @@
 \documentclass[acmsmall,screen]{acmart}\settopmatter{}
 
-%%% If you see 'ACMUNKNOWN' in the 'setcopyright' statement below,
-%%% please first submit your publishing-rights agreement with ACM (follow link on submission page).
-%%% Then please update our instructions page and copy-and-paste the NEW commands into your article.
-%%% Please contact us in case of questions; allow up to 10 min for the system to propagate the information.
-%%%
 %%% The following is specific to ICFP'18 and the paper
 %%% 'Build Systems à la Carte'
 %%% by Andrey Mokhov, Neil Mitchell, and Simon Peyton Jones.
 %%%
-\setcopyright{acmlicensed} %ACMUNKNOWN
+\setcopyright{rightsretained}
 \acmPrice{}
-\acmDOI{10.1145/3234602}
+\acmDOI{10.1145/3236774}
 \acmYear{2018}
 \copyrightyear{2018}
 \acmJournal{PACMPL}
 \acmVolume{2}
 \acmNumber{ICFP}
-\acmArticle{13}
+\acmArticle{79}
 \acmMonth{9}
 
 \bibliographystyle{ACM-Reference-Format}
@@ -68,14 +63,10 @@
 \newcommand{\storef}{\hs{k}~\hs{->}~\hs{f}~\hs{v}\xspace}
 
 % \newcommand{\simon}[1]{}
-\newcommand{\simon}[1]{SLPJ: {\color{red} \em #1} End SLPJ}
+% \newcommand{\simon}[1]{SLPJ: {\color{red} \em #1} End SLPJ}
 
 \begin{document}
-
-%% [Short title] Title
 \title[Build Systems \`a la Carte]{Build Systems \`a la Carte}
-% \titlenote{with title note}
-% \subtitlenote{with subtitle note}
 
 %% An author may have multiple affiliations and/or emails; repeat the
 %% appropriate command.
@@ -106,10 +97,9 @@
 \email{simonpj@microsoft.com}
 
 \begin{abstract}
-Build systems are awesome, terrifying -- and unloved. They are used by
-every developer
-around the world, but are rarely the object of study. In this paper we offer a
-systematic, and executable, framework for developing and comparing build
+Build systems are awesome, terrifying -- and unloved. They are used by every
+developer around the world, but are rarely the object of study. In this paper we
+offer a systematic, and executable, framework for developing and comparing build
 systems, viewing them as related points in landscape rather than as isolated
 phenomena. By teasing apart existing build systems, we can recombine their
 components, allowing us to prototype new build systems with desired properties.
