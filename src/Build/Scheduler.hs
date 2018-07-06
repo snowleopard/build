@@ -179,20 +179,18 @@ restarting2 rebuilder tasks target = execState $ go (enqueue target [] mempty)
 suspending :: forall i k v. Ord k => Scheduler Monad i i k v
 suspending rebuilder tasks target store = fst $ execState (build target) (store, Set.empty)
   where
-    build :: k -> State (Store i k v, Set k) ()
-    build key = case tasks key of
-        Nothing -> return ()
-        Just task -> do
-            done <- gets snd
-            when (key `Set.notMember` done) $ do
+    build :: k -> State (Store i k v, Set k) v
+    build key = do
+        done <- gets snd
+        case tasks key of
+            Just task | key `Set.notMember` done -> do
                 value <- gets (getValue key . fst)
                 let newTask :: Task (MonadState i) k v
                     newTask = rebuilder key value task
-                    fetch :: k -> State (Store i k v, Set k) v
-                    fetch k = do build k                      -- build the key
-                                 gets (getValue k . fst)      -- fetch the value
-                newValue <- liftRun newTask fetch
+                newValue <- liftRun newTask build
                 modify $ \(s, d) -> (updateValue key value newValue s, Set.insert key d)
+                return newValue
+            _ -> gets (getValue key . fst) -- fetch the existing value
 
 
 newtype Wrap i k v a = Wrap {unwrap :: State (Store i k v, Set k) a}
