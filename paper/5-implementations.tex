@@ -95,7 +95,7 @@ liftStore x = do (a, newInfo) <- gets (runState x . getInfo)
                  modify (putInfo newInfo)
                  return a
 \end{minted}
-\vspace{-3mm}
+\vspace{-1mm}
 \caption{An implementation of \Make using our framework.}\label{fig-make-implementation}
 \vspace{-3mm}
 \end{figure}
@@ -238,9 +238,7 @@ try task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
 -- Expand the scope of visibility of a stateful computation (implementation omitted)
 liftChain :: State (Store ir k v) a -> State (Store (ir, Chain [k]) k v) a
 \end{minted}
-\vspace{-3mm}
 \caption{An implementation of \Excel using our framework.}\label{fig-excel-implementation}
-\vspace{-5mm}
 \end{figure}
 
 \Excel's \hs{restarting} scheduler processes keys in the order specified by the
@@ -274,9 +272,7 @@ monad transformer \hs{ExceptT} from the \cmd{transformers} library. We also
 need the helper \hs{liftChain}, whose implementation we omit since it
 is analogous to \hs{liftStore} in Fig.~\ref{fig-make-implementation}.
 
-\vspace{-1mm}
 \subsection{\Shake}\label{sec-implementation-shake}
-\vspace{-1mm}
 
 Our model of \Shake is shown in Fig.~\ref{fig-shake-implementation}. It stores
 verifying traces \hs{VT}~\hs{k}~\hs{v} defined in~\S\ref{sec-verifying-traces}
@@ -325,9 +321,9 @@ suspending rebuilder tasks target store = fst $ execState@\,@(fetch target)@\,@(
 liftRun :: Task (MonadState i) k v
         -> (k -> State (Store i k v, Set k) v) -> State (Store i k v, Set k) v
 \end{minted}
-\vspace{-3mm}
+\vspace{-1mm}
 \caption{An implementation of \Shake using our framework.}\label{fig-shake-implementation}
-\vspace{-6mm}
+\vspace{-3mm}
 \end{figure}
 
 The rebuilder executes the verification query \hs{verifyVT} to determine if the
@@ -418,7 +414,7 @@ our framework; \hs{restarting2} differs from \hs{restarting} used by \Excel
 (Fig.~\ref{fig-excel-implementation}) in that it does not rely on the calc
 chain.}
 \label{fig-cloud-implementations}
-\vspace{-4mm}
+\vspace{-2mm}
 \end{figure}
 
 Fig.~\ref{fig-cloud-implementations} shows our models of several cloud build
