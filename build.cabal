@@ -29,7 +29,6 @@ library
                         Build.Store,
                         Build.Task,
                         Build.Task.Applicative,
-                        Build.Task.Depend,
                         Build.Task.Functor,
                         Build.Task.Monad,
                         Build.Task.MonadPlus,
@@ -37,8 +36,8 @@ library
                         Build.Trace,
                         Build.System
   other-modules:        Build.Utilities
-  build-depends:        algebraic-graphs >= 0.1.1,
-                        base             >= 4.7 && < 5,
+  build-depends:        algebraic-graphs >= 0.1.1 && < 0.2,
+                        base             >= 4.7   && < 5,
                         containers       >= 0.5.7.1,
                         extra            >= 1.5.3,
                         filepath         >= 1.4.1.0,
@@ -60,7 +59,7 @@ test-suite test
     other-modules:      Examples
                         Spreadsheet
     build-depends:      build,
-                        base         >= 4.7     && < 5,
+                        base         >= 4.7 && < 5,
                         extra        >= 1.5.3,
                         containers   >= 0.5.7.1,
                         mtl          >= 2.2.1,
