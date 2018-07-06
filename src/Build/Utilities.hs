@@ -1,10 +1,7 @@
 -- | General utilities useful in the rest of the package
 module Build.Utilities (
     -- * Graph operations
-    graph, reachable, topSort, reach, reachM,
-
-    -- * Logic combinators
-    forall
+    graph, reachable, topSort, reach, reachM
     ) where
 
 import Algebra.Graph
@@ -52,7 +49,3 @@ reachM successors a = fmap (filter (/= a)) <$> go [] a
     go xs x | x `elem` xs = return Nothing -- A cycle is detected
             | otherwise   = do res <- traverse (go (x:xs)) =<< successors x
                                return $ ((x:xs)++) . concat <$> sequence res
-
--- | Check that a predicate holds for all values of @a@.
-forall :: (a -> Bool) -> Bool
-forall = error "This combinator is used only for type checking"

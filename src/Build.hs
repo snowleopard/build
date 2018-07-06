@@ -4,7 +4,7 @@ module Build (
     Build,
 
     -- * Properties
-    correct, correctBuild, idempotent
+    correctBuild
     ) where
 
 import Build.Task
@@ -30,17 +30,3 @@ correctBuild tasks store result = all correct . reachable deps
     correct k = case tasks k of
         Nothing   -> getValue k result == getValue k store
         Just task -> getValue k result == compute task result
-
--- | Given a @build@ and @tasks@, check that @build@ produces a correct result
--- for any initial store and a target key.
-correct :: (Ord k, Eq v) => Build Monad i k v -> Tasks Monad k v -> Bool
-correct build tasks = forall $ \(key, store) ->
-    correctBuild tasks store (build tasks key store) key
-
--- | Check that a build system is /idempotent/, i.e. running it once or twice in
--- a row leads to the same resulting 'Store'.
-idempotent :: Eq v => Build Monad i k v -> Tasks Monad k v -> Bool
-idempotent build tasks = forall $ \(key, store1) ->
-    let store2 = build tasks key store1
-        store3 = build tasks key store2
-    in forall $ \k -> getValue k store2 == getValue k store3
