@@ -111,19 +111,19 @@ staticIF _ _    = Nothing
 
 -------------------------- Dynamic programming example -------------------------
 
-data Key = A Integer | B Integer | D Integer Integer
+data Key = A Int | B Int | C Int Int
 
-editDistance :: Tasks Monad Key Integer
-editDistance (D i 0) = Just $ Task $ const $ pure i
-editDistance (D 0 j) = Just $ Task $ const $ pure j
-editDistance (D i j) = Just $ Task $ \fetch -> do
+editDistance :: Tasks Monad Key Int
+editDistance (C i 0) = Just $ Task $ const $ pure i
+editDistance (C 0 j) = Just $ Task $ const $ pure j
+editDistance (C i j) = Just $ Task $ \fetch -> do
     ai <- fetch (A i)
     bj <- fetch (B j)
     if ai == bj
-        then fetch (D (i - 1) (j - 1))
+        then fetch (C (i - 1) (j - 1))
         else do
-            insert  <- fetch (D  i      (j - 1))
-            delete  <- fetch (D (i - 1)  j     )
-            replace <- fetch (D (i - 1) (j - 1))
+            insert  <- fetch (C  i      (j - 1))
+            delete  <- fetch (C (i - 1)  j     )
+            replace <- fetch (C (i - 1) (j - 1))
             return (1 + minimum [insert, delete, replace])
 editDistance _ = Nothing
