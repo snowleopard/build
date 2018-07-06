@@ -38,11 +38,11 @@ isInput tasks = isNothing . tasks
 
 -- | Run a task with a pure lookup function.
 computePure :: Task Monad k v -> (k -> v) -> v
-computePure task store = runIdentity $ run task (return . store)
+computePure task store = runIdentity $ run task (Identity . store)
 
 -- | Run a task in a given store.
 compute :: Task Monad k v -> Store i k v -> v
-compute task store = runIdentity $ run task (\k -> return (getValue k store))
+compute task store = runIdentity $ run task (\k -> Identity (getValue k store))
 
 -- | Convert a task with a total lookup function @k -> m v@ into a task with a
 -- partial lookup function @k -> m (Maybe v)@. This essentially lifts the task

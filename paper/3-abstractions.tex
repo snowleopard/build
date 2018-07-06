@@ -1,4 +1,5 @@
 \section{Build systems, abstractly}\label{sec-abstractions}
+\vspace{-0.5mm}
 
 \begin{figure}
 \vspace{-1mm}
@@ -11,32 +12,32 @@ putInfo    :: i -> Store i k v -> Store i k v
 getValue   :: k -> Store i k v -> v
 putValue   :: Eq k => k -> v -> Store i k v -> Store i k v
 \end{minted}
-\vspace{0mm}
+\vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
 data Hash v -- a compact summary of a value with a fast equality check
 hash    :: Hashable v => v -> Hash v
 getHash :: Hashable v => k -> Store i k v -> Hash v
 \end{minted}
-\vspace{0mm}
+\vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Build tasks (see §3.2)
 newtype Task  c k v = Task { run :: @\std{forall}@ f. c f => (k -> f v) -> f v }
 type    Tasks c k v = k -> Maybe (Task c k v)
 \end{minted}
-\vspace{0mm}
+\vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Build system (see §3.3)
 type Build c i k v = Tasks c k v -> k -> Store i k v -> Store i k v
 \end{minted}
-\vspace{0mm}
+\vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Build system components: a scheduler and a rebuilder (see §5)
 type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
 type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 \end{minted}
-\vspace{-3mm}
+\vspace{-3.5mm}
 \caption{Type signatures of key build systems abstractions.}\label{fig-types}
-\vspace{-3mm}
+\vspace{-4.5mm}
 \end{figure}
 
 This section presents purely functional abstractions that allow us to express
@@ -50,7 +51,6 @@ concrete implementations for several build systems.
 \vspace{-1.5mm}
 \subsection{Common vocabulary for build systems}\label{sec-vocabulary}
 \vspace{-0.5mm}
-% We begin by establishing a common vocabulary for build systems:
 
 \emph{Keys, values, and the store.} The goal of any build system is to
 bring up to date a \emph{store} that implements a mapping from \emph{keys} to
@@ -99,7 +99,8 @@ type    Tasks c k v = k -> Maybe (Task c k v)
 \end{minted}
 
 \noindent
-Here \hs{c} stands for \emph{constraint}, such as \hs{Applicative} or \hs{Monad}.
+Here \hs{c} stands for \emph{constraint}, such as \hs{Applicative}
+(\S\ref{sec-why-polymorphism} explains why we need it).
 A \hs{Task} describes a single build task, while \hs{Tasks} associates a
 \hs{Task} to every non-input key; input keys are associated with \hs{Nothing}.
 The highly-abstracted type \hs{Task} describes how to build a value when given
@@ -115,7 +116,9 @@ A2: 20     B2: B1 * 2
 
 \noindent
 Here cell \cmd{A1} contains the value \cmd{10}, cell \cmd{B1} contains the
-formula \cmd{A1+A2}, etc.
+formula \cmd{A1 + A2}, etc. We can represent the formulae of this spreadsheet
+with the following task description:
+
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -157,10 +160,6 @@ instance Monoid m => Applicative (Const m) where
 \caption{Standard library definitions.}\label{fig-stdlib}
 \vspace{-4mm}
 \end{figure}
-
-\noindent
-We can represent the formulae of this spreadsheet with the following task
-description:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -396,7 +395,7 @@ any dependencies}:
 
 \begin{minted}[xleftmargin=5pt]{haskell}
 compute :: Task Monad k v -> Store i k v -> v
-compute task store = runIdentity $ run task (\k -> return (getValue k store))
+compute task store = runIdentity $ run task (\k -> Identity (getValue k store))
 \end{minted}
 
 \noindent
@@ -405,8 +404,14 @@ we can use the standard Haskell \hs{Identity} monad (Fig.~\ref{fig-stdlib}).
 The use of \hs{Identity} just fixes the `impedance mismatch' between the
 function \hs{getValue}, which returns a pure value~\hs{v}, and the \hs{fetch}
 argument of the \hs{task}, which must return an \hs{f}~\hs{v} for some \hs{f}.
-To fix the mismatch, we unwrap using the function \hs{runIdentity} of type \hs{Identity}~\hs{a}~\hs{->}~\hs{a},
-which both forces the monad to \hs{Identity} and strips it away.
+To fix the mismatch, we wrap the result of \hs{getValue} in the \hs{Identity}
+monad: the function
+\hs{\@@k}~\hs{->}~\hs{Identity}~\hs{(@@getValue}~\hs{k}~\hs{store)} has the type
+\hs{k}~\hs{->}~\hs{Identity}~\hs{v}, and can now be passed to a \hs{task}. The
+result comes as \hs{Identity}~\hs{v}, which we unwrap by \hs{runIdentity}.
+
+% To fix the mismatch, we unwrap using the function \hs{runIdentity} of type \hs{Identity}~\hs{a}~\hs{->}~\hs{a},
+% which both forces the monad to \hs{Identity} and strips it away.
 
 \vspace{-1mm}
 \definition[Correctness]{Suppose \hs{build} is a build system, \hs{tasks} is a

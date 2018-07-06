@@ -116,12 +116,11 @@ We discuss each component in turn, starting with the rebuilder.
 
 The \hs{modTimeRebuilder} uses the pair
 \hs{MakeInfo}~\hs{k}~\hs{=}~\hs{(@@now,}~\hs{modTimes)} as persistent
-build information, carried by a \hs{MonadState} monad. This
-\hs{MakeInfo} comprises the \emph{current time} \hs{now}~\hs{::}~\hs{Time} and the map
-\hs{modTimes}~\hs{::}~\hs{Map}~\hs{k}~\hs{Time} of \emph{file
-modification times}.
-We assume that the external system, which invokes the build system, updates
-\hs{MakeInfo}~\hs{k} reflecting any file changes between successive builds.
+build information, carried by a state monad. This \hs{MakeInfo} comprises
+the \emph{current time} \hs{now}~\hs{::}~\hs{Time} and the map
+\hs{modTimes}~\hs{::}~\hs{Map}~\hs{k}~\hs{Time} of \emph{file modification
+times}. We assume that the external system, which invokes the build system,
+updates \hs{MakeInfo} reflecting any file changes between successive builds.
 
 The rebuilder receives three arguments: a \hs{key}, its current \hs{value}, and
 the applicative \hs{task} that can be used to rebuild the \hs{key} if necessary.
