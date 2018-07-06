@@ -171,7 +171,34 @@ and on the target \hs{key}:
 This relaxes the requirements on shallow builds by dropping the constraints on
 the \hs{shallow} store for all intermediate keys \hs{k}~$\in$~$O\setminus \{\hs{key}\}$.
 
-\textbf{TODO:} Add a Frankenbuild example.
+\textbf{TODO:} Explain the Frankenbuild example.
+
+\begin{figure}
+\vspace{-2mm}
+\begin{subfigure}[b]{0.25\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-build.pdf}}
+\vspace{-1mm}
+\caption{Build \cmd{report.txt}}
+\end{subfigure}
+\begin{subfigure}[b]{0.40\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-clean.pdf}}
+\vspace{-1mm}
+\caption{Clean up and evict \cmd{main.prof}}
+\end{subfigure}
+\begin{subfigure}[b]{0.31\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-rebuild.pdf}}
+\vspace{-1mm}
+\caption{Full rebuild}
+\end{subfigure}
+\vspace{-2.5mm}
+\caption{A Frankenbuild example: (a)~build a profiling report for \cmd{main.exe}
+and record deep constructive traces in the cloud, (b)~clean built files locally
+and evict \cmd{main.prof} from the cloud storage, (c)~rebuild \cmd{main.prof} by
+executing the build task, rebuild \cmd{report.txt} by downloading it from the
+cloud, resulting in a Frankenbuild. New and evicted cloud storage entries are
+highlighted.\label{fig-frankenbuild}}
+\vspace{-3mm}
+\end{figure}
 
 \subsection{Self-tracking}\label{sec-tracking-aspects}
 
