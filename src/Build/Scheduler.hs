@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
 
 -- | Build schedulers execute task rebuilders in the right order.
 module Build.Scheduler (
@@ -192,18 +192,18 @@ suspending rebuilder tasks target store = fst $ execState (fetch target) (store,
                 return newValue
             _ -> gets (getValue key . fst) -- fetch the existing value
 
-
-newtype Wrap i k v a = Wrap {unwrap :: State (Store i k v, Set k) a}
-    deriving (Functor, Applicative, Monad)
-
-instance MonadState i (Wrap i k v) where
-    get = Wrap $ gets (getInfo . fst)
-    put i = Wrap $ modify $ \(a, b) -> (putInfo i a, b)
-
-liftRun :: Task (MonadState i) k v -> (k -> State (Store i k v, Set k) v) -> State (Store i k v, Set k) v
+-- | Run a @Task (MonadState i)@ using a fetch callback operating on a larger
+-- state that contains a @Store i k v@ plus some @extra@ information.
+liftRun :: Task (MonadState i) k v
+        -> (k -> State (Store i k v, extra) v) -> State (Store i k v, extra) v
 liftRun t f = unwrap $ run t (Wrap . f)
 
+newtype Wrap i extra k v a = Wrap { unwrap :: State (Store i k v, extra) a }
+    deriving (Functor, Applicative, Monad)
 
+instance MonadState i (Wrap i extra k v) where
+    get   = Wrap $ gets (getInfo . fst)
+    put i = Wrap $ modify $ \(store, extra) -> (putInfo i store, extra)
 
 -- | An incorrect scheduler that builds the target key without respecting its
 -- dependencies. It produces the correct result only if all dependencies of the
