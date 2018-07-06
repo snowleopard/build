@@ -84,12 +84,11 @@ in turn can optimise the number of roundtrips required to the server.
 One tempting way of modelling non-determinism is to enrich \hs{Tasks} from
 \hs{Applicative} or \hs{Monad} to \hs{Alternative} or \hs{MonadPlus},
 respectively. More concretely, the following task description corresponds to
-a spreadsheet with the formula \cmd{B1 = A1 + RANDBETWEEN(1,2)}:
+a spreadsheet with the formula \cmd{B1 = A1 + RANDBETWEEN(1,2)}.
 
-\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 sprsh3 :: Tasks MonadPlus String Integer
-sprsh3 "B1"@\,@=@\,@Just $ Task $ \fetch -> (+) <$> fetch "A1" <*> (pure 1 <|> pure 2)
+sprsh3 "B1"@\,@=@\,@Just $ Task $ \fetch -> (+) <$> fetch "A1" <*> (pure@\,@1 <|> pure@\,@2)
 sprsh3 _   @\,@=@\,@Nothing
 \end{minted}
 \vspace{1mm}
@@ -175,17 +174,14 @@ the \hs{shallow} store for all intermediate keys \hs{k}~$\in$~$O\setminus \{\hs{
 \vspace{-2mm}
 \begin{subfigure}[b]{0.25\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-build.pdf}}
-\vspace{-1mm}
 \caption{Initial build}
 \end{subfigure}
 \begin{subfigure}[b]{0.40\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-clean.pdf}}
-\vspace{-1mm}
 \caption{Clean up and evict \cmd{main.prof}}
 \end{subfigure}
 \begin{subfigure}[b]{0.31\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-rebuild.pdf}}
-\vspace{-1mm}
 \caption{Build \cmd{main.prof} and \cmd{report.txt}}
 \end{subfigure}
 \vspace{-1mm}
@@ -213,9 +209,9 @@ same \cmd{main.exe} will produce different \cmd{main.prof} results every time;
 and (ii)~relying on deep constructive traces, which cache build results based
 only on the hashes of terminal task inputs (in this case \cmd{main.exe}). Note
 that the resulting store is incorrect according to all three definitions of
-correctness: the main definition (\S\ref{sec-build-correctness}), the variant
-for non-deterministic tasks (\S\ref{sec-non-determinism}) and the variant for
-shallow builds (this section).
+correctness: the main definition~(\S\ref{sec-build-correctness}), the variant
+for non-deterministic tasks~(\S\ref{sec-non-determinism}) and the variant for
+shallow builds~(this section).
 
 \subsection{Self-tracking}\label{sec-tracking-aspects}
 

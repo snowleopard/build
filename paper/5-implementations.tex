@@ -6,10 +6,12 @@ In this section we make this abstract distinction concrete, by
 implementing a number of build systems as a composition of a scheduler
 and a rebuilder.  Our design is expressed by these types (Fig.~\ref{fig-types}):
 
+\vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
 type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 \end{minted}
+\vspace{0.5mm}
 
 \noindent
 A \hs{Scheduler} is a function that takes a \hs{Rebuilder} and uses
@@ -91,13 +93,14 @@ topSort   :: Ord k => Graph k -> [k] -- Throws error on a cyclic graph
 \begin{minted}[fontsize=\small]{haskell}
 -- Expand the scope of visibility of a stateful computation
 liftStore :: State i a -> State (Store i k v) a
-liftStore x = do (a, newInfo) <- gets (runState x . getInfo)
-                 modify (putInfo newInfo)
-                 return a
+liftStore x = do
+    (a, newInfo) <- gets (runState x . getInfo)
+    modify (putInfo newInfo)
+    return a
 \end{minted}
-\vspace{-1mm}
-\caption{An implementation of \Make using our framework.}\label{fig-make-implementation}
 \vspace{-3mm}
+\caption{An implementation of \Make using our framework.}\label{fig-make-implementation}
+\vspace{-5mm}
 \end{figure}
 
 These two abstractions are the key to modularity: \emph{we can combine any
@@ -188,12 +191,12 @@ not need to modify \hs{i} to trigger rebuilds of dependent keys.
 type Chain k = [k]
 type ExcelInfo k = (k -> Bool, Chain k)
 \end{minted}
-\vspace{0mm}
+\vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 excel :: Ord k => Build Monad (ExcelInfo k) k v
 excel = restarting dirtyBitRebuilder
 \end{minted}
-\vspace{0mm}
+\vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A task rebuilder based on dirty bits
 dirtyBitRebuilder :: Rebuilder Monad (k -> Bool) k v
@@ -201,7 +204,7 @@ dirtyBitRebuilder key value task = Task $ \fetch -> do
     isDirty <- get
     if isDirty key then run task fetch else return value
 \end{minted}
-\vspace{0mm}
+\vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A restarting task scheduler
 restarting :: Ord k => Scheduler Monad (ir, Chain k) ir k v
@@ -227,18 +230,20 @@ restarting rebuilder tasks target = execState $ do
                 Right newValue -> do modify $ putValue key newValue
                                      (key :) <$> go (Set.insert key done) keys
 \end{minted}
-\vspace{0mm}
+\vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Convert a total task into a task that accepts a partial fetch callback
 try :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
 try task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
 \end{minted}
-\vspace{0mm}
+\vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Expand the scope of visibility of a stateful computation (implementation omitted)
 liftChain :: State (Store ir k v) a -> State (Store (ir, Chain [k]) k v) a
 \end{minted}
+\vspace{-2.5mm}
 \caption{An implementation of \Excel using our framework.}\label{fig-excel-implementation}
+\vspace{-2.5mm}
 \end{figure}
 
 \Excel's \hs{restarting} scheduler processes keys in the order specified by the
@@ -285,7 +290,7 @@ and the \hs{vtRebuilder}.
 shake :: (Ord k, Hashable v) => Build Monad (VT k v) k v
 shake = suspending vtRebuilder
 \end{minted}
-\vspace{0mm}
+\vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A task rebuilder based on verifying traces
 vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
@@ -296,7 +301,7 @@ vtRebuilder key value task = Task $ \fetch -> do
         modify $ recordVT key (hash newValue) [ (k, hash v) | (k, v) <- deps ]
         return newValue
 \end{minted}
-\vspace{0mm}
+\vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- A suspending task scheduler
 suspending :: Ord k => Scheduler Monad i i k v
@@ -315,7 +320,7 @@ suspending rebuilder tasks target store = fst $ execState@\,@(fetch target)@\,@(
                 return newValue
             _ -> gets (getValue key . fst) -- fetch the existing value
 \end{minted}
-\vspace{0mm}
+\vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Run a task using a callback that operates on a larger state (implementation omitted)
 liftRun :: Task (MonadState i) k v
@@ -399,7 +404,7 @@ buck = topological (adaptRebuilder dctRebuilder)
 \end{minted}
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Rebuilder based on deep constructive traces, analogous to ctRebuilder
+-- Rebuilder based on deep constructive traces, analogous to 'ctRebuilder'
 dctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (DCT k v) k v
 \end{minted}
 \vspace{0mm}

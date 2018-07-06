@@ -229,7 +229,7 @@ Here \hs{r} is either \hs{Hash}~\hs{v} (verifying traces) or
 \hs{v} (constructive traces). A real system is highly likely to use a more
 optimised implementation. Some of the most obvious optimisations are:
 
-\begin{enumerate}
+\begin{itemize}
 \item Any system using verifying traces is unlikely to see significant benefit
 from storing more than one \hs{Trace} per key\footnote{There is a small chance
 of a benefit if the dependencies change but the result does not, and then the
@@ -249,7 +249,8 @@ its dependencies, then make a single call to the server to retrieve the result.
 \item Many cloud build systems store hashes of values in the trace information,
 then have a separate content-addressable cache which associates hashes with
 their actual contents.
-\end{enumerate}
+\vspace{-1mm}
+\end{itemize}
 
 \subsection{Build Systems \`a la Carte}\label{sec-design-space}
 
