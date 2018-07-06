@@ -171,14 +171,12 @@ and on the target \hs{key}:
 This relaxes the requirements on shallow builds by dropping the constraints on
 the \hs{shallow} store for all intermediate keys \hs{k}~$\in$~$O\setminus \{\hs{key}\}$.
 
-\textbf{TODO:} Explain the Frankenbuild example.
-
 \begin{figure}
 \vspace{-2mm}
 \begin{subfigure}[b]{0.25\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-build.pdf}}
 \vspace{-1mm}
-\caption{Build \cmd{report.txt}}
+\caption{Initial build}
 \end{subfigure}
 \begin{subfigure}[b]{0.40\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-clean.pdf}}
@@ -188,19 +186,31 @@ the \hs{shallow} store for all intermediate keys \hs{k}~$\in$~$O\setminus \{\hs{
 \begin{subfigure}[b]{0.31\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-rebuild.pdf}}
 \vspace{-1mm}
-\caption{Full rebuild}
+\caption{Build \cmd{main.prof} and \cmd{report.txt}}
 \end{subfigure}
-\vspace{-2.5mm}
-\caption{A Frankenbuild example: (a)~build a profiling report for \cmd{main.exe}
-and record deep constructive traces in the cloud, (b)~clean built files locally
-and evict \cmd{main.prof} from the cloud storage, (c)~rebuild \cmd{main.prof} by
-executing the build task (profiling is non-deterministic, hence the new hash),
-rebuild \cmd{report.txt} by downloading it from the cloud, resulting in a
-Frankenbuild because \cmd{report.txt} and \cmd{main.prof} are inconsistent.
-New and evicted cloud storage entries are highlighted.
+\caption{A Frankenbuild example: (a)~build a human-readable profiling report for
+\cmd{main.exe} from information dump \cmd{main.prof} produced by a profiling
+tool and record deep constructive traces in the cloud, (b)~remove built files
+locally and evict \cmd{main.prof} from the cloud storage, (c)~build
+\cmd{main.prof} by executing the profiler (profiling is non-deterministic, hence
+the new hash), then build \cmd{report.txt} by downloading it from the matching
+deep constructive trace in the cloud, resulting in a Frankenbuild because
+\cmd{main.prof} and \cmd{report.txt} are inconsistent. New and evicted cloud
+storage entries are highlighted; file hashes are shown in circles.
 \label{fig-frankenbuild}}
 \vspace{-3mm}
 \end{figure}
+
+Deep constructive traces (\S\ref{sec-deep-constructive-traces}) combined with
+task non-determinism (\S\ref{sec-non-determinism}) can lead to very subtle bugs,
+especially in the cloud setting. Fig.~\ref{fig-frankenbuild} shows a
+\emph{Frankenbuild}~\cite{esfahani2016cloudbuild} example, where the target
+\cmd{report.txt}, which is downloaded from the cloud, is inconsistent with its
+immediate dependency \cmd{main.prof}. This is caused by (i)~inherent
+non-determinism of profiling: running a profiling tool on the very same
+\cmd{main.exe} will produce different \cmd{main.prof} results every time; and
+(ii)~relying on deep constructive traces, which cache build results based only
+on the hashes of terminal task inputs.
 
 \subsection{Self-tracking}\label{sec-tracking-aspects}
 

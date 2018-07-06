@@ -212,15 +212,6 @@ $n = 1$. When $n \ge 2$, deep constructive traces require the tasks to be
 \emph{deterministic}, as otherwise it is possible to violate correctness, as
 illustrated by an example in~\S\ref{sec-cloud-aspects}.
 
-% Concretely, if
-% the result of building a key given a set of immediate dependencies can vary,
-% then it is possible that key \hs{k} will have been computed locally, but
-% something \emph{using} \hs{k} will have been taken as a constructive input using
-% a different value for \hs{k}. If another rule combines those two values then two
-% different values of \hs{k} will have been used in one rule, leading to problems
-% such as link-errors for typical compilers -- a phenomenon known as a
-% \emph{Frankenbuild}~\cite{esfahani2016cloudbuild}.
-
 A downside of deep constructive traces is that they cannot support early cutoff
 (\S\ref{sec-background-shake}), other than at $n$ levels of dependencies. On the
 other hand, these traces are particularly useful for \emph{shallow builds}, as
