@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleInstances, MultiParamTypeClasses #-}
 
 -- | Build schedulers execute task rebuilders in the right order.
 module Build.Scheduler (
@@ -38,14 +39,6 @@ liftInfo x = do
     store <- get
     let (a, newStore) = runState x (mapInfo fst store)
     put $ mapInfo (, snd $ getInfo $ store) newStore
-    return a
-
--- | Collapse two layers of stateful computations into one.
-flattenInfo :: StateT i (State (Store i k v, j)) a -> State (Store i k v, j) a
-flattenInfo x = do
-    info <- gets (getInfo . fst)
-    (a, newInfo) <- runStateT x info
-    modify $ \(s, j) -> (putInfo newInfo s, j)
     return a
 
 -- | Update the value of a key in the store. The function takes both the current
@@ -186,21 +179,31 @@ restarting2 rebuilder tasks target = execState $ go (enqueue target [] mempty)
 suspending :: forall i k v. Ord k => Scheduler Monad i i k v
 suspending rebuilder tasks target store = fst $ execState (build target) (store, Set.empty)
   where
-    build :: k -> State (Store i k v, Set k) ()
-    build key = case tasks key of
-        Nothing -> return ()
-        Just task -> do
-            done <- gets snd
-            when (key `Set.notMember` done) $ do
+    build :: k -> State (Store i k v, Set k) v
+    build key = do
+        done <- gets snd
+        case tasks key of
+            Just task | key `Set.notMember` done -> do
                 value <- gets (getValue key . fst)
                 let newTask :: Task (MonadState i) k v
                     newTask = rebuilder key value task
-                    fetch :: k -> StateT i (State (Store i k v, Set k)) v
-                    fetch k = do lift (build k)                      -- build the key
-                                 lift (gets (getInfo . fst)) >>= put -- save new traces
-                                 lift (gets (getValue k . fst))      -- fetch the value
-                newValue <- flattenInfo (run newTask fetch)
+                newValue <- liftRun newTask build
                 modify $ \(s, d) -> (updateValue key value newValue s, Set.insert key d)
+                return newValue
+            _ -> gets (getValue key . fst) -- fetch the existing value
+
+
+newtype Wrap i k v a = Wrap {unwrap :: State (Store i k v, Set k) a}
+    deriving (Functor, Applicative, Monad)
+
+instance MonadState i (Wrap i k v) where
+    get = Wrap $ gets (getInfo . fst)
+    put i = Wrap $ modify $ \(a, b) -> (putInfo i a, b)
+
+liftRun :: Task (MonadState i) k v -> (k -> State (Store i k v, Set k) v) -> State (Store i k v, Set k) v
+liftRun t f = unwrap $ run t (Wrap . f)
+
+
 
 -- | An incorrect scheduler that builds the target key without respecting its
 -- dependencies. It produces the correct result only if all dependencies of the
