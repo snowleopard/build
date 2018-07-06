@@ -188,6 +188,7 @@ the \hs{shallow} store for all intermediate keys \hs{k}~$\in$~$O\setminus \{\hs{
 \vspace{-1mm}
 \caption{Build \cmd{main.prof} and \cmd{report.txt}}
 \end{subfigure}
+\vspace{-1mm}
 \caption{A Frankenbuild example: (a)~build a human-readable profiling report for
 \cmd{main.exe} from information dump \cmd{main.prof} produced by a profiling
 tool and record deep constructive traces in the cloud, (b)~remove built files
@@ -198,7 +199,7 @@ deep constructive trace in the cloud, resulting in a Frankenbuild because
 \cmd{main.prof} and \cmd{report.txt} are inconsistent. New and evicted cloud
 storage entries are highlighted; file hashes are shown in circles.
 \label{fig-frankenbuild}}
-\vspace{-3mm}
+\vspace{-4mm}
 \end{figure}
 
 Deep constructive traces (\S\ref{sec-deep-constructive-traces}) combined with
@@ -206,11 +207,15 @@ task non-determinism (\S\ref{sec-non-determinism}) can lead to very subtle bugs,
 especially in the cloud setting. Fig.~\ref{fig-frankenbuild} shows a
 \emph{Frankenbuild}~\cite{esfahani2016cloudbuild} example, where the target
 \cmd{report.txt}, which is downloaded from the cloud, is inconsistent with its
-immediate dependency \cmd{main.prof}. This is caused by (i)~inherent
-non-determinism of profiling: running a profiling tool on the very same
-\cmd{main.exe} will produce different \cmd{main.prof} results every time; and
-(ii)~relying on deep constructive traces, which cache build results based only
-on the hashes of terminal task inputs.
+immediate dependency \cmd{main.prof}. This is caused by two factors:
+(i)~inherent non-determinism of profiling: running a profiling tool on the very
+same \cmd{main.exe} will produce different \cmd{main.prof} results every time;
+and (ii)~relying on deep constructive traces, which cache build results based
+only on the hashes of terminal task inputs (in this case \cmd{main.exe}). Note
+that the resulting store is incorrect according to all three definitions of
+correctness: the main definition (\S\ref{sec-build-correctness}), the variant
+for non-deterministic tasks (\S\ref{sec-non-determinism}) and the variant for
+shallow builds (this section).
 
 \subsection{Self-tracking}\label{sec-tracking-aspects}
 
