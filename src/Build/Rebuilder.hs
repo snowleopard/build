@@ -101,7 +101,7 @@ vtRebuilder key value task = Task $ \fetch -> do
     if upToDate
     then return value
     else do
-        (newValue, deps) <- trackM task fetch
+        (newValue, deps) <- track task fetch
         modify $ recordVT key (hash newValue) [ (k, hash v) | (k, v) <- deps ]
         return newValue
 
@@ -115,7 +115,7 @@ ctRebuilder key value task = Task $ \fetch -> do
     else case cachedValues of
         (cachedValue:_) -> return cachedValue -- Any cached value will do
         _ -> do -- No cached values, need to run the task
-            (newValue, deps) <- trackM task fetch
+            (newValue, deps) <- track task fetch
             modify $ recordCT key newValue [ (k, hash v) | (k, v) <- deps ]
             return newValue
 
@@ -129,7 +129,7 @@ dctRebuilder key value task = Task $ \fetch -> do
     else case cachedValues of
         (cachedValue:_) -> return cachedValue -- Any cached value will do
         _ -> do -- No cached values, need to run the task
-            (newValue, deps) <- trackM task fetch
+            (newValue, deps) <- track task fetch
             put =<< recordDCT key newValue (map fst deps) (fmap hash . fetch) =<< get
             return newValue
 
@@ -141,6 +141,6 @@ stRebuilder key value task = Task $ \fetch -> do
     if upToDate
     then return value
     else do
-        (newValue, deps) <- trackM task fetch
+        (newValue, deps) <- track task fetch
         modify $ \(step, st) -> (step, recordST step key newValue (map fst deps) st)
         return newValue

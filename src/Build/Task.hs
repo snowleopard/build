@@ -13,10 +13,10 @@ import Control.Applicative
 -- Alas, we can't since it requires impredicative polymorphism and GHC currently
 -- does not support it.
 --
--- A usual workaround is to wrap 'Task' into a newtype, but this leads to the
+-- As a common workaround, we wrap 'Task' into a newtype, but this leads to the
 -- loss of higher-rank polymorphism: for example, we can no longer apply a
 -- monadic build system to an applicative task description or apply a monadic
--- 'trackM' to trace the execution of a 'Task Applicative'. This leads to code
+-- 'track' to trace the execution of a 'Task Applicative'. This leads to code
 -- duplication in some places.
 
 -- | A 'Task' is used to compute a value of type @v@, by finding the necessary

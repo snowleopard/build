@@ -4,7 +4,7 @@
 -- Dependencies of monadic tasks can only be discovered dynamically, i.e. during
 -- their execution.
 module Build.Task.Monad (
-    track, trackM, isInput, computePure, compute, partial, exceptional
+    track, trackPure, isInput, computePure, compute, partial, exceptional
     ) where
 
 import Control.Monad.Trans
@@ -18,18 +18,18 @@ import Build.Store
 import Build.Task
 
 -- | Execute a monadic task on a pure store @k -> v@, tracking the dependencies.
-track :: Task Monad k v -> (k -> v) -> (v, [k])
-track task fetch = runWriter $ run task (\k -> writer (fetch k, [k]))
+trackPure :: Task Monad k v -> (k -> v) -> (v, [k])
+trackPure task fetch = runWriter $ run task (\k -> writer (fetch k, [k]))
 
 -- | Execute a monadic task using an effectful fetch function @k -> m v@,
 -- tracking the dependencies.
-trackM :: forall m k v. Monad m => Task Monad k v -> (k -> m v) -> m (v, [(k, v)])
-trackM task fetch = runWriterT $ run task trackingFetch
+track :: forall m k v. Monad m => Task Monad k v -> (k -> m v) -> m (v, [(k, v)])
+track task fetch = runWriterT $ run task trackingFetch
   where
-    trackingFetch :: k -> WriterT [(k,v)] m v
+    trackingFetch :: k -> WriterT [(k, v)] m v
     trackingFetch k = do
         v <- lift $ fetch k
-        tell [(k,v)]
+        tell [(k, v)]
         return v
 
 -- | Given a description of tasks, check if a key is input.
