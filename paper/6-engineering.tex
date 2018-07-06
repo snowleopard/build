@@ -207,7 +207,7 @@ task non-determinism (\S\ref{sec-non-determinism}) can lead to very subtle bugs,
 especially in the cloud setting. Fig.~\ref{fig-frankenbuild} shows a
 \emph{Frankenbuild}~\cite{esfahani2016cloudbuild} example, where the target
 \cmd{report.txt}, which is downloaded from the cloud, is inconsistent with its
-immediate dependency \cmd{main.prof}. This is caused by two factors:
+immediate dependency \cmd{main.prof}. This inconsistency is caused by two factors:
 (i)~inherent non-determinism of profiling: running a profiling tool on the very
 same \cmd{main.exe} will produce different \cmd{main.prof} results every time;
 and (ii)~relying on deep constructive traces, which cache build results based

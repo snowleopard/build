@@ -408,7 +408,7 @@ To fix the mismatch, we wrap the result of \hs{getValue} in the \hs{Identity}
 monad: the function
 \hs{\@@k}~\hs{->}~\hs{Identity}~\hs{(@@getValue}~\hs{k}~\hs{store)} has the type
 \hs{k}~\hs{->}~\hs{Identity}~\hs{v}, and can now be passed to a \hs{task}. The
-result comes as \hs{Identity}~\hs{v}, which we unwrap by \hs{runIdentity}.
+result has type \hs{Identity}~\hs{v}, which we unwrap with \hs{runIdentity}.
 
 % To fix the mismatch, we unwrap using the function \hs{runIdentity} of type \hs{Identity}~\hs{a}~\hs{->}~\hs{a},
 % which both forces the monad to \hs{Identity} and strips it away.
