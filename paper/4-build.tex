@@ -75,7 +75,7 @@ build system with dynamic dependencies.
 
 This approach requires that a task may be started and then suspended until
 another task is complete. Suspending can be done with cheap green threads and blocking
-(the original approach of \Shake) or using continuation-passing style (what
+(the original approach of \Shake) or using continuation-passing style \citep{claessen_continuations} (what
 \Shake currently does).
 
 \subsection{The rebuilder: determining out-of-date keys} \label{sec-out-of-date}
