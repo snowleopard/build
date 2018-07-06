@@ -78,7 +78,6 @@ rel = RelativeReference
 -- the mapping returns @Nothing@ are inputs.
 type Spreadsheet = Cell -> Maybe Formula
 
--- TODO: Implement 'Random'.
 -- | Monadic spreadsheet computation.
 spreadsheetTask :: Spreadsheet -> Tasks Monad Cell Int
 spreadsheetTask spreadsheet cell@(Cell r c) = case spreadsheet cell of
@@ -95,7 +94,7 @@ spreadsheetTask spreadsheet cell@(Cell r c) = case spreadsheet cell of
                 IfZero fx fy fz         -> do
                     x <- go fx
                     if x == 0 then go fy else go fz
-                Random _ _      -> error "Random not implemented"
+                Random _ _      -> error "Not supported by monadic tasks"
 
 -- | Applicative spreadsheet computation.
 spreadsheetTaskA :: Spreadsheet -> Tasks Applicative Cell Int
