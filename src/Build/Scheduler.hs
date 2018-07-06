@@ -177,17 +177,17 @@ restarting2 rebuilder tasks target = execState $ go (enqueue target [] mempty)
 -- It stores the set of keys that have already been built as part of the state
 -- to avoid executing the same task twice.
 suspending :: forall i k v. Ord k => Scheduler Monad i i k v
-suspending rebuilder tasks target store = fst $ execState (build target) (store, Set.empty)
+suspending rebuilder tasks target store = fst $ execState (fetch target) (store, Set.empty)
   where
-    build :: k -> State (Store i k v, Set k) v
-    build key = do
+    fetch :: k -> State (Store i k v, Set k) v
+    fetch key = do
         done <- gets snd
         case tasks key of
             Just task | key `Set.notMember` done -> do
                 value <- gets (getValue key . fst)
                 let newTask :: Task (MonadState i) k v
                     newTask = rebuilder key value task
-                newValue <- liftRun newTask build
+                newValue <- liftRun newTask fetch
                 modify $ \(s, d) -> (updateValue key value newValue s, Set.insert key d)
                 return newValue
             _ -> gets (getValue key . fst) -- fetch the existing value
