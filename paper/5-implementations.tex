@@ -304,7 +304,7 @@ vtRebuilder key value task = Task $ \fetch -> do
 \begin{minted}[fontsize=\small]{haskell}
 -- A suspending task scheduler
 suspending :: Ord k => Scheduler Monad i i k v
-suspending rebuilder tasks target store = fst $ execState (fetch target) (store, Set.empty)
+suspending rebuilder tasks target store = fst $ execState@\,@(fetch target)@\,@(store,@\,@Set.empty)
   where
     fetch :: k -> State (Store i k v, Set k) v
     fetch key = do
@@ -315,13 +315,13 @@ suspending rebuilder tasks target store = fst $ execState (fetch target) (store,
                 let newTask :: Task (MonadState i) k v
                     newTask = rebuilder key value task
                 newValue <- liftRun newTask fetch
-                modify $ \(s, d) -> (updateValue key value newValue s, Set.insert key d)
+                modify $ \(s, d) -> (putValue key newValue s, Set.insert key d)
                 return newValue
             _ -> gets (getValue key . fst) -- fetch the existing value
 \end{minted}
 \vspace{0mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Run a Task using Store to obtain the i
+-- Run a task using a callback that operates on a larger state (implementation omitted)
 liftRun :: Task (MonadState i) k v
         -> (k -> State (Store i k v, Set k) v) -> State (Store i k v, Set k) v
 \end{minted}
@@ -337,35 +337,26 @@ current \hs{value}. Otherwise it executes the \hs{task}, obtaining both a
 definition of \hs{track} in~\S\ref{sec-deps}), which are subsequently recorded
 in a new verification trace using \hs{recordVT}.
 
-The \hs{suspending} scheduler uses a recursive function \hs{build} that builds
+The \hs{suspending} scheduler uses a recursive \hs{fetch} callback, defined
+similarly to the \hs{busy} build system (\S\ref{sec-general-build}), that builds
 a given \hs{key}, making sure not to duplicate work when called on the same
 \hs{key} again in future. To achieve that, it keeps track of keys that have
-already been built in a set \hs{done}~\hs{::}~\hs{Set}~\hs{k}.
-% , running the computation in the
-% \hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k)} monad.
+already been built in a set \hs{done}~\hs{::}~\hs{Set}~\hs{k}. Given a non-input
+\hs{key} that has not yet been built, we use the supplied \hs{rebuilder} to
+embed the build information~\hs{i} into the \hs{task}. We then execute the
+obtained \hs{newTask} by passing it the \hs{fetch} function as a callback for
+building dependencies: the \hs{newTask} will therefore be suspended while its
+dependencies are being brought up to date. The \hs{newValue} obtained by running
+the \hs{newTask} is stored, and the \hs{key} is added to the set \hs{done}.
 
-Given a non-input \hs{key} that has not yet been built, we use the supplied
-\hs{rebuilder} to embed the build information~\hs{i} into the \hs{task}.
-We then execute the obtained \hs{newTask} with the \hs{fetch} callback, which
-performs the following three steps when given a dependency \hs{k}:
-
-\begin{itemize}
-    \item Build \hs{k} by recursively calling the \hs{build} function. Note
-          that if \hs{k} is dirty, this will effectively suspend the build of
-          the current \hs{key} until \hs{k} is brought up to date.
-    \item Save any new traces that have been generated when building \hs{k}.
-    \item Read the (up to date) value of \hs{k} from the store and return it.
-\end{itemize}
-
-These steps are run in the
-\hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k)}
-monad. To make \hs{MonadState}~\hs{i} access the \hs{i} inside the \hs{Store}
-we use the helper function \hs{liftRun} (which uses a \hs{newtype} to provide a \hs{MonadState}
+The \hs{fetch} computation runs in the
+\hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k)} monad. To make
+\hs{MonadState}~\hs{i} access the \hs{i} inside the \hs{Store} we use the helper
+function \hs{liftRun} (which uses a \hs{newtype} to provide a \hs{MonadState}
 instance that sees through into the \hs{Store}).
-The \hs{newValue} obtained by running the \hs{newTask} is
-stored, and the \hs{key} is added to the set \hs{done}.
 
-\subsection{Cloud build systems: \Bazel, \CloudBuild, \Cloud \Shake, \Buck and \Nix}\label{sec-implementation-cloud}
+\subsection{Cloud build systems: \Bazel, \CloudBuild, \Cloud \Shake, \Buck and \Nix}
+\label{sec-implementation-cloud}
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}

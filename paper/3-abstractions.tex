@@ -266,7 +266,8 @@ formula.
 \subsection{The need for polymorphism in \hs{Task}}\label{sec-why-polymorphism}
 \vspace{-0.5mm}
 
-The previous example shows why the \hs{Task} abstraction is polymorphic in \hs{f}, recall the definition:
+The previous example shows why the \hs{Task} abstraction is polymorphic in
+\hs{f}, recall the definition:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 newtype Task c k v = Task { run :: @\std{forall}@ f. c f => (k -> f v) -> f v }
@@ -302,7 +303,6 @@ task descriptions in a very interesting way:
   task allows \emph{dynamic} dependencies, in which a formula may depend on cell
   \cmd{C}, but \emph{which} cell \cmd{C} depends on the value of another cell
   \cmd{D}.
-%TODO: Add a reference for Docker?
 \item \hs{Task}~\hs{Functor} is somewhat degenerate: the task description cannot
   even use the application operator \hs{<*>}, which limits dependencies to a
   linear chain, as e.g. in Docker containers~\cite{docker}. It is
