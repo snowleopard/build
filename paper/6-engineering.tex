@@ -194,9 +194,10 @@ the \hs{shallow} store for all intermediate keys \hs{k}~$\in$~$O\setminus \{\hs{
 \caption{A Frankenbuild example: (a)~build a profiling report for \cmd{main.exe}
 and record deep constructive traces in the cloud, (b)~clean built files locally
 and evict \cmd{main.prof} from the cloud storage, (c)~rebuild \cmd{main.prof} by
-executing the build task, rebuild \cmd{report.txt} by downloading it from the
-cloud, resulting in a Frankenbuild. New and evicted cloud storage entries are
-highlighted.\label{fig-frankenbuild}}
+executing the build task (profiling is non-deterministic, hence the new hash),
+rebuild \cmd{report.txt} by downloading it from the cloud, resulting in a
+Frankenbuild. New and evicted cloud storage entries are highlighted.
+\label{fig-frankenbuild}}
 \vspace{-3mm}
 \end{figure}
 
