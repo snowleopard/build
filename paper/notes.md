@@ -1,4 +1,6 @@
-# Meeting with Simon Marlow
+# Notes and feedback
+
+## Meeting with Simon Marlow
 
 * Make:
 
@@ -16,15 +18,13 @@
   - Relies on applicative tasks to compute `RuleKey` from a key. How do we
     adapt this to dynamic dependencies?
 
-# Feedback on the draft
-
-## Graydon Hoare (Apple)
+## Graydon Hoare
 
 Nice paper! I suspect it's worth citing a couple steps upstream in redo's
 lineage (Dan Bernstein, Alan Grosskurth). Might also be worth putting fbuild
 (which works similarly) in the comparison: https://github.com/felix-lang/fbuild
 
-## Yaron Minsky (Jane Street)
+## Yaron Minsky
 
 You might want to think about how something like this fits into your worldview:
 https://github.com/grailbio/reflow
@@ -82,11 +82,11 @@ Dependencies are often over a contiguous range of cells. e.g. =SUM(A1:B23).
 And there are enough they start getting memory intensive. So store them as
 ranges, not independent deps per cell. Also helps with the insert-a-row case.
 
-## Arseniy Alekseyev (Jane Street)
+## Arseniy Alekseyev
 
-Nix should be in the Cloud Shake box.
+Nix is a cloud build system with monadic dependencies.
 
-## Ulan Degenbaev (Google)
+## Ulan Degenbaev
 
 How do I do configuration in this framework? Real-life example from Chromium:
 
@@ -149,10 +149,3 @@ change propagation performs well) and performs well with shallow changes
 (where change propagation performs poorly)."
 
 From "A consistent semantics of self-adjusting computation" by Umut Acar et al.
-
-# TODO:
-
-* Conclusions
-* Illustration for Frankenbuilds
-* Trade-off between restarting and suspending
-
