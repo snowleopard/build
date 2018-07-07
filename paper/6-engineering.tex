@@ -10,10 +10,10 @@ would need to be done to capture them in our model, and what the impact would be
 Our model assumes a world where the store is fully-defined, every \hs{k} is
 associated with a \hs{v}, and every compute successfully completes returning a
 valid value. In the real world, build systems frequently deal with errors, e.g.
-``file not found'', or ``compilation failed''. We can model such failure
+``file not found'' or ``compilation failed''. We can model such failure
 conditions by instantiating \hs{v} to either \hs{Maybe}~\hs{v} (for missing
 values) or \hs{Either}~\hs{e}~\hs{v} (for exceptions of type \hs{e}). That can
-model the values inside the store and the \hs{Task}, but because \hs{v} is
+model the errors inside the store and the \hs{Task}, but because \hs{v} is
 polymorphic for builds, it does not let the build system apply special behaviour
 for errors, e.g. early aborting.
 
@@ -30,14 +30,14 @@ whenever all dependencies of a task are complete, the task itself can be
 started.
 
 \item The \hs{restarting} scheduler can be made parallel in a few ways, but the
-most direct is to have $n$ threads reading entries from the list of keys. As
-before, if a key requires something not yet built, it is added to the end -- the
-difference is that sometimes things will be moved to the back of the queue not
-because they are out of order but because of races with earlier nodes that had
+most direct is to have $n$ threads reading keys from the build queue. As before,
+if a key requires a dependency not yet built, it is moved to the end~--~the
+difference is that sometimes keys will be moved to the back of the queue not
+because they are out of date but because of races with earlier tasks that had
 not yet finished. As a consequence, over successive runs, potentially racey
 dependencies will be separated, giving better parallelism over time.
 
-\item The \hs{suspending} function can be made parallel by starting static
+\item The \hs{suspending} scheduler can be made parallel by starting static
 dependencies of a \hs{Task} in parallel, while dynamic dependencies are being
 resolved, using the strategy described by~\citet{marlow2014haxl}.
 \end{enumerate}
@@ -73,9 +73,10 @@ in every build.
 Interestingly, there is significant interplay between all three sources of
 impurity. Systems like \Bazel use various sandboxing techniques to guard against
 missing dependencies, but none are likely to capture all dependencies right down
-to CPU model and microcode version. Rules that do have untracked dependencies can be
-marked as volatile, a technique \Excel takes with the \cmd{INDIRECT} function,
-removing the untracked dependency at the cost of minimality.
+to the CPU model and microcode version. Tasks that do have untracked
+dependencies can be marked as volatile, a technique \Excel takes with the
+\cmd{INDIRECT} function, removing the untracked dependency at the cost of
+minimality.
 
 Most of the implementations in \S\ref{sec-implementations} can deal with
 non-determinism, apart from \Buck, which relies on deterministic tasks, and
@@ -147,7 +148,7 @@ values are not known, recreating them only when they must be materialised.
 involves many intermediate tasks. The intermediate results may be large, so some
 cloud build systems are designed to build end products \emph{without
 materialising} intermediate results, producing a so-called \emph{shallow build}
-(see an example in~\S\ref{sec-background-bazel}). Some build systems can go even
+(see an example in~\S\ref{sec-background-bazel}). Some build systems go even
 further, integrating with the file system to only materialise the file when the
 user accesses it \cite{gvfs}.
 \end{description}
@@ -192,10 +193,10 @@ the \hs{shallow} store for all intermediate keys \hs{k}~$\in$~$O\setminus \{\hs{
 tool, then record deep constructive traces in the cloud, (b)~remove built files
 locally and evict \cmd{main.prof} from the cloud storage, (c)~build
 \cmd{main.prof} by executing the profiler (profiling is non-deterministic, hence
-the new hash), then build \cmd{report.txt} by downloading it from the matching
-deep constructive trace in the cloud, resulting in a Frankenbuild because
-\cmd{main.prof} and \cmd{report.txt} are inconsistent. New and evicted cloud
-storage entries are highlighted; file hashes are shown in circles.
+the new hash value), then build \cmd{report.txt} by downloading it from the
+matching deep constructive trace in the cloud, resulting in a Frankenbuild
+because \cmd{main.prof} and \cmd{report.txt} are inconsistent. New and evicted
+cloud storage entries are highlighted; file hashes are shown in circles.
 \label{fig-frankenbuild}}
 \vspace{-4mm}
 \end{figure}
@@ -218,7 +219,7 @@ shallow builds~(this section).
 \subsection{Self-tracking}\label{sec-tracking-aspects}
 
 Some build systems, for example \Excel and \Ninja, are capable of recomputing a
-task if either its dependencies change, \emph{or} the rule itself changes. For
+task if either its dependencies change, \emph{or} the task itself changes. For
 example:
 
 \vspace{0.5mm}
@@ -249,9 +250,9 @@ sprsh4 "B1" = Just $ Task $ \fetch -> do
 The build systems that have precise self-tracking are all ones which use a
 \emph{non-embedded domain specific language} to describe build tasks. Those
 which use a full programming language, e.g. \Shake, are faced with the challenge
-of implementing equality on arbitrary task functions. For such build systems the
-pessimistic assumption of saying that any change to the build system potentially
-changes any build rule can often be used~--~the classic example being a makefile
+of implementing equality on arbitrary task functions. For such build systems,
+the pessimistic assumption that any change to the build system potentially
+changes any build task can often be used~--~the classic example being a makefile
 depending on itself.
 
 \subsection{Iterative computations}\label{sec-iterative-compute}
@@ -262,8 +263,8 @@ reaches a fixed point, which can be directly expressed in build systems, such as
 \Pluto~\cite{erdweg2015pluto}. Another example is \Excel, where a cell can
 depend on itself, for example: \cmd{A1 = A1 + 1}. In such cases \Excel will
 normally not execute anything, but if the ``Iterative Calculations'' feature is
-enabled will execute the formula for a specified maximum number $N$ of times per
-calculation (where $N$ is a setting that defaults to 100).
+enabled \Excel will execute the formula for a specified maximum number $N$ of
+times per calculation (where $N$ is a setting that defaults to 100).
 
 For examples like \LaTeX~we consider the proper encoding to not be circular
 tasks, but a series of iterative steps, as described
@@ -298,7 +299,7 @@ could equally be written to a file and used in a similar way.
 A more compelling example is build tasks that produce multiple output
 keys~--~for example, \cmd{ghc Foo.hs} produces both \cmd{Foo.hi} and \cmd{Foo.o}.
 That can be represented by having a key whose value is a pair of file names, and
-whose result is a pair of file contents. From that, the rule for \cmd{Foo.hi}
+whose result is a pair of file contents. From that, the task for \cmd{Foo.hi}
 can be the first component of the result of the pair. Again, such an operation
 can be encoded without polymorphic keys provided the pair of files (or a dummy
 file representing the pair) is marked as changed if either of the contained

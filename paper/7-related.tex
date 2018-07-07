@@ -9,7 +9,7 @@ abstractions~arise.
 \subsection{Other Build Systems}\label{sec-related-build}
 
 Most build systems, when viewed at the level we talk, can be captured with minor
-variations on the code presented in \S\ref{sec-implementations}. Below we list
+variations of the code presented in \S\ref{sec-implementations}. Below we list
 some notable examples:
 
 \begin{itemize}
@@ -64,9 +64,10 @@ To achieve minimality, each separate command is traced at the OS-level, allowing
 \Fabricate to record a trace entry stating that \cmd{gcc -c util.c} reads from
 \cmd{util.c}. In future runs \Fabricate runs the script from start to finish,
 skipping any commands where no inputs have changed. The key difference from our
-\hs{Tasks} abstraction is that instead of supplying a mapping from output to action,
-\Fabricate supplies a list of statements, in an order, without declaring what each line produces.
-There is no need to schedule the statements, and not enough information to do so.
+\hs{Tasks} abstraction is that instead of supplying a mapping from outputs to
+tasks, \Fabricate supplies a list of statements, in an order, without declaring
+what each line produces. There is no need to schedule the statements, and not
+enough information to do so.
 
 Taking our abstraction, it is possible to encode \Fabricate assuming that
 commands like \cmd{gcc -c util.c} are keys, there is a linear dependency between
@@ -80,7 +81,7 @@ as \cmd{gcc} writes to arbitrary files whose locations are not known in advance.
 
 While not typically considered build systems, self-adjusting computation is a
 well studied area, and in particular the contrast between different formulations
-has been thoroughly investigated, e.g. see~\cite{acar2007selfadjusting}.
+has been thoroughly investigated, e.g. see~\citet{acar2007selfadjusting}.
 Self-adjusting computations can automatically adjust to an external change
 to their inputs. A classic example is a self-adjusting sorting algorithm, which
 can efficiently (in $O(\log{n})$ time where $n$ is the length of the input)
@@ -93,8 +94,8 @@ used to model this feature to a limited degree).
 
 A lot of research has been dedicated to finding efficient data structures and
 algorithms for self-adjusting computations (with a few open-source
-implementations, e.g. \Incremental~\cite{incremental}). We plan to investigate
-how these insights can be utilised by build systems as future work.
+implementations, e.g. \Incremental by~\citet{incremental}). We plan to
+investigate how these insights can be utilised by build systems as future work.
 
 \subsection{Memoization}\label{sec-related-memo}
 

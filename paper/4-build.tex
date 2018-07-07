@@ -45,24 +45,22 @@ dependencies.
 \vspace{-2mm}
 \subsubsection{Restarting}\label{sec-restarting}
 
-To handle dynamic dependencies we can use the following approach:
-build tasks in an arbitrary initial order, discovering their dependencies on the fly;
-whenever a task calls \hs{fetch} on an out-of-date key \hs{dep}, abort the task,
-and switch to building the dependency \hs{dep}; eventually the previously
-aborted task is restarted and makes further progress thanks to \hs{dep} now
-being up to date.
-This approach requires a way to abort tasks that have failed due to out-of-date
-dependencies. It is also not minimal in the sense that a task may start, do some
-meaningful work, and then abort.
+To handle dynamic dependencies we can use the following approach: build tasks in
+an arbitrary initial order, discovering their dependencies on the fly; whenever
+a task calls \hs{fetch} on an out-of-date key \hs{dep}, abort the task, and
+switch to building the dependency \hs{dep}; eventually the previously aborted
+task is restarted and makes further progress thanks to \hs{dep} now being up to
+date. This approach requires a way to abort tasks that have failed due to
+out-of-date dependencies. It is also not minimal in the sense that a task may
+start, do some meaningful work, and then abort.
 
-To reduce the number of aborts (often to zero) Excel records the
+To reduce the number of aborts (often to zero) \Excel records the
 discovered task order in its \emph{calc chain}, and uses it as the
 starting point for the next build (\S\ref{sec-background-excel}).
 \Bazel's restarting scheduler does not store the discovered order
 between build runs; instead, it stores the most recent task dependency
 information. Since this information may become outdated, \Bazel may
-also need to abort a task if a newly discovered dependency is
-out-of-date.
+also need to abort a task if a newly discovered dependency is out of date.
 
 \vspace{-2mm}
 \subsubsection{Suspending}\label{sec-suspending}
@@ -80,8 +78,8 @@ another task is complete. Suspending can be done with cheap green threads and bl
 
 \subsection{The rebuilder: determining out-of-date keys} \label{sec-out-of-date}
 
-Suppose the scheduler decides that a key should be brought up to date. The
-next question is: does any work need to be done, or is it already up to date?
+Suppose the scheduler decides that a key should be brought up to date. The next
+question is: does any work need to be done, or is the key already up to date?
 Or, in a cloud-build system, do we have a cached copy of the value we need?
 These questions can be addressed in one of four fundamental ways, with a number
 of tweaks and variations within them.
@@ -98,7 +96,7 @@ clean, the key does not need to be rebuilt.
 \Excel models the dirty bit approach most directly, having an actual dirty bit
 associated with each cell, marking the cell dirty if the user modifies it.
 It also marks dirty all cells that (transitively) depend on the modified cell.
-Excel does not record dynamic dependencies of each cell; instead it computes a
+\Excel does not record dynamic dependencies of each cell; instead it computes a
 \emph{static over-approximation} -- it is safe for it to make more cells dirty
 than necessary, but not vice versa. The over-approximation is as follows: a cell
 is marked dirty if its formula statically refers to a dirty cell, or if the
@@ -185,18 +183,17 @@ The function \hs{recordCT} looks like \hs{recordVT}, but instead of just passing
 the hash of the resulting value, we require the actual value. The \hs{verifyVT}
 has been replaced with \hs{constructCT}, which instead of taking the hash of the
 current value as \emph{input}, returns a list of suitable values as \emph{output}.
-If the current value in the store
-matches one of the possible values, the build can skip this rule. If the
-resulting list is empty, the key must be rebuilt. However, if the current value
-does not match the store, and there is a possible value, we can use any value
-from the constructive list \emph{without} doing any work to build it, and copy
-it into the store.
+If the current value in the store matches one of the possible values, the build
+can skip this key. If the resulting list is empty, the key must be rebuilt.
+However, if the current value does not match the store, and there is a possible
+value, we can use any value from the constructive list \emph{without} doing any
+work to build it, and copy it into the store.
 
 \subsubsection{Deep constructive traces}\label{sec-deep-constructive-traces}
 
 Constructive traces always verify keys by looking at their immediate
 dependencies, which must have first been brought up to date, meaning that the
-time to verify a key is based on the number of transitive dependencies. A
+time to verify a key depends on the number of transitive dependencies. A
 \emph{deep} constructive trace optimises this process by only looking at the
 terminal \emph{input keys}, ignoring any intermediate dependencies. The operations
 capturing this approach are the same as for constructive traces
@@ -260,8 +257,8 @@ their actual contents.
 \centering
 \begin{tabular}{l||c|c|c}
 \hline
- & \multicolumn{3}{c}{Scheduling strategy} \\
-Out-of-date key strategy  & Topological\hspace{2mm}\S\ref{sec-topological} & Restarting\hspace{2mm}\S\ref{sec-restarting} & Suspending\hspace{2mm}\S\ref{sec-suspending}    \\\hline
+ & \multicolumn{3}{c}{Scheduling algorithm} \\
+Rebuilding strategy  & Topological\hspace{2mm}\S\ref{sec-topological} & Restarting\hspace{2mm}\S\ref{sec-restarting} & Suspending\hspace{2mm}\S\ref{sec-suspending}    \\\hline
 \hline
 Dirty bit\hfill\S\ref{sec-dirty-bit}                                                             & \Make       & \Excel & -              \\\hline
 Verifying traces\hfill\S\ref{sec-verifying-traces}                                               & \Ninja      & -      & \Shake         \\\hline
@@ -274,7 +271,7 @@ Deep constructive traces\hspace{2mm}\hfill\S\ref{sec-deep-constructive-traces} &
 \end{table}
 
 With the information in this section we can build Table~\ref{tab-build-systems},
-which tabulates combinations of the scheduling strategy and the out-of-date key
+which tabulates combinations of the scheduling algorithm and the rebuilding
 strategy, providing 12~possible build systems, 8~of which are inhabited
 by existing build systems (we discuss these systems in~\S\ref{sec-background} and
 \S\ref{sec-related-build}). Of the remaining 4~spots, all result in workable

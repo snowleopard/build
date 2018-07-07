@@ -6,9 +6,9 @@ of the software ecosystem, very much a means to an end, and seldom the
 focus of attention.
 % Rarely do people ask questions like ``What does it mean for my build
 % system to be correct?'' or ``What are the trade-offs between different
-% approaches?''.  Moreover,
+% approaches?''.
 For years \Make dominated, but more recently the challenges of scale have driven
-large software firms like Microsoft, Facebook, and Google to develop their own
+large software firms like Microsoft, Facebook and Google to develop their own
 build systems, exploring new points in the design space. These complex build
 systems use subtle algorithms, but they are often hidden away, and not the
 object of study.
@@ -19,7 +19,7 @@ and yet precise (implemented as Haskell code). Specifically we make these
 contributions:
 \begin{itemize}
 \item Build systems vary on many axes, including: static vs dynamic
-  dependencies; local vs cloud; deterministic vs non-deterministic build rules;
+  dependencies; local vs cloud; deterministic vs non-deterministic build tasks;
   support for early cutoff; self-tracking build systems; and the type of
   persistent build information. In~\S\ref{sec-background} we identify some key
   properties, illustrated by four carefully-chosen build systems.
@@ -29,9 +29,9 @@ contributions:
   allowing us, for example, to speak about what it means for a build system to be correct.
 
 \item We identify two key design choices that are typically deeply wired into
-  any build system: \emph{the order in which dependencies are
+  any build system: \emph{the order in which tasks are
   built}~(\S\ref{sec-dependency-orderings}) and \emph{whether or not a
-  dependency is (re-)built}~(\S\ref{sec-out-of-date}). These choices turn out to
+  task is (re-)built}~(\S\ref{sec-out-of-date}). These choices turn out to
   be orthogonal, which leads us to a new classification of the design
   space~(\S\ref{sec-design-space}).
 

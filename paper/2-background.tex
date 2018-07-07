@@ -7,7 +7,7 @@ systems, using four concrete examples: \Make~\cite{feldman1979make},
 \Excel~\cite{advanced_excel}.
 We have carefully chosen these four to illustrate the various axes on which
 build systems differ; we discuss many other notable examples of build systems,
-and their relationships, in~\S\ref{sec-related}.
+and their relationships, in~\S\ref{sec-implementations} and~\S\ref{sec-related}.
 
 \subsection{The venerable \Make: static dependencies and file modification times}
 \label{sec-background-make}
@@ -41,8 +41,8 @@ main.exe: util.o main.o
 The above makefile lists three tasks: (i) compile a utility library comprising
 files \cmd{util.h} and \cmd{util.c} into \cmd{util.o} by
 executing\footnote{In this example we pretend \cmd{gcc} is a pure function for
-the sake of simplicity. In reality, there are multiple versions of \cmd{gcc}
-and the actual binary used to compile and link files, and standard libraries
+the sake of simplicity. In reality, there are multiple versions of \cmd{gcc};
+the actual binary used to compile and link files, and standard libraries
 such that \cmd{stdio.h}, are often also listed as dependencies.} the command
 \cmd{gcc -c util.c}, (ii) compile the main source file \cmd{main.c} into
 \cmd{main.o}, and (iii) link object files \cmd{util.o} and \cmd{main.o} into the

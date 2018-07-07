@@ -487,12 +487,12 @@ accumulate a list of the task's dependencies -- and that is what
 \hs{dependencies} does:
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ dependencies $ fromJust $ sprsh1 "A1"
-[@@]
+@\ghci@ dependencies $ fromJust $ sprsh1 "B1"
+["A1","A2"]
 \end{minted}
 \begin{minted}[xleftmargin=10pt]{haskell}
-@\ghci@ dependencies $ fromJust $ sprsh1 "B1"
-["A1", "A2"]
+@\ghci@ dependencies $ fromJust $ sprsh1 "B2"
+["B1"]
 \end{minted}
 \vspace{1mm}
 
