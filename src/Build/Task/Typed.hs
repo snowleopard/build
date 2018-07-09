@@ -1,12 +1,20 @@
-{-# LANGUAGE ConstraintKinds, RankNTypes, GADTs, TypeFamilies #-}
+{-# LANGUAGE CPP, ConstraintKinds, RankNTypes, GADTs, TypeFamilies #-}
+#if __GLASGOW_HASKELL__ < 800
+{-# OPTIONS_GHC -Wno-unused-binds #-}
+#else
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
+#endif
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 
 -- | A model of polymorphic tasks, where the value type depends on the key.
 -- See the source for an example.
 module Build.Task.Typed (Task, Key (..), showDependencies) where
 
+#if __GLASGOW_HASKELL__ < 800
+import Control.Applicative
+#else
 import Data.Functor.Const
+#endif
 import Data.Functor.Identity
 
 -- | A type class for keys, equipped with an associated type family that
