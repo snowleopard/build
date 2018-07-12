@@ -21,7 +21,7 @@ whether a key needs to be rebuilt (a `rebuilder'). We tackle each
 aspect separately in subsections~\S\ref{sec-dependency-orderings}
 and~\S\ref{sec-out-of-date}.
 
-\subsection{The scheduler: respecting the dependency order}
+\subsection{The Scheduler: Respecting the Dependency Order}
 \label{sec-dependency-orderings}
 
 Section \S\ref{sec-background} introduced three different \emph{task schedulers}
@@ -76,7 +76,7 @@ another task is complete. Suspending can be done with cheap green threads and bl
 (the original approach of \Shake) or using continuation-passing style \citep{claessen_continuations} (what
 \Shake currently does).
 
-\subsection{The rebuilder: determining out-of-date keys} \label{sec-out-of-date}
+\subsection{The Rebuilder: Determining Out-of-date Keys}\label{sec-out-of-date}
 
 Suppose the scheduler decides that a key should be brought up to date. The next
 question is: does any work need to be done, or is the key already up to date?
@@ -207,16 +207,18 @@ number of dependency levels (say $n$ levels). The input-only approach is the
 special case of $n = \infty$, and constructive traces are the special case of
 $n = 1$. When $n \ge 2$, deep constructive traces require the tasks to be
 \emph{deterministic}, as otherwise it is possible to violate correctness, as
-illustrated by an example in~\S\ref{sec-cloud-aspects}.
+illustrated by an example in~\S\ref{sec-cloud-aspects}
+(see Fig.~\ref{fig-frankenbuild}).
 
 A downside of deep constructive traces is that they cannot support early cutoff
 (\S\ref{sec-background-shake}), other than at $n$ levels of dependencies. On the
 other hand, these traces are particularly useful for \emph{shallow builds}, as
 discussed in~\S\ref{sec-cloud-aspects}.
 
-\subsection{Smarter \hs{[Trace]} data structures}\label{sec-smart-traces}
+\subsection{Efficient Data Structures for Traces}\label{sec-smart-traces}
 
-In the examples above, we have used abstract types for the traces. Concretely, in our example code, they are all recorded as lists of:
+In the examples above, we have used abstract types for the traces. Concretely,
+in our example code, they are all recorded as lists of:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Trace k v r = Trace { key :: k, depends :: [(k, Hash v)], result :: r }

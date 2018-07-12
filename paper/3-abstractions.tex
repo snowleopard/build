@@ -49,7 +49,7 @@ and~\S\ref{sec-implementations} scrutinise the abstractions further and provide
 concrete implementations for several build systems.
 
 \vspace{-1.5mm}
-\subsection{Common vocabulary for build systems}\label{sec-vocabulary}
+\subsection{Common Vocabulary for Build Systems}\label{sec-vocabulary}
 \vspace{-0.5mm}
 
 \emph{Keys, values, and the store.} The goal of any build system is to
@@ -90,7 +90,7 @@ type of stores, with several associate functions (\hs{getValue}, etc.). We use
 the persistent build information. Fig.~\ref{fig-stdlib} lists standard library
 definitions.
 
-\subsection{The Task abstraction}\label{sec-task}
+\subsection{The Task Abstraction}\label{sec-task}
 
 Our first main abstraction is for \emph{task descriptions}:
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -192,7 +192,7 @@ compilers, calc chains, file systems, caches, and all other complexities of real
 build systems. It just computes a single output, in a side-effect-free way,
 using a callback (\hs{fetch}) to find the values of its dependencies.
 
-\subsection{The Build abstraction}\label{sec-general-build}
+\subsection{The Build Abstraction}\label{sec-general-build}
 
 Next comes our second main abstraction -- a build system:
 
@@ -263,7 +263,7 @@ that \hs{busy} is not minimal, imagine that the formula in cell \cmd{B2} was
 \hs{fetch}~\hs{"B1"} twice -- once per occurrence of \cmd{B1} in the
 formula.
 
-\subsection{The need for polymorphism in \hs{Task}}\label{sec-why-polymorphism}
+\subsection{The Need for Polymorphism in Task}\label{sec-why-polymorphism}
 \vspace{-0.5mm}
 
 The previous example shows why the \hs{Task} abstraction is polymorphic in
@@ -319,7 +319,7 @@ task descriptions in a very interesting way:
 \end{itemize}
 
 \vspace{-0.5mm}
-\subsection{Monadic tasks}\label{sec-task-monad}
+\subsection{Monadic Tasks}\label{sec-task-monad}
 
 As explained in~\S\ref{sec-background-excel}, some task descriptions have
 dynamic dependencies, which are determined by values of intermediate
@@ -366,7 +366,7 @@ dependencies. For minimal build systems, however, dynamic dependencies, and henc
 monadic tasks, are much more challenging, as we shall see
 in~\S\ref{sec-implementations}.
 
-\subsection{Correctness of a build system}\label{sec-build-correctness}
+\subsection{Correctness of a Build System}\label{sec-build-correctness}
 
 We can now say what it means for a build system to be \emph{correct}, something
 that is seldom stated formally. Our intuition is this: \emph{when the build
@@ -458,7 +458,7 @@ non-deterministic tasks and shallow cloud builds, as will be discussed
 in sections~\S\ref{sec-non-determinism} and~\S\ref{sec-cloud-aspects},
 respectively.
 
-\subsection{Computing dependencies}\label{sec-deps}\label{secdeps}
+\subsection{Computing Dependencies}\label{sec-deps}\label{secdeps}
 
 Earlier we remarked that a \hs{Task}~\hs{Applicative} could only have static
 dependencies. Usually we would extract such static dependencies by (in the case

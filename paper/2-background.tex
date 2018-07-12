@@ -9,7 +9,7 @@ We have carefully chosen these four to illustrate the various axes on which
 build systems differ; we discuss many other notable examples of build systems,
 and their relationships, in~\S\ref{sec-implementations} and~\S\ref{sec-related}.
 
-\subsection{The venerable \Make: static dependencies and file modification times}
+\subsection{The Venerable \Make: Static Dependencies and File Modification Times}
 \label{sec-background-make}
 
 \Make\footnote{There are numerous implementations of \Make and none comes with a
@@ -100,7 +100,7 @@ dependency graph from the information contained in the makefile and executes
 tasks in a \emph{topological order}. For a more concrete description
 see~\S\ref{sec-implementation-make}.
 
-\subsection{\Excel: dynamic dependencies at the cost of minimality}
+\subsection{\Excel: Dynamic Dependencies at the Cost of Minimality}
 \label{sec-background-excel}
 
 \Excel is a build system in disguise. Consider the following simple spreadsheet.
@@ -186,7 +186,7 @@ list of release documents \cmd{docs.txt}.\label{fig-shake}}
 \vspace{-4mm}
 \end{figure}
 
-\subsection{\Shake: dynamic dependencies with no remorse}
+\subsection{\Shake: Dynamic Dependencies with No Remorse}
 \label{sec-background-shake}
 
 \Shake was developed to solve the issue of dynamic
@@ -258,7 +258,7 @@ early cutoff: \Make and \Excel do not, whereas \Shake and \Bazel (introduced
 below) do.
 
 \vspace{-0.5mm}
-\subsection{\Bazel: a cloud build system}\label{sec-background-bazel}
+\subsection{\Bazel: A Cloud Build System}\label{sec-background-bazel}
 \vspace{-0.5mm}
 
 When build systems are used by large teams, different team members often end up

@@ -5,7 +5,7 @@ build systems. However, like all real-world systems, there are many corners that
 obscure the essence. In this section we discuss some of those details, what
 would need to be done to capture them in our model, and what the impact would be.
 
-\subsection{Partial stores and exceptions}
+\subsection{Partial Stores and Exceptions}
 
 Our model assumes a world where the store is fully-defined, every \hs{k} is
 associated with a \hs{v}, and every compute successfully completes returning a
@@ -45,7 +45,7 @@ resolved, using the strategy described by~\citet{marlow2014haxl}.
 The actual implementation of the parallel schedulers is not overly onerous,
 but neither is it beautiful or informative.
 
-\subsection{Impure computations}\label{sec-non-determinism}
+\subsection{Impure Computations}\label{sec-non-determinism}
 
 In our model we define \hs{Task} as a function -- when given the same inputs
 it will always produce the same output. Alas, the real-world is not so obliging.
@@ -119,7 +119,7 @@ non-determinism. \Excel handles this example simply by marking the cell
 volatile~--~an approach that can be readily adopted by any of our
 implementations.
 
-\subsection{Cloud implementations}\label{sec-cloud-aspects}
+\subsection{Cloud Implementation}\label{sec-cloud-aspects}
 
 Our model of cloud builds provides a basic framework to discuss and reason
 about them, but lacks a number of important engineering corners:
@@ -255,7 +255,7 @@ the pessimistic assumption that any change to the build system potentially
 changes any build task can often be used~--~the classic example being a makefile
 depending on itself.
 
-\subsection{Iterative computations}\label{sec-iterative-compute}
+\subsection{Iterative Computations}\label{sec-iterative-compute}
 
 Some computations are best described not by a chain of acyclic dependencies,
 but by a loop. For example, \LaTeX~requires repeated rebuilding until it
