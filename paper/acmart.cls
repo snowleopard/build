@@ -37,7 +37,7 @@
 %%   Right brace   \}     Tilde         \~}
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesClass{acmart}
-[2018/01/24 v1.49 Typesetting articles for the Association for
+[2018/04/14 v1.53 Typesetting articles for the Association for
 Computing Machinery]
 \def\@classname{acmart}
 \InputIfFileExists{acmart-preload-hook.tex}{%
@@ -639,10 +639,16 @@ Computing Machinery]
     have the newtxmath package installed.  Please upgrade your
     TeX}\@ACM@newfontsfalse}
 \if@ACM@newfonts
-\RequirePackage[tt=false, type1=true]{libertine}
+\ifxetex
+  \RequirePackage[tt=false]{libertine}
+\else
+  \RequirePackage[tt=false, type1=true]{libertine}
+\fi
 \RequirePackage[varqu]{zi4}
 \RequirePackage[libertine]{newtxmath}
-\RequirePackage[T1]{fontenc}
+\ifxetex\else
+  \RequirePackage[T1]{fontenc}
+\fi
 \fi
 \let\liningnums\@undefined
 \AtEndPreamble{%
@@ -785,6 +791,7 @@ Computing Machinery]
   JERIC,%
   JETC,%
   JOCCH,%
+  PACMCGIT,%
   PACMHCI,%
   PACMPL,%
   POMACS,%
@@ -795,10 +802,12 @@ Computing Machinery]
   TALLIP,%
   TAP,%
   TCPS,%
+  TDSCI,%
   TEAC,%
   TECS,%
   THRI,%
   TIIS,%
+  TIOT,%
   TISSEC,%
   TIST,%
   TKDD,%
@@ -872,6 +881,12 @@ Computing Machinery]
 \or % JOCCH
   \def\@journalName{ACM Journal on Computing and Cultural Heritage}%
   \def\@journalNameShort{ACM J. Comput. Cult. Herit.}%
+\or % PACMCGIT
+  \def\@journalName{Proceedings of the ACM on Computer Graphics and Interactive Techniques}%
+  \def\@journalNameShort{Proc. ACM Comput. Graph. Interact. Tech.}%
+  \def\@permissionCodeOne{2577-6193}%
+  \@ACM@screentrue
+  \PackageInfo{\@classname}{Using screen mode due to \@journalCode}%
 \or % PACMHCI
   \def\@journalName{Proceedings of the ACM on Human-Computer Interaction}%
   \def\@journalNameShort{Proc. ACM Hum.-Comput. Interact.}%
@@ -913,6 +928,10 @@ Computing Machinery]
   \def\@journalName{ACM Transactions on Applied Perception}%
 \or % TCPS
   \def\@journalName{ACM Transactions on Cyber-Physical Systems}%
+\or % TDSCI
+  \def\@journalName{ACM Transactions on Data Science}%
+  \def\@journalNameShort{ACM Trans. Data Sci.}%
+  \def\@permissionCodeOne{2577-3224}%
 \or % TEAC
   \def\@journalName{ACM Transactions on Economics and Computation}%
 \or % TECS
@@ -927,6 +946,10 @@ Computing Machinery]
   \def\@journalName{ACM Transactions on Interactive Intelligent Systems}%
   \def\@journalNameShort{ACM Trans. Interact. Intell. Syst.}%
   \def\@permissionCodeOne{2160-6455}%
+\or % TIOT
+  \def\@journalName{ACM Transactions on Internet of Things}%
+  \def\@journalNameShort{ACM Trans. Internet Things}%
+  \def\@permissionCodeOne{2577-6207}%
 \or % TISSEC
   \def\@journalName{ACM Transactions on Information and System Security}%
   \def\@journalNameShort{ACM Trans. Info. Syst. Sec.}%
@@ -1336,13 +1359,13 @@ Computing Machinery]
   \fi
   \ifnum\acm@copyrightmode=3\relax % rightsretained
    \@acmownedfalse
-   \acmPrice{}%
+   \AtBeginDocument{\acmPrice{}}%
   \fi
   \ifnum\acm@copyrightmode=4\relax % usgov
    \@printpermissiontrue
    \@printcopyrightfalse
    \@acmownedfalse
-   \acmPrice{}%
+   \AtBeginDocument{\acmPrice{}}%
   \fi
   \ifnum\acm@copyrightmode=6\relax % cagov
    \@acmownedfalse
@@ -1364,9 +1387,11 @@ Computing Machinery]
   \fi
   \ifnum\acm@copyrightmode=13\relax % iw3c2w3
    \@acmownedfalse
+   \AtBeginDocument{\acmPrice{}}%
   \fi
   \ifnum\acm@copyrightmode=14\relax % iw3c2w3g
    \@acmownedfalse
+   \AtBeginDocument{\acmPrice{}}%
   \fi}
 \def\setcopyright#1{\setkeys{ACM@}{acmcopyrightmode=#1}}
 \setcopyright{acmcopyright}
@@ -1376,7 +1401,7 @@ Computing Machinery]
   Association for Computing Machinery.
   \or % acmlicensed
   Copyright held by the owner/author(s). Publication rights licensed to
-  the Association for Computing Machinery.
+  ACM\@.
   \or % rightsretained
   Copyright held by the owner/author(s).
   \or % usgov
@@ -1388,24 +1413,24 @@ Computing Machinery]
   Association for Computing Machinery.
   \or %licensedusgovmixed
   Copyright held by the owner/author(s). Publication rights licensed to
-  the Association for Computing Machinery.
+  ACM\@.
   \or % licensedcagov
   Crown in Right of Canada. Publication rights licensed to
-  the Association for Computing Machinery.
+  ACM\@.
   \or %licensedcagovmixed
   Copyright held by the owner/author(s). Publication rights licensed to
-  the Association for Computing Machinery.
+  ACM\@.
   \or % othergov
   Association for Computing Machinery.
   \or % licensedothergov
   Copyright held by the owner/author(s). Publication rights licensed to
-  the Association for Computing Machinery.
+  ACM\@.
   \or % ic2w3www
   IW3C2 (International World Wide Web Conference Committee), published
-  under Creative Commons CC~BY~4.0 License.
+  under Creative Commons CC-BY~4.0 License.
   \or % ic2w3wwwgoogle
   IW3C2 (International World Wide Web Conference Committee), published
-  under Creative Commons CC~BY-NC-ND~4.0 License.
+  under Creative Commons CC-BY-NC-ND~4.0 License.
   \fi}
 \def\@formatdoi#1{\url{https://doi.org/#1}}
 \def\@copyrightpermission{%
@@ -1521,23 +1546,15 @@ Computing Machinery]
    only.
  \or % iw3c2w3
    This paper is published under the Creative Commons Attribution~4.0
-   International (CC~BY~4.0) license. Authors reserve their rights to
+   International (CC-BY~4.0) license. Authors reserve their rights to
    disseminate the work on their personal and corporate Web sites with
-   the appropriate attribution. In case of republication, reuse, etc.,
-   the following attribution should be used: ``Published in
-   WWW\@acmYear{} Proceedings \textcopyright{} \@copyrightyear{}
-   International World Wide Web Conference Committee, published under
-   Creative Commons~CC~BY~4.0  License.''
+   the appropriate attribution.
  \or % iw3c2w3g
    This paper is published under the Creative Commons
    Attribution-NonCommercial-NoDerivs~4.0 International
-   (CC~BY-NC-ND~4.0) license. Authors reserve their rights to
+   (CC-BY-NC-ND~4.0) license. Authors reserve their rights to
    disseminate the work on their personal and corporate Web sites with
-   the appropriate attribution. In case of republication, reuse, etc.,
-   the following attribution should be used: ``Published in
-   WWW\@acmYear{} Proceedings \textcopyright{} \@copyrightyear
-   International World Wide Web Conference Committee, published under
-   Creative Commons CC~BY-NC-ND~4.0 License.''
+   the appropriate attribution.
  \fi}
 \def\copyrightyear#1{\def\@copyrightyear{#1}}
 \copyrightyear{\@acmYear}
@@ -2216,7 +2233,7 @@ Computing Machinery]
     \fancyhead[RO]{\@headfootfont\@acmArticle\if@ACM@printfolios:\thepage\fi}%
     \fancyhead[RE]{\@headfootfont\@shortauthors}%
     \fancyhead[LO]{\ACM@linecountL\@headfootfont\shorttitle}%
-    \fancyfoot[RO,LE]{\footnotesize \@journalName, Vol. \@acmVolume, No.
+    \fancyfoot[RO,LE]{\footnotesize \@journalNameShort, Vol. \@acmVolume, No.
     \@acmNumber, Article \@acmArticle.  Publication date: \@acmPubDate.}%
   \or % acmlarge
     \fancyhead[LE]{\ACM@linecountL\@headfootfont
@@ -2224,7 +2241,7 @@ Computing Machinery]
     \fancyhead[LO]{\ACM@linecountL}%
     \fancyhead[RO]{\@headfootfont
       \shorttitle\quad\textbullet\quad\@acmArticle\if@ACM@printfolios:\thepage\fi}%
-    \fancyfoot[RO,LE]{\footnotesize \@journalName, Vol. \@acmVolume, No.
+    \fancyfoot[RO,LE]{\footnotesize \@journalNameShort, Vol. \@acmVolume, No.
     \@acmNumber, Article \@acmArticle.  Publication date: \@acmPubDate.}%
   \or % acmtog
     \fancyhead[LE]{\ACM@linecountL\@headfootfont
@@ -2233,7 +2250,7 @@ Computing Machinery]
     \fancyhead[RE]{\ACM@linecountR}%
     \fancyhead[RO]{\@headfootfont
       \shorttitle\quad\textbullet\quad\@acmArticle\if@ACM@printfolios:\thepage\fi\ACM@linecountR}%
-    \fancyfoot[RO,LE]{\footnotesize \@journalName, Vol. \@acmVolume, No.
+    \fancyfoot[RO,LE]{\footnotesize \@journalNameShort, Vol. \@acmVolume, No.
     \@acmNumber, Article \@acmArticle.  Publication date: \@acmPubDate.}%
   \else % Proceedings
     \fancyfoot[C]{\if@ACM@printfolios\footnotesize\thepage\fi}%
@@ -2302,7 +2319,7 @@ Computing Machinery]
     \fancyfoot[RO,LE]{\if@ACM@printfolios\small\thepage\fi}%
     \fancyfoot[RE,LO]{\footnotesize Manuscript submitted to ACM}%
   \or % acmsmall
-    \fancyfoot[RO,LE]{\footnotesize \@journalName, Vol. \@acmVolume, No.
+    \fancyfoot[RO,LE]{\footnotesize \@journalNameShort, Vol. \@acmVolume, No.
     \@acmNumber, Article \@acmArticle.  Publication date:
     \@acmPubDate.}%
     \fancyhead[LE]{\ACM@linecountL\@folioblob}%
@@ -2310,7 +2327,7 @@ Computing Machinery]
     \fancyhead[RO]{\@folioblob}%
     \fancyheadoffset[RO,LE]{0.6\@folio@wd}%
   \or % acmlarge
-    \fancyfoot[RO,LE]{\footnotesize \@journalName, Vol. \@acmVolume, No.
+    \fancyfoot[RO,LE]{\footnotesize \@journalNameShort, Vol. \@acmVolume, No.
     \@acmNumber, Article \@acmArticle.  Publication date:
     \@acmPubDate.}%
     \fancyhead[RO]{\@folioblob}%
@@ -2318,7 +2335,7 @@ Computing Machinery]
     \fancyhead[LO]{\ACM@linecountL}%
     \fancyheadoffset[RO,LE]{1.4\@folio@wd}%
   \or % acmtog
-    \fancyfoot[RO,LE]{\footnotesize \@journalName, Vol. \@acmVolume, No.
+    \fancyfoot[RO,LE]{\footnotesize \@journalNameShort, Vol. \@acmVolume, No.
     \@acmNumber, Article \@acmArticle.  Publication date:
     \@acmPubDate.}%
     \fancyhead[L]{\ACM@linecountL}%
