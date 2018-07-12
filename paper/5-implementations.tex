@@ -80,7 +80,7 @@ topological rebuilder tasks target = execState $ mapM_ build order
                 fetch k = return (getValue k store)
             newValue <- liftStore (run newTask fetch)
             modify $ putValue key newValue
-    order = topSort (graph dep target)
+    order = topSort (reachable dep target)
     dep k = case tasks k of { Nothing -> []; Just task -> dependencies task }
 \end{minted}
 \vspace{0mm}
