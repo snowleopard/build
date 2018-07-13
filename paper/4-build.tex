@@ -85,7 +85,7 @@ These questions can be addressed in one of four fundamental ways, with a number
 of tweaks and variations within them.
 
 \vspace{-2mm}
-\subsubsection{A dirty bit}\label{sec-dirty-bit}
+\subsubsection{A Dirty Bit}\label{sec-dirty-bit}
 
 The idea of a dirty bit is to have one piece of persistent information per key,
 saying whether the key is \emph{dirty} or \emph{clean}. After a build, all bits
@@ -125,7 +125,7 @@ modifying the result file, and not marking it clean, but then it will be rebuilt
 in every subsequent build.
 
 \vspace{-2mm}
-\subsubsection{Verifying traces}\label{sec-verifying-traces}
+\subsubsection{Verifying Traces}\label{sec-verifying-traces}
 
 An alternative way to determine if a key is dirty is to record the
 values/hashes of dependencies used last time, and if something has changed, the
@@ -164,7 +164,7 @@ A verifying trace, and other types of traces discussed in this section, support
 dynamic dependencies and minimality; furthermore, all traces except for deep
 traces~(\S\ref{sec-deep-constructive-traces}) support early cutoff.
 
-\subsubsection{Constructive traces}\label{sec-constructive-traces}
+\subsubsection{Constructive Traces}\label{sec-constructive-traces}
 
 A verifying trace deliberately records only small hashes, so that it can be small.
 A \emph{constructive} trace additionally stores the resulting value.
@@ -189,7 +189,7 @@ However, if the current value does not match the store, and there is a possible
 value, we can use any value from the constructive list \emph{without} doing any
 work to build it, and copy it into the store.
 
-\subsubsection{Deep constructive traces}\label{sec-deep-constructive-traces}
+\subsubsection{Deep Constructive Traces}\label{sec-deep-constructive-traces}
 
 Constructive traces always verify keys by looking at their immediate
 dependencies, which must have first been brought up to date, meaning that the
