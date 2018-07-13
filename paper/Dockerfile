@@ -6,10 +6,10 @@
 # To run a container interactively:
 # `docker run -it snowleopard/build`
 #
-FROM fpco/stack-build:lts-11
+FROM fpco/stack-build:lts-11.8
 MAINTAINER Andrey Mokhov
-RUN wget -O build-systems.zip https://github.com/snowleopard/build/archive/c72fb06429db8f4b168a7912b98b764bbb55e7e9.zip
+RUN wget -O build-systems.zip https://github.com/snowleopard/build/archive/dbbe1322962cab3f523f61b7a6b3be57533cec44.zip
 RUN unzip build-systems.zip
-WORKDIR /build-c72fb06429db8f4b168a7912b98b764bbb55e7e9
+WORKDIR /build-dbbe1322962cab3f523f61b7a6b3be57533cec44
 RUN stack build && stack test
 RUN exit
