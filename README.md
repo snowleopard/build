@@ -4,7 +4,7 @@
 
 This project provides an executable framework for developing and comparing build systems, viewing them as
 related points in landscape rather than as isolated phenomena. The code derives from the ICFP 2018 paper
-["Build Systems à la Carte"](https://github.com/snowleopard/build-systems/releases/download/icfp-final/build-systems.pdf).
+["Build Systems à la Carte"](https://dl.acm.org/citation.cfm?id=3236774).
 
 ## Getting Started
 
