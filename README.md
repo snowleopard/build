@@ -4,28 +4,22 @@
 
 This project provides an executable framework for developing and comparing build systems, viewing them as
 related points in landscape rather than as isolated phenomena. The code derives from the ICFP 2018 paper
-["Build Systems à la Carte"](https://dl.acm.org/citation.cfm?id=3236774).
+["Build Systems à la Carte"](https://github.com/snowleopard/build/releases/download/icfp-final/build-systems.pdf).
+
 
 ## Getting Started
 
 You may be interested to:
 
 * Run `stack test` to execute all the provided build systems on a very simple example.
-* Run `stack haddock` to generate HTML documentation of all the interfaces.
-* Read the code, particularly [System.hs](src/Build/System.hs) which is the concrete implementation of
-  all build systems. Following the imports (or the
-  [Haddock documentation](https://hackage.haskell.org/package/build)) will lead you to all the
-  constituent parts.
+* Look at the [HTML documentation](https://hackage.haskell.org/package/build) of all modules for the last release,
+  or generate it yourself using `stack haddock`.
+* Read the code, particularly [Build.System](src/Build/System.hs), which is the concrete implementation of
+  all build systems.
 
-## Further Activities
+## Related Material
 
-There aren't really any. The code served as a proving ground for ideas, and its existence both allows
-confirmation that our conclusions are valid, and opportunity to cheaply conduct further experiments. Although
-the code is a useful adjoint to the paper, it is not essential to it (other than we wouldn't have been
-able to discover what we did without an executable specification).
-
-## Background Information
-
-The task abstraction is explored more completely in
-[this blog post](https://blogs.ncl.ac.uk/andreymokhov/the-task-abstraction/), and the motivation behind
-the project in [an earlier blog post](https://blogs.ncl.ac.uk/andreymokhov/cloud-and-dynamic-builds/).
+* Blog post [on the motivation behind the project](https://blogs.ncl.ac.uk/andreymokhov/cloud-and-dynamic-builds/).
+* Blog post [on the task abstraction](https://blogs.ncl.ac.uk/andreymokhov/cloud-and-dynamic-builds/).
+* Blog post [reviewing how the paper was written](https://neilmitchell.blogspot.com/2018/07/inside-paper-build-systems-la-carte.html).
+* Talk [by Neil on this paper and Shake](https://ndmitchell.com/#shake_18_may_2018)
