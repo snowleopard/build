@@ -4,7 +4,8 @@
 
 This project provides an executable framework for developing and comparing build systems, viewing them as
 related points in landscape rather than as isolated phenomena. The code derives from the ICFP 2018 paper
-["Build Systems à la Carte"](https://dl.acm.org/citation.cfm?id=3236774) ([PDF](https://github.com/snowleopard/build/releases/download/icfp-final/build-systems.pdf)).
+["Build Systems à la Carte"](https://dl.acm.org/citation.cfm?id=3236774)
+([PDF](https://dl.acm.org/ft_gateway.cfm?id=3236774)).
 
 
 ## Getting Started
@@ -23,3 +24,5 @@ You may be interested to:
 * Blog post [on the task abstraction](https://blogs.ncl.ac.uk/andreymokhov/cloud-and-dynamic-builds/).
 * Blog post [reviewing how the paper was written](https://neilmitchell.blogspot.com/2018/07/inside-paper-build-systems-la-carte.html).
 * Talk [by Neil on this paper and Shake](https://ndmitchell.com/#shake_18_may_2018).
+* A talk on build systems
+  [by Andrey](https://github.com/snowleopard/build/releases/download/icfp-final/build-systems-slides-andrey.pdf).
