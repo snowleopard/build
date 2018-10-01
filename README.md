@@ -21,7 +21,7 @@ You may be interested to:
 ## Related Material
 
 * Blog post [on the motivation behind the project](https://blogs.ncl.ac.uk/andreymokhov/cloud-and-dynamic-builds/).
-* Blog post [on the task abstraction](https://blogs.ncl.ac.uk/andreymokhov/cloud-and-dynamic-builds/).
+* Blog post [on the task abstraction](https://blogs.ncl.ac.uk/andreymokhov/the-task-abstraction/).
 * Blog post [reviewing how the paper was written](https://neilmitchell.blogspot.com/2018/07/inside-paper-build-systems-la-carte.html).
 * Talk [by Neil on this paper and Shake](https://ndmitchell.com/#shake_18_may_2018).
 * A talk on build systems
