@@ -37,31 +37,40 @@ dependencies :: ShowKey k -> Task Applicative k -> k a -> [String]
 dependencies showKey task = maybe [] getConst . task (\k -> Const [showKey k])
 
 ------------------------------------ Example -----------------------------------
-data ExampleKey a where
-    Base       :: ExampleKey Int
-    Number     :: ExampleKey Int
-    SplitDigit :: ExampleKey (Int, Int)
-    LastDigit  :: ExampleKey Int
-    BaseDigits :: ExampleKey [Int]
+data Key a where
+    Base       :: Key Int
+    Number     :: Key Int
+    SplitDigit :: Key (Int, Int)
+    LastDigit  :: Key Int
+    BaseDigits :: Key [Int]
 
-showExampleKey :: ShowKey ExampleKey
-showExampleKey key = case key of
-    Base       -> "Base"
-    Number     -> "Number"
-    SplitDigit -> "SplitDigit"
-    LastDigit  -> "LastDigit"
-    BaseDigits -> "BaseDigits"
+-- | A build task for some simple typed numeric calculations. We can perform
+-- static analysis of this task using the function 'dependencies'. For example:
+--
+-- @
+-- dependencies showKey task Base       == []
+-- dependencies showKey task SplitDigit == ["Number","Base"]
+-- @
+task :: Task Applicative Key
+task fetch SplitDigit = Just $ divMod <$> fetch Number <*> fetch Base
+task fetch LastDigit  = Just $ snd <$> fetch SplitDigit
+task fetch BaseDigits = Just $ (\b -> [0..(b - 1)]) <$> fetch Base
+task _ _ = Nothing
 
-digits :: Task Applicative ExampleKey
-digits fetch SplitDigit = Just $ divMod <$> fetch Number <*> fetch Base
-digits fetch LastDigit  = Just $ snd <$> fetch SplitDigit
-digits fetch BaseDigits = Just $ enumFromTo 1 <$> fetch Base
-digits _ _ = Nothing
-
-fetch :: Applicative f => ExampleKey a -> f a
+-- | An example key/value mapping consistent with the build 'task'.
+fetch :: Applicative f => Fetch Key f
 fetch key = pure $ case key of
     Base       -> 10
     Number     -> 2018
     SplitDigit -> (201, 8)
     LastDigit  -> 8
     BaseDigits -> [0..9]
+
+-- | Show the name of a key.
+showKey :: ShowKey Key
+showKey key = case key of
+    Base       -> "Base"
+    Number     -> "Number"
+    SplitDigit -> "SplitDigit"
+    LastDigit  -> "LastDigit"
+    BaseDigits -> "BaseDigits"
