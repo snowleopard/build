@@ -20,6 +20,13 @@ import Data.Functor.Const
 type Fetch k f = forall a. k a -> f a
 
 -- | A typed build task.
+--
+-- A side observation: we could also rewrite the type of `Task` into
+--
+-- type Task c k = forall f. c f => (forall a. k a -> f a) -> (forall a. k a -> Maybe (f a))
+--
+-- ...which looks like a morphism between natural transformations. I'll let
+-- category theory enthusiasts explain what this strange creature is doing here.
 type Task c k = forall f a. c f => Fetch k f -> k a -> Maybe (f a)
 
 -- | A way to show the name of a key.
