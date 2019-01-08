@@ -16,6 +16,7 @@ import Control.Applicative
 import Data.Functor.Const
 #endif
 
+-- | The @fetch@ callback whose result type depends on the type of the key.
 type Fetch k f = forall a. k a -> f a
 
 -- | A typed build task.
