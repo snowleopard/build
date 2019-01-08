@@ -8,28 +8,25 @@
 
 -- | A model of polymorphic tasks, where the value type depends on the key.
 -- See the source for an example.
-module Build.Task.Typed (Task, Key (..), showDependencies) where
+module Build.Task.Typed (Task, dependencies) where
 
 #if __GLASGOW_HASKELL__ < 800
 import Control.Applicative
 #else
 import Data.Functor.Const
 #endif
-import Data.Functor.Identity
 
--- | A type class for keys, equipped with an associated type family that
--- can be used to determine the type of value corresponding to the key.
-class Key k where
-    type Value k :: *
-    -- | The name of the key. Useful for avoiding heterogeneous lists of keys.
-    showKey :: k -> String
+type Fetch k f = forall a. k a -> f a
 
 -- | A typed build task.
-type Task c k = forall f. c f => (forall k. Key k => k -> f (Value k)) -> k -> Maybe (f (Value k))
+type Task c k = forall f a. c f => Fetch k f -> k a -> Maybe (f a)
+
+-- | A way to show the name of a key.
+type ShowKey k = forall a. k a -> String
 
 -- | Extract the names of dependencies.
-showDependencies :: Task Applicative k -> k -> [String]
-showDependencies task = maybe [] getConst . task (\k -> Const [showKey k])
+dependencies :: ShowKey k -> Task Applicative k -> k a -> [String]
+dependencies showKey task = maybe [] getConst . task (\k -> Const [showKey k])
 
 ------------------------------------ Example -----------------------------------
 data ExampleKey a where
@@ -39,26 +36,22 @@ data ExampleKey a where
     LastDigit  :: ExampleKey Int
     BaseDigits :: ExampleKey [Int]
 
-instance Show (ExampleKey a) where
-    show key = case key of
-        Base       -> "Base"
-        Number     -> "Number"
-        SplitDigit -> "SplitDigit"
-        LastDigit  -> "LastDigit"
-        BaseDigits -> "BaseDigits"
+showExampleKey :: ShowKey ExampleKey
+showExampleKey key = case key of
+    Base       -> "Base"
+    Number     -> "Number"
+    SplitDigit -> "SplitDigit"
+    LastDigit  -> "LastDigit"
+    BaseDigits -> "BaseDigits"
 
-instance Key (ExampleKey a) where
-    type Value (ExampleKey a) = a
-    showKey = show
-
-digits :: Task Applicative (ExampleKey a)
+digits :: Task Applicative ExampleKey
 digits fetch SplitDigit = Just $ divMod <$> fetch Number <*> fetch Base
 digits fetch LastDigit  = Just $ snd <$> fetch SplitDigit
 digits fetch BaseDigits = Just $ enumFromTo 1 <$> fetch Base
 digits _ _ = Nothing
 
-fetch :: ExampleKey t -> Identity (Value (ExampleKey t))
-fetch key = Identity $ case key of
+fetch :: Applicative f => ExampleKey a -> f a
+fetch key = pure $ case key of
     Base       -> 10
     Number     -> 2018
     SplitDigit -> (201, 8)
