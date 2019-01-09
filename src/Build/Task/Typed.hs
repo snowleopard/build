@@ -8,59 +8,69 @@
 
 -- | A model of polymorphic tasks, where the value type depends on the key.
 -- See the source for an example.
-module Build.Task.Typed (Task, Key (..), showDependencies) where
+module Build.Task.Typed (Task, dependencies) where
 
 #if __GLASGOW_HASKELL__ < 800
 import Control.Applicative
 #else
 import Data.Functor.Const
 #endif
-import Data.Functor.Identity
 
--- | A type class for keys, equipped with an associated type family that
--- can be used to determine the type of value corresponding to the key.
-class Key k where
-    type Value k :: *
-    -- | The name of the key. Useful for avoiding heterogeneous lists of keys.
-    showKey :: k -> String
+-- | The @fetch@ callback whose result type depends on the type of the key.
+type Fetch k f = forall a. k a -> f a
 
 -- | A typed build task.
-type Task c k = forall f. c f => (forall k. Key k => k -> f (Value k)) -> k -> Maybe (f (Value k))
+--
+-- A side observation: we could also rewrite the type of `Task` into
+--
+-- type Task c k = forall f. c f => (forall a. k a -> f a) -> (forall a. k a -> Maybe (f a))
+--
+-- ...which looks like a morphism between natural transformations. I'll let
+-- category theory enthusiasts explain what this strange creature is doing here.
+type Task c k = forall f a. c f => Fetch k f -> k a -> Maybe (f a)
+
+-- | A way to show the name of a key.
+type ShowKey k = forall a. k a -> String
 
 -- | Extract the names of dependencies.
-showDependencies :: Task Applicative k -> k -> [String]
-showDependencies task = maybe [] getConst . task (\k -> Const [showKey k])
+dependencies :: ShowKey k -> Task Applicative k -> k a -> [String]
+dependencies showKey task = maybe [] getConst . task (\k -> Const [showKey k])
 
 ------------------------------------ Example -----------------------------------
-data ExampleKey a where
-    Base       :: ExampleKey Int
-    Number     :: ExampleKey Int
-    SplitDigit :: ExampleKey (Int, Int)
-    LastDigit  :: ExampleKey Int
-    BaseDigits :: ExampleKey [Int]
+data Key a where
+    Base       :: Key Int
+    Number     :: Key Int
+    SplitDigit :: Key (Int, Int)
+    LastDigit  :: Key Int
+    BaseDigits :: Key [Int]
 
-instance Show (ExampleKey a) where
-    show key = case key of
-        Base       -> "Base"
-        Number     -> "Number"
-        SplitDigit -> "SplitDigit"
-        LastDigit  -> "LastDigit"
-        BaseDigits -> "BaseDigits"
+-- | A build task for some simple typed numeric calculations. We can perform
+-- static analysis of this task using the function 'dependencies'. For example:
+--
+-- @
+-- dependencies showKey task Base       == []
+-- dependencies showKey task SplitDigit == ["Number","Base"]
+-- @
+task :: Task Applicative Key
+task fetch SplitDigit = Just $ divMod <$> fetch Number <*> fetch Base
+task fetch LastDigit  = Just $ snd <$> fetch SplitDigit
+task fetch BaseDigits = Just $ (\b -> [0..(b - 1)]) <$> fetch Base
+task _ _ = Nothing
 
-instance Key (ExampleKey a) where
-    type Value (ExampleKey a) = a
-    showKey = show
-
-digits :: Task Applicative (ExampleKey a)
-digits fetch SplitDigit = Just $ divMod <$> fetch Number <*> fetch Base
-digits fetch LastDigit  = Just $ snd <$> fetch SplitDigit
-digits fetch BaseDigits = Just $ enumFromTo 1 <$> fetch Base
-digits _ _ = Nothing
-
-fetch :: ExampleKey t -> Identity (Value (ExampleKey t))
-fetch key = Identity $ case key of
+-- | An example key/value mapping consistent with the build 'task'.
+fetch :: Applicative f => Fetch Key f
+fetch key = pure $ case key of
     Base       -> 10
     Number     -> 2018
     SplitDigit -> (201, 8)
     LastDigit  -> 8
     BaseDigits -> [0..9]
+
+-- | Show the name of a key.
+showKey :: ShowKey Key
+showKey key = case key of
+    Base       -> "Base"
+    Number     -> "Number"
+    SplitDigit -> "SplitDigit"
+    LastDigit  -> "LastDigit"
+    BaseDigits -> "BaseDigits"
