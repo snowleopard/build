@@ -1,5 +1,5 @@
 name:                build
-version:             1.0
+version:             1.1
 synopsis:            Build systems a la carte
 homepage:            https://github.com/snowleopard/build
 license:             MIT
