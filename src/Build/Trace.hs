@@ -23,7 +23,6 @@ import Build.Store
 import Control.Monad.Extra
 import Data.Maybe
 import Data.List
-import Data.Semigroup
 
 -- | A trace is parameterised by the types of keys @k@, hashes @h@, as well as the
 -- result @r@. For verifying traces, @r = h@; for constructive traces, @Hash r = h@.

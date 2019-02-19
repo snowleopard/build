@@ -5,8 +5,7 @@ module Build.Utilities (
     ) where
 
 import Algebra.Graph
-import qualified Algebra.Graph.AdjacencyMap as AM
-import qualified Algebra.Graph.Class        as C
+import qualified Algebra.Graph.ToGraph as T
 
 import Data.Functor.Identity
 import qualified Data.Set as Set
@@ -28,7 +27,7 @@ reachable deps key = vertexList (graph deps key)
 -- | Compute the topological sort of a graph or return @Nothing@ if the graph
 -- has cycles.
 topSort :: Ord k => Graph k -> Maybe [k]
-topSort = AM.topSort . C.toGraph
+topSort = T.topSort
 
 -- | Given a function to compute successors of a vertex, apply it recursively
 -- starting from a given vertex. Returns @Nothing@ if this process does not

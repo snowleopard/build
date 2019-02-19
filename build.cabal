@@ -36,9 +36,9 @@ library
                         Build.Trace,
                         Build.System
   other-modules:        Build.Utilities
-  build-depends:        algebraic-graphs >= 0.1.1   && < 0.2,
+  build-depends:        algebraic-graphs >= 0.3     && < 0.4,
                         base             >= 4.7     && < 5,
-                        containers       >= 0.5.7.1 && < 0.6,
+                        containers       >= 0.6     && < 0.7,
                         extra            >= 1.5.3   && < 1.7,
                         filepath         >= 1.4.1.0 && < 1.5,
                         mtl              >= 2.2.1   && < 2.3,
