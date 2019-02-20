@@ -65,7 +65,7 @@ test-suite test
                         Spreadsheet
     build-depends:      build,
                         base         >= 4.7     && < 5,
-                        containers   >= 0.5.7.1 && < 0.6,
+                        containers   >= 0.6     && < 0.7,
                         extra        >= 1.5.3   && < 1.7,
                         mtl          >= 2.2.1   && < 2.3,
                         transformers >= 0.5.2.0 && < 0.6
