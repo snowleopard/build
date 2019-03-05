@@ -1,0 +1,381 @@
+\section{Background}\label{sec-background}
+
+Build systems automate the execution of repeatable tasks for individual users
+and large organisations. In this section we explore the design space of build
+systems, using four concrete examples: \Make~\cite{feldman1979make},
+\Shake~\cite{mitchell2012shake}, \Bazel~\cite{bazel}, and
+\Excel~\cite{advanced_excel}.
+We have carefully chosen these four to illustrate the various axes on which
+build systems differ; we discuss many other notable examples of build systems,
+and their relationships, in~\S\ref{sec-implementations} and~\S\ref{sec-related}.
+
+\subsection{The Venerable \Make: Static Dependencies and File Modification Times}
+\label{sec-background-make}
+
+\Make\footnote{There are numerous implementations of \Make and none comes with a
+formal specification. In this paper we therefore use a simple and sensible
+approximation to a real \Make that you might find on your machine.} was developed
+more than 40 years ago to automatically build software libraries and executable
+programs from source code. It uses \emph{makefiles} to describe tasks (often
+referred to as \emph{build rules}) and their dependencies in a simple textual form.
+For example:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{makefile}
+util.o: util.h util.c
+    gcc -c util.c
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{makefile}
+main.o: util.h main.c
+    gcc -c main.c
+\end{minted}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{makefile}
+main.exe: util.o main.o
+    gcc util.o main.o -o main.exe
+\end{minted}
+\vspace{1mm}
+
+\noindent
+The above makefile lists three tasks: (i) compile a utility library comprising
+files \cmd{util.h} and \cmd{util.c} into \cmd{util.o} by
+executing\footnote{In this example we pretend \cmd{gcc} is a pure function for
+the sake of simplicity. In reality, there are multiple versions of \cmd{gcc};
+the actual binary used to compile and link files, and standard libraries
+such that \cmd{stdio.h}, are often also listed as dependencies.} the command
+\cmd{gcc -c util.c}, (ii) compile the main source file \cmd{main.c} into
+\cmd{main.o}, and (iii) link object files \cmd{util.o} and \cmd{main.o} into the
+executable \cmd{main.exe}. The makefile contains the complete information about
+the \emph{task dependency graph}, which is shown in Fig.~\ref{fig-make}(a).
+
+\begin{figure}[h]
+\begin{subfigure}[b]{0.32\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/make-example.pdf}}
+\caption{Task dependency graph}
+\end{subfigure}
+\begin{subfigure}[b]{0.32\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/make-example-full.pdf}}
+\caption{Full rebuild}
+\end{subfigure}
+\begin{subfigure}[b]{0.32\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/make-example-partial.pdf}}
+\caption{Partial rebuild}
+\end{subfigure}
+\vspace{-2mm}
+\caption{A task dependency graph and two build scenarios. Input files are shown
+in rectangles, intermediate and output files are shown in rounded rectangles.
+Modified inputs and files that are rebuilt are highlighted.
+\label{fig-make}}
+\vspace{-2mm}
+\end{figure}
+
+If the user runs \Make specifying \cmd{main.exe} as the desired output, \Make
+will build~\cmd{util.o}~and~\cmd{main.o}, in any order since these tasks are
+independent, and then \cmd{main.exe}. If the user modifies \cmd{util.h} and runs
+\Make again, it will perform a \emph{full rebuild}, because all three tasks
+transitively depend on \cmd{util.h}, as illustrated in Fig.~\ref{fig-make}(b).
+On the other hand, if the user modifies \cmd{main.c} then a \emph{partial
+rebuild} is sufficient: \cmd{util.o} does not need to be rebuilt, since its
+inputs have not changed, see Fig.~\ref{fig-make}(c). Note that if the dependency
+graph is \emph{acyclic} then each task needs to be executed at most once. Cyclic
+task dependencies are typically not allowed in build systems but there are rare
+exceptions, see~\S\ref{sec-iterative-compute}.
+
+\noindent
+The following property is essential for build systems; indeed, it is their
+raison d'\^etre:
+
+\textbf{Definition} (Minimality). A build system is \emph{minimal} if it
+executes tasks at most once per build and only if they transitively depend on
+inputs that changed since the previous build.\label{def-minimal}
+\vspace{2mm}
+
+To achieve minimality \Make relies on two main ideas: (i) it uses \emph{file
+modification times} to detect which files changed\footnote{Technically, you
+can fool \Make by altering the modification time of a file without changing its
+content, e.g. by using the command \cmd{touch}. \Make is therefore minimal only
+under the assumption that you do not do that.}, and (ii) it constructs a task
+dependency graph from the information contained in the makefile and executes
+tasks in a \emph{topological order}. For a more concrete description
+see~\S\ref{sec-implementation-make}.
+
+\subsection{\Excel: Dynamic Dependencies at the Cost of Minimality}
+\label{sec-background-excel}
+
+\Excel is a build system in disguise. Consider the following simple spreadsheet.
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{text}
+A1: 10      B1: A1 + A2
+A2: 20
+\end{minted}
+\vspace{1mm}
+
+\noindent
+There are two input cells \cmd{A1} and \cmd{A2}, and a single task that computes
+the sum of their values, producing the result in cell \cmd{B1}. If either of
+the inputs change, \Excel will recompute the result.
+
+Unlike \Make, \Excel does not need to know all task dependencies upfront. Indeed, some
+dependencies may change \emph{dynamically} according to computation results. For
+example:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{text}
+A1: 10      B1: INDIRECT("A" & C1)      C1: 1
+A2: 20
+\end{minted}
+\vspace{1mm}
+
+\noindent
+The formula in \cmd{B1} uses the \cmd{INDIRECT} function, which takes a string
+and returns the value of the cell with that name.  The string evaluates to
+\cmd{"A1"}, so \cmd{B1} evaluates to \cmd{10}. However, the dependencies of the
+formula in \cmd{B1} are determined by the value of \cmd{C1}, so it is impossible
+to compute the dependency graph before the build starts\footnote{In
+this particular example one might say that the value of
+\cmd{C1} is statically known, but imagine that it is the result of a long
+computation chain -- its value will only become available during the build.}.
+
+To support dynamic dependencies, \Excel's calc engine~\cite{excel_recalc} is
+significantly different from \Make. \Excel arranges the cells into a linear
+sequence, called the \emph{calc chain}.  During the build, \Excel processes
+cells in the calc-chain sequence, but if computing a cell \cmd{C} requires the
+value of a cell \cmd{D} that has not yet been computed, \Excel \emph{aborts}
+computation of \cmd{C}, moves \cmd{D} before \cmd{C} in the calc chain, and
+resumes the build starting with \cmd{D}. When a build is complete, the resulting
+calc chain respects all the dynamic dependencies of the spreadsheet. When an
+input value (or formula) is changed, \Excel uses the final calc chain from the
+\emph{previous} build as its starting point so that, in the common case where
+changing an input value does not change dependencies, there are no aborts.
+Notice that build always succeeds regardless of the initial calc chain (barring
+truly circular dependencies); the calc chain is just an optimisation.
+We refer to this algorithm as \emph{restarting}, and discuss it
+in more detail in~\S\ref{sec-implementation-excel}.
+
+Dynamic dependencies complicate minimality.  In the above example, \cmd{B1}
+should only be recomputed if \cmd{A1} or \cmd{C1} change, but not if (say)
+\cmd{A2} changes; but these facts are not statically apparent. In practice
+\Excel implements a conservative approximation to minimality: it recomputes a
+formula if~(i)~the formula statically mentions a changed cell, or~(ii)~the formula uses a
+function like \cmd{INDIRECT} whose dependencies are not statically visible,
+or~(iii)~the formula itself has changed.
+
+Item (iii) in the above list highlights another distinguishing feature of \Excel: it
+is \emph{self-tracking}. Most build systems only track changes of inputs and
+intermediate results, but \Excel also tracks changes in the tasks themselves: if
+a formula is modified, \Excel will recompute it and propagate the changes.
+Self-tracking is uncommon in software build systems, where one often needs to
+manually initiate a full rebuild even if just a single task has changed.
+We discuss self-tracking further in~\S\ref{sec-tracking-aspects}.
+
+\begin{figure}
+\begin{subfigure}[b]{0.90\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/shake-example.pdf}}
+\caption{Dependency graph produced after the previous build.}
+\end{subfigure}
+\begin{subfigure}[b]{0.90\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/shake-example-rebuild.pdf}}
+\caption{Since \cmd{docs.txt} was modified, we rebuild \cmd{release.txt} and
+\cmd{release.tar}, discovering a new dependency.}
+\end{subfigure}
+\vspace{-2mm}
+\caption{Dynamic dependencies example: create \cmd{README} and add it to the
+list of release documents \cmd{docs.txt}.\label{fig-shake}}
+\vspace{-4mm}
+\end{figure}
+
+\subsection{\Shake: Dynamic Dependencies with No Remorse}
+\label{sec-background-shake}
+
+\Shake was developed to solve the issue of dynamic
+dependencies~\cite{mitchell2012shake} without sacrificing
+the minimality requirement. Building on the \Make example
+from~\S\ref{sec-background-make}, we add the following files whose
+dependencies are shown in Fig.~\ref{fig-shake}(a):
+
+\begin{itemize}
+    \item \cmd{LICENSE} is an input text file containing the project license.
+    \item \cmd{release.txt} is a text file listing all files that should be in the release. This file
+    is produced by concatenating input files \cmd{bins.txt} and \cmd{docs.txt},
+    which list all binary and documentation files of the project.
+    \item \cmd{release.tar} is the release archive built by executing the
+    command \cmd{tar} on the release files.
+\end{itemize}
+
+The dependencies of \cmd{release.tar} are not known statically: they are
+determined by the content of \cmd{release.txt}, which might not even exist
+before the build. Makefiles cannot express such dependencies, requiring problematic
+workarounds such as \emph{build phases} \cite{hadrian}.
+In \Shake we can express the rule for \cmd{release.tar} as:
+
+\begin{minted}[xleftmargin=10pt]{haskell}
+"release.tar" %> \_ -> do
+    need ["release.txt"]
+    files <- lines <$> readFile "release.txt"
+    need files
+    system "tar" $ ["-cf", "release.tar"] ++ files
+\end{minted}
+
+\noindent
+We first declare the static dependency on \cmd{release.txt}, then read its
+content (a list of files) and depend on each listed file, dynamically. Finally, we specify the
+command to produce the resulting archive. Crucially, the archive will only be
+rebuilt if one of the dependencies (static or dynamic) has changed. For example,
+if we create another documentation file \cmd{README} and add it to
+\cmd{docs.txt}, \Shake will appropriately rebuild \cmd{release.txt} and
+\cmd{release.tar}, discovering the new dependency, see Fig.~\ref{fig-shake}(b).
+
+\Shake's implementation is different from both \Make and \Excel in two aspects.
+First, it uses the dependency graph from the previous build to decide which
+files need to be rebuilt. This idea has a long history, going back to
+\emph{incremental}~\cite{demers1981incremental},
+\emph{adaptive}~\cite{acar2002adaptive}, and
+\emph{self-adjusting computations} (see \cite{acar2007selfadjusting} and
+\S\ref{sec-related}). Second, instead of aborting and deferring the execution of
+tasks whose newly discovered dependencies have not yet been built (as \Excel
+does), \Shake \emph{suspends} their execution until the dependencies are brought
+up to date. We refer to this task scheduling algorithm as \emph{suspending},
+see a concrete implementation in~\S\ref{sec-implementation-shake}.
+
+\begin{figure}
+\vspace{-3mm}
+\centerline{\includegraphics[scale=0.28]{fig/shake-example-cutoff.pdf}}
+\vspace{-4mm}
+\caption{An early cutoff example: if a comment is added to \cmd{main.c}, the
+rebuild is stopped after detecting that \cmd{main.o} is unchanged, since this
+indicates that \cmd{main.exe} and its dependents do not need to be
+rebuilt.\label{fig-cutoff}}
+\vspace{-4mm}
+\end{figure}
+
+\Shake also supports the \emph{early cutoff optimisation}. When it
+executes a task and the result is unchanged from the previous build, it is
+unnecessary to execute the dependent tasks, and hence \Shake can stop a build
+earlier, as illustrated in Fig.~\ref{fig-cutoff}. Not all build systems support
+early cutoff: \Make and \Excel do not, whereas \Shake and \Bazel (introduced
+below) do.
+
+\vspace{-0.5mm}
+\subsection{\Bazel: A Cloud Build System}\label{sec-background-bazel}
+\vspace{-0.5mm}
+
+When build systems are used by large teams, different team members often end up
+executing exactly the same tasks on their local machines. A \emph{cloud build
+system} can speed up builds dramatically by sharing build results
+among team members. Furthermore, cloud build systems can support \emph{shallow
+builds} that materialise only end build products locally, leaving all
+intermediates in the cloud.
+
+Consider an example in Fig.~\ref{fig-bazel}. The user starts by downloading the
+sources, whose content hashes are (for simplicity)~1,~2 and~3, and requests to
+build \cmd{main.exe}, see Fig.~\ref{fig-bazel}(a,b). By looking up the global
+history of all previous builds\footnote{In practice, old entries are regularly
+evicted from the cloud storage, as further discussed
+in~\S\ref{sec-cloud-aspects}.}, the build system finds that someone has already
+compiled these exact sources before and the resulting files \cmd{util.o} and
+\cmd{main.o} had hashes 4~and~5, respectively. Similarly, the build system finds
+that the hash of the resulting \cmd{main.exe} was 6 and downloads the actual
+binary from the cloud storage -- it must be materialised, because it is the end
+build product.
+
+In Fig.~\ref{fig-bazel}(c), the user modifies the source file \cmd{util.c},
+thereby changing its hash from~1~to~7. The cloud lookup of the new combination
+$\{\cmd{util.c}, \cmd{util.h}\}$ fails, which means that nobody has ever
+compiled it. The build system must therefore build \cmd{util.o}, materialising
+it with the new hash~8. The combination of hashes of \cmd{util.o} and
+\cmd{main.o} has not been encountered before either, thus the build system first
+downloads \cmd{main.o} from the cloud and then builds \cmd{main.exe} by linking
+the two object files. When the build is complete, the results can be uploaded to
+the cloud for future reuse by other team members.
+
+\Bazel is one of the first openly-available cloud build systems.
+As of writing, it is not possible to express dynamic dependencies in
+user-defined build rules; however some of the pre-defined build rules require
+dynamic dependencies and the internal build engine can cope with them by using
+a \emph{restarting} task scheduler, which is similar to that of \Excel but does
+not use the calc chain. \Bazel is not minimal in the sense that it may restart a
+task multiple times as new dependencies are discovered and rebuilt, but it
+supports the early cutoff optimisation.
+
+To support cloud builds, \Bazel maintains (i) a \emph{content-addressable cache}
+that can be used to download a previously built file given the hash of its
+content, and (ii) the history of all executed build commands annotated with
+observed file hashes. The latter allows the build engine to bypass the execution
+of a task, by predicting the hash of the result from the hashes of its
+dependencies, and subsequently download the result from the cache. A concrete
+implementation is provided in~\S\ref{sec-implementation-cloud}.
+
+\begin{figure}
+\vspace{-2mm}
+\begin{subfigure}[b]{0.25\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/bazel-example-checkout.pdf}}
+\vspace{-1mm}
+\caption{Download source files}
+\end{subfigure}
+\begin{subfigure}[b]{0.40\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/bazel-example-build.pdf}}
+\vspace{-1mm}
+\caption{Build \cmd{main.exe}}
+\end{subfigure}
+\begin{subfigure}[b]{0.31\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/bazel-example-rebuild.pdf}}
+\vspace{-1mm}
+\caption{Modify \cmd{util.c} and rebuild}
+\end{subfigure}
+\vspace{-2.5mm}
+\caption{A cloud build example: (a)~download sources, (b)~build \cmd{main.exe}
+by downloading it from the cloud and skipping intermediate files (only their
+hashes are needed), (c)~modify \cmd{util.c} and rebuild \cmd{main.exe}, which
+requires building \cmd{util.o} (nobody has compiled \cmd{util.c} before) and
+downloading \cmd{main.o} (it is needed for linking \cmd{main.exe}). File hashes
+are shown in circles, and non-materialised intermediates in dashed rounded
+rectangles.\label{fig-bazel}}
+\vspace{-3mm}
+\end{figure}
+
+\begin{table}[h]
+\vspace{-2mm}
+\caption{Build system differences.\label{tab-summary}}
+\vspace{-4mm}
+% \smaller
+\centering
+\begin{tabular}{l||l|l||l|c|c|c}
+\hline
+$\!$Build system$\!$& Persistent build information & Scheduler   & Dependencies    & Minimal & Cutoff & Cloud$\!$\\\hline
+$\!$\Make       $\!$& File modification times      & Topological & Static          & Yes     & No     & No   $\!$\\
+$\!$\Excel      $\!$& Dirty cells, calc chain      & Restarting  & Dynamic         & No      & No     & No   $\!$\\
+$\!$\Shake      $\!$& Previous dependency graph    & Suspending  & Dynamic         & Yes     & Yes    & No   $\!$\\
+$\!$\Bazel      $\!$& Cloud cache, command history & Restarting  & Dynamic$^{(*)}$ & No      & Yes    & Yes  $\!$\\\hline
+\end{tabular}
+\vspace{2mm}
+$^{(*)}$At present, user-defined build rules cannot have dynamic dependencies.
+\vspace{-8mm}
+\end{table}
+
+\vspace{-1.5mm}
+\subsection{Summary}\label{sec-background-summary}
+\vspace{-0.5mm}
+
+We summarise differences between four discussed build systems in
+Table~\ref{tab-summary}. The column \emph{`persistent build information'} refers
+to the information that build systems persistently store between builds:
+\begin{itemize}
+    \item \Make stores file modification times, or rather, it relies on the file
+    system to do that.
+    \item \Excel stores one dirty bit per cell and the calc chain from the
+    previous build.
+    \item \Shake stores the dependency graph discovered in the previous build,
+    annotated with file content hashes for efficient checking of file changes.
+    \item \Bazel stores the content-addressable cache and the history of all
+    previous build commands annotated with file hashes. This information is
+    shared among all users of the build system.
+\end{itemize}
+
+In this paper we elucidate which build system properties are consequences of
+specific implementation choices (stored metadata and task scheduling algorithm),
+and how one can obtain new build systems with desired properties by recombining
+parts of existing implementations. As a compelling example,
+in~\S\ref{sec-implementation-cloud} we demonstrate how to combine the advantages
+of \Shake and \Bazel.

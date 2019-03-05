@@ -1,0 +1,42 @@
+\def\filedate{1998/06/30}
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{mathptmx}[\filedate\space
+  Times + math package from fontinst]
+\def\rmdefault{ptm}
+\DeclareSymbolFont{operators}   {OT1}{ztmcm}{m}{n}
+\DeclareSymbolFont{letters}     {OML}{ztmcm}{m}{it}
+\DeclareSymbolFont{symbols}     {OMS}{ztmcm}{m}{n}
+\DeclareSymbolFont{largesymbols}{OMX}{ztmcm}{m}{n}
+\DeclareSymbolFont{bold}        {OT1}{ptm}{bx}{n}
+\DeclareSymbolFont{italic}      {OT1}{ptm}{m}{it}
+\@ifundefined{mathbf}{}{\DeclareMathAlphabet{\mathbf}{OT1}{ptm}{bx}{n}}
+\@ifundefined{mathit}{}{\DeclareMathAlphabet{\mathit}{OT1}{ptm}{m}{it}}
+\DeclareMathSymbol{\omicron}{0}{operators}{`\o}
+\thinmuskip=2mu
+\medmuskip=2.5mu plus 1mu minus 1mu
+\thickmuskip=4mu plus 1.5mu minus 1mu
+  \let\@tempa\version@elt
+    \def\version@elt#1{%
+      \ifx\mv@bold#1\else\noexpand\version@elt\noexpand#1\fi}
+    \edef\version@list{\version@list}
+  \let\version@elt\@tempa
+  \let\mv@bold\@undefined
+\def\boldmath{%
+   \PackageWarning{there is no bold Symbol font}%
+   \global\let\boldmath=\relax
+}
+\DeclareMathSizes{5}{5}{5}{5}
+\DeclareMathSizes{6}{6}{5}{5}
+\DeclareMathSizes{7}{7}{5}{5}
+\DeclareMathSizes{8}{8}{6}{5}
+\DeclareMathSizes{9}{9}{7}{5}
+\DeclareMathSizes{10}{10}{7.4}{6}
+\DeclareMathSizes{10.95}{10.95}{8}{6}
+\DeclareMathSizes{12}{12}{9}{7}
+\DeclareMathSizes{14.4}{14.4}{10.95}{8}
+\DeclareMathSizes{17.28}{17.28}{12}{10}
+\DeclareMathSizes{20.74}{20.74}{14.4}{12}
+\DeclareMathSizes{24.88}{24.88}{17.28}{14.4}
+\endinput
+%%
+%% End of file `mathptmx.sty'.

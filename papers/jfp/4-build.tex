@@ -1,0 +1,282 @@
+\section{Build Systems \`a la Carte}\label{sec-build}
+
+The focus of this paper is on a variety of implementations of
+\hs{Build}~\hs{c}~\hs{i}~\hs{k}~\hs{v}, given
+a \emph{client-supplied} implementation of \hs{Tasks}~\hs{c}~\hs{k}~\hs{v}. That
+is, we are going to take \hs{Tasks} as given from now on, and explore variants of
+\hs{Build}: first abstractly (in this section) and then concretely
+in~\S\ref{sec-implementations}.
+
+As per the definition of minimality~\ref{def-minimal}, a minimal build
+system must \textbf{rebuild only out-of-date keys} and at most once. The only
+way to achieve the ``at most once'' requirement while producing a correct build
+result (\S\ref{sec-build-correctness}) is to \textbf{build all keys in an
+order that respects their dependencies}.
+
+\vspace{1mm}
+We have emboldened two different aspects above: the part of the
+build system responsible for scheduling tasks in the dependency order
+(a `scheduler') can be cleanly separated from the part responsible for deciding
+whether a key needs to be rebuilt (a `rebuilder'). We tackle each
+aspect separately in subsections~\S\ref{sec-dependency-orderings}
+and~\S\ref{sec-out-of-date}.
+
+\subsection{The Scheduler: Respecting the Dependency Order}
+\label{sec-dependency-orderings}
+
+Section \S\ref{sec-background} introduced three different \emph{task schedulers}
+that decide which tasks to execute and in what order; see the ``Scheduler'' column
+of Table~\ref{tab-summary} in \S\ref{sec-background-summary}.
+This subsection explores the properties of the three schedulers, and
+possible implementations.
+
+\vspace{-2mm}
+\subsubsection{Topological}\label{sec-topological}
+
+The topological scheduler pre-computes a linear order of tasks, which when followed,
+ensures the build result is correct regardless of the initial store. Given a
+task description and the output \hs{key}, you can compute the linear order by
+first finding the (acyclic) graph of the \hs{key}'s reachable dependencies, and
+then computing a topological sort. However, as we have seen in~\S\ref{sec-deps},
+we can only extract dependencies from an applicative task, which requires the
+build system to choose \hs{c}~\hs{=}~\hs{Applicative}, ruling out dynamic
+dependencies.
+
+\vspace{-2mm}
+\subsubsection{Restarting}\label{sec-restarting}
+
+To handle dynamic dependencies we can use the following approach: build tasks in
+an arbitrary initial order, discovering their dependencies on the fly; whenever
+a task calls \hs{fetch} on an out-of-date key \hs{dep}, abort the task, and
+switch to building the dependency \hs{dep}; eventually the previously aborted
+task is restarted and makes further progress thanks to \hs{dep} now being up to
+date. This approach requires a way to abort tasks that have failed due to
+out-of-date dependencies. It is also not minimal in the sense that a task may
+start, do some meaningful work, and then abort.
+
+To reduce the number of aborts (often to zero) \Excel records the
+discovered task order in its \emph{calc chain}, and uses it as the
+starting point for the next build (\S\ref{sec-background-excel}).
+\Bazel's restarting scheduler does not store the discovered order
+between build runs; instead, it stores the most recent task dependency
+information. Since this information may become outdated, \Bazel may
+also need to abort a task if a newly discovered dependency is out of date.
+
+\vspace{-2mm}
+\subsubsection{Suspending}\label{sec-suspending}
+
+An alternative approach, utilised by the \hs{busy} build system
+(\S\ref{sec-general-build}) and \Shake, is to simply build dependencies when
+they are requested, suspending the currently running task. By combining that
+with tracking the keys that have already been built, one can obtain a minimal
+build system with dynamic dependencies.
+
+This approach requires that a task may be started and then suspended until
+another task is complete. Suspending can be done with cheap green threads and
+blocking (the original approach of \Shake) or using continuation-passing style
+\cite{claessen_continuations} (what \Shake currently does).
+
+\subsection{The Rebuilder: Determining Out-of-date Keys}\label{sec-out-of-date}
+
+Suppose the scheduler decides that a key should be brought up to date. The next
+question is: does any work need to be done, or is the key already up to date?
+Or, in a cloud-build system, do we have a cached copy of the value we need?
+These questions can be addressed in one of four fundamental ways, with a number
+of tweaks and variations within them.
+
+\vspace{-2mm}
+\subsubsection{A Dirty Bit}\label{sec-dirty-bit}
+
+The idea of a dirty bit is to have one piece of persistent information per key,
+saying whether the key is \emph{dirty} or \emph{clean}. After a build, all bits
+are set to clean. When the next build starts, anything that changed between the
+two builds is marked dirty. If a key and all its transitive dependencies are
+clean, the key does not need to be rebuilt.
+
+\Excel models the dirty bit approach most directly, having an actual dirty bit
+associated with each cell, marking the cell dirty if the user modifies it.
+It also marks dirty all cells that (transitively) depend on the modified cell.
+\Excel does not record dynamic dependencies of each cell; instead it computes a
+\emph{static over-approximation} -- it is safe for it to make more cells dirty
+than necessary, but not vice versa. The over-approximation is as follows: a cell
+is marked dirty if its formula statically refers to a dirty cell, or if the
+formula calls a function like \cmd{INDIRECT} whose dependencies cannot be
+guessed from the formula alone. The over-approximation is clear for
+\cmd{INDIRECT}, but it is also present for \cmd{IF}, where both branches are
+followed even though dynamically only one is used.
+
+\Make uses file modification times, and compares files to their dependencies,
+which can be thought of as a dirty bit which is set when a file is older than
+its dependencies. The interesting property of this dirty bit is that it is not
+under the control of \Make; rather it is existing file-system information that
+has been repurposed. Modifying a file automatically clears its dirty bit, and
+automatically sets the dirty bit of the files depending on it (but not
+recursively). Note that \Make requires that file timestamps only go forward in
+time, which can be violated by backup software.
+
+With a dirty bit it is possible to achieve minimality. However, to achieve early
+cutoff (\S\ref{sec-background-shake}) it would be important to reset the dirty
+bit after a computation that did not change the value and make sure that cells
+that depend on it are not rebuilt unnecessarily. For \Excel, this is difficult
+because the dependent cells have already been recursively marked dirty. For
+\Make, it is impossible to mark a file clean and at the same time not mark the
+keys that depend on it dirty. \Make can approximate early cutoff by not
+modifying the result file, and not marking it clean, but then it will be rebuilt
+in every subsequent build.
+
+\vspace{-2mm}
+\subsubsection{Verifying Traces}\label{sec-verifying-traces}
+
+An alternative way to determine if a key is dirty is to record the
+values/hashes of dependencies used last time, and if something has changed, the
+key is dirty and must be rebuilt~--~in essence a \emph{trace} which we can use
+to \emph{verify} existing values. For traces, there are two essential
+operations~--~adding a new value to the trace store, and using the traces to
+determine if a key needs rebuilding. Assuming a store of verifying traces
+\hs{VT}~\hs{k}~\hs{v}, the operations are:
+
+\begin{minted}[fontsize=\small,xleftmargin=10pt]{haskell}
+recordVT@\,@::@\,@k -> Hash v -> [(k, Hash v)] -> VT k v -> VT k v
+verifyVT@\,@::@\,@(Monad m,@\,@Eq k,@\,@Eq v) => k -> Hash v -> (k -> m (Hash v)) -> VT k v -> m Bool
+\end{minted}
+
+\noindent
+Rather than storing (large) values \hs{v}, the verifying trace \hs{VT} stores
+only hashes, of type \hs{Hash}~\hs{v}, of those values. Since the verifying
+trace persists from one build to the next -- it constitutes the build system's
+``memory'' -- it is helpful for it to be of modest size. After successfully
+building a key, we call \hs{recordVT} to add a record to the current \hs{VT},
+passing the key, the hash of its value, and the list of hashes and dependencies.
+
+More interestingly, to \emph{verify} whether a key needs rebuilding we supply
+the key, the hash of its current value, a function for obtaining the post-build
+value of any key (using a scheduling strategy as per
+\S\ref{sec-dependency-orderings}), and the existing \hs{VT} information. The
+result will be a \hs{Bool} where \hs{True} indicates that the current value is
+already up to date, and \hs{False} indicates that it should be rebuilt.
+
+One potential implementation would be to record all arguments passed to
+\hs{recordVT} in a list, and verify by simply checking if any list item matches
+the information passed by \hs{verifyVT}.  We discuss smarter implementations
+in~\S\ref{sec-smart-traces}.
+
+A verifying trace, and other types of traces discussed in this section, support
+dynamic dependencies and minimality; furthermore, all traces except for deep
+traces~(\S\ref{sec-deep-constructive-traces}) support early cutoff.
+
+\subsubsection{Constructive Traces}\label{sec-constructive-traces}
+
+A verifying trace deliberately records only small hashes, so that it can be small.
+A \emph{constructive} trace additionally stores the resulting value.
+Once we are storing the complete result it makes sense
+to record many constructive traces per key, and to share them with other users,
+providing cloud-build functionality. We can represent this additional
+information by providing the operations:
+
+\begin{minted}[fontsize=\small,xleftmargin=10pt]{haskell}
+recordCT    :: k -> v -> [(k, Hash v)] -> CT k v -> CT k v
+constructCT :: (Monad m, Eq k, Eq v) => k -> (k -> m (Hash v)) -> CT k v -> m [v]
+\end{minted}
+
+\noindent
+The function \hs{recordCT} looks like \hs{recordVT}, but instead of just passing
+the hash of the resulting value, we require the actual value. The \hs{verifyVT}
+has been replaced with \hs{constructCT}, which instead of taking the hash of the
+current value as \emph{input}, returns a list of suitable values as \emph{output}.
+If the current value in the store matches one of the possible values, the build
+can skip this key. If the resulting list is empty, the key must be rebuilt.
+However, if the current value does not match the store, and there is a possible
+value, we can use any value from the constructive list \emph{without} doing any
+work to build it, and copy it into the store.
+
+\subsubsection{Deep Constructive Traces}\label{sec-deep-constructive-traces}
+
+Constructive traces always verify keys by looking at their immediate
+dependencies, which must have first been brought up to date, meaning that the
+time to verify a key depends on the number of transitive dependencies. A
+\emph{deep} constructive trace optimises this process by only looking at the
+terminal \emph{input keys}, ignoring any intermediate dependencies. The operations
+capturing this approach are the same as for constructive traces
+in~\S\ref{sec-constructive-traces}, but we use the names \hs{recordDCT} and
+\hs{constructDCT}, where the underlying \hs{DCT} representation need only record
+information about hashes of inputs, not intermediate dependencies.
+
+Current build systems using deep constructive traces always record hashes of
+terminal \emph{input keys}, but the technique works equally well if we skip any
+number of dependency levels (say $n$ levels). The input-only approach is the
+special case of $n = \infty$, and constructive traces are the special case of
+$n = 1$. When $n \ge 2$, deep constructive traces require the tasks to be
+\emph{deterministic}, as otherwise it is possible to violate correctness, as
+illustrated by an example in~\S\ref{sec-cloud-aspects}
+(see Fig.~\ref{fig-frankenbuild}).
+
+A downside of deep constructive traces is that they cannot support early cutoff
+(\S\ref{sec-background-shake}), other than at $n$ levels of dependencies. On the
+other hand, these traces are particularly useful for \emph{shallow builds}, as
+discussed in~\S\ref{sec-cloud-aspects}.
+
+\subsection{Efficient Data Structures for Traces}\label{sec-smart-traces}
+
+In the examples above, we have used abstract types for the traces. Concretely,
+in our example code, they are all recorded as lists of:
+
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Trace k v r = Trace { key :: k, depends :: [(k, Hash v)], result :: r }
+\end{minted}
+
+Here \hs{r} is either \hs{Hash}~\hs{v} (verifying traces) or
+\hs{v} (constructive traces). A real system is highly likely to use a more
+optimised implementation. Some of the most obvious optimisations are:
+
+\begin{itemize}
+\item Any system using verifying traces is unlikely to see significant benefit
+from storing more than one \hs{Trace} per key\footnote{There is a small chance
+of a benefit if the dependencies change but the result does not, and then the
+dependencies change back to what they were before.}. Therefore, such systems can
+store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v}~\hs{(Hash}~\hs{v))}, where the
+initial \hs{k} is the \hs{key} field of \hs{Trace}.
+
+\item Any system using \hs{Applicative} dependencies can omit the dependency
+keys from the \hs{Trace} since they can be recovered from the \hs{key} field.
+
+\item Any \hs{Applicative} build system using constructive traces, e.g.
+\CloudBuild, can index directly from the key and results to the output result~--~i.e.
+\hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces
+are stored on a central server, the client can compute the key and the hashes of
+its dependencies, then make a single call to the server to retrieve the result.
+
+\item Many cloud build systems store hashes of values in the trace information,
+then have a separate content-addressable cache which associates hashes with
+their actual contents.
+\vspace{-1mm}
+\end{itemize}
+
+\subsection{Build Systems \`a la Carte}\label{sec-design-space}
+
+\begin{table}
+\caption{Build systems \`a la carte.\label{tab-build-systems}}
+\vspace{-4mm}
+% \smaller
+\centering
+\begin{tabular}{l||c|c|c}
+\hline
+ & \multicolumn{3}{c}{Scheduling algorithm} \\
+Rebuilding strategy  & Topological\hspace{2mm}\S\ref{sec-topological} & Restarting\hspace{2mm}\S\ref{sec-restarting} & Suspending\hspace{2mm}\S\ref{sec-suspending}    \\\hline
+\hline
+Dirty bit\hfill\S\ref{sec-dirty-bit}                                                             & \Make       & \Excel & -              \\\hline
+Verifying traces\hfill\S\ref{sec-verifying-traces}                                               & \Ninja      & -      & \Shake         \\\hline
+Constructive traces\hspace{2mm}\hfill\S\ref{sec-constructive-traces}                             & \CloudBuild & \Bazel & -              \\\hline
+Deep constructive traces\hspace{2mm}\hfill\S\ref{sec-deep-constructive-traces} & \Buck       & -      & \Nix           \\\hline
+\end{tabular}
+\vspace{-4mm}
+\end{table}
+
+With the information in this section we can build Table~\ref{tab-build-systems},
+which tabulates combinations of the scheduling algorithm and the rebuilding
+strategy, providing 12~possible build systems, 8~of which are inhabited
+by existing build systems (we discuss these systems in~\S\ref{sec-background} and
+\S\ref{sec-related-build}). Of the remaining 4~spots, all result in workable
+build systems. The most interesting unfilled spot in the table is suspending
+constructive traces, which would provide many benefits, and which we title
+\Cloud \Shake and explore further in~\S\ref{sec-implementation-cloud}.
+% (as we plan on extending \Shake to occupy that spot)

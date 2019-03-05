@@ -1,0 +1,479 @@
+\section{Build systems, concretely}\label{sec-implementations}
+
+In the previous sections we discussed the types of build systems, and how they
+can be broken down into two main components: a scheduler and a rebuilder.
+In this section we make this abstract distinction concrete, by
+implementing a number of build systems as a composition of a scheduler
+and a rebuilder.  Our design is expressed by these types (Fig.~\ref{fig-types}):
+
+\vspace{0.5mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
+type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
+\end{minted}
+\vspace{0.5mm}
+
+\noindent
+A \hs{Scheduler} is a function that takes a \hs{Rebuilder} and uses
+it to construct a \hs{Build} system, by choosing which keys to rebuild in which
+order. The \hs{Rebuilder} makes use of the persistent build information
+\hs{ir}, while the scheduler might augment that with further persistent
+information of its own, yielding \hs{i}.
+
+A \hs{Rebuilder} takes three arguments: a key, its current value, and a
+\hs{Task} that can (re)compute the value of the key if necessary. It uses the
+persistent build information \hs{ir} (carried by the state monad) to decide
+whether to rebuild the value. If doing so is unnecessary, it returns the current
+value; otherwise it runs the supplied \hs{Task} to rebuild it. In both cases it
+can choose to update the persistent build information \hs{ir} to reflect what
+happened. So a \hs{Rebuilder} wraps a \hs{Task}~\hs{c}~\hs{k}~\hs{v}, which
+unconditionally rebuilds the key, to make a
+\hs{Task}~\hs{(MonadState}~\hs{ir)}~\hs{k}~\hs{v}, which rebuilds the key only
+if necessary, and does the necessary book-keeping. Note that the resulting
+\hs{Task} is always monadic; static dependency analysis can be performed on the
+original \hs{Task}~\hs{Applicative} if needed.
+
+The scheduler calls the rebuilder, but passes it a \hs{fetch} function
+that the latter calls when it needs the value of a dependent key.  This
+callback returns control to the scheduler, which may in turn call the
+rebuilder to bring the dependent key up to date, and so on.
+
+\begin{figure}
+\begin{minted}[fontsize=\small]{haskell}
+-- Make build system; stores current time and file modification times
+type Time       = Integer
+type MakeInfo k = (Time, Map k Time)
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+make :: Ord k => Build Applicative (MakeInfo k) k v
+make = topological modTimeRebuilder
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- A task rebuilder based on file modification times
+modTimeRebuilder :: Ord k => Rebuilder Applicative (MakeInfo k) k v
+modTimeRebuilder key value task = Task $ \fetch -> do
+    (now, modTimes) <- get
+    let dirty = case Map.lookup key modTimes of
+            Nothing -> True
+            time -> any (\d -> Map.lookup d modTimes > time) (dependencies task)
+    if not dirty then return value else do
+        put (now + 1, Map.insert key now modTimes)
+        run task fetch
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- A topological task scheduler
+topological :: Ord k => Scheduler Applicative i i k v
+topological rebuilder tasks target = execState $ mapM_ build order
+  where
+    build :: k -> State (Store i k v) ()
+    build key = case tasks key of
+        Nothing -> return ()
+        Just task -> do
+            store <- get
+            let value = getValue key store
+                newTask :: Task (MonadState i) k v
+                newTask = rebuilder key value task
+                fetch :: k -> State i v
+                fetch k = return (getValue k store)
+            newValue <- liftStore (run newTask fetch)
+            modify $ putValue key newValue
+    order = topSort (reachable dep target)
+    dep k = case tasks k of { Nothing -> []; Just task -> dependencies task }
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Standard graph algorithms (implementation omitted)
+reachable :: Ord k => (k -> [k]) -> k -> Graph k
+topSort   :: Ord k => Graph k -> [k] -- Throws error on a cyclic graph
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Expand the scope of visibility of a stateful computation
+liftStore :: State i a -> State (Store i k v) a
+liftStore x = do
+    (a, newInfo) <- gets (runState x . getInfo)
+    modify (putInfo newInfo)
+    return a
+\end{minted}
+\vspace{-3mm}
+\caption{An implementation of \Make using our framework.}\label{fig-make-implementation}
+\vspace{-5mm}
+\end{figure}
+
+These two abstractions are the key to modularity: \emph{we can combine any
+scheduler with any rebuilder, and obtain a correct build system}.
+In this section we will write a scheduler for each column of
+Table~\ref{tab-build-systems}, and a rebuilder for each row; then combine them
+to obtain the build systems in the table's body.
+
+\subsection{\Make}\label{sec-implementation-make}
+
+An implementation of \Make using our framework is shown in
+Fig.~\ref{fig-make-implementation}. As promised, its definition
+is just the application of a \hs{Scheduler}, \hs{topological},
+to a \hs{Rebuilder}, \hs{modTimeRebuilder}.
+We discuss each component in turn, starting with the rebuilder.
+
+The \hs{modTimeRebuilder} uses the pair
+\hs{MakeInfo}~\hs{k}~\hs{=}~\hs{(@@now,}~\hs{modTimes)} as persistent
+build information, carried by a state monad. This \hs{MakeInfo} comprises
+the \emph{current time} \hs{now}~\hs{::}~\hs{Time} and the map
+\hs{modTimes}~\hs{::}~\hs{Map}~\hs{k}~\hs{Time} of \emph{file modification
+times}. We assume that the external system, which invokes the build system,
+updates \hs{MakeInfo} reflecting any file changes between successive builds.
+
+The rebuilder receives three arguments: a \hs{key}, its current \hs{value}, and
+the applicative \hs{task} that can be used to rebuild the \hs{key} if necessary.
+The rebuilder first decides if the \hs{key} is \hs{dirty} by consulting
+\hs{modTimes}: if the \hs{key} is not found, that must mean it has never been
+built before; otherwise \hs{modTimeRebuilder} can see if any of the \hs{task}'s
+dependencies (computed by \hs{dependencies}) are out of date. If the \hs{key} is
+\hs{dirty}, we use \hs{run}~\hs{task} to rebuild it, and update the state with
+the new modification time of the \hs{key}\footnote{The real \Make
+relies on the file system to track file modification times, but we prefer
+to make it explicit here.}; otherwise we can just return the current \hs{value}.
+
+\Make's scheduler, \hs{topological}, processes keys in a linear \hs{order} based
+on a topological sort of the statically known dependency graph
+(see~\S\ref{sec-parallelism} for parallel \Make). Our definition in
+Fig.~\ref{fig-make-implementation} is polymorphic with respect to the type of
+build information \hs{i} and is therefore compatible with any applicative
+\hs{rebuilder}. The scheduler calls the supplied \hs{rebuilder} on every
+\hs{key} in the \hs{order}, and runs the obtained \hs{newTask} to compute the
+\hs{newValue}. Note that \hs{newTask} has access only to the \hs{i} part of the
+\hs{Store}~\hs{i}~\hs{k}~\hs{v}, but the rest of the \hs{do} block runs in the
+\hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v)} monad; we use the (unremarkable)
+helper function \hs{liftStore} to fix the mismatch. The \hs{newTask} finds
+values of the \hs{key}'s dependencies via the \hs{fetch} callback, which is
+defined to directly read the \hs{store}.
+
+The pre-processing stage uses the function \hs{dependencies}, defined
+in~\S\ref{sec-deps}, to extract static dependencies from the provided
+applicative \hs{task}. We compute the linear processing \hs{order} by
+constructing the graph of keys \hs{reachable} from the \hs{target} via
+dependencies, and performing the topological sort of the result. We omit
+implementation of textbook graph algorithms \hs{reachable} and \hs{topSort},
+e.g. see~\cite{cormen2001introduction}.
+
+Note that the function \hs{dependencies} can only be applied to applicative
+tasks, which restricts \Make to static dependencies, as reflected in the
+type~\hs{Build}~\hs{Applicative}. Moreover, any other build system that uses
+the \hs{topological} scheduler will also inherit the same restriction.
+
+\subsection{\Excel}\label{sec-implementation-excel}
+
+Our model of \Excel uses the \hs{restarting} scheduler and the
+\hs{dirtyBitRebuilder}, see Fig.~\ref{fig-excel-implementation}. The persistent
+build information \hs{ExcelInfo}~\hs{k} is a pair: (i) a map
+\hs{k}~\hs{->}~\hs{Bool} associating a dirty bit with every key, and (ii) a
+calc chain of type \hs{[@@k]} recorded in the previous build
+(\S\ref{sec-background-excel}).
+
+The external system, which invokes \Excel's build engine, is required
+to provide a transitively closed set of dirty bits. That is, if a
+cell is changed, its dirty bit is set, as well as the dirty bit of any other
+cell whose value might perhaps change as a result. It is OK to mark too many
+cells as dirty; but not OK to mark too few.
+
+The \hs{dirtyBitRebuilder} is very simple: if the \hs{key}'s dirty bit is set,
+we \hs{run} the \hs{task} to rebuild the \hs{key}; otherwise we return the
+current \hs{value} as is.
+Because the dirty cells are transitively closed,
+unlike \Make's \hs{modTimeRebuilder}, the \hs{dirtyBitRebuilder} does
+not need to modify \hs{i} to trigger rebuilds of dependent keys.
+
+\begin{figure}
+\begin{minted}[fontsize=\small]{haskell}
+-- Excel build system; stores a dirty bit per key and calc chain
+type Chain k = [k]
+type ExcelInfo k = (k -> Bool, Chain k)
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+excel :: Ord k => Build Monad (ExcelInfo k) k v
+excel = restarting dirtyBitRebuilder
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- A task rebuilder based on dirty bits
+dirtyBitRebuilder :: Rebuilder Monad (k -> Bool) k v
+dirtyBitRebuilder key value task = Task $ \fetch -> do
+    isDirty <- get
+    if isDirty key then run task fetch else return value
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- A restarting task scheduler
+restarting :: Ord k => Scheduler Monad (ir, Chain k) ir k v
+restarting rebuilder tasks target = execState $ do
+    chain    <- gets (snd . getInfo)
+    newChain <- liftChain $ go Set.empty $ chain ++ [target | target `notElem` chain]
+    modify $ mapInfo $ \(ir, _) -> (ir, newChain)
+  where
+    go :: Set k -> Chain k -> State (Store ir k v) (Chain k)
+    go _    []       = return []
+    go done (key:keys) = case tasks key of
+        Nothing -> (key :) <$> go (Set.insert key done) keys
+        Just task -> do
+            store <- get
+            let newTask :: Task (MonadState ir) k (Either k v)
+                newTask = try $ rebuilder key (getValue key store) task
+                fetch :: k -> State ir (Either k v)
+                fetch k | k `Set.member` done = return $ Right (getValue k store)
+                        | otherwise           = return $ Left k
+            result <- liftStore (run newTask fetch) -- liftStore is defined in Fig. 7
+            case result of
+                Left dep -> go done $ dep : filter (/= dep) keys ++ [key]
+                Right newValue -> do modify $ putValue key newValue
+                                     (key :) <$> go (Set.insert key done) keys
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Convert a total task into a task that accepts a partial fetch callback
+try :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
+try task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Expand the scope of visibility of a stateful computation (implementation omitted)
+liftChain :: State (Store ir k v) a -> State (Store (ir, Chain [k]) k v) a
+\end{minted}
+\vspace{-2.5mm}
+\caption{An implementation of \Excel using our framework.}\label{fig-excel-implementation}
+\vspace{-2.5mm}
+\end{figure}
+
+\Excel's \hs{restarting} scheduler processes keys in the order specified by the
+calc \hs{chain}. During the build, it constructs a \hs{newChain} for the next
+build and maintains a set of keys \hs{done} that have been processed. For each
+non-input \hs{key}, the scheduler tries to rebuild it using a partial \hs{fetch}
+callback that returns \hs{Either}~\hs{k}~\hs{v} instead of \hs{v}. The callback
+is defined to fail with \hs{Left}~\hs{dep} when asked for the value of a
+dependency \hs{dep} that has not yet been processed (and hence may potentially
+be dirty); otherwise it returns the current value of the dependency by looking
+it up in the \hs{store}.
+
+After the \hs{newTask} is executed (with the help of \hs{liftStore}) there are
+two cases to consider:
+
+\begin{itemize}
+    \item The \hs{newTask} has failed, because one of its dependencies \hs{dep}
+    has not yet been processed. This indicates that the calculation \hs{chain}
+    from the previous build is incorrect and needs to be adjusted by moving the
+    \hs{dep} in front of the \hs{key}, so that we can restart building the
+    \hs{key} after the \hs{dep} is ready.
+    \item The \hs{newTask} succeeded. The resulting \hs{newValue} is written to
+    the store, the \hs{key} is marked as \hs{done}, and \Excel continues to
+    build the rest of the \hs{chain}.
+\end{itemize}
+
+Note that the task returned by the \hs{rebuilder} expects a total callback
+function and cannot be directly executed with the partial callback \hs{fetch}.
+We fix the mismatch with the function \hs{try} that relies on the standard
+monad transformer \hs{ExceptT} from the \cmd{transformers} library. We also
+need the helper \hs{liftChain}, whose implementation we omit since it
+is analogous to \hs{liftStore} in Fig.~\ref{fig-make-implementation}.
+
+\subsection{\Shake}\label{sec-implementation-shake}
+
+Our model of \Shake is shown in Fig.~\ref{fig-shake-implementation}. It stores
+verifying traces \hs{VT}~\hs{k}~\hs{v} defined in~\S\ref{sec-verifying-traces}
+as persistent build information and is composed of the \hs{suspending} scheduler
+and the \hs{vtRebuilder}.
+
+\begin{figure}
+\begin{minted}[fontsize=\small]{haskell}
+-- Shake build system; stores verifying traces
+shake :: (Ord k, Hashable v) => Build Monad (VT k v) k v
+shake = suspending vtRebuilder
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- A task rebuilder based on verifying traces
+vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
+vtRebuilder key value task = Task $ \fetch -> do
+    upToDate <- verifyVT key (hash value) (fmap hash . fetch) =<< get
+    if upToDate then return value else do
+        (newValue, deps) <- track task fetch
+        modify $ recordVT key (hash newValue) [ (k, hash v) | (k, v) <- deps ]
+        return newValue
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- A suspending task scheduler
+suspending :: Ord k => Scheduler Monad i i k v
+suspending rebuilder tasks target store = fst $ execState@\,@(fetch target)@\,@(store,@\,@Set.empty)
+  where
+    fetch :: k -> State (Store i k v, Set k) v
+    fetch key = do
+        done <- gets snd
+        case tasks key of
+            Just task | key `Set.notMember` done -> do
+                value <- gets (getValue key . fst)
+                let newTask :: Task (MonadState i) k v
+                    newTask = rebuilder key value task
+                newValue <- liftRun newTask fetch
+                modify $ \(s, d) -> (putValue key newValue s, Set.insert key d)
+                return newValue
+            _ -> gets (getValue key . fst) -- fetch the existing value
+\end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Run a task using a callback that operates on a larger state (implementation omitted)
+liftRun :: Task (MonadState i) k v
+        -> (k -> State (Store i k v, Set k) v) -> State (Store i k v, Set k) v
+\end{minted}
+\vspace{-1mm}
+\caption{An implementation of \Shake using our framework.}\label{fig-shake-implementation}
+\vspace{-3mm}
+\end{figure}
+
+The rebuilder executes the verification query \hs{verifyVT} to determine if the
+\hs{key} is \hs{upToDate}. If it is, the rebuilder simply returns the \hs{key}'s
+current \hs{value}. Otherwise it executes the \hs{task}, obtaining both a
+\hs{newValue} and the \hs{key}'s dynamic dependencies \hs{deps} (see the
+definition of \hs{track} in~\S\ref{sec-deps}), which are subsequently recorded
+in a new verification trace using \hs{recordVT}.
+
+The \hs{suspending} scheduler uses a recursive \hs{fetch} callback, defined
+similarly to the \hs{busy} build system (\S\ref{sec-general-build}), that builds
+a given \hs{key}, making sure not to duplicate work when called on the same
+\hs{key} again in future. To achieve that, it keeps track of keys that have
+already been built in a set \hs{done}~\hs{::}~\hs{Set}~\hs{k}. Given a non-input
+\hs{key} that has not yet been built, we use the supplied \hs{rebuilder} to
+embed the build information~\hs{i} into the \hs{task}. We then execute the
+obtained \hs{newTask} by passing it the \hs{fetch} function as a callback for
+building dependencies: the \hs{newTask} will therefore be suspended while its
+dependencies are being brought up to date. The \hs{newValue} obtained by running
+the \hs{newTask} is stored, and the \hs{key} is added to the set \hs{done}.
+
+The \hs{fetch} computation runs in the
+\hs{State}~\hs{(@@Store}~\hs{i}~\hs{k}~\hs{v,}~\hs{Set}~\hs{k)} monad. To make
+\hs{MonadState}~\hs{i} access the \hs{i} inside the \hs{Store} we use the helper
+function \hs{liftRun} (which uses a \hs{newtype} to provide a \hs{MonadState}
+instance that sees through into the \hs{Store}).
+
+\subsection{Cloud Build Systems: \Bazel, \CloudBuild, \Cloud \Shake, \Buck and \Nix}
+\label{sec-implementation-cloud}
+
+\begin{figure}
+\begin{minted}[fontsize=\small]{haskell}
+-- Bazel build system; stores constructive traces
+bazel :: (Ord k, Hashable v) => Build Monad (CT k v) k v
+bazel = restarting2 ctRebuilder -- implementation of 'restarting2' is omitted (22 lines)
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- A rebuilder based on constructive traces
+ctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (CT k v) k v
+ctRebuilder key value task = Task $ \fetch -> do
+    cachedValues <- constructCT key (fmap hash . fetch) =<< get
+    case cachedValues of
+        _ | value `elem` cachedValues -> return value
+        cachedValue:_ -> return cachedValue
+        [] -> do (newValue, deps) <- track task fetch
+                modify $ recordCT key newValue [ (k, hash v) | (k, v) <- deps ]
+                return newValue
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Cloud Shake build system, implementation of 'suspending' is given in Fig. 9
+cloudShake :: (Ord k, Hashable v) => Build Monad (CT k v) k v
+cloudShake = suspending ctRebuilder
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- CloudBuild build system, implementation of 'topological' is given in Fig. 7
+cloudBuild :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
+cloudBuild = topological (adaptRebuilder ctRebuilder)
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Convert a monadic rebuilder to the corresponding applicative one
+adaptRebuilder :: Rebuilder Monad i k v -> Rebuilder Applicative i k v
+adaptRebuilder rebuilder key value task = rebuilder key value $ Task $ run task
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Buck build system, implementation of 'topological' is given in Fig. 7
+buck :: (Ord k, Hashable v) => Build Applicative (DCT k v) k v
+buck = topological (adaptRebuilder dctRebuilder)
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Rebuilder based on deep constructive traces, analogous to 'ctRebuilder'
+dctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (DCT k v) k v
+\end{minted}
+\vspace{0mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Nix build system, implementation of 'suspending' is given in Fig. 9
+nix :: (Ord k, Hashable v) => Build Monad (DCT k v) k v
+nix = suspending dctRebuilder
+\end{minted}
+\vspace{-2mm}
+\caption{\Bazel, \Cloud \Shake, \CloudBuild, \Buck and \Nix implemented in
+our framework; \hs{restarting2} differs from \hs{restarting} used by \Excel
+(Fig.~\ref{fig-excel-implementation}) in that it does not rely on the calc
+chain.}
+\label{fig-cloud-implementations}
+\vspace{-2mm}
+\end{figure}
+
+Fig.~\ref{fig-cloud-implementations} shows our models of several cloud build
+systems. \Bazel, \CloudBuild and \Cloud \Shake are based on constructive traces
+(\S\ref{sec-constructive-traces}), whereas \Buck and \Nix use their deep
+variant (\S\ref{sec-deep-constructive-traces}).
+
+The implementation of \hs{ctRebuilder} is analogous to that of \hs{vtRebuilder}
+in Fig.~\ref{fig-shake-implementation}, but the \hs{verifyVT} query is replaced
+with a more powerful query to \hs{constructCT} that returns a list of suitable
+\hs{cachedValues} by looking them up the cloud cache. If the current \hs{value}
+is in the list, we can use it as is. Otherwise, if the list is non-empty, we can
+use an arbitrary \hs{cachedValue}. Finally, if the cache has no suitable values,
+we fall back to executing the \hs{task}. The obtained \hs{newValue} and the
+\hs{task}'s dependencies are recorded as a new constructive trace for future
+use.
+
+The \Bazel build system uses a restarting scheduler whose implementation we
+omit. It is similar to \Excel's \hs{restarting} scheduler defined in
+Fig.~\ref{fig-excel-implementation}, but instead of building keys in the order
+specified by the persistently stored calc chain, \Bazel uses a \emph{build
+queue}. The build starts with the queue containing all dirty keys. Similar to
+\Excel, the rebuilding of a key extracted from the queue may fail because one of
+its dynamic dependencies is dirty. In this case the key is marked as
+\emph{blocked} and its rebuilding is deferred. Whenever a key is successfully
+rebuilt, all keys that were previously blocked on it are added back to the
+queue, and their build is eventually restarted.
+
+Note that although both our model and \Bazel's actual implementation supports
+dynamic dependencies, it is currently not possible to define new monadic build
+rules in the language available to users. Instead, users have to rely on a
+(rich) collection of predefined built-in rules, which cover many
+important instances of dynamic dependencies.
+
+By switching to the \hs{topological} scheduler, we obtain a model of
+Microsoft's \CloudBuild~-- an applicative build system that combines
+conventional scheduling of statically known directed acyclic graphs of
+dependencies with constructive traces~\cite{esfahani2016cloudbuild}. Note that
+we need to convert a monadic \hs{ctRebuilder} into an applicative one by
+applying an adapter function \hs{adaptRebuilder}, which unwraps a given
+\hs{Task}~\hs{Applicative} and wraps it into \hs{Task}~\hs{Monad}.
+
+Our models of \Buck~\cite{buck} and \Nix~\cite{dolstra2004nix} use the
+\hs{dctRebuilder}, a rebuilder based on deep constructive traces
+(\S\ref{sec-deep-constructive-traces}), whose implementation we omit since it
+is very similar to that of \hs{ctRebuilder}. \Buck uses the \hs{topological}
+scheduler and is therefore an applicative build system, whereas \Nix uses the
+\hs{suspending} scheduler and is monadic.
+
+Using the abstractions built thus far, we have shown how to combine schedulers
+with rebuilders to reproduce existing build systems. To us, the most interesting
+build system as yet unavailable would combine a suspending scheduler with
+constructive traces~--~providing a cloud-capable build system that is minimal,
+and supports both early cutoff and monadic dependencies. Using our framework it
+is possible to define and test such a system, which we call \Cloud \Shake. All
+we need to do is combine \hs{suspending} with \hs{ctRebuilder},
+as shown in Fig.~\ref{fig-cloud-implementations}.

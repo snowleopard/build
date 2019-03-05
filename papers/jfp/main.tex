@@ -1,0 +1,120 @@
+\documentclass{jfp1}
+
+\bibliographystyle{jfp}
+% \citestyle{acmauthoryear}
+
+\usepackage{bookmark}
+\usepackage{booktabs}
+\usepackage{subcaption}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{xspace}
+\usepackage{fancyhdr}
+
+% Haskell code snippets and useful shortcuts
+\usepackage{minted}
+\setminted[haskell]{escapeinside=@@}
+\newcommand{\hs}{\mintinline{haskell}}
+\newcommand{\cmd}[1]{\textsf{\color[rgb]{0,0,0.5} #1}}
+\newcommand{\teq}{\smaller $\sim$}
+\newcommand{\ghci}{$\lambda$>}
+\newcommand{\defeq}{\stackrel{\text{def}}{=}}
+\newcommand{\std}[1]{{\color[rgb]{0,0.3,0} #1}}
+\newcommand{\blk}[1]{{\color[rgb]{0,0,0} #1}}
+
+% \renewcommand{\MintedPygmentize}{path-to-pygmentize}% Questions and tasks
+\newcommand{\q}[2]{\textbf{\color{blue} Question #1:} #2}
+\newcommand{\todo}[2]{[\textbf{\color{red} #1:} #2]}
+
+% Abbreviations for build systems
+\newcommand{\Bazel}{\textsc{Bazel}\xspace}
+\newcommand{\Buck}{\textsc{Buck}\xspace}
+\newcommand{\Calc}{\textsc{Calc}\xspace}
+\newcommand{\Cloud}{\textsc{Cloud}\xspace}
+\newcommand{\CloudBuild}{\textsc{CloudBuild}\xspace}
+\newcommand{\Dune}{\textsc{Dune}\xspace}
+\newcommand{\Excel}{\textsc{Excel}\xspace}
+\newcommand{\Fabricate}{\textsc{Fabricate}\xspace}
+\newcommand{\Incremental}{\textsc{Incremental}\xspace}
+\newcommand{\Make}{\textsc{Make}\xspace}
+\newcommand{\Ninja}{\textsc{Ninja}\xspace}
+\newcommand{\Nix}{\textsc{Nix}\xspace}
+\newcommand{\Pluto}{\textsc{Pluto}\xspace}
+\newcommand{\Redo}{\textsc{Redo}\xspace}
+\newcommand{\Reflow}{\textsc{Reflow}\xspace}
+\newcommand{\Shake}{\textsc{Shake}\xspace}
+\newcommand{\Tup}{\textsc{Tup}\xspace}
+\newcommand{\store}{\hs{k}~\hs{->}~\hs{v}\xspace}
+\newcommand{\storef}{\hs{k}~\hs{->}~\hs{f}~\hs{v}\xspace}
+
+% \newcommand{\simon}[1]{}
+% \newcommand{\simon}[1]{SLPJ: {\color{red} \em #1} End SLPJ}
+
+\begin{document}
+\title[Build Systems \`a la Carte]{Build Systems \`a la Carte: Theory and Practice}
+
+\author{Andrey Mokhov}
+% \affiliation{
+%   \department{School of Engineering}
+%   \institution{Newcastle University}
+%   \city{Newcastle upon Tyne}
+%   \country{United Kingdom}
+% }
+% \email{andrey.mokhov@ncl.ac.uk}
+
+\author{Neil Mitchell}
+% \affiliation{
+%   \institution{Digital Asset}
+%   \country{United Kingdom}
+% }
+% \email{ndmitchell@gmail.com}
+
+\author{Simon Peyton Jones}
+% \affiliation{
+%   \institution{Microsoft Research}
+%   \city{Cambridge}
+%   \country{United Kingdom}
+% }
+% \email{simonpj@microsoft.com}
+
+\begin{abstract}
+Build systems are awesome, terrifying -- and unloved. They are used by every
+developer around the world, but are rarely the object of study. In this paper we
+offer a systematic, and executable, framework for developing and comparing build
+systems, viewing them as related points in landscape rather than as isolated
+phenomena. By teasing apart existing build systems, we can recombine their
+components, allowing us to prototype new build systems with desired properties.
+\end{abstract}
+
+% \keywords{build systems, functional programming, algorithms}
+
+\maketitle
+
+\input{1-intro}
+\input{2-background}
+\input{3-abstractions}
+\input{4-build}
+\input{5-implementations}
+\input{6-engineering}
+\input{7-related}
+\input{8-conclusions}
+
+% \begin{acks}
+%   Thanks to anonymous reviewers and everyone else who provided us with feedback
+%   on earlier drafts: Ulf Adams, Arseniy Alekseyev, Dan Bentley, Martin
+%   Br\"{u}stel, Ulan Degenbaev, Jeremie Dimino, Andrew Fitzgibbon, Georgy
+%   Lukyanov, Simon Marlow, Evan Martin, Yaron Minsky, Guillaume Maudoux, Philip
+%   Patsch, Michael Peyton Jones, Andrew Phillips, Fran\c{c}ois Pottier, Rohit
+%   Ramesh, Irakli Safareli, Zhen Zhang.
+%   Your contributions were incredibly valuable.
+
+%   Andrey Mokhov is funded by a Royal Society Industry Fellowship \cmd{IF160117}
+%   on the topic ``Towards Cloud Build Systems with Dynamic Dependency Graphs''.
+% \end{acks}
+
+\bibliography{refs}
+
+% \appendix
+% \input{9-appendix}
+
+\end{document}

@@ -1,0 +1,34 @@
+{
+    "latex-workshop.latex.toolchain": [
+      {
+        "command": "texify",
+        "args": [
+          "--synctex",
+          "--pdf",
+          "--tex-option=\"-shell-escape\"",
+          "--tex-option=\"-interaction=nonstopmode\"",
+          "--tex-option=\"-file-line-error\"",
+          "%DOC%.tex"
+        ]
+      }
+    ],
+    "cSpell.words": [
+      "Elem",
+      "Ericson",
+      "Hashable",
+      "PACMPL",
+      "SIGPLAN",
+      "acmart",
+      "bazel",
+      "etre",
+      "fmap",
+      "mempty",
+      "newtype",
+      "poss",
+      "racey",
+      "sigplanproc",
+      "sprsh",
+      "topmatter",
+      "uncurry"
+    ]
+  }

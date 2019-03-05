@@ -1,0 +1,152 @@
+\section{Related work}\label{sec-related}
+
+While there is research on individual build systems, there has been little
+research to date comparing different build systems. In~\S\ref{sec-background} we
+covered several important build systems~--~in this section we relate a few
+other build systems to our abstractions, and discuss other work where similar
+abstractions~arise.
+
+\subsection{Other Build Systems}\label{sec-related-build}
+
+Most build systems, when viewed at the level we talk, can be captured with minor
+variations on the code presented in \S\ref{sec-implementations}. Below we list
+some notable examples:
+
+\begin{itemize}
+\item \Dune~\cite{dune} is a build system designed for OCaml/Reason projects.
+Its distinguishing feature is that it uses
+\emph{arrows}~\cite{hughes2000generalising} rather than monads to model
+dynamic dependencies, which simplifies static dependency approximation.
+
+\item \Ninja~\cite{ninja} combines the \hs{topological} scheduler of \Make with
+the verifying traces of \Shake~--~our associated implementation provides such a
+combination. \Ninja~is also capable of modelling build rules that produce
+multiple results, a limited form of polymorphism \S\ref{sec-polymorphism}.
+
+\item \Nix~\cite{dolstra2004nix} has coarse-grained dependencies, with precise
+hashing of dependencies and downloading of precomputed build products. We
+provided a model of \Nix in \S\ref{sec-implementation-cloud}, although it is
+worth noting that \Nix is not primarily intended as a build system, and the
+coarse grained nature (packages, not individual files) makes it targeted to a
+different purpose.
+
+\item \Pluto~\cite{erdweg2015pluto} is based on a similar model to \Shake, but
+additionally allows cyclic build rules combined with a user-specific resolution
+strategy. Often such a strategy can be unfolded into the user rules without loss
+of precision, but a fully general resolution handler extends the \hs{Task}
+abstraction with additional features.
+
+\item \Redo~\cite{redo-idea}\cite{grosskurth2007redo}\cite{redo} almost exactly
+matches \Shake at the level of detail given here, differing only on aspects like
+polymorphic dependencies~\S\ref{sec-polymorphism}.
+
+\item \Tup~\cite{tup} functions much like \Make, but with a refined dirty-bit
+implementation that watches the file system for changes and can thus avoid
+rechecking the entire graph. \Tup also automatically deletes stale results.
+\end{itemize}
+
+The one build system we are aware of that cannot be modelled in our framework is
+\Fabricate by \cite{fabricate}. In \Fabricate a build system is a script that is
+run in-order, in the spirit of:
+% I'm not sure the footnote adds much, let's save space?
+% \footnote{\Fabricate requires scripts to be
+% written in Python, but those details are not fundamental to what makes
+% \Fabricate special.}
+
+\begin{minted}[xleftmargin=10pt]{bash}
+gcc -c util.c
+gcc -c main.c
+gcc util.o main.o -o main.exe
+\end{minted}
+
+\noindent
+To achieve minimality, each separate command is traced at the OS-level, allowing
+\Fabricate to record a trace entry stating that \cmd{gcc -c util.c} reads from
+\cmd{util.c}. In future runs \Fabricate runs the script from start to finish,
+skipping any commands where no inputs have changed. The key difference from our
+\hs{Tasks} abstraction is that instead of supplying a mapping from outputs to
+tasks, \Fabricate supplies a list of statements, in an order, without declaring
+what each line produces. There is no need to schedule the statements, and not
+enough information to do so.
+
+Taking our abstraction, it is possible to encode \Fabricate assuming that
+commands like \cmd{gcc -c util.c} are keys, there is a linear dependency between
+each successive key, and that the OS-level tracing can be lifted back as a
+monadic \hs{Task} function\footnote{\Shake provides support for
+\Fabricate{}-like build systems~--~see \cmd{Development.Shake.Forward}
+in the \Shake library.}. However, in our pure model the mapping is not perfect
+as \cmd{gcc} writes to arbitrary files whose locations are not known in advance.
+
+\subsection{Self-adjusting Computation}
+
+While not typically considered build systems, self-adjusting computation is a
+well studied area, and in particular the contrast between different formulations
+has been thoroughly investigated, e.g. see~\cite{acar2007selfadjusting}.
+Self-adjusting computations can automatically adjust to an external change
+to their inputs. A classic example is a self-adjusting sorting algorithm, which
+can efficiently (in $O(\log{n})$ time where $n$ is the length of the input)
+recalculate the result given an incremental change of the input. While very
+close to build systems in spirit, self-adjusting computations are mostly used
+for in-memory computation and rely on the ability to dynamically allocate new
+keys in the store for sharing intermediate computations~--~an intriguing feature
+rarely seen in build systems (\Shake's oracles~\S\ref{sec-polymorphism} can be
+used to model this feature to a limited degree).
+
+A lot of research has been dedicated to finding efficient data structures and
+algorithms for self-adjusting computations (with a few open-source
+implementations, e.g. \Incremental by~\cite{incremental}). We plan to
+investigate how these insights can be utilised by build systems as future work.
+
+\subsection{Memoization}\label{sec-related-memo}
+
+\emph{Memoization} is a classic optimisation technique for storing values of a
+function instead of recomputing them each time the function is called. Minimal
+build systems (see the Definition~\ref{def-minimal}) certainly perform
+memoization: they \emph{store values instead of recomputing them each time}.
+Memoization can therefore be reduced to a minimal build system (as we
+demonstrate below), but not vice versa, since minimal build systems solve a more
+complex optimisation problem.
+
+As a simple example of using a build system for memoization, we solve a textbook
+dynamic programming problem~--~Levenshtein's \emph{edit
+distance}~\cite{levenshtein1966binary}: given two input strings $a$ and
+$b$, find the shortest series of edit operations that transforms $a$
+to $b$. The edit operations are typically \emph{inserting}, \emph{deleting} or
+\emph{replacing} a symbol. The dynamic programming solution of this problem is
+so widely known (e.g., see~\cite{cormen2001introduction}) that we provide its
+encoding in our \hs{Tasks} abstraction without further explanation. We address
+elements of strings $a_i$ and $b_i$ by keys \hs{A}~$i$ and \hs{B}~$i$,
+respectively, while the cost of a subproblem $c_{ij}$ is identified by
+\hs{C}~$i$~$j$.
+
+\vspace{0.5mm}
+\begin{minted}[xleftmargin=10pt, fontsize=\small]{haskell}
+data Key = A Int | B Int | C Int Int deriving Eq
+\end{minted}
+\vspace{0mm}
+\begin{minted}[xleftmargin=10pt, fontsize=\small]{haskell}
+editDistance :: Tasks Monad Key Int
+editDistance (C i 0) = Just $ Task $ const $ pure i
+editDistance (C 0 j) = Just $ Task $ const $ pure j
+editDistance (C i j) = Just $ Task $ \fetch -> do
+    ai <- fetch (A i)
+    bj <- fetch (B j)
+    if ai == bj
+        then fetch (C (i - 1) (j - 1))
+        else do insert  <- fetch (C  i      (j - 1))
+                delete  <- fetch (C (i - 1)  j     )
+                replace <- fetch (C (i - 1) (j - 1))
+                return (1 + minimum [insert, delete, replace])
+editDistance _ = Nothing
+\end{minted}
+\vspace{0.5mm}
+
+\noindent
+When asked to build \hs{C}~$n$~$m$, a minimal build system will calculate the
+result using memoization. Furthermore, when an input symbol $a_i$ is changed,
+only necessary, incremental recomputation will be performed~--~an optimisation
+that cannot be achieved just with memoization.
+
+Self-adjusting computation, memoization and build systems are inherently related
+topics, which poses the question of whether there is an underlying common
+abstraction waiting to be discovered.
