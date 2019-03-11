@@ -32,6 +32,7 @@ library
                         Build.Task.Functor,
                         Build.Task.Monad,
                         Build.Task.MonadPlus,
+                        Build.Task.Opaque,
                         Build.Task.Typed,
                         Build.Trace,
                         Build.System
