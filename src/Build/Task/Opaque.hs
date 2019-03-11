@@ -327,6 +327,21 @@ Just [ Get (Dir "release", ["README","exe"])
      , Get (File "release/README", "This is a README...")
      , Get (File "release/exe", "alib...b...#include <lib.h>...<empty file>")
      , Put (File "release.tar", "This is a README...alib...b...#include <lib.h>...<empty file>")]
+
+> snd res "build"
+
+Just [ Get (File "src/a.c", "a")
+     , Put (File "obj/a.o", "a")
+     , Get (File "src/b.c", "b...#include <lib.h>...")
+     , Get (Env "LIBPATH", "lib")
+     , Get (File "lib/lib.h", "lib...")
+     , Put (File "obj/b.o", "lib...b...#include <lib.h>...")
+     , Get (Dir "obj", ["a.o","b.o","c.o"])
+     , Get (File "obj/a.o", "a")
+     , Get (File "obj/b.o", "lib...b...#include <lib.h>...")
+     , Get (File "obj/c.o", "<empty file>")
+     , Put (File "release/exe", "alib...b...#include <lib.h>...<empty file>")]
+
 -}
 
 
