@@ -175,6 +175,8 @@ Put : File "release/exe" = 123456789
 
 -}
 
+-- TODO: Note that at the moment logging does not account for modifying
+-- directories when creating new files.
 -- | Execute a monadic task using given callbacks 'Get' and 'Put', logging all
 -- reads and writes.
 execute :: forall m k. Monad m => Get k m -> Put k m -> Task k () -> m (Log k)
@@ -222,7 +224,7 @@ exampleStore = Store $ \k -> case k of
     File "lib/lib.h"      -> "lib..."
     File "release/README" -> "This is a README..."
     Env "LIBPATH"         -> "lib"
-    Dir "obj"             -> ["a.o","b.o","c.o"]
+    Dir "obj"             -> ["main.o"]
     Dir "release"         -> ["README"]
 
     File _ -> "<empty file>"
@@ -304,22 +306,24 @@ Put (Dir ".", ["release.tar"])
 Execute build
 Get (File "src/a.c", "a")
 Put (File "obj/a.o", "a")
+Put (Dir "obj", ["main.o","a.o"])
 Get (File "src/b.c", "b...#include <lib.h>...")
 Get (Env "LIBPATH", "lib")
 Get (File "lib/lib.h", "lib...")
 Put (File "obj/b.o", "lib...b...#include <lib.h>...")
-Get (Dir "obj", ["a.o","b.o","c.o"])
+Put (Dir "obj", ["main.o","a.o","b.o"])
+Get (Dir "obj", ["main.o","a.o","b.o"])
+Get (File "obj/main.o", "...main...")
 Get (File "obj/a.o", "a")
 Get (File "obj/b.o", "lib...b...#include <lib.h>...")
-Get (File "obj/c.o", "<empty file>")
-Put (File "release/exe", "alib...b...#include <lib.h>...<empty file>")
+Put (File "release/exe", "...main...alib...b...#include <lib.h>...")
 Put (Dir "release", ["README","exe"])
 Restart release
 Execute release
 Get (Dir "release", ["README","exe"])
 Get (File "release/README", "This is a README...")
-Get (File "release/exe", "alib...b...#include <lib.h>...<empty file>")
-Put (File "release.tar", "This is a README...alib...b...#include <lib.h>...<empty file>")
+Get (File "release/exe", "...main...alib...b...#include <lib.h>...")
+Put (File "release.tar", "This is a README......main...alib...b...#include <lib.h>...")
 
 > snd res "release"
 
@@ -336,11 +340,11 @@ Just [ Get (File "src/a.c", "a")
      , Get (Env "LIBPATH", "lib")
      , Get (File "lib/lib.h", "lib...")
      , Put (File "obj/b.o", "lib...b...#include <lib.h>...")
-     , Get (Dir "obj", ["a.o","b.o","c.o"])
+     , Get (Dir "obj", ["main.o","a.o","b.o"])
+     , Get (File "obj/main.o", "...main...")
      , Get (File "obj/a.o", "a")
      , Get (File "obj/b.o", "lib...b...#include <lib.h>...")
-     , Get (File "obj/c.o", "<empty file>")
-     , Put (File "release/exe", "alib...b...#include <lib.h>...<empty file>")]
+     , Put (File "release/exe", "...main...alib...b...#include <lib.h>...")]
 
 -}
 
