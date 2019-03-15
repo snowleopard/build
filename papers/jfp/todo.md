@@ -5,7 +5,7 @@ submitted to JFP.
 
 ## New material
 
-### Tasks
+### Tasks (Section 3)
 
 * A section with examples of functorial, applicative and monadic tasks based on
   Collatz, Fibonacci and Ackermann sequences:
@@ -13,11 +13,40 @@ submitted to JFP.
 
 * Maybe combine with the `Edit Distance` example from S7.3 Memoization?
 
-### Traces
+### Traces and schedulers (Section 4)
 
-* Shake's step traces
-* Optimisation
-* Correctness
+Promote 4.2/4.3 (traces) to top level section Rebuilders.  Elaborate (it's very terse right now) with examples.
+
+Similar Schedulers (current 4.1)
+
+MOve 4.4 into the start of 5 (build systems concretely).  
+
+* Add Shake's step traces
+  * Optimisation
+  * Correctness
+  
+Explain how to "add constructiveness" to a trace system.  Mabye even concretely:  `constructive :: TraceSystem -> TraceSystem`.Maybe collapse verifying traces and constrctive traces, at least in table 2.  (This would have impact on the structore of the whole trace section.)
+
+### Cloud Shake
+
+* Implemented and released
+* Absolute paths and system binaries
+* Deferred materialisation. Different invariants for (a) local builds, (b) cloud sharing (you must list all the things you produce), (c) sharing + deferred materialisation (you must declare all the things you consume). Interaction with early cut-off.
+
+### Cloud Hadrian
+
+* Real-life example
+* Many examples demonstrating the use of dynamic dependencies
+
+Experience
+* Cloud stuff needed tracing infrastructure to expose dependencies.
+* Good profiling support (here are pictures) exposes places where we are over-sequential, and over-big tasks (build systems work best with lots of small tasks).
+* Ability to compute critical paths
+* Numbers: no-op rebuild time; fresh clone rebuild time; (vs clean build).
+
+### Related work
+
+Relationship to SHake paper.   Fully subsumes it, and explains it much better.  Oracles no longer imoprtant.
 
 ### Engineering section
 
@@ -33,15 +62,9 @@ submitted to JFP.
 * Self-tracking (?):
   https://github.com/snowleopard/build/blob/master/src/Build/SelfTracking.hs
 
-### Cloud Shake
+* Re-using existing infrastructure: (a) key-value store, (b) remote execution service.
 
-* Implemented and released
 
-### Hadrian
-
-* Real-life example
-* Reuse motivation for Hadrian from Haskell Symposium paper
-* Many examples demonstrating the use of dynamic dependencies
 
 ## Feedback
 
