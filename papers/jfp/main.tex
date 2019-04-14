@@ -51,9 +51,14 @@
 % \newcommand{\simon}[1]{SLPJ: {\color{red} \em #1} End SLPJ}
 
 \begin{document}
-\title[Build Systems \`a la Carte]{Build Systems \`a la Carte: Theory and Practice}
+\title[Build Systems \`a la Carte: Theory and Practice]
+{Build Systems \`a la Carte: Theory and Practice}
 
-\author{Andrey Mokhov}
+\author[Andrey Mokhov, Neil Mitchell and Simon Peyton Jones]
+{Andrey Mokhov$^1$, Neil Mitchell$^2$ and Simon Peyton Jones$^3$\\
+$^1$School of Engineering, Newcastle University, United Kingdom\\
+$^2$Digital Asset, United Kingdom\\
+$^3$Microsoft Research, Cambridge, United Kingdom}
 % \affiliation{
 %   \department{School of Engineering}
 %   \institution{Newcastle University}
@@ -62,20 +67,24 @@
 % }
 % \email{andrey.mokhov@ncl.ac.uk}
 
-\author{Neil Mitchell}
+% \author{Neil Mitchell}
 % \affiliation{
 %   \institution{Digital Asset}
 %   \country{United Kingdom}
 % }
 % \email{ndmitchell@gmail.com}
 
-\author{Simon Peyton Jones}
+% \author{Simon Peyton Jones}
 % \affiliation{
 %   \institution{Microsoft Research}
 %   \city{Cambridge}
 %   \country{United Kingdom}
 % }
 % \email{simonpj@microsoft.com}
+
+% \keywords{build systems, functional programming, algorithms}
+
+\maketitle
 
 \begin{abstract}
 Build systems are awesome, terrifying -- and unloved. They are used by every
@@ -85,10 +94,6 @@ systems, viewing them as related points in landscape rather than as isolated
 phenomena. By teasing apart existing build systems, we can recombine their
 components, allowing us to prototype new build systems with desired properties.
 \end{abstract}
-
-% \keywords{build systems, functional programming, algorithms}
-
-\maketitle
 
 \input{1-intro}
 \input{2-background}

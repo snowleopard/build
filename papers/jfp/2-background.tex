@@ -49,7 +49,7 @@ such that \cmd{stdio.h}, are often also listed as dependencies.} the command
 executable \cmd{main.exe}. The makefile contains the complete information about
 the \emph{task dependency graph}, which is shown in Fig.~\ref{fig-make}(a).
 
-\begin{figure}[h]
+\begin{figure}%[h]
 \begin{subfigure}[b]{0.32\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/make-example.pdf}}
 \caption{Task dependency graph}
@@ -62,16 +62,16 @@ the \emph{task dependency graph}, which is shown in Fig.~\ref{fig-make}(a).
 \centerline{\includegraphics[scale=0.28]{fig/make-example-partial.pdf}}
 \caption{Partial rebuild}
 \end{subfigure}
-\vspace{-2mm}
+% \vspace{-2mm}
 \caption{A task dependency graph and two build scenarios. Input files are shown
 in rectangles, intermediate and output files are shown in rounded rectangles.
 Modified inputs and files that are rebuilt are highlighted.
 \label{fig-make}}
-\vspace{-2mm}
+% \vspace{-2mm}
 \end{figure}
 
 If the user runs \Make specifying \cmd{main.exe} as the desired output, \Make
-will build~\cmd{util.o}~and~\cmd{main.o}, in any order since these tasks are
+will build~\cmd{util.o} and~\cmd{main.o}, in any order since these tasks are
 independent, and then \cmd{main.exe}. If the user modifies \cmd{util.h} and runs
 \Make again, it will perform a \emph{full rebuild}, because all three tasks
 transitively depend on \cmd{util.h}, as illustrated in Fig.~\ref{fig-make}(b).
@@ -180,10 +180,10 @@ We discuss self-tracking further in~\S\ref{sec-tracking-aspects}.
 \caption{Since \cmd{docs.txt} was modified, we rebuild \cmd{release.txt} and
 \cmd{release.tar}, discovering a new dependency.}
 \end{subfigure}
-\vspace{-2mm}
+% \vspace{-2mm}
 \caption{Dynamic dependencies example: create \cmd{README} and add it to the
 list of release documents \cmd{docs.txt}.\label{fig-shake}}
-\vspace{-4mm}
+% \vspace{-4mm}
 \end{figure}
 
 \subsection{\Shake: Dynamic Dependencies with No Remorse}
@@ -240,14 +240,14 @@ up to date. We refer to this task scheduling algorithm as \emph{suspending},
 see a concrete implementation in~\S\ref{sec-implementation-shake}.
 
 \begin{figure}
-\vspace{-3mm}
+% \vspace{-3mm}
 \centerline{\includegraphics[scale=0.28]{fig/shake-example-cutoff.pdf}}
-\vspace{-4mm}
+% \vspace{-4mm}
 \caption{An early cutoff example: if a comment is added to \cmd{main.c}, the
 rebuild is stopped after detecting that \cmd{main.o} is unchanged, since this
 indicates that \cmd{main.exe} and its dependents do not need to be
 rebuilt.\label{fig-cutoff}}
-\vspace{-4mm}
+% \vspace{-4mm}
 \end{figure}
 
 \Shake also supports the \emph{early cutoff optimisation}. When it
@@ -257,9 +257,9 @@ earlier, as illustrated in Fig.~\ref{fig-cutoff}. Not all build systems support
 early cutoff: \Make and \Excel do not, whereas \Shake and \Bazel (introduced
 below) do.
 
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 \subsection{\Bazel: A Cloud Build System}\label{sec-background-bazel}
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 
 When build systems are used by large teams, different team members often end up
 executing exactly the same tasks on their local machines. A \emph{cloud build
@@ -308,23 +308,23 @@ dependencies, and subsequently download the result from the cache. A concrete
 implementation is provided in~\S\ref{sec-implementation-cloud}.
 
 \begin{figure}
-\vspace{-2mm}
+% \vspace{-2mm}
 \begin{subfigure}[b]{0.25\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-checkout.pdf}}
-\vspace{-1mm}
-\caption{Download source files}
+% \vspace{-1mm}
+\caption{Download sources}
 \end{subfigure}
 \begin{subfigure}[b]{0.40\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-build.pdf}}
-\vspace{-1mm}
+% \vspace{-1mm}
 \caption{Build \cmd{main.exe}}
 \end{subfigure}
 \begin{subfigure}[b]{0.31\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-rebuild.pdf}}
-\vspace{-1mm}
+% \vspace{-1mm}
 \caption{Modify \cmd{util.c} and rebuild}
 \end{subfigure}
-\vspace{-2.5mm}
+% \vspace{-2.5mm}
 \caption{A cloud build example: (a)~download sources, (b)~build \cmd{main.exe}
 by downloading it from the cloud and skipping intermediate files (only their
 hashes are needed), (c)~modify \cmd{util.c} and rebuild \cmd{main.exe}, which
@@ -332,13 +332,13 @@ requires building \cmd{util.o} (nobody has compiled \cmd{util.c} before) and
 downloading \cmd{main.o} (it is needed for linking \cmd{main.exe}). File hashes
 are shown in circles, and non-materialised intermediates in dashed rounded
 rectangles.\label{fig-bazel}}
-\vspace{-3mm}
+% \vspace{-3mm}
 \end{figure}
 
 \begin{table}[h]
-\vspace{-2mm}
+% \vspace{-2mm}
 \caption{Build system differences.\label{tab-summary}}
-\vspace{-4mm}
+% \vspace{-4mm}
 % \smaller
 \centering
 \begin{tabular}{l||l|l||l|c|c|c}
@@ -349,14 +349,14 @@ $\!$\Excel      $\!$& Dirty cells, calc chain      & Restarting  & Dynamic      
 $\!$\Shake      $\!$& Previous dependency graph    & Suspending  & Dynamic         & Yes     & Yes    & No   $\!$\\
 $\!$\Bazel      $\!$& Cloud cache, command history & Restarting  & Dynamic$^{(*)}$ & No      & Yes    & Yes  $\!$\\\hline
 \end{tabular}
-\vspace{2mm}
+% \vspace{2mm}
 $^{(*)}$At present, user-defined build rules cannot have dynamic dependencies.
-\vspace{-8mm}
+% \vspace{-8mm}
 \end{table}
 
-\vspace{-1.5mm}
+% \vspace{-1.5mm}
 \subsection{Summary}\label{sec-background-summary}
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 
 We summarise differences between four discussed build systems in
 Table~\ref{tab-summary}. The column \emph{`persistent build information'} refers

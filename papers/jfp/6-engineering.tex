@@ -173,21 +173,21 @@ the \hs{shallow} store for all intermediate keys \hs{k}~$\in$~$O\setminus \{\hs{
 
 \begin{figure}
 \begin{subfigure}[b]{0.32\linewidth}
-\centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-build.pdf}}
-\vspace{-1.5mm}
+\centerline{\includegraphics[scale=0.26]{fig/frankenbuild-example-build.pdf}}
+% \vspace{-1.5mm}
 \caption{Initial build}
 \end{subfigure}
 \begin{subfigure}[b]{0.32\linewidth}
-\centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-clean.pdf}}
-\vspace{-1.5mm}
-\caption{Clean up and evict \cmd{main.prof}}
+\centerline{\includegraphics[scale=0.26]{fig/frankenbuild-example-clean.pdf}}
+% \vspace{-1.5mm}
+\caption{Clean up, evict \cmd{main.prof}}
 \end{subfigure}
 \begin{subfigure}[b]{0.34\linewidth}
-\centerline{\includegraphics[scale=0.28]{fig/frankenbuild-example-rebuild.pdf}}
-\vspace{-1.5mm}
-\caption{Build \cmd{main.prof} and \cmd{report.txt}}
+\centerline{\includegraphics[scale=0.26]{fig/frankenbuild-example-rebuild.pdf}}
+% \vspace{-1.5mm}
+\caption{Build \cmd{main.prof} \& \cmd{report.txt}}
 \end{subfigure}
-\vspace{-1.5mm}
+% \vspace{-1.5mm}
 \caption{A Frankenbuild example: (a)~build a human-readable profiling report for
 \cmd{main.exe} from information dump \cmd{main.prof} produced by a profiling
 tool, then record deep constructive traces in the cloud, (b)~remove built files
@@ -198,7 +198,7 @@ matching deep constructive trace in the cloud, resulting in a Frankenbuild
 because \cmd{main.prof} and \cmd{report.txt} are inconsistent. New and evicted
 cloud storage entries are highlighted; file hashes are shown in circles.
 \label{fig-frankenbuild}}
-\vspace{-4mm}
+% \vspace{-4mm}
 \end{figure}
 
 Deep constructive traces (\S\ref{sec-deep-constructive-traces}) combined with
