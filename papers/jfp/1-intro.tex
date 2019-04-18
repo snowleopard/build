@@ -1,7 +1,5 @@
 \section{Introduction}\label{sec-intro}
 
-\todo{Introduction should combine the themes and reference all the papers in the series}
-
 Build systems (such as \Make) are big, complicated, and used by every
 software developer on the planet.  But they are a sadly unloved part
 of the software ecosystem, very much a means to an end, and seldom the
@@ -15,10 +13,9 @@ build systems, exploring new points in the design space. These complex build
 systems use subtle algorithms, but they are often hidden away, and not the
 object of study.
 
-In this paper we offer a general framework in which to understand and compare
+In this paper we give a general framework (refined from \cite{mokhov2018buildsystems}) in which to understand and compare
 build systems, in a way that is both abstract (omitting incidental detail)
-and yet precise (implemented as Haskell code). Specifically we make these
-contributions:
+and yet precise (implemented as Haskell code). With this framework we can explain confusing details from the original Shake paper \cite{mitchell2012shake} and build new features useful for the GHC build system \cite{hadrian}. Specifically we make these contributions:
 \begin{itemize}
 \item Build systems vary on many axes, including: static vs dynamic
   dependencies; local vs cloud; deterministic vs non-deterministic build tasks;
@@ -32,8 +29,8 @@ contributions:
 
 \item We identify two key design choices that are typically deeply wired into
   any build system: \emph{the order in which tasks are
-  built}~(\S\ref{sec-dependency-orderings}) and \emph{whether or not a
-  task is rebuilt}~(\S\ref{sec-out-of-date}). These choices turn out to
+  built}~(\S\ref{sec-scheduler}) and \emph{whether or not a
+  task is rebuilt}~(\S\ref{sec-rebuilder}). These choices turn out to
   be orthogonal, which leads us to a new classification of the design
   space~(\S\ref{sec-design-space}).
 
@@ -49,13 +46,13 @@ Hackage: \url{https://hackage.haskell.org/package/build-1.0}.}.
 
 \item Moreover, we can readily remix the ingredients to design new build systems
 with desired properties, for example, to combine the advantages of \Shake and
-\Bazel (\S\ref{sec-implementation-cloud}).
+\Bazel (\S\ref{sec-cloud-shake}), and evaluate the result (\S\ref{sec-experience}).
 
 \end{itemize}
 In short, instead of seeing build systems as unrelated
 points in space, we now see them as locations in a connected landscape,
 leading to a better understanding of what they do and how they compare,
-and suggesting exploration of other (as yet unoccupied points) in the
+and making it easier to explore other points in the
 landscape.
 We discuss engineering aspects in \S\ref{sec-engineering}, and related
 work in \S\ref{sec-related}.
