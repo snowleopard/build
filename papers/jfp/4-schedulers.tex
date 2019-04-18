@@ -1,0 +1,79 @@
+\section{Build Systems \`a la Carte Schedulers}\label{sec-build}
+
+\todo{Elaborate (it's very terse right now) with examples}
+
+The focus of this paper is on a variety of implementations of
+\hs{Build}~\hs{c}~\hs{i}~\hs{k}~\hs{v}, given
+a \emph{client-supplied} implementation of \hs{Tasks}~\hs{c}~\hs{k}~\hs{v}. That
+is, we are going to take \hs{Tasks} as given from now on, and explore variants of
+\hs{Build}: first abstractly (in this section) and then concretely
+in~\S\ref{sec-implementations}.
+
+As per the definition of minimality~\ref{def-minimal}, a minimal build
+system must \textbf{rebuild only out-of-date keys} and at most once. The only
+way to achieve the ``at most once'' requirement while producing a correct build
+result (\S\ref{sec-build-correctness}) is to \textbf{build all keys in an
+order that respects their dependencies}.
+
+\vspace{1mm}
+We have emboldened two different aspects above: the part of the
+build system responsible for scheduling tasks in the dependency order
+(a `scheduler') can be cleanly separated from the part responsible for deciding
+whether a key needs to be rebuilt (a `rebuilder'). We tackle each
+aspect separately in subsections~\S\ref{sec-dependency-orderings}
+and~\S\ref{sec-out-of-date}.
+
+\subsection{The Scheduler: Respecting the Dependency Order}
+\label{sec-dependency-orderings}
+
+Section \S\ref{sec-background} introduced three different \emph{task schedulers}
+that decide which tasks to execute and in what order; see the ``Scheduler'' column
+of Table~\ref{tab-summary} in \S\ref{sec-background-summary}.
+This subsection explores the properties of the three schedulers, and
+possible implementations.
+
+\vspace{-2mm}
+\subsubsection{Topological}\label{sec-topological}
+
+The topological scheduler pre-computes a linear order of tasks, which when followed,
+ensures the build result is correct regardless of the initial store. Given a
+task description and the output \hs{key}, you can compute the linear order by
+first finding the (acyclic) graph of the \hs{key}'s reachable dependencies, and
+then computing a topological sort. However, as we have seen in~\S\ref{sec-deps},
+we can only extract dependencies from an applicative task, which requires the
+build system to choose \hs{c}~\hs{=}~\hs{Applicative}, ruling out dynamic
+dependencies.
+
+\vspace{-2mm}
+\subsubsection{Restarting}\label{sec-restarting}
+
+To handle dynamic dependencies we can use the following approach: build tasks in
+an arbitrary initial order, discovering their dependencies on the fly; whenever
+a task calls \hs{fetch} on an out-of-date key \hs{dep}, abort the task, and
+switch to building the dependency \hs{dep}; eventually the previously aborted
+task is restarted and makes further progress thanks to \hs{dep} now being up to
+date. This approach requires a way to abort tasks that have failed due to
+out-of-date dependencies. It is also not minimal in the sense that a task may
+start, do some meaningful work, and then abort.
+
+To reduce the number of aborts (often to zero) \Excel records the
+discovered task order in its \emph{calc chain}, and uses it as the
+starting point for the next build (\S\ref{sec-background-excel}).
+\Bazel's restarting scheduler does not store the discovered order
+between build runs; instead, it stores the most recent task dependency
+information. Since this information may become outdated, \Bazel may
+also need to abort a task if a newly discovered dependency is out of date.
+
+\vspace{-2mm}
+\subsubsection{Suspending}\label{sec-suspending}
+
+An alternative approach, utilised by the \hs{busy} build system
+(\S\ref{sec-general-build}) and \Shake, is to simply build dependencies when
+they are requested, suspending the currently running task. By combining that
+with tracking the keys that have already been built, one can obtain a minimal
+build system with dynamic dependencies.
+
+This approach requires that a task may be started and then suspended until
+another task is complete. Suspending can be done with cheap green threads and
+blocking (the original approach of \Shake) or using continuation-passing style
+\cite{claessen_continuations} (what \Shake currently does).

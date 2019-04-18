@@ -40,6 +40,17 @@ type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 \vspace{-4.5mm}
 \end{figure}
 
+\todo{AM: A section with examples of functorial, applicative and monadic tasks based on
+  Collatz, Fibonacci and Ackermann sequences:
+  https://blogs.ncl.ac.uk/andreymokhov/the-task-abstraction/}
+
+\todo{AM: Maybe combine with the Edit Distance example from S7.3 Memoization?}
+
+\todo{Compute Functor = tail recursion
+Compute Applicative = primitive recursion
+Compute Monad = general recursion
+}
+
 This section presents purely functional abstractions that allow us to express
 all the intricacies of build systems discussed in~\S\ref{sec-background},
 and design complex build systems from simple primitives. Specifically, we

@@ -1,0 +1,27 @@
+\section{Experience}\label{sec-experience}
+
+\todo{Write this section}
+
+\subsection{Cloud Shake}
+
+\begin{itemize}
+\item Implemented and released
+\item Absolute paths and system binaries
+\item Deferred materialisation. Different invariants for (a) local builds, (b) cloud sharing (you must list all the things you produce), (c) sharing + deferred materialisation (you must declare all the things you consume). Interaction with early cut-off.
+\end{itemize}
+
+\subsection{Cloud Hadrian}
+
+\begin{itemize}
+\item  Real-life example
+\item Many examples demonstrating the use of dynamic dependencies
+\end{itemize}
+
+\subsection{Experience}
+
+\begin{itemize}
+\item  Cloud stuff needed tracing infrastructure to expose dependencies.
+\item  Good profiling support (here are pictures) exposes places where we are over-sequential, and over-big tasks (build systems work best with lots of small tasks).
+\item Ability to compute critical paths
+\item Numbers: no-op rebuild time; fresh clone rebuild time; (vs clean build).
+\end{itemize}
