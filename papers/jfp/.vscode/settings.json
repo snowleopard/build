@@ -1,6 +1,15 @@
 {
-    "latex-workshop.latex.toolchain": [
+    "latex-workshop.latex.recipes": [
       {
+        "name": "builder",
+        "tools": [
+          "texify"
+        ]
+      },
+    ],
+    "latex-workshop.latex.tools": [
+      {
+        "name": "texify",
         "command": "texify",
         "args": [
           "--synctex",
