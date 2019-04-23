@@ -7,11 +7,12 @@ submitted to JFP.
 
 ### Tasks (Section 3)
 
-* A section with examples of functorial, applicative and monadic tasks based on
-  Collatz, Fibonacci and Ackermann sequences:
-  https://blogs.ncl.ac.uk/andreymokhov/the-task-abstraction/
+* **Done**: Section 3.8 Examples of Tasks. (A section with examples of
+  functorial, applicative and monadic tasks based on Collatz, Fibonacci and
+  Ackermann sequences: https://blogs.ncl.ac.uk/andreymokhov/the-task-abstraction/)
 
 * Maybe combine with the `Edit Distance` example from S7.3 Memoization?
+  **Andrey**: Decided to keep the Memoization and the corresponding example in Related Work.
 
 ### Traces and schedulers (Section 4)
 
@@ -19,12 +20,12 @@ Promote 4.2/4.3 (traces) to top level section Rebuilders.  Elaborate (it's very 
 
 Similar Schedulers (current 4.1)
 
-MOve 4.4 into the start of 5 (build systems concretely).  
+Move 4.4 into the start of 5 (build systems concretely).
 
 * Add Shake's step traces
   * Optimisation
   * Correctness
-  
+
 Explain how to "add constructiveness" to a trace system.  Mabye even concretely:  `constructive :: TraceSystem -> TraceSystem`.Maybe collapse verifying traces and constrctive traces, at least in table 2.  (This would have impact on the structore of the whole trace section.)
 
 ### Cloud Shake
@@ -46,7 +47,7 @@ Experience
 
 ### Related work
 
-Relationship to SHake paper.   Fully subsumes it, and explains it much better.  Oracles no longer imoprtant.
+Relationship to SHake paper.   Fully subsumes it, and explains it much better.  Oracles no longer important.
 
 ### Engineering section
 
@@ -143,6 +144,8 @@ https://dl.acm.org/citation.cfm?id=2660239
 Compute Functor = tail recursion
 Compute Applicative = primitive recursion
 Compute Monad = general recursion
+
+**Andrey:** Not sure now we should go into this.
 
 ### ApplicativeZero and MonadZero
 

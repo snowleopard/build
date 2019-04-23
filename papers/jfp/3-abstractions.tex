@@ -1,8 +1,8 @@
 \section{Build systems, abstractly}\label{sec-abstractions}
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 
 \begin{figure}
-\vspace{-1mm}
+% \vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- An abstract store containing a key/value map and persistent build information
 data Store i k v -- i = info, k = key, v = value
@@ -12,56 +12,46 @@ putInfo    :: i -> Store i k v -> Store i k v
 getValue   :: k -> Store i k v -> v
 putValue   :: Eq k => k -> v -> Store i k v -> Store i k v
 \end{minted}
-\vspace{-1mm}
+% \vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
 data Hash v -- a compact summary of a value with a fast equality check
 hash    :: Hashable v => v -> Hash v
 getHash :: Hashable v => k -> Store i k v -> Hash v
 \end{minted}
-\vspace{-1mm}
+% \vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Build tasks (see §3.2)
 newtype Task  c k v = Task { run :: @\std{forall}@ f. c f => (k -> f v) -> f v }
 type    Tasks c k v = k -> Maybe (Task c k v)
 \end{minted}
-\vspace{-1mm}
+% \vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Build system (see §3.3)
 type Build c i k v = Tasks c k v -> k -> Store i k v -> Store i k v
 \end{minted}
-\vspace{-1mm}
+% \vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- Build system components: a scheduler and a rebuilder (see §5)
+-- Build system components: a scheduler (see §4) and a rebuilder (see §5)
 type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
 type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 \end{minted}
-\vspace{-3.5mm}
+% \vspace{-3.5mm}
 \caption{Type signatures of key build systems abstractions.}\label{fig-types}
-\vspace{-4.5mm}
+% \vspace{-4.5mm}
 \end{figure}
-
-\todo{AM: A section with examples of functorial, applicative and monadic tasks based on
-  Collatz, Fibonacci and Ackermann sequences:
-  https://blogs.ncl.ac.uk/andreymokhov/the-task-abstraction/}
-
-\todo{AM: Maybe combine with the Edit Distance example from S7.3 Memoization?}
-
-\todo{AM: Compute Functor = tail recursion
-Compute Applicative = primitive recursion
-Compute Monad = general recursion
-}
 
 This section presents purely functional abstractions that allow us to express
 all the intricacies of build systems discussed in~\S\ref{sec-background},
 and design complex build systems from simple primitives. Specifically, we
 present the \emph{task} and \emph{build} abstractions in~\S\ref{sec-task}
-and~\S\ref{sec-general-build}, respectively. Sections~\S\ref{sec-build}
-and~\S\ref{sec-implementations} scrutinise the abstractions further and provide
-concrete implementations for several build systems.
+and~\S\ref{sec-general-build}, respectively. Sections~\S\ref{sec-scheduler},
+\S\ref{sec-rebuilder} and~\S\ref{sec-implementations} scrutinise the
+abstractions further and provide concrete implementations for several build
+systems.
 
-\vspace{-1.5mm}
+% \vspace{-1.5mm}
 \subsection{Common Vocabulary for Build Systems}\label{sec-vocabulary}
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 
 \emph{Keys, values, and the store.} The goal of any build system is to
 bring up to date a \emph{store} that implements a mapping from \emph{keys} to
@@ -167,9 +157,9 @@ instance Monoid m => Applicative (Const m) where
     pure _              = Const mempty   -- mempty is the identity of the monoid m
     Const x <*> Const y = Const (x <> y) -- <> is the binary operation of the monoid m
 \end{minted}
-\vspace{-3mm}
+% \vspace{-3mm}
 \caption{Standard library definitions.}\label{fig-stdlib}
-\vspace{-4mm}
+% \vspace{-4mm}
 \end{figure}
 
 \vspace{1mm}
@@ -227,7 +217,9 @@ busy tasks key store = execState (fetch key) store
     fetch :: k -> State (Store () k v) v
     fetch k = case tasks k of
         Nothing   -> gets (getValue k)
-        Just task -> do v <- run task fetch; modify (putValue k v); return v
+        Just task -> do v <- run task fetch
+                        modify (putValue k v)
+                        return v
 \end{minted}
 \vspace{1mm}
 
@@ -275,7 +267,7 @@ that \hs{busy} is not minimal, imagine that the formula in cell \cmd{B2} was
 formula.
 
 \subsection{The Need for Polymorphism in Task}\label{sec-why-polymorphism}
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 
 The previous example shows why the \hs{Task} abstraction is polymorphic in
 \hs{f}, recall the definition:
@@ -329,7 +321,7 @@ task descriptions in a very interesting way:
   access to the persistently stored build information~\hs{i}.
 \end{itemize}
 
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 \subsection{Monadic Tasks}\label{sec-task-monad}
 
 As explained in~\S\ref{sec-background-excel}, some task descriptions have
@@ -455,7 +447,7 @@ A build system is \emph{correct} if it produces a correct \hs{result} for any
 given \hs{tasks}, \hs{key} and \hs{store}.
 
 \label{def-correct}
-\vspace{2mm}
+% \vspace{2mm}
 
 It is hard to satisfy the above definition of correctness given a task
 description with cycles. All build systems discussed in this paper are correct
@@ -554,6 +546,7 @@ corresponding key/value pair. The \hs{task} returns a value of type
 with dynamic dependencies, see~\S\ref{sec-implementation-shake}. Here we show an
 example of \hs{track}ing monadic tasks when \hs{m}~\hs{=}~\hs{IO}.
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 @\ghci@ fetchIO k = do putStr (k ++ ": "); read <$> getLine
 @\ghci@ track (fromJust $ sprsh2 "B1") fetchIO
@@ -574,3 +567,115 @@ A2: 20
 As expected, the dependencies of the cell \cmd{B1} from \hs{sprsh2} (see the
 spreadsheet in~\S\ref{sec-task-monad}) are determined by the value of \cmd{C1},
 which in this case is obtained by reading from the standard input.
+
+\subsection{Examples of Tasks}\label{sub-task-examples}
+
+The \hs{Task} abstraction can be used to express pure functions in a way that is
+convenient for their memoization, as will be further discussed
+in~\S\ref{sec-related-memo}. Below we give examples of tasks corresponding to
+several well-known functions.
+
+The \emph{Fibonacci sequence} $F_n = F_{n-1} + F_{n-2}$ is the one of the most
+favourite examples in the functional programming community and so we start with
+it:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+fibonacci :: Tasks Applicative Integer Integer
+fibonacci n = if n < 2 then Nothing else
+    Just $ Task $ \fetch -> (+) <$> fetch (n - 1) <*> fetch (n - 2)
+\end{minted}
+\vspace{1mm}
+
+\noindent
+Here the keys $n < 2$ are input parameters, and one can obtain the usual
+Fibonacci sequence by picking 0 and 1 for $n = 0$ and $n = 1$, respectively.
+Any minimal build system will compute the sequence with memoization, i.e.
+without recomputing the same value twice.
+
+% TODO: Add a figure with a dependency graph?
+The dependencies of Fibonacci numbers are statically known, hence we can express
+it using \hs{Tasks}~\hs{Applicative}, benefiting from static dependency
+analysis:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\ghci@ dependencies (fromJust $ fibonacci 5)
+[4,3]
+\end{minted}
+\vspace{1mm}
+
+\noindent
+Interestingly, the \emph{Ackermann function} -- a famous example of a function
+that is not primitive recursive -- cannot be expressed as an applicative task,
+since it needs to perform an intermediate recursive call to determine one of its
+dependencies $A(m, n-1)$:
+
+\[
+A(m, n) = \left\{
+\begin{array}{ll}
+n+1 & \mbox{if } m = 0 \\
+A(m-1, 1) & \mbox{if } m > 0 \mbox{ and } n = 0 \\
+A(m-1, A(m, n-1)) & \mbox{if } m > 0 \mbox{ and } n > 0.
+\end{array}\right.
+\]
+
+We therefore use \hs{Tasks}~\hs{Monad} to express this function, binding the
+dynamic dependency to variable \hs{index}:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+ackermann :: Tasks Monad (Integer, Integer) Integer
+ackermann (n, m)
+    | m < 0 || n < 0 = Nothing
+    | m == 0    = Just $ Task $ const $ pure (n + 1)
+    | n == 0    = Just $ Task $ \fetch -> fetch (m - 1, 1)
+    | otherwise = Just $ Task $ \fetch -> do index <- fetch (m, n - 1)
+                                             fetch (m - 1, index)
+\end{minted}
+\vspace{1mm}
+
+\noindent
+Now that we have seen examples of applicative and monadic tasks, let us finish
+with an example of a functorial task -- the \emph{Collatz sequence}, where
+given an initial value $c_0$, we calculate the next value $c_n$ from $c_{n-1}$
+either by dividing $c_{n-1}$ by 2 (if it is even) or multiplying it by 3 and
+adding 1 (if it is odd):
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+collatz :: Tasks Functor Integer Integer
+collatz n | n <= 0    = Nothing
+          | otherwise = Just $ Task $ \fetch -> f <$> fetch (n - 1)
+  where
+    f k | even k    = k `div` 2
+        | otherwise = 3 * k + 1
+\end{minted}
+\vspace{1mm}
+
+\noindent
+Functorial tasks correspond to computations with a linear dependency chain. For
+example, computing the element $c_8$ of the Collatz sequence starting from
+$c_0=6$ leads to the following dependency chain:
+$c_0 = 6 \rightarrow 3 \rightarrow 10 \rightarrow 5 \rightarrow 16 \rightarrow 8
+\rightarrow 4 \rightarrow 2 \rightarrow 1 = c_8$.
+
+Collatz sequence is a good example of the early cutoff optimisation
+(\S\ref{sec-background-shake}): if we recompute $c_8$ starting from a different
+initial value $c_0=40$, the resulting computation will have a large overlap with
+the previous one:
+$c_0 = 40 \rightarrow 20 \rightarrow 10 \rightarrow 5 \rightarrow 16 \rightarrow
+8 \rightarrow 4 \rightarrow 2 \rightarrow 1 = c_8$. We can therefore stop the
+recomputation after just two steps, since $c_2=10$ has not changed.
+
+Note that functorial tasks allow us to statically extract even more precise
+information about their dependencies than applicative tasks. Indeed, we
+statically know that a \hs{Task}~\hs{Functor} has exactly one \hs{dependency}:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+dependency :: Task Functor k v -> k
+dependency task = getConst $ run task Const
+\end{minted}
+\vspace{1mm}
+
