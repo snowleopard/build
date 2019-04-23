@@ -1,4 +1,10 @@
-\section{Build Systems \`a la Carte Rebuilders}\label{sec-rebuilder}
+\section{Rebuilders}\label{sec-rebuilder}
+
+A build system can be split into a scheduler (as defined in \S\ref{sec-scheduler}) and a \emph{rebuilder}. Suppose the scheduler decides that a key should be brought up to date. The next
+question is: does any work need to be done, or is the key already up to date?
+Or, in a cloud-build system, do we have a cached copy of the value we need?
+
+While \S\ref{sec-background} explicitly listed the schedulers, the rebuilders were introduced more implicitly, primarily by the information they retain to make their decisions. From the examples we have looked at we see four fundamental rebuilds, each with a number of tweaks and variations within them.
 
 \todo{Elaborate (it's very terse right now) with examples}
 
@@ -6,22 +12,14 @@
 
 \todo{Explain how to "add constructiveness" to a trace system.  Mabye even concretely:  `constructive :: TraceSystem -> TraceSystem`.Maybe collapse verifying traces and constrctive traces, at least in table 2.  (This would have impact on the structore of the whole trace section.)}
 
-\subsection{The Rebuilder: Determining Out-of-date Keys}\label{sec-out-of-date}
-
-Suppose the scheduler decides that a key should be brought up to date. The next
-question is: does any work need to be done, or is the key already up to date?
-Or, in a cloud-build system, do we have a cached copy of the value we need?
-These questions can be addressed in one of four fundamental ways, with a number
-of tweaks and variations within them.
-
-\vspace{-2mm}
-\subsubsection{A Dirty Bit}\label{sec-dirty-bit}
+\subsection{A Dirty Bit}\label{sec-dirty-bit}
 
 The idea of a dirty bit is to have one piece of persistent information per key,
 saying whether the key is \emph{dirty} or \emph{clean}. After a build, all bits
 are set to clean. When the next build starts, anything that changed between the
 two builds is marked dirty. If a key and all its transitive dependencies are
-clean, the key does not need to be rebuilt.
+clean, the key does not need to be rebuilt. Taking the example from
+Figure~\ref{fig-make}, if \hs{util.c} changes then that would be marked dirty, and \hs{util.o} and \hs{main.exe} would rebuild as they transitively depend on \hs{util.c}.
 
 \Excel models the dirty bit approach most directly, having an actual dirty bit
 associated with each cell, marking the cell dirty if the user modifies it.
@@ -54,13 +52,23 @@ keys that depend on it dirty. \Make can approximate early cutoff by not
 modifying the result file, and not marking it clean, but then it will be rebuilt
 in every subsequent build.
 
-\vspace{-2mm}
-\subsubsection{Verifying Traces}\label{sec-verifying-traces}
+The use of a single bit of information is useful to reduce memory consumption, and
+in the case of \Make, to integrate with the file system. However, as the examples show,
+in constrained environments where a dirty bit is chosen, it's often done as part of
+a series of compromises.
+
+\subsection{Verifying Traces}\label{sec-verifying-traces}
 
 An alternative way to determine if a key is dirty is to record the
 values/hashes of dependencies used last time, and if something has changed, the
 key is dirty and must be rebuilt~--~in essence a \emph{trace} which we can use
-to \emph{verify} existing values. For traces, there are two essential
+to \emph{verify} existing values. Taking the example from Figure \ref{fig-make},
+we might record that \hs{util.o} dependend on \hs{util.c} (at hash 1) and \hs{util.h}
+(at hash 2) and produced \hs{util.o} (at hash 4). Next time round, if all those files
+still have the same hashes, there is nothing to do, and we can skip running the build.
+If they are different, we repeat the action, and record the new values.
+
+For traces, there are two essential
 operations~--~adding a new value to the trace store, and using the traces to
 determine if a key needs rebuilding. Assuming a store of verifying traces
 \hs{VT}~\hs{k}~\hs{v}, the operations are:
@@ -71,7 +79,7 @@ verifyVT@\,@::@\,@(Monad m,@\,@Eq k,@\,@Eq v) => k -> Hash v -> (k -> m (Hash v)
 \end{minted}
 
 \noindent
-Rather than storing (large) values \hs{v}, the verifying trace \hs{VT} stores
+Rather than storing (large) values \hs{v}, the verifying trace \hs{VT} can store
 only hashes, of type \hs{Hash}~\hs{v}, of those values. Since the verifying
 trace persists from one build to the next -- it constitutes the build system's
 ``memory'' -- it is helpful for it to be of modest size. After successfully
@@ -85,14 +93,72 @@ value of any key (using a scheduling strategy as per
 result will be a \hs{Bool} where \hs{True} indicates that the current value is
 already up to date, and \hs{False} indicates that it should be rebuilt.
 
+A verifying trace, and other types of traces discussed in this section, support
+dynamic dependencies and minimality; furthermore, all traces except for deep
+traces~(\S\ref{sec-deep-constructive-traces}) support early cutoff.
+
+\subsubsection{Representation Optimisations}
+
+
 One potential implementation would be to record all arguments passed to
 \hs{recordVT} in a list, and verify by simply checking if any list item matches
 the information passed by \hs{verifyVT}.  We discuss smarter implementations
 in~\S\ref{sec-smart-traces}.
 
-A verifying trace, and other types of traces discussed in this section, support
-dynamic dependencies and minimality; furthermore, all traces except for deep
-traces~(\S\ref{sec-deep-constructive-traces}) support early cutoff.
+In the example above, we have used abstract types for the traces. Concretely,
+in our example code, they are all recorded as lists of:
+
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Trace k v = Trace { key :: k, depends :: [(k, Hash v)], result :: Hash v }
+\end{minted}
+
+Here \hs{r} is either \hs{Hash}~\hs{v} (verifying traces) or
+\hs{v} (constructive traces). A real system is highly likely to use a more
+optimised implementation. Some of the most obvious optimisations are:
+
+\begin{itemize}
+\item Any system using verifying traces is unlikely to see significant benefit
+from storing more than one \hs{Trace} per key\footnote{There is a small chance
+of a benefit if the dependencies change but the result does not, and then the
+dependencies change back to what they were before.}. Therefore, such systems can
+store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v}~\hs{(Hash}~\hs{v))}, where the
+initial \hs{k} is the \hs{key} field of \hs{Trace}.
+
+\item Any system using \hs{Applicative} dependencies can omit the dependency
+keys from the \hs{Trace} since they can be recovered from the \hs{key} field.
+
+\item Any \hs{Applicative} build system using constructive traces, e.g.
+\CloudBuild, can index directly from the key and results to the output result~--~i.e.
+\hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces
+are stored on a central server, the client can compute the key and the hashes of
+its dependencies, then make a single call to the server to retrieve the result.
+
+\item Many cloud build systems store hashes of values in the trace information,
+then have a separate content-addressable cache which associates hashes with
+their actual contents.
+\vspace{-1mm}
+\end{itemize}
+
+
+\subsubsection{Step Verifying Traces}
+
+The \Shake build system, and the associated paper \cite{mitchell2012shake} in \S2.3.3 describes a slightly different trace structure, one that is similar to verifying traces, but stores slightly less data, and has slightly different early cutoff semantics. Rather than storing the \hs{Hash v} for each dependency, it instead stores a built time and changed time for each key, and for the dependencies just stores a list of \hs{k}. The resulting \hs{Trace} type ressembles:
+
+\begin{minted}[fontsize=\small,xleftmargin=10pt]{haskell}
+data Trace k v = Trace
+    {key :: k
+    ,result :: Hash v
+    ,depends :: [k]
+    ,built :: Time
+    ,changed :: Time
+    }
+\end{minted}
+
+The \hs{built} field is when the \hs{key} last rebuilt. The \hs{changed} field is when the \hs{result} last changed -- if the last build changed the value, it will be equal to \hs{built}, otherwise it will be older. The \hs{recordVT} function needs to consult the previous \hs{Trace} to know whether to use \hs{built} or the previous \hs{changed} value as the new \hs{changed} value. The \hs{verifyVT} needs to verify that the \hs{built} time of \hs{key} is newer than the \hs{changed} values of all its \hs{depends}. This scheme preserves minimality and early cutoff. A variant with only one \hs{Time} field would loose early cutoff. Furthermore, the \hs{Time} stamp only needs record which execution of the build is running, so every key built in the same run can share the same \hs{Time} value -- it just needs to be monotically increasing between runs.
+
+This optimisation is useful, at least in the case of \Shake, to save space. A hash takes up 32 bytes in typical programs, while a key (in \Shake only) is an \hs{Int} taking only 4 bytes. Furthermore, \Shake permits values to be arbitrarily large, and permits a custom equality (two values can be bit-for-bit unequal but considered equal by \Shake), meaning that a \hs{Hash} isn't a valid encoding. For build systems that used \hs{Applicative} dependencies, the \hs{depends} could be omitted entirely, making the size of a \hs{Trace} $O(1)$ instead of $O(n)$ where $n$ is the number of dependencies.
+
+While verifying step traces are mostly an optimisation, there are some observable differences from verifying traces. Considering Figure \ref{fig-make}, imagine we built \hs{main.exe} (everything gets a \hs{built} and \hs{changed} of timestamp 1). Next we change \hs{util.c} and rebuild \hs{util.o} (both get a \hs{built} and \hs{changed} of timestamp 2). Next we put \hs{util.c} back to what it was originally, and build \hs{main.exe}. With verifying traces, the dependencies of \hs{main.exe} would be equal, and \hs{main.exe} would not rebuild. With verifying step traces, the \hs{changed} field of \hs{util.o} would increase once more, and \hs{main.exe} would rebuild. Other than when building subsets of the targets, we are unaware of any other situation where verifying step traces are less powerful.
 
 \subsubsection{Constructive Traces}\label{sec-constructive-traces}
 
