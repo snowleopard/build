@@ -1,2 +1,2 @@
-main.pdf: main.tex 1-intro.tex 2-background.tex 3-abstractions.tex 4-build.tex 5-implementations.tex 6-engineering.tex 7-related.tex 8-conclusions.tex 9-appendix.tex
+main.pdf: main.tex 1-intro.tex 2-background.tex 3-abstractions.tex 4-schedulers.tex 5-rebuilders.tex 6-implementations.tex 7-experience.tex 8-engineering.tex 9-related.tex 10-conclusions.tex 11-appendix.tex
 	pdflatex -shell-escape main.tex
