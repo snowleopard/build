@@ -685,9 +685,9 @@ furthermore need to share computation results via a cloud cache, we can use
 \hs{Tasks}~\hs{(MonadState}~\hs{s)} that will
 play an important role in~\S\ref{sec-implementations}. Intuitively, by making
 a shared state of type \hs{s} available to a task, we give it the abilities to
-lookup and store computation results in a cache by using the \hs{MonadState}
-methods \hs{get} and \hs{set}. For example, below we implement a cloud version
-of the Ackermann task that uses a \hs{Cache} of type
+lookup and update cached computation results using the \hs{MonadState} methods
+\hs{get} and \hs{modify}. For example, below we implement a cloud version of the
+Ackermann task that uses a \hs{Cache} of type
 \hs{Map}~\hs{(Integer,}~\hs{Integer)}~\hs{Integer} for sharing results of known
 Ackermann values.
 
@@ -716,5 +716,8 @@ The main case ($m>0 \wedge n>0$) starts by looking up the pair of indices
 \hs{(}\hs{m,}~\hs{n)} in the \hs{cache}. If the cache has \hs{Nothing}, we
 calculate the resulting \hs{value} as before and \hs{modify} the cache
 accordingly; otherwise, if we have a cache hit, we return the obtained value
-immediately, skipping the actual calculation. We will use this technique in our
-models of cloud build systems in~\S\ref{sec-implementations}.
+immediately, skipping the actual calculation and thus potentially saving a large
+amount of work. Indeed you do not want to recompute $A(4,2)=2^{65536}-3$
+unnecessarily; all of its 19,729 decimal digits have already been helpfully
+computed, e.g. see~\cite{ackermann42}. We will use this technique in our models
+of cloud build systems in~\S\ref{sec-implementations}.
