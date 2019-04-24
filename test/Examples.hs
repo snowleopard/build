@@ -3,6 +3,10 @@ module Examples where
 import Build.Task
 import Control.Applicative
 import Control.Monad.Fail (MonadFail)
+import Control.Monad.State.Class
+import Data.Map (Map)
+
+import qualified Data.Map as Map
 
 -- | A useful fetch for experimenting with build systems in interactive GHC.
 fetchIO :: (Show k, Read v) => k -> IO v
@@ -53,12 +57,30 @@ fibonacci n
 -- Formally, it has no inputs, but we return Nothing for negative inputs.
 -- For example, a[m, 1] = 2, 3, 5, 13, 65535, ...
 ackermann :: Tasks Monad (Integer, Integer) Integer
-ackermann (n, m)
+ackermann (m, n)
     | m < 0 || n < 0 = Nothing
     | m == 0    = Just $ Task $ const $ pure (n + 1)
     | n == 0    = Just $ Task $ \fetch -> fetch (m - 1, 1)
     | otherwise = Just $ Task $ \fetch -> do index <- fetch (m, n - 1)
                                              fetch (m - 1, index)
+
+-- A cloud version of the Ackermann task that uses a cache to store known values
+-- of the Ackermann function.
+type Cache = Map (Integer, Integer) Integer
+
+cloudAckermann :: Tasks (MonadState Cache) (Integer, Integer) Integer
+cloudAckermann (m, n)
+    | m < 0 || n < 0 = Nothing
+    | m == 0    = Just $ Task $ const $ pure (n + 1)
+    | n == 0    = Just $ Task $ \fetch -> fetch (m - 1, 1)
+    | otherwise = Just $ Task $ \fetch -> do
+        cache <- get
+        case Map.lookup (m, n) cache of
+            Nothing -> do index <- fetch (m, n - 1)
+                          value <- fetch (m - 1, index)
+                          modify (Map.insert (m, n) value)
+                          return value
+            Just value -> return value
 
 -- Unlike Collatz and Fibonacci computations, the Ackermann computation cannot
 -- be statically analysed for dependencies. We can only find the first dependency

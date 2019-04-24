@@ -285,9 +285,9 @@ one another.
 
 We really, really want \hs{Task} to be \emph{polymorphic} in \hs{f}.
 Given \emph{one} task description \cmd{T}, we want to explore \emph{many} build
-systems that can build \cmd{T} -- and we will do so in sections~\S\ref{sec-build}
-and~\S\ref{sec-implementations}. As we shall see, each build system will use a
-different \hs{f}, so the task description must not fix \hs{f}.
+systems that can build \cmd{T} -- and we will do so in
+section~\S\ref{sec-implementations}. As we shall see, each build system will use
+a different \hs{f}, so the task description must not fix \hs{f}.
 
 But nor can the task description work for \emph{any} \hs{f}; most task
 descriptions (e.g. \hs{sprsh1} in \S\ref{sec-task}) require that \hs{f}
@@ -461,7 +461,7 @@ non-deterministic tasks and shallow cloud builds, as will be discussed
 in sections~\S\ref{sec-non-determinism} and~\S\ref{sec-cloud-aspects},
 respectively.
 
-\subsection{Computing Dependencies}\label{sec-deps}\label{secdeps}
+\subsection{Computing Dependencies}\label{sec-deps}
 
 Earlier we remarked that a \hs{Task}~\hs{Applicative} could only have static
 dependencies. Usually we would extract such static dependencies by (in the case
@@ -568,16 +568,14 @@ As expected, the dependencies of the cell \cmd{B1} from \hs{sprsh2} (see the
 spreadsheet in~\S\ref{sec-task-monad}) are determined by the value of \cmd{C1},
 which in this case is obtained by reading from the standard input.
 
-\subsection{Examples of Tasks}\label{sub-task-examples}
+\subsection{Examples of Tasks}\label{sec-task-examples}
 
-The \hs{Task} abstraction can be used to express pure functions in a way that is
-convenient for their memoization, as will be further discussed
-in~\S\ref{sec-related-memo}. Below we give examples of tasks corresponding to
-several well-known functions.
+In this section we give examples of tasks whose definitions involve different
+constraints on the computation context: \hs{Functor}, \hs{Applicative},
+\hs{Monad} and \hs{MonadState}~\hs{s}.
 
-The \emph{Fibonacci sequence} $F_n = F_{n-1} + F_{n-2}$ is the one of the most
-favourite examples in the functional programming community and so we start with
-it:
+We start with one of the favourite examples for functional
+programmers -- the \emph{Fibonacci sequence} $F_n = F_{n-1} + F_{n-2}$:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -589,14 +587,14 @@ fibonacci n = if n < 2 then Nothing else
 
 \noindent
 Here the keys $n < 2$ are input parameters, and one can obtain the usual
-Fibonacci sequence by picking 0 and 1 for $n = 0$ and $n = 1$, respectively.
-Any minimal build system will compute the sequence with memoization, i.e.
-without recomputing the same value twice.
+Fibonacci sequence by picking $F_0=0$ and $F_1=1$, respectively. Any minimal
+build system will compute the sequence with memoization, i.e. without
+recomputing the same value twice.
 
 % TODO: Add a figure with a dependency graph?
-The dependencies of Fibonacci numbers are statically known, hence we can express
-it using \hs{Tasks}~\hs{Applicative}, benefiting from static dependency
-analysis:
+Dependencies of elements of the Fibonacci sequence are known statically, hence
+we can express it using \hs{Tasks}~\hs{Applicative}, and benefit from static
+dependency analysis (\S\ref{sec-deps}):
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -608,8 +606,8 @@ analysis:
 \noindent
 Interestingly, the \emph{Ackermann function} -- a famous example of a function
 that is not primitive recursive -- cannot be expressed as an applicative task,
-since it needs to perform an intermediate recursive call to determine one of its
-dependencies $A(m, n-1)$:
+because it needs to perform an intermediate recursive call to determine the
+value of one of its dependencies $A(m, n-1)$:
 
 \[
 A(m, n) = \left\{
@@ -626,7 +624,7 @@ dynamic dependency to variable \hs{index}:
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 ackermann :: Tasks Monad (Integer, Integer) Integer
-ackermann (n, m)
+ackermann (m, n)
     | m < 0 || n < 0 = Nothing
     | m == 0    = Just $ Task $ const $ pure (n + 1)
     | n == 0    = Just $ Task $ \fetch -> fetch (m - 1, 1)
@@ -636,11 +634,11 @@ ackermann (n, m)
 \vspace{1mm}
 
 \noindent
-Now that we have seen examples of applicative and monadic tasks, let us finish
-with an example of a functorial task -- the \emph{Collatz sequence}, where
-given an initial value $c_0$, we calculate the next value $c_n$ from $c_{n-1}$
-either by dividing $c_{n-1}$ by 2 (if it is even) or multiplying it by 3 and
-adding 1 (if it is odd):
+Functorial tasks are less common than applicative and monadic, but there is a
+classic example too -- the \emph{Collatz sequence}, where given an initial value
+$c_0$, we calculate the next value $c_n$ from $c_{n-1}$ either by dividing
+$c_{n-1}$ by 2 (if it is even) or multiplying it by 3 and adding 1 (if it is
+odd):
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -668,9 +666,9 @@ $c_0 = 40 \rightarrow 20 \rightarrow 10 \rightarrow 5 \rightarrow 16 \rightarrow
 8 \rightarrow 4 \rightarrow 2 \rightarrow 1 = c_8$. We can therefore stop the
 recomputation after just two steps, since $c_2=10$ has not changed.
 
-Note that functorial tasks allow us to statically extract even more precise
-information about their dependencies than applicative tasks. Indeed, we
-statically know that a \hs{Task}~\hs{Functor} has exactly one \hs{dependency}:
+Note that we can statically extract even more precise dependency information
+from functorial tasks compared to applicative tasks. Indeed, we statically know
+that a \hs{Task}~\hs{Functor} has \emph{exactly one} \hs{dependency}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -679,3 +677,44 @@ dependency task = getConst $ run task Const
 \end{minted}
 \vspace{1mm}
 
+\noindent
+The \hs{Tasks} abstraction allows us to express pure functions in a way that
+is convenient for their memoization and incremental recomputation
+(see~\S\ref{sec-related-memo} for a discussion on memoization). If we
+furthermore need to share computation results via a cloud cache, we can use
+\hs{Tasks}~\hs{(MonadState}~\hs{s)} that will
+play an important role in~\S\ref{sec-implementations}. Intuitively, by making
+a shared state of type \hs{s} available to a task, we give it the abilities to
+lookup and store computation results in a cache by using the \hs{MonadState}
+methods \hs{get} and \hs{set}. For example, below we implement a cloud version
+of the Ackermann task that uses a \hs{Cache} of type
+\hs{Map}~\hs{(Integer,}~\hs{Integer)}~\hs{Integer} for sharing results of known
+Ackermann values.
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+type Cache = Map (Integer, Integer) Integer
+
+cloudAckermann :: Tasks (MonadState Cache) (Integer, Integer) Integer
+cloudAckermann (m, n)
+    | m < 0 || n < 0 = Nothing
+    | m == 0    = Just $ Task $ const $ pure (n + 1)
+    | n == 0    = Just $ Task $ \fetch -> fetch (m - 1, 1)
+    | otherwise = Just $ Task $ \fetch -> do
+        cache <- get
+        case Map.lookup (m, n) cache of
+            Nothing -> do index <- fetch (m, n - 1)
+                          value <- fetch (m - 1, index)
+                          modify (Map.insert (m, n) value)
+                          return value
+            Just value -> return value
+\end{minted}
+\vspace{1mm}
+
+\noindent
+The main case ($m>0 \wedge n>0$) starts by looking up the pair of indices
+\hs{(}\hs{m,}~\hs{n)} in the \hs{cache}. If the cache has \hs{Nothing}, we
+calculate the resulting \hs{value} as before and \hs{modify} the cache
+accordingly; otherwise, if we have a cache hit, we return the obtained value
+immediately, skipping the actual calculation. We will use this technique in our
+models of cloud build systems in~\S\ref{sec-implementations}.
