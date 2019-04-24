@@ -6,12 +6,6 @@ Or, in a cloud-build system, do we have a cached copy of the value we need?
 
 While \S\ref{sec-background} explicitly listed the schedulers, the rebuilders were introduced more implicitly, primarily by the information they retain to make their decisions. From the examples we have looked at we see four fundamental rebuilds, each with a number of tweaks and variations within them.
 
-\todo{Elaborate (it's very terse right now) with examples}
-
-\todo{Add Shake's step traces: Optimisation, Correctness}
-
-\todo{Explain how to "add constructiveness" to a trace system.  Mabye even concretely:  `constructive :: TraceSystem -> TraceSystem`.Maybe collapse verifying traces and constrctive traces, at least in table 2.  (This would have impact on the structore of the whole trace section.)}
-
 \subsection{A Dirty Bit}\label{sec-dirty-bit}
 
 The idea of a dirty bit is to have one piece of persistent information per key,
@@ -99,46 +93,24 @@ traces~(\S\ref{sec-deep-constructive-traces}) support early cutoff.
 
 \subsubsection{Representation Optimisations}
 
-
 One potential implementation would be to record all arguments passed to
 \hs{recordVT} in a list, and verify by simply checking if any list item matches
-the information passed by \hs{verifyVT}.  We discuss smarter implementations
-in~\S\ref{sec-smart-traces}.
-
-In the example above, we have used abstract types for the traces. Concretely,
-in our example code, they are all recorded as lists of:
+the information passed by \hs{verifyVT}. Concretely,
+in our implementations from \S\ref{sec-implementations}, traces are recorded as lists of:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Trace k v = Trace { key :: k, depends :: [(k, Hash v)], result :: Hash v }
 \end{minted}
 
-Here \hs{r} is either \hs{Hash}~\hs{v} (verifying traces) or
-\hs{v} (constructive traces). A real system is highly likely to use a more
-optimised implementation. Some of the most obvious optimisations are:
+\noindent Where \hs{r} is \hs{Hash}~\hs{v} for verifying traces (and \hs{v} for constructive traces, discussed later in \S\ref{sec-constructive-traces}). A real system is highly likely to use a more optimised implementation.
 
-\begin{itemize}
-\item Any system using verifying traces is unlikely to see significant benefit
-from storing more than one \hs{Trace} per key\footnote{There is a small chance
-of a benefit if the dependencies change but the result does not, and then the
-dependencies change back to what they were before.}. Therefore, such systems can
-store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v}~\hs{(Hash}~\hs{v))}, where the
-initial \hs{k} is the \hs{key} field of \hs{Trace}.
-
-\item Any system using \hs{Applicative} dependencies can omit the dependency
+The first optimisation is that any system using \hs{Applicative} dependencies can omit the dependency
 keys from the \hs{Trace} since they can be recovered from the \hs{key} field.
 
-\item Any \hs{Applicative} build system using constructive traces, e.g.
-\CloudBuild, can index directly from the key and results to the output result~--~i.e.
-\hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces
-are stored on a central server, the client can compute the key and the hashes of
-its dependencies, then make a single call to the server to retrieve the result.
-
-\item Many cloud build systems store hashes of values in the trace information,
-then have a separate content-addressable cache which associates hashes with
-their actual contents.
-\vspace{-1mm}
-\end{itemize}
-
+The next optimisation is that there is only very minor benefit from storing more than one \hs{Trace} per key. Therefore, veryifying traces can be stored as \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v}~\hs{(Hash}~\hs{v))}, where the
+initial \hs{k} is the \hs{key} field of \hs{Trace} -- making \hs{verifyVT} fast.
+Note that storing only one \hs{Trace} per key means that if the dependencies change but the result does not, and then the
+dependencies change back to what they were before, there will not be a valid \hs{Trace} available and the system will have to rebuild, where a complete list of all historical traces would not have had to. However, it also means that the number of \hs{Trace} structures is bounded by the number of distinct keys, regardless of how many builds are executed -- a useful property.
 
 \subsubsection{Step Verifying Traces}
 
@@ -154,20 +126,21 @@ data Trace k v = Trace
     }
 \end{minted}
 
-The \hs{built} field is when the \hs{key} last rebuilt. The \hs{changed} field is when the \hs{result} last changed -- if the last build changed the value, it will be equal to \hs{built}, otherwise it will be older. The \hs{recordVT} function needs to consult the previous \hs{Trace} to know whether to use \hs{built} or the previous \hs{changed} value as the new \hs{changed} value. The \hs{verifyVT} needs to verify that the \hs{built} time of \hs{key} is newer than the \hs{changed} values of all its \hs{depends}. This scheme preserves minimality and early cutoff. A variant with only one \hs{Time} field would loose early cutoff. Furthermore, the \hs{Time} stamp only needs record which execution of the build is running, so every key built in the same run can share the same \hs{Time} value -- it just needs to be monotically increasing between runs.
+The \hs{built} field is when the \hs{key} last rebuilt. The \hs{changed} field is when the \hs{result} last changed -- if the last build changed the value, it will be equal to \hs{built}, otherwise it will be older. The \hs{recordVT} function needs to consult the previous \hs{Trace} to know whether to use \hs{built} or the previous \hs{changed} value as the new \hs{changed} value. The \hs{verifyVT} needs to verify that the \hs{built} time of \hs{key} is newer than the \hs{changed} values of all its \hs{depends}. This scheme preserves minimality and early cutoff. A variant with only one \hs{Time} field would loose early cutoff, and indeed corresponds quite closely to \Make. Furthermore, the \hs{Time} stamp only needs record which execution of the build is running, so every key built in the same run can share the same \hs{Time} value -- it just needs to be monotically increasing between runs.
 
 This optimisation is useful, at least in the case of \Shake, to save space. A hash takes up 32 bytes in typical programs, while a key (in \Shake only) is an \hs{Int} taking only 4 bytes. Furthermore, \Shake permits values to be arbitrarily large, and permits a custom equality (two values can be bit-for-bit unequal but considered equal by \Shake), meaning that a \hs{Hash} isn't a valid encoding. For build systems that used \hs{Applicative} dependencies, the \hs{depends} could be omitted entirely, making the size of a \hs{Trace} $O(1)$ instead of $O(n)$ where $n$ is the number of dependencies.
 
 While verifying step traces are mostly an optimisation, there are some observable differences from verifying traces. Considering Figure \ref{fig-make}, imagine we built \hs{main.exe} (everything gets a \hs{built} and \hs{changed} of timestamp 1). Next we change \hs{util.c} and rebuild \hs{util.o} (both get a \hs{built} and \hs{changed} of timestamp 2). Next we put \hs{util.c} back to what it was originally, and build \hs{main.exe}. With verifying traces, the dependencies of \hs{main.exe} would be equal, and \hs{main.exe} would not rebuild. With verifying step traces, the \hs{changed} field of \hs{util.o} would increase once more, and \hs{main.exe} would rebuild. Other than when building subsets of the targets, we are unaware of any other situation where verifying step traces are less powerful.
 
-\subsubsection{Constructive Traces}\label{sec-constructive-traces}
+\subsection{Constructive Traces}\label{sec-constructive-traces}
 
 A verifying trace deliberately records only small hashes, so that it can be small.
-A \emph{constructive} trace additionally stores the resulting value.
+In contrast, a \emph{constructive} trace also stores the resulting value. Concretely,
+it records a list of \hs{Trace}~\hs{k}~\hs{v}.
 Once we are storing the complete result it makes sense
 to record many constructive traces per key, and to share them with other users,
 providing cloud-build functionality. We can represent this additional
-information by providing the operations:
+information with the operations:
 
 \begin{minted}[fontsize=\small,xleftmargin=10pt]{haskell}
 recordCT    :: k -> v -> [(k, Hash v)] -> CT k v -> CT k v
@@ -185,7 +158,17 @@ However, if the current value does not match the store, and there is a possible
 value, we can use any value from the constructive list \emph{without} doing any
 work to build it, and copy it into the store.
 
-\subsubsection{Deep Constructive Traces}\label{sec-deep-constructive-traces}
+Any \hs{Applicative} build system using constructive traces, e.g.
+\CloudBuild, can index directly from the key and results to the output result~--~i.e.
+\hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces
+are stored on a central server, the client can compute the key and the hashes of
+its dependencies, then make a single call to the server to retrieve the result.
+
+In practice, many cloud build systems store hashes of values in the trace information,
+then have a separate content-addressable cache which associates hashes with
+their actual contents.
+
+\subsection{Deep Constructive Traces}\label{sec-deep-constructive-traces}
 
 Constructive traces always verify keys by looking at their immediate
 dependencies, which must have first been brought up to date, meaning that the
@@ -197,52 +180,28 @@ in~\S\ref{sec-constructive-traces}, but we use the names \hs{recordDCT} and
 \hs{constructDCT}, where the underlying \hs{DCT} representation need only record
 information about hashes of inputs, not intermediate dependencies.
 
+Concretely, taking the example from Figure \ref{fig-make}, to decide whether \hs{main.exe}
+is out of data, a \emph{constructive} trace would look at \hs{util.o} and \hs{main.o}
+(the immediate dependencies), while a \hs{deep constructive} trace would look at \hs{util.c},
+\hs{util.h} and \hs{main.c}.
+
+An advantage of deep constructive traces is that to decide if \hs{main.exe} is up to date only
+requires consulting its inputs, not even considering \hs{util.o} or \hs{main.o}.
+Such a feature is often known as a \emph{shallow build}, as discussed in~\S\ref{sec-cloud-aspects}.
+
+There are two primary disadvantages of deep constructive traces:
+
+\begin{description}
+\item[Deterministic tasks] If the tasks are not \emph{deterministic} then it is possible to
+violate correctness, as illustrated by an example in~\S\ref{sec-cloud-aspects}
+(see Fig.~\ref{fig-frankenbuild}).
+\item[No early cutoff] Such traces cannot support early cutoff
+(\S\ref{sec-background-shake}), since the results of intermediate computations are not considered.
+\end{description}
+
 Current build systems using deep constructive traces always record hashes of
 terminal \emph{input keys}, but the technique works equally well if we skip any
 number of dependency levels (say $n$ levels). The input-only approach is the
 special case of $n = \infty$, and constructive traces are the special case of
-$n = 1$. When $n \ge 2$, deep constructive traces require the tasks to be
-\emph{deterministic}, as otherwise it is possible to violate correctness, as
-illustrated by an example in~\S\ref{sec-cloud-aspects}
-(see Fig.~\ref{fig-frankenbuild}).
-
-A downside of deep constructive traces is that they cannot support early cutoff
-(\S\ref{sec-background-shake}), other than at $n$ levels of dependencies. On the
-other hand, these traces are particularly useful for \emph{shallow builds}, as
-discussed in~\S\ref{sec-cloud-aspects}.
-
-\subsection{Efficient Data Structures for Traces}\label{sec-smart-traces}
-
-In the examples above, we have used abstract types for the traces. Concretely,
-in our example code, they are all recorded as lists of:
-
-\begin{minted}[xleftmargin=10pt]{haskell}
-data Trace k v r = Trace { key :: k, depends :: [(k, Hash v)], result :: r }
-\end{minted}
-
-Here \hs{r} is either \hs{Hash}~\hs{v} (verifying traces) or
-\hs{v} (constructive traces). A real system is highly likely to use a more
-optimised implementation. Some of the most obvious optimisations are:
-
-\begin{itemize}
-\item Any system using verifying traces is unlikely to see significant benefit
-from storing more than one \hs{Trace} per key\footnote{There is a small chance
-of a benefit if the dependencies change but the result does not, and then the
-dependencies change back to what they were before.}. Therefore, such systems can
-store \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v}~\hs{(Hash}~\hs{v))}, where the
-initial \hs{k} is the \hs{key} field of \hs{Trace}.
-
-\item Any system using \hs{Applicative} dependencies can omit the dependency
-keys from the \hs{Trace} since they can be recovered from the \hs{key} field.
-
-\item Any \hs{Applicative} build system using constructive traces, e.g.
-\CloudBuild, can index directly from the key and results to the output result~--~i.e.
-\hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces
-are stored on a central server, the client can compute the key and the hashes of
-its dependencies, then make a single call to the server to retrieve the result.
-
-\item Many cloud build systems store hashes of values in the trace information,
-then have a separate content-addressable cache which associates hashes with
-their actual contents.
-\vspace{-1mm}
-\end{itemize}
+$n = 1$. By picking values of $n$ in between we would regain some early cutoff, at the
+cost of losing such simple shallow builds and still requiring determinstic tasks.
