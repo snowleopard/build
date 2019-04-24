@@ -1,7 +1,4 @@
-\section{Build systems, concretely}\label{sec-implementations}
-
-
-\subsection{Build Systems \`a la Carte}\label{sec-design-space}
+\section{Build systems, concretely}\label{sec-implementations} \label{sec-design-space}
 
 \begin{table}
 \caption{Build systems \`a la carte.\label{tab-build-systems}}
@@ -21,7 +18,12 @@ Deep constructive traces\hspace{2mm}\hfill\S\ref{sec-deep-constructive-traces} &
 \vspace{-4mm}
 \end{table}
 
-With the information in this section we can build Table~\ref{tab-build-systems},
+In the previous sections we discussed the types of build systems, and how they
+can be broken down into two main components: a scheduler (\S\ref{sec-scheduler})
+and a rebuilder (\S\ref{sec-rebuilder}).
+In this section we make this abstract distinction concrete, by
+implementing a number of build systems as a composition of a scheduler
+and a rebuilder. The result can be summarized in Table~\ref{tab-build-systems},
 which tabulates combinations of the scheduling algorithm and the rebuilding
 strategy, providing 12~possible build systems, 8~of which are inhabited
 by existing build systems (we discuss these systems in~\S\ref{sec-background} and
@@ -31,13 +33,9 @@ constructive traces, which would provide many benefits, and which we title
 \Cloud \Shake and explore further in~\S\ref{sec-implementation-cloud}.
 % (as we plan on extending \Shake to occupy that spot)
 
-\subsection{Introduction}
+\subsection{Concrete Implementations}
 
-In the previous sections we discussed the types of build systems, and how they
-can be broken down into two main components: a scheduler and a rebuilder.
-In this section we make this abstract distinction concrete, by
-implementing a number of build systems as a composition of a scheduler
-and a rebuilder.  Our design is expressed by these types (Fig.~\ref{fig-types}):
+We can define schedulers and rebuilders more concretely with the types (Fig.~\ref{fig-types}):
 
 \vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
