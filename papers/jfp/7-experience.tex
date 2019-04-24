@@ -1,27 +1,41 @@
 \section{Experience}\label{sec-experience}
 
-\todo{Write this section}
+As a set of authors, we've written a paper about the \Shake build system \cite{mitchell2012shake},
+applying that build system to GHC \cite{hadrian}, and a paper about the structure of build
+systems \cite{mokhov2018buildsystems}. The original purpose of that final paper was to create
+``Cloud Shake'', and use it for the GHC build system. In this section we tie these papers together,
+reflecting on our experience after all these papers.
 
-\subsection{Cloud Shake}\label{sec-cloud-shake}
+\subsection{Experience from \Shake}
+
+The original design of \Shake hasn't changed since the initial paper. Since that paper there have been roughly 5,000 commits to the \Shake project\footnote{\url{https://github.com/ndmitchell/shake}}. They add concepts like resources (if two rules content from a single external resource), rewrite serialisation to be faster, and documentation including a website, and add lots of tests. The biggest change in that time period was moving from blocking threads to continuations for the suspending scheduler. The most visible change is switching \hs{*>} for \hs{\%>}\footnote{A conflicting \hs{*>} operator was added to the Haskell \hs{Prelude}.}, but almost all external and internal details remain the same.
+
+We consider the lack of change to suggest that \Shake is based on underlying principles -- principles we can now name and describe as a consequence of \cite{mokhov2018buildsystems}.
+
+\subsection{Experience from building GHC with \Shake}
+
+\todo{AM: Can you write this}
+
+The GHC build system, known as Hadrian, has continued development. The use of dynamic dependencies has made the build much easier, and it's now more maintainable. It's now merged into the GHC repo and tested as standard by the CI. It's current state is ... In particular, it takes N minutes to build with \Shake, vs M minutes to build with \Make. The \Shake version has attracted more contributors, and been easier to modify, etc.
+
+The design we originally outlined remains the one in use. There has been a huge amount of engineering work to make the tests pass (many of the details encoded in the \Make build system were incidental -- but some were essential).
+
+One of the benefits of using Shake is that we have access to high quality profiling information, allowing us to compute critical paths and other metrics (see \cite{mitchell2019ghcrebuildtimes} for a tour of the metrics). This information has shown us that GHC is slow to build (40m on an 8 CPU machine on Windows), that more CPUs would not help (on unlimited CPUs it would take at least 37m), and that a handful of steps (two Haskell compiles, some calls to \hs{configure}) are responsible for a significant amount of that time (at least 10m).
+
+
+\subsection{Experience from Cloud Shake}\label{sec-cloud-shake}
 
 \begin{itemize}
 \item Implemented and released
 \item Absolute paths and system binaries
 \item Deferred materialisation. Different invariants for (a) local builds, (b) cloud sharing (you must list all the things you produce), (c) sharing + deferred materialisation (you must declare all the things you consume). Interaction with early cut-off.
-\end{itemize}
-
-\subsection{Cloud Hadrian}
-
-\begin{itemize}
-\item  Real-life example
-\item Many examples demonstrating the use of dynamic dependencies
-\end{itemize}
-
-\subsection{Experience}
-
-\begin{itemize}
 \item  Cloud stuff needed tracing infrastructure to expose dependencies.
-\item  Good profiling support (here are pictures) exposes places where we are over-sequential, and over-big tasks (build systems work best with lots of small tasks).
-\item Ability to compute critical paths
-\item Numbers: no-op rebuild time; fresh clone rebuild time; (vs clean build).
 \end{itemize}
+
+\subsection{Experience from building GHC with Cloud \Shake}
+
+Can reduce times a lot.
+
+Needs to get much better dependencies.
+
+Also been deployed by Standard Chartered.
