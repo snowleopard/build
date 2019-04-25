@@ -14,25 +14,45 @@ We consider the lack of change to suggest that \Shake is based on underlying pri
 
 \subsection{Experience from building GHC with \Shake}
 
-\todo{AM: Can you write this}
+\todo{AM: Can you flesh this out}
 
-The GHC build system, known as Hadrian, has continued development. The use of dynamic dependencies has made the build much easier, and it's now more maintainable. It's now merged into the GHC repo and tested as standard by the CI. It's current state is ... In particular, it takes N minutes to build with \Shake, vs M minutes to build with \Make. The \Shake version has attracted more contributors, and been easier to modify, etc.
+The build system used to compile GHC, known as Hadrian, has continued development. The use of dynamic dependencies has made the build much easier, and it's now more maintainable. It's now merged into the GHC repo and tested as standard by the CI. It's current state is ... In particular, it takes N minutes to build with \Shake, vs M minutes to build with \Make. The \Shake version has attracted more contributors, and been easier to modify, etc. The code is N lines.
 
 The design we originally outlined remains the one in use. There has been a huge amount of engineering work to make the tests pass (many of the details encoded in the \Make build system were incidental -- but some were essential).
 
 One of the benefits of using Shake is that we have access to high quality profiling information, allowing us to compute critical paths and other metrics (see \cite{mitchell2019ghcrebuildtimes} for a tour of the metrics). This information has shown us that GHC is slow to build (40m on an 8 CPU machine on Windows), that more CPUs would not help (on unlimited CPUs it would take at least 37m), and that a handful of steps (two Haskell compiles, some calls to \hs{configure}) are responsible for a significant amount of that time (at least 10m).
 
+\subsection{Experience from Cloud \Shake}\label{sec-cloud-shake}
 
-\subsection{Experience from Cloud Shake}\label{sec-cloud-shake}
+Converting \Shake into Cloud \Shake wasn't a difficult process armed with a roadmap. The key was the introduction of two new functions:
+
+\begin{minted}[xleftmargin=10pt]{haskell}
+addCloud :: k -> Ver -> Ver -> [[(k, Hash v)]] -> v -> [FilePath] -> IO ()
+lookupCloud :: (k -> m (Maybe (Hash v))) -> k -> Ver -> Ver -> m (Maybe (v, [[k]], IO ()))
+\end{minted}
+
+These functions are suspiciously like \hs{recordCT} and \hs{constructCT} from \S\ref{sec-constructive-traces}, with their differences perhaps the most illustrative of the changes required. (We have made the replacements, like replacing \hs{Key} for \hs{k}, to reduce irrelevant differences.)
 
 \begin{itemize}
-\item Implemented and released
+\item There are two \hs{Ver} arguments being passed to each operation. These are the versions of the build script, and the rule for this particular key. If either version changes then it is as though the key has changed, and nothing will match. These versions are important to avoid using stale build products from previous versions of the build script.
+\item The list of dependencies to \hs{addCloud} is a list of lists, rather than a simple list. The reason is that \Shake allows a list of dependencies to be supplied at once, so they can all be built in parallel.
+\item The \hs{addCloud} function also takes a list of \hs{FilePath}, being the files that this rule produces -- which must be declared with \hs{produces}, or the output keys from a rule.
+\item The \hs{lookupCloud} allows an explicit \hs{Nothing} when looking up a dependent key, since some keys are not buildable.
+\item The \hs{lookupCloud} returns at most one result, rather than a list. This change was made for simplicity.
+\end{itemize}
+
+The integration of these functions into \Shake is also interesting. We found the most expedient design was to leave \Shake with a verifying trace, but if the verifying trace doesn't work, we use then consult the constructive trace. By bolting constructive traces onto the side of Shake we avoid reengineering of the central database. We haven't found any significant downsides from the bolt-on approach thus far, so it may be a sensible route to go even if developing from scratch -- allowing an optimised verified trace implementation in many cases, and falling back to a more complex implementation only rarely.
+
+The one thing we haven't yet completed on the engineering side is a move to hosting caches over HTTP. At the moment all caches are on shared file systems. This approach can use mounted drives to mirror HTTP connections onto file systems, and reuse tools for managing file systems, share caches with rsync, and is simple. Unfortunately, on certain OS's (e.g. Windows) mounting an HTTP endpoint as a file system requires administrator privileges, so an HTTP cache is still required.
+
+\subsection{Experience from building GHC with Cloud \Shake}
+
+\begin{itemize}
 \item Absolute paths and system binaries
 \item Deferred materialisation. Different invariants for (a) local builds, (b) cloud sharing (you must list all the things you produce), (c) sharing + deferred materialisation (you must declare all the things you consume). Interaction with early cut-off.
 \item  Cloud stuff needed tracing infrastructure to expose dependencies.
 \end{itemize}
 
-\subsection{Experience from building GHC with Cloud \Shake}
 
 Can reduce times a lot.
 
