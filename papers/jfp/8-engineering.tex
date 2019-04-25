@@ -75,10 +75,9 @@ fetchA1A2 k = Map.lookup k (Map.fromList [("A1", 10), ("A2", 20)])
 
 \noindent
 Since tasks are polymorphic in \hs{f}, we can directly run them with the
-callback \hs{fetchA1A2}. For example, the task description \hs{sprsh1}
-from~\S\ref{sec-task} will return \hs{Just}~\hs{(Just}~\hs{30)} for the task
-\cmd{B1 = A1 + A2}, \hs{Just}~\hs{Nothing} for the task \cmd{B2 = B1 * 2}
-because \hs{fetchA1A2} failed, and simply \hs{Nothing} for the input \cmd{A1}.
+callback \hs{fetchA1A2}. For example, the task \cmd{B1 = A1 + A2} from
+\hs{sprsh1} in~\S\ref{sec-task} returns \hs{Just}~\hs{30}, whereas the task
+\cmd{B2 = B1 * 2} returns \hs{Nothing} because \hs{fetchA1A2} fails on \cmd{B1}.
 
 This approach is convenient if \emph{tasks are not aware of failures}, e.g. we
 can model Excel formulas as pure arithmetic functions, and introduce failures
@@ -107,10 +106,16 @@ sprsh4 _ = Nothing
 \vspace{1mm}
 
 \noindent
-With this approach we can define a \hs{MonadFail} build system that can handle
-errors by aborting the build early.
+With this approach we can implement a build system that accepts
+\hs{Tasks}~\hs{MonadFail}~\hs{k}~\hs{v} and handles errors by aborting the
+build early and returning
+\hs{Either}~\hs{String}~\hs{(Store}~\hs{i}~\hs{k}~\hs{v)} instead of just
+\hs{Store}~\hs{i}~\hs{k}~\hs{v} as in~\S\ref{sec-general-build}. One possible
+implementation is based on introducing an extra \hs{Either}~\hs{String} layer
+into the monad stack; while fairly direct it is also tedious, and hence we omit
+it.
 
-\todo{AM}{Add a MonadFail build system.}
+% \todo{AM}{Add a MonadFail build system.}
 
 \subsection{Parallelism}\label{sec-parallelism}
 
