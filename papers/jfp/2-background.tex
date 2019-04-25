@@ -341,13 +341,13 @@ rectangles.\label{fig-bazel}}
 % \vspace{-4mm}
 % \smaller
 \centering
-\begin{tabular}{l||l|l||l|c|c|c}
+\begin{tabular}{llllccc}
 \hline
-$\!$Build system$\!$& Persistent build information & Scheduler   & Dependencies    & Minimal & Cutoff & Cloud$\!$\\\hline
-$\!$\Make       $\!$& File modification times      & Topological & Static          & Yes     & No     & No   $\!$\\
-$\!$\Excel      $\!$& Dirty cells, calc chain      & Restarting  & Dynamic         & No      & No     & No   $\!$\\
-$\!$\Shake      $\!$& Previous dependency graph    & Suspending  & Dynamic         & Yes     & Yes    & No   $\!$\\
-$\!$\Bazel      $\!$& Cloud cache, command history & Restarting  & Dynamic$^{(*)}$ & No      & Yes    & Yes  $\!$\\\hline
+Build system\gap & Persistent build information\gap & Scheduler\gap   & Dependencies\gap    & Minimal\gap & Cutoff\gap & Cloud\\\hline
+\Make       & File modification times      & Topological\gap & Static          & Yes     & No     & No   \\
+\Excel      & Dirty cells, calc chain      & Restarting  & Dynamic         & No      & No     & No   \\
+\Shake      & Previous dependency graph    & Suspending  & Dynamic         & Yes     & Yes    & No   \\
+\Bazel      & Cloud cache, command history\gap & Restarting  & Dynamic$^{(*)}$ & No      & Yes    & Yes  \\\hline
 \end{tabular}
 % \vspace{2mm}
 $^{(*)}$At present, user-defined build rules cannot have dynamic dependencies.
