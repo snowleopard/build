@@ -4,7 +4,7 @@
 -- Dependencies of monadic tasks can only be discovered dynamically, i.e. during
 -- their execution.
 module Build.Task.Monad (
-    track, trackPure, isInput, computePure, compute, partial, exceptional
+    track, trackPure, isInput, computePure, compute, liftMaybe, liftEither
     ) where
 
 import Control.Monad.Trans
@@ -48,13 +48,13 @@ compute task store = runIdentity $ run task (\k -> Identity (getValue k store))
 -- partial lookup function @k -> m (Maybe v)@. This essentially lifts the task
 -- from the type of values @v@ to @Maybe v@, where the result @Nothing@
 -- indicates that the task failed because of a missing dependency.
-partial :: Task Monad k v -> Task Monad k (Maybe v)
-partial task = Task $ \fetch -> runMaybeT $ run task (MaybeT . fetch)
+liftMaybe :: Task Monad k v -> Task Monad k (Maybe v)
+liftMaybe task = Task $ \fetch -> runMaybeT $ run task (MaybeT . fetch)
 
 -- | Convert a task with a total lookup function @k -> m v@ into a task with a
 -- lookup function that can throw exceptions @k -> m (Either e v)@. This
 -- essentially lifts the task from the type of values @v@ to @Either e v@, where
 -- the result @Left e@ indicates that the task failed because of a failed
 -- dependency lookup, and @Right v@ yeilds the value otherwise.
-exceptional :: Task Monad k v -> Task Monad k (Either e v)
-exceptional task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
+liftEither :: Task Monad k v -> Task Monad k (Either e v)
+liftEither task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)

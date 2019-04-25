@@ -719,5 +719,5 @@ accordingly; otherwise, if we have a cache hit, we return the obtained value
 immediately, skipping the actual calculation and thus potentially saving a large
 amount of work. Indeed you do not want to recompute $A(4,2)=2^{65536}-3$
 unnecessarily; all of its 19,729 decimal digits have already been helpfully
-computed, e.g. see~\cite{ackermann42}. We will use this technique in our models
-of cloud build systems in~\S\ref{sec-implementations}.
+computed, e.g. see~\cite{ackermann42}. We will use \hs{MonadState} tasks in our
+models of cloud build systems in~\S\ref{sec-implementations}.

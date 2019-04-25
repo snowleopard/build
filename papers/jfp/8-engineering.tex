@@ -1,19 +1,15 @@
 \section{Engineering aspects}\label{sec-engineering}
 
-\todo{Tasks with multiple outputs:
+\todo{AM}{Tasks with multiple outputs:
   https://github.com/snowleopard/build/blob/master/src/Build/Multi.hs}
 
-\todo{Typed tasks:
+\todo{AM}{Typed tasks:
   https://github.com/snowleopard/build/blob/master/src/Build/Task/Typed.hs}
 
-\todo{Handling failures, see last section here:
-  https://blogs.ncl.ac.uk/andreymokhov/the-task-abstraction/}
-
-\todo{Self-tracking (?):
+\todo{AM}{Self-tracking (?):
   https://github.com/snowleopard/build/blob/master/src/Build/SelfTracking.hs}
 
-\todo{Re-using existing infrastructure: (a) key-value store, (b) remote execution service.}
-
+\todo{AM/NM}{Re-using existing infrastructure: (a) key-value store, (b) remote execution service.}
 
 In the previous sections we have modelled the most critical subset of various
 build systems. However, like all real-world systems, there are many corners that
@@ -28,16 +24,100 @@ valid value. In the real world, build systems frequently deal with errors, e.g.
 ``file not found'' or ``compilation failed''. We can model such failure
 conditions by instantiating \hs{v} to either \hs{Maybe}~\hs{v} (for missing
 values) or \hs{Either}~\hs{e}~\hs{v} (for exceptions of type \hs{e}). That can
-model the errors inside the store and the \hs{Task}, but because \hs{v} is
-polymorphic for builds, it does not let the build system apply special behaviour
-for errors, e.g. early aborting.
+model the errors inside the store and the \hs{Task}, but because our build
+system models are polymorphic in \hs{v}, they cannot apply any special behaviour
+for errors, e.g. aborting the build early. There are many other ways of
+modelling errors, and in this section we show three simple examples.
+
+As mentioned above, we can include failures into the type of values \hs{v}, for
+example, to model a partial store we can use a simple like algebraic data type
+isomorphic to \hs{Maybe}:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Value = FileNotFound | FileContents ByteString
+\end{minted}
+\vspace{1mm}
+
+\noindent
+This is convenient if \emph{tasks are aware of failures}. For example, a task
+may be able to cope with missing files, e.g. if \hs{fetch}~\hs{"username.txt"}
+returns \hs{FileNotFound}, the task could use the literal string \hs{"User"} as
+a default value. In this case the task will \emph{depend} on the fact that the
+file \cmd{username.txt} is missing, and will need to be rebuilt if the user
+later creates this file. In general, we can use values of type
+\hs{Either}~\hs{e}~\hs{v} when dealing with failures of type \hs{e}. To
+automatically convert a ``failure-free'' task into an equivalent task operating
+with values of type \hs{Either}~\hs{e}~\hs{v} we can use the following function:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+liftEither :: Task Monad k v -> Task Monad k (Either e v)
+liftEither task = Task $ \fetch ->
+    runExceptT $ run task (ExceptT . fetch)
+\end{minted}
+\vspace{1mm}
+
+\noindent
+Here \hs{liftEither} wraps the result of the given
+\hs{fetch}~\hs{::}~\hs{k}~\hs{->}~\hs{Either}~\hs{e}~\hs{v} into \hs{EitherT}
+and then runs the task in the \hs{EitherT} monad transformer~\cite{liang1995monad}.
+
+Another approach is to include failures into the computation context \hs{f}. For
+example, we can choose \hs{f}~\hs{=}~\hs{Maybe}:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+fetchA1A2 :: String -> Maybe Integer
+fetchA1A2 k = Map.lookup k (Map.fromList [("A1", 10), ("A2", 20)])
+\end{minted}
+\vspace{1mm}
+
+\noindent
+Since tasks are polymorphic in \hs{f}, we can directly run them with the
+callback \hs{fetchA1A2}. For example, the task description \hs{sprsh1}
+from~\S\ref{sec-task} will return \hs{Just}~\hs{(Just}~\hs{30)} for the task
+\cmd{B1 = A1 + A2}, \hs{Just}~\hs{Nothing} for the task \cmd{B2 = B1 * 2}
+because \hs{fetchA1A2} failed, and simply \hs{Nothing} for the input \cmd{A1}.
+
+This approach is convenient if \emph{tasks are not aware of failures}, e.g. we
+can model Excel formulas as pure arithmetic functions, and introduce failures
+``for free'' if/when needed by instantiating \hs{Tasks} with an appropriate
+\hs{f}.
+
+Finally, the task itself might not want to encode failures into the type of
+values \hs{v}, but instead \emph{demand that} \hs{f} \emph{has a built-in notion
+of failures}. This can be done by choosing a suitable constraint \hs{c}, such as
+\hs{Alternative}, \hs{MonadPlus} or even better something specific to failures,
+such as \hs{MonadFail}. Then both the callback and the task can reuse the same
+failure mechanism as shown below:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+class Monad m => MonadFail m where
+    fail :: String -> m a
+
+sprsh4 :: Tasks MonadFail String Integer
+sprsh4 "B1" = Just $ Task $ \fetch -> do
+    a1 <- fetch "A1"
+    a2 <- fetch "A2"
+    if a2 == 0 then fail "division by 0" else return (a1 `div` a2)
+sprsh4 _ = Nothing
+\end{minted}
+\vspace{1mm}
+
+\noindent
+With this approach we can define a \hs{MonadFail} build system that can handle
+errors by aborting the build early.
+
+\todo{AM}{Add a MonadFail build system.}
 
 \subsection{Parallelism}\label{sec-parallelism}
 
 We have given simple implementations assuming a single thread of execution,
-but all the build systems we address can actually build independent keys in parallel.
-While it complicates the model, the complications can be restricted exclusively
-to the scheduler:
+but all the build systems we address can actually build independent keys in
+parallel. While it complicates the model, the complications can be restricted
+exclusively to the scheduler:
 
 \begin{enumerate}
 \item The \hs{topological} scheduler can build the full dependency graph, and
