@@ -1,16 +1,5 @@
 \section{Engineering aspects}\label{sec-engineering}
 
-\todo{AM}{Tasks with multiple outputs:
-  https://github.com/snowleopard/build/blob/master/src/Build/Multi.hs}
-
-\todo{AM}{Typed tasks:
-  https://github.com/snowleopard/build/blob/master/src/Build/Task/Typed.hs}
-
-\todo{AM}{Self-tracking (?):
-  https://github.com/snowleopard/build/blob/master/src/Build/SelfTracking.hs}
-
-\todo{AM/NM}{Re-using existing infrastructure: (a) key-value store, (b) remote execution service.}
-
 In the previous sections we have modelled the most critical subset of various
 build systems. However, like all real-world systems, there are many corners that
 obscure the essence. In this section we discuss some of those details, what
@@ -184,19 +173,20 @@ in turn can optimise the number of roundtrips required to the server.
 
 One tempting way of modelling non-determinism is to enrich \hs{Tasks} from
 \hs{Applicative} or \hs{Monad} to \hs{Alternative} or \hs{MonadPlus},
-respectively. More concretely, the following task description corresponds to
-a spreadsheet with the formula \cmd{B1 = A1 + RANDBETWEEN(1,2)}.
+respectively. Here is a task description corresponding to a spreadsheet with the
+formula \cmd{B1 = A1 + RANDBETWEEN(1,2)}:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 sprsh3 :: Tasks MonadPlus String Integer
-sprsh3 "B1"@\,@=@\,@Just $ Task $ \fetch -> (+) <$> fetch "A1" <*> (pure@\,@1 <|> pure@\,@2)
-sprsh3 _   @\,@=@\,@Nothing
+sprsh3 "B1" = Just $ Task $ \fetch -> (+) <$> fetch "A1"
+                                          <*> (pure 1 <|> pure 2)
+sprsh3 _    = Nothing
 \end{minted}
 \vspace{1mm}
 
 \noindent
 Such tasks can be modelled in our framework by adjusting the correctness
-definition (\S\ref{sec-build-correctness}): instead of requiring that the
+definition~(\S\ref{sec-build-correctness}), where instead of requiring that the
 \hs{result}ing value \emph{equals} the one obtained by recomputing the \hs{task}:
 \[
 \hs{getValue}~\hs{k}~\hs{result}~\hs{==}~\hs{compute}~\hs{task}~\hs{result} %\text{,}
@@ -211,6 +201,8 @@ where
 \hs{computeND}~\hs{::}~\hs{Task}~\hs{MonadPlus}~\hs{k}~\hs{v}~\hs{->}~\hs{Store}~\hs{i}~\hs{k}~\hs{v}~\hs{->}~\hs{[@@v]}
 returns the list of all possible results of the \hs{task} instead of just one
 value (`ND' stands for `non-deterministic').
+
+\todo{AM}{Show implementation of \hs{computeND}}.
 
 Note that \hs{Task}~\hs{MonadPlus} is powerful enough to model dependency-level
 non-determinism, for example, \cmd{INDIRECT("A" \& RANDBETWEEN(1,2))}, whereas
@@ -316,6 +308,8 @@ correctness: the main definition~(\S\ref{sec-build-correctness}), the variant
 for non-deterministic tasks~(\S\ref{sec-non-determinism}) and the variant for
 shallow builds~(this section).
 
+\todo{AM/NM}{Re-using existing infrastructure: (a) key-value store, (b) remote execution service.}
+
 \subsection{Self-tracking}\label{sec-tracking-aspects}
 
 Some build systems, for example \Excel and \Ninja, are capable of recomputing a
@@ -354,6 +348,10 @@ of implementing equality on arbitrary task functions. For such build systems,
 the pessimistic assumption that any change to the build system potentially
 changes any build task can often be used~--~the classic example being a makefile
 depending on itself.
+
+\todo{AM}{Self-tracking (?):
+  https://github.com/snowleopard/build/blob/master/src/Build/SelfTracking.hs}
+
 
 \subsection{Iterative Computations}\label{sec-iterative-compute}
 
@@ -411,3 +409,9 @@ of concepts, e.g.~\cite{hadrian}, but it is not essential and we therefore do
 not model it in this paper\footnote{See modules \cmd{Build.Multi} and
 \cmd{Build.Task.Typed} in our framework for models of multiple-output and
 polymorphic tasks.}.
+
+\todo{AM}{Tasks with multiple outputs:
+  https://github.com/snowleopard/build/blob/master/src/Build/Multi.hs}
+
+\todo{AM}{Typed tasks:
+  https://github.com/snowleopard/build/blob/master/src/Build/Task/Typed.hs}
