@@ -68,8 +68,9 @@ determine if a key needs rebuilding. Assuming a store of verifying traces
 \hs{VT}~\hs{k}~\hs{v}, the operations are:
 
 \begin{minted}[fontsize=\small,xleftmargin=10pt]{haskell}
-recordVT@\,@::@\,@k -> Hash v -> [(k, Hash v)] -> VT k v -> VT k v
-verifyVT@\,@::@\,@(Monad m,@\,@Eq k,@\,@Eq v) => k -> Hash v -> (k -> m (Hash v)) -> VT k v -> m Bool
+recordVT :: k -> Hash v -> [(k, Hash v)] -> VT k v -> VT k v
+verifyVT :: (Monad m, Eq k, Eq v)
+         => k -> Hash v -> (k -> m (Hash v)) -> VT k v -> m Bool
 \end{minted}
 
 \noindent
@@ -99,7 +100,11 @@ the information passed by \hs{verifyVT}. Concretely,
 in our implementations from \S\ref{sec-implementations}, traces are recorded as lists of:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
-data Trace k v = Trace { key :: k, depends :: [(k, Hash v)], result :: Hash v }
+data Trace k v = Trace
+    {key :: k
+    ,depends :: [(k, Hash v)]
+    ,result :: Hash v
+    }
 \end{minted}
 
 \noindent Where \hs{r} is \hs{Hash}~\hs{v} for verifying traces (and \hs{v} for constructive traces, discussed later in \S\ref{sec-constructive-traces}). A real system is highly likely to use a more optimised implementation.
@@ -144,7 +149,8 @@ information with the operations:
 
 \begin{minted}[fontsize=\small,xleftmargin=10pt]{haskell}
 recordCT    :: k -> v -> [(k, Hash v)] -> CT k v -> CT k v
-constructCT :: (Monad m, Eq k, Eq v) => k -> (k -> m (Hash v)) -> CT k v -> m [v]
+constructCT :: (Monad m, Eq k, Eq v)
+            => k -> (k -> m (Hash v)) -> CT k v -> m [v]
 \end{minted}
 
 \noindent

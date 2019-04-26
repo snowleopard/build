@@ -14,7 +14,7 @@ We consider the lack of change to suggest that \Shake is based on fundamental pr
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Action k v = Finished v
-                | Depends v (v -> Action)
+                | Depends v (v -> Action k v)
 \end{minted}
 
 In some sense this is the ``free'' version of the \hs{Task Monad} -- the two types form an isomorphism. Similary, \Make tasks were described as equivalent to
@@ -23,7 +23,7 @@ In some sense this is the ``free'' version of the \hs{Task Monad} -- the two typ
 data Rule k v = Rule {depends :: [k], action :: [v] -> v}
 \end{minted}
 
-Once again, this type is isomorphism to \hs{Task Applicative}. By describing these types using \hs{Task} we are able to pinpoint the differences (\hs{Monad} vs \hs{Applicative}) and use existing literature to prove what is and isn't possible.
+Once again, this type is isomorphiv to \hs{Task Applicative}. By describing these types using \hs{Task} we are able to pinpoint the differences (\hs{Monad} vs \hs{Applicative}) and use existing literature to prove what is and isn't possible.
 
 \subsection{Experience from building GHC with \Shake}
 
