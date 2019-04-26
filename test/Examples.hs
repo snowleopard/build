@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds, RankNTypes, GADTs #-}
 module Examples where
 
 import Build.Task
@@ -133,9 +134,9 @@ staticIF _ _    = Nothing
 
 -------------------------- Dynamic programming example -------------------------
 
-data Key = A Int | B Int | C Int Int deriving Eq
+data K = A Int | B Int | C Int Int deriving Eq
 
-editDistance :: Tasks Monad Key Int
+editDistance :: Tasks Monad K Int
 editDistance (C i 0) = Just $ Task $ const $ pure i
 editDistance (C 0 j) = Just $ Task $ const $ pure j
 editDistance (C i j) = Just $ Task $ \fetch -> do

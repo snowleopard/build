@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, ConstraintKinds, RankNTypes, GADTs, TypeFamilies #-}
+{-# LANGUAGE CPP, ConstraintKinds, RankNTypes, GADTs #-}
 #if __GLASGOW_HASKELL__ < 800
 {-# OPTIONS_GHC -Wno-unused-binds #-}
 #else
@@ -36,13 +36,43 @@ type ShowKey k = forall a. k a -> String
 dependencies :: ShowKey k -> Task Applicative k -> k a -> [String]
 dependencies showKey task = maybe [] getConst . task (\k -> Const [showKey k])
 
------------------------------------- Example -----------------------------------
+----------------------------- GCC versison example -----------------------------
+data Version = Version { major :: Int, minor :: Int }
+    deriving (Eq, Ord)
+
 data Key a where
-    Base       :: Key Int
-    Number     :: Key Int
-    SplitDigit :: Key (Int, Int)
-    LastDigit  :: Key Int
-    BaseDigits :: Key [Int]
+    File       :: FilePath -> Key String
+    GccVersion :: Key Version
+
+newtype Task1 c k v = Task1 { run :: forall f. c f => Fetch k f -> f v }
+
+type Tasks1 c k = forall a. k a -> Maybe (Task1 c k a)
+
+example :: Tasks1 Monad Key
+example (File "release.txt") = Just $ Task1 $ \fetch -> do
+    readme  <- fetch (File "README")
+    license <- fetch (File "LICENSE")
+    return (readme ++ license)
+example (File "main.o") = Just $ Task1 $ \fetch -> do
+    let source = "main.c"
+    version <- fetch GccVersion
+    if version >= Version 8 0 then compileNew source
+                              else compileOld source
+example _ = Nothing
+
+compileNew :: String -> f String
+compileNew = undefined
+
+compileOld :: String -> f String
+compileOld = undefined
+
+------------------------------------ Example -----------------------------------
+data KeyN a where
+    Base       :: KeyN Int
+    Number     :: KeyN Int
+    SplitDigit :: KeyN (Int, Int)
+    LastDigit  :: KeyN Int
+    BaseDigits :: KeyN [Int]
 
 -- | A build task for some simple typed numeric calculations. We can perform
 -- static analysis of this task using the function 'dependencies'. For example:
@@ -51,14 +81,14 @@ data Key a where
 -- dependencies showKey task Base       == []
 -- dependencies showKey task SplitDigit == ["Number","Base"]
 -- @
-task :: Task Applicative Key
+task :: Task Applicative KeyN
 task fetch SplitDigit = Just $ divMod <$> fetch Number <*> fetch Base
 task fetch LastDigit  = Just $ snd <$> fetch SplitDigit
 task fetch BaseDigits = Just $ (\b -> [0..(b - 1)]) <$> fetch Base
 task _ _ = Nothing
 
 -- | An example key/value mapping consistent with the build 'task'.
-fetch :: Applicative f => Fetch Key f
+fetch :: Applicative f => Fetch KeyN f
 fetch key = pure $ case key of
     Base       -> 10
     Number     -> 2018
@@ -67,7 +97,7 @@ fetch key = pure $ case key of
     BaseDigits -> [0..9]
 
 -- | Show the name of a key.
-showKey :: ShowKey Key
+showKey :: ShowKey KeyN
 showKey key = case key of
     Base       -> "Base"
     Number     -> "Number"

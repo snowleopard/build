@@ -134,6 +134,9 @@ resolved, using the strategy described by~\cite{marlow2014haxl}.
 The actual implementation of the parallel schedulers is not overly onerous,
 but neither is it beautiful or informative.
 
+\todo{NM}{Should we add a paragraph or two giving a bit more details about how
+parallelism is supported in \Shake?}
+
 \subsection{Impure Computations}\label{sec-non-determinism}
 
 In our model we define \hs{Task} as a function -- when given the same inputs
@@ -332,13 +335,13 @@ The implementation can be given very directly in a
 \hs{Tasks}~\hs{Monad}~--~concretely, first look up the formula, then interpret
 it:
 
-\vspace{0.5mm}
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 sprsh4 "B1" = Just $ Task $ \fetch -> do
     formula <- fetch "B1-formula"
     evalFormula fetch formula
 \end{minted}
-\vspace{0.5mm}
+\vspace{1mm}
 
 \noindent
 The build systems that have precise self-tracking are all ones which use a
@@ -349,9 +352,37 @@ the pessimistic assumption that any change to the build system potentially
 changes any build task can often be used~--~the classic example being a makefile
 depending on itself.
 
-\todo{AM}{Self-tracking (?):
-  https://github.com/snowleopard/build/blob/master/src/Build/SelfTracking.hs}
+% \vspace{1mm}
+% \begin{minted}[xleftmargin=10pt]{haskell}
+% data Key k     = Key k   | KeyTask k
+% data Value v t = Value v | ValueTask t
 
+% fetchValue :: Functor f => (Key k -> f (Value v t)) -> k -> f v
+% fetchValue fetch key = extract <$> fetch (Key key)
+%   where
+%     extract (Value v) = v
+%     extract _ = error "Inconsistent fetch"
+
+% -- | Fetch a task description.
+% fetchValueTask :: Functor f => (Key k -> f (Value v t)) -> k -> f t
+% fetchValueTask fetch key = extract <$> fetch (KeyTask key)
+%   where
+%     extract (ValueTask t) = t
+%     extract _ = error "Inconsistent fetch"
+
+% -- | A model for 'Monad', works beautifully and allows storing the key on the
+% -- disk.
+% selfTrackingM :: forall k v t. (t -> Task Monad k v) -> Tasks Monad k t -> Tasks Monad (Key k) (Value v t)
+% selfTrackingM _      _     (KeyTask _) = Nothing -- Task keys are inputs
+% selfTrackingM parser tasks (Key     k) = runTask <$> tasks k
+%   where
+%     -- Fetch the task description, parse it, and then run the obtained task
+%     runTask :: Task Monad k t -> Task Monad (Key k) (Value v t)
+%     runTask act = Task $ \fetch -> do
+%         task <- parser <$> run act (fetchValueTask fetch)
+%         Value <$> run task (fetchValue fetch)
+% \end{minted}
+% \vspace{1mm}
 
 \subsection{Iterative Computations}\label{sec-iterative-compute}
 
@@ -385,6 +416,8 @@ Our build system abstraction assumes a \hs{k}/\hs{v} store, along with a build
 system that works directly on \hs{k} and \hs{v} values. However, some build
 systems provide greater flexibility, e.g. \Shake permits polymorphic keys and
 values, allowing types that are stored only in the \Shake's build information.
+\Shake users have remarked that polymorphism provides a much easier expression
+of concepts, e.g. see~\cite{hadrian}.
 
 As one example of richer key/value types, consider the version of
 \cmd{gcc}~--~for many builds it should be a dependency. In \Shake it is possible
@@ -392,7 +425,69 @@ to define an \emph{oracle} rule as per~\cite{mitchell2012shake} whose value is
 the result of running \cmd{gcc -}\cmd{-version} and which is volatile, making the
 \cmd{gcc} version something that can be depended upon. Of course, provided the
 build can express volatile dependencies and supports cutoff, the version number
-could equally be written to a file and used in a similar way.
+could equally be written to a file and used in a similar way, albeit at the cost
+of introducing additional correctness invariants, e.g. that the file
+\cmd{gcc-version.txt} does indeed contains two dot-separated integers.
+
+Generalised algebraic data types (GADTs)~\cite{spj2006gadts} can be used to
+extend our models to support ``typed'' build tasks. The key idea is to replace
+the monomorphic callback \hs{fetch}~\hs{::}~\hs{k}~\hs{->}~\hs{f}~\hs{v} by its
+polymorphic equivalent \hs{fetch}~\hs{::}~\hs{k}~\hs{v}~\hs{->}~\hs{f}~\hs{v},
+where~\hs{k}~\hs{v} is a GADT representing keys tagged by the type~\hs{v} of
+corresponding values. The idea is best explained by way of an example:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Version = Version { major :: Int, minor :: Int }
+    deriving (Eq, Ord)
+
+data Key a where
+    File       :: FilePath -> Key String
+    GccVersion :: Key Version
+\end{minted}
+\vspace{1mm}
+
+\noindent
+Here we extend the usual mapping from file paths to file contents with an
+additional key type \hs{GccVersion} mapped to a \hs{Version}. The task
+abstraction needs to be adjusted to cope with such keys (the prefix \hs{T}
+stands for ``typed''):
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+type Fetch k f = @\std{forall}@ v. k v -> f v
+
+newtype TTask c k v = TTask { run :: @\std{forall}@ f. c f => Fetch k f -> f v }
+
+type TTasks c k = @\std{forall}@ v. k v -> Maybe (TTask c k v)
+\end{minted}
+\vspace{1mm}
+
+\noindent
+The changes compared to the definition in~\S\ref{sec-task} are minimal: (i) the
+\hs{TTask} now uses a typed \hs{Fetch} callback (we define a separate type
+synonym only for readability), and (ii) the type of \hs{TTasks} is now
+polymorphic in \hs{v} instead of being parameterised by a concrete \hs{v}. The
+example below demonstrates how \hs{fetch} can be used to retrieve dependencies
+of different types: the rule \cmd{release.txt} concatenates the contents of two
+\hs{File}s, while the rule \cmd{main.o} uses the numeric \hs{GccVersion} to
+determine the way the \hs{source} file should be compiled.
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+example :: TTasks Monad Key
+example (File "release.txt") = Just $ TTask $ \fetch -> do
+    readme  <- fetch (File "README")
+    license <- fetch (File "LICENSE")
+    return (readme ++ license)
+example (File "main.o") = Just $ TTask $ \fetch -> do
+    let source = "main.c"
+    version <- fetch GccVersion
+    if version >= Version 8 0 then compileNew source
+                              else compileOld source
+example _ = Nothing
+\end{minted}
+\vspace{1mm}
 
 A more compelling example is build tasks that produce multiple output
 keys~--~for example, \cmd{ghc Foo.hs} produces both \cmd{Foo.hi} and \cmd{Foo.o}.
@@ -404,14 +499,17 @@ file representing the pair) is marked as changed if either of the contained
 files change. Once again, polymorphic dependencies provide convenience rather
 than power.
 
-\Shake users have remarked that polymorphism provides a much easier expression
-of concepts, e.g.~\cite{hadrian}, but it is not essential and we therefore do
-not model it in this paper\footnote{See modules \cmd{Build.Multi} and
-\cmd{Build.Task.Typed} in our framework for models of multiple-output and
-polymorphic tasks.}.
+% \vspace{1mm}
+% \begin{minted}[xleftmargin=10pt]{haskell}
+% type Partition k = k -> [k]
 
-\todo{AM}{Tasks with multiple outputs:
-  https://github.com/snowleopard/build/blob/master/src/Build/Multi.hs}
-
-\todo{AM}{Typed tasks:
-  https://github.com/snowleopard/build/blob/master/src/Build/Task/Typed.hs}
+% multi :: Eq k => Partition k -> Tasks Applicative [k] [v] -> Tasks Applicative [k] [v]
+% multi partition tasks keys
+%     | k:_ <- keys, partition k == keys = tasks keys
+%     | otherwise = Just $ Task $ \fetch ->
+%         sequenceA [ select k <$> fetch (partition k) | k <- keys ]
+%   where
+%     select k = fromMaybe (error msg) . lookup k . zip (partition k)
+%     msg = "Partition invariants violated"
+% \end{minted}
+% \vspace{1mm}
