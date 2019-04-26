@@ -313,77 +313,6 @@ shallow builds~(this section).
 
 \todo{AM/NM}{Re-using existing infrastructure: (a) key-value store, (b) remote execution service.}
 
-\subsection{Self-tracking}\label{sec-tracking-aspects}
-
-Some build systems, for example \Excel and \Ninja, are capable of recomputing a
-task if either its dependencies change, \emph{or} the task itself changes. For
-example:
-
-\vspace{0.5mm}
-\begin{minted}[xleftmargin=10pt]{text}
-A1 = 20      B1 = A1 + A2
-A2 = 10
-\end{minted}
-\vspace{0.5mm}
-
-\noindent
-In \Excel the user can alter the value produced by \cmd{B1} by either editing
-the inputs of \cmd{A1} or \cmd{A2}, \emph{or} editing the formula in
-\cmd{B1}~--~e.g. to \cmd{A1 * A2}. This pattern can be captured by describing
-the rule producing \cmd{B1} as also depending on the value \cmd{B1-formula}.
-The implementation can be given very directly in a
-\hs{Tasks}~\hs{Monad}~--~concretely, first look up the formula, then interpret
-it:
-
-\vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
-sprsh4 "B1" = Just $ Task $ \fetch -> do
-    formula <- fetch "B1-formula"
-    evalFormula fetch formula
-\end{minted}
-\vspace{1mm}
-
-\noindent
-The build systems that have precise self-tracking are all ones which use a
-\emph{non-embedded domain specific language} to describe build tasks. Those
-which use a full programming language, e.g. \Shake, are faced with the challenge
-of implementing equality on arbitrary task functions. For such build systems,
-the pessimistic assumption that any change to the build system potentially
-changes any build task can often be used~--~the classic example being a makefile
-depending on itself.
-
-% \vspace{1mm}
-% \begin{minted}[xleftmargin=10pt]{haskell}
-% data Key k     = Key k   | KeyTask k
-% data Value v t = Value v | ValueTask t
-
-% fetchValue :: Functor f => (Key k -> f (Value v t)) -> k -> f v
-% fetchValue fetch key = extract <$> fetch (Key key)
-%   where
-%     extract (Value v) = v
-%     extract _ = error "Inconsistent fetch"
-
-% -- | Fetch a task description.
-% fetchValueTask :: Functor f => (Key k -> f (Value v t)) -> k -> f t
-% fetchValueTask fetch key = extract <$> fetch (KeyTask key)
-%   where
-%     extract (ValueTask t) = t
-%     extract _ = error "Inconsistent fetch"
-
-% -- | A model for 'Monad', works beautifully and allows storing the key on the
-% -- disk.
-% selfTrackingM :: forall k v t. (t -> Task Monad k v) -> Tasks Monad k t -> Tasks Monad (Key k) (Value v t)
-% selfTrackingM _      _     (KeyTask _) = Nothing -- Task keys are inputs
-% selfTrackingM parser tasks (Key     k) = runTask <$> tasks k
-%   where
-%     -- Fetch the task description, parse it, and then run the obtained task
-%     runTask :: Task Monad k t -> Task Monad (Key k) (Value v t)
-%     runTask act = Task $ \fetch -> do
-%         task <- parser <$> run act (fetchValueTask fetch)
-%         Value <$> run task (fetchValue fetch)
-% \end{minted}
-% \vspace{1mm}
-
 \subsection{Iterative Computations}\label{sec-iterative-compute}
 
 Some computations are best described not by a chain of acyclic dependencies,
@@ -450,23 +379,23 @@ data Key a where
 \noindent
 Here we extend the usual mapping from file paths to file contents with an
 additional key type \hs{GccVersion} mapped to a \hs{Version}. The task
-abstraction needs to be adjusted to cope with such keys (the prefix \hs{T}
+abstraction needs to be adjusted to cope with such keys (the suffix \hs{T}
 stands for ``typed''):
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Fetch k f = @\std{forall}@ v. k v -> f v
 
-newtype TTask c k v = TTask { run :: @\std{forall}@ f. c f => Fetch k f -> f v }
+newtype TaskT c k v = TaskT { runT :: @\std{forall}@ f. c f => Fetch k f -> f v }
 
-type TTasks c k = @\std{forall}@ v. k v -> Maybe (TTask c k v)
+type TasksT c k = @\std{forall}@ v. k v -> Maybe (TaskT c k v)
 \end{minted}
 \vspace{1mm}
 
 \noindent
 The changes compared to the definition in~\S\ref{sec-task} are minimal: (i) the
-\hs{TTask} now uses a typed \hs{Fetch} callback (we define a separate type
-synonym only for readability), and (ii) the type of \hs{TTasks} is now
+\hs{TaskT} now uses a typed \hs{Fetch} callback (we define a separate type
+synonym only for readability), and (ii) the type of \hs{TasksT} is now
 polymorphic in \hs{v} instead of being parameterised by a concrete \hs{v}. The
 example below demonstrates how \hs{fetch} can be used to retrieve dependencies
 of different types: the rule \cmd{release.txt} concatenates the contents of two
@@ -475,12 +404,12 @@ determine the way the \hs{source} file should be compiled.
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-example :: TTasks Monad Key
-example (File "release.txt") = Just $ TTask $ \fetch -> do
+example :: TasksT Monad Key
+example (File "release.txt") = Just $ TaskT $ \fetch -> do
     readme  <- fetch (File "README")
     license <- fetch (File "LICENSE")
     return (readme ++ license)
-example (File "main.o") = Just $ TTask $ \fetch -> do
+example (File "main.o") = Just $ TaskT $ \fetch -> do
     let source = "main.c"
     version <- fetch GccVersion
     if version >= Version 8 0 then compileNew source
@@ -542,3 +471,65 @@ corresponding build tasks \cmd{ghcTask} and \cmd{gccTask}.
 We chose not to use polymorphic tasks in the above implementation for
 simplicity, but nothing prevents us from combining polymorphism with
 multiple-output task closure.
+
+\todo{AM/NM}{We are talking about sets above, but are using lists, which is a
+bit inconsistent. We could switch from \hs{[k]} to \hs{Set k} fairly easily.
+Shall we?}
+
+\subsection{Self-tracking}\label{sec-tracking-aspects}
+
+Some build systems, for example \Excel and \Ninja, are capable of recomputing a
+task if either its dependencies change, \emph{or} the task itself changes. For
+example:
+
+\vspace{0.5mm}
+\begin{minted}[xleftmargin=10pt]{text}
+A1 = 20      B1 = A1 + A2
+A2 = 10
+\end{minted}
+\vspace{0.5mm}
+
+\noindent
+In \Excel the user can alter the value produced by \cmd{B1} by either editing
+the inputs of \cmd{A1} or \cmd{A2}, \emph{or} editing the formula in
+\cmd{B1}~--~e.g. to \cmd{A1 * A2}. This pattern can be captured by describing
+the rule producing \cmd{B1} as also depending on the value \cmd{B1-formula}.
+The implementation can be given very directly in a
+\hs{Tasks}~\hs{Monad}~--~concretely, first look up the formula, then interpret
+it:
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+sprsh4 "B1" = Just $ Task $ \fetch -> do
+    formula <- fetch "B1-formula"
+    evalFormula fetch formula
+\end{minted}
+\vspace{1mm}
+
+\noindent
+The build systems that have precise self-tracking are all ones which use a
+\emph{non-embedded domain specific language} to describe build tasks. Those
+which use a full programming language, e.g. \Shake, are faced with the challenge
+of implementing equality on arbitrary task functions. For such build systems,
+the pessimistic assumption that any change to the build system potentially
+changes any build task can often be used~--~the classic example being a makefile
+depending on itself.
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Key k v s a where
+    Script :: k -> Key k v s s -- Keys for build scripts
+    Value  :: k -> Key k v s v -- Keys for all other values
+
+selfTracking :: (s -> Task Monad k v) -> Tasks Monad k s
+                                      -> TasksT Monad (Key k v s)
+selfTracking _     _     (Script _) = Nothing -- Scripts are inputs
+selfTracking parse tasks (Value  k) = runScript <$> tasks k
+  where
+    -- Fetch the script, parse it, and then run the obtained task
+    runScript :: Task Monad k s -> TaskT Monad (Key k v s) v
+    runScript task = TaskT $ \fetch -> do
+        script <- run task (fetch . Script)
+        run (parse script) (fetch . Value)
+\end{minted}
+\vspace{1mm}
