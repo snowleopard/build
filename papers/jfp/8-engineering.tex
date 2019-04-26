@@ -410,7 +410,7 @@ systems also follow. There are computation frameworks that support tasks with
 cyclic dependencies under the assumption that tasks are \emph{monotonic} in a
 certain sense, e.g. see~\cite{pottier2009lazy} and~\cite{radul2009propagation}.
 
-\subsection{Polymorphism}\label{sec-polymorphism}
+\subsection{Polymorphism and Multiple-Output Build Tasks}\label{sec-polymorphism}
 
 Our build system abstraction assumes a \hs{k}/\hs{v} store, along with a build
 system that works directly on \hs{k} and \hs{v} values. However, some build
@@ -490,26 +490,55 @@ example _ = Nothing
 \vspace{1mm}
 
 A more compelling example is build tasks that produce multiple output
-keys~--~for example, \cmd{ghc Foo.hs} produces both \cmd{Foo.hi} and \cmd{Foo.o}.
+keys~--~for example, \cmd{ghc A.hs} produces both \cmd{A.hi} and \cmd{A.o}.
 That can be represented by having a key whose value is a pair of file names, and
-whose result is a pair of file contents. From that, the task for \cmd{Foo.hi}
+whose result is a pair of file contents. From that, the task for \cmd{A.hi}
 can be the first component of the result of the pair. Again, such an operation
 can be encoded without polymorphic keys provided the pair of files (or a dummy
 file representing the pair) is marked as changed if either of the contained
 files change. Once again, polymorphic dependencies provide convenience rather
 than power.
 
-% \vspace{1mm}
-% \begin{minted}[xleftmargin=10pt]{haskell}
-% type Partition k = k -> [k]
+Note that multiple-output build tasks require one more convenience mechanism,
+which is orthogonal to polymorphism. Multiple-output task descriptions partition
+the set of keys into \emph{elementary subsets} e.g.
+$\{\cmd{A.hi},\cmd{A.o}\} \rightarrow \cmd{ghcTask}$,
+$\{\cmd{B.o}\} \rightarrow \cmd{gccTask}$, etc. It is very convenient to
+allow to fetch arbitrary sets of keys, such as $\{\cmd{A.o},\cmd{B.o}\}$,
+without manually decomposing them into appropriate elementary subsets. This
+requires a method to efficiently construct task descriptions operating on
+arbitrary sets of keys rather on elementary subsets. One way to implement such
+``multiple-output task closure'' is shown below.
 
-% multi :: Eq k => Partition k -> Tasks Applicative [k] [v] -> Tasks Applicative [k] [v]
-% multi partition tasks keys
-%     | k:_ <- keys, partition k == keys = tasks keys
-%     | otherwise = Just $ Task $ \fetch ->
-%         sequenceA [ select k <$> fetch (partition k) | k <- keys ]
-%   where
-%     select k = fromMaybe (error msg) . lookup k . zip (partition k)
-%     msg = "Partition invariants violated"
-% \end{minted}
-% \vspace{1mm}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+type Partition k = k -> [k]
+
+multi :: Eq k => Partition k -> Tasks Applicative [k] [v]
+                             -> Tasks Applicative [k] [v]
+multi partition tasks keys
+    | k:_ <- keys, partition k == keys = tasks keys
+    | otherwise = Just $ Task $ \fetch ->
+        sequenceA [ select k <$> fetch (partition k) | k <- keys ]
+  where
+    select k = fromMaybe (error msg) . lookup k . zip (partition k)
+    msg = "Partition invariants violated"
+\end{minted}
+\vspace{1mm}
+
+\noindent
+The function \hs{multi} takes a task description \hs{tasks} that operates on
+elementary key subsets, and computes its closure supporting all possible
+combinations of keys. The first argument \hs{partition} specifies the elementary
+key subsets supported by the original \hs{tasks}. There are two cases: (i) if a
+given set of \hs{keys} is an elementary subset, we pass the query to \hs{tasks};
+(ii) otherwise, we examine every key \hs{k} in \hs{keys}, \hs{fetch} its
+corresponding elementary subset, and \hs{select} the appropriate value from the
+result. Returning to the above example, when given the query
+$\{\cmd{A.o},\cmd{B.o}\}$, this function will \hs{fetch} elementary subsets
+$\{\cmd{A.hi},\cmd{A.o}\}$ and $\{\cmd{B.o}\}$, thereby depending on the
+corresponding build tasks \cmd{ghcTask} and \cmd{gccTask}.
+
+We chose not to use polymorphic tasks in the above implementation for
+simplicity, but nothing prevents us from combining polymorphism with
+multiple-output task closure.
