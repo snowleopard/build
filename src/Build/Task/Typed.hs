@@ -44,16 +44,16 @@ data Key a where
     File       :: FilePath -> Key String
     GccVersion :: Key Version
 
-newtype Task1 c k v = Task1 { run :: forall f. c f => Fetch k f -> f v }
+newtype TaskT c k v = TaskT { runT :: forall f. c f => Fetch k f -> f v }
 
-type Tasks1 c k = forall a. k a -> Maybe (Task1 c k a)
+type TasksT c k = forall a. k a -> Maybe (TaskT c k a)
 
-example :: Tasks1 Monad Key
-example (File "release.txt") = Just $ Task1 $ \fetch -> do
+example :: TasksT Monad Key
+example (File "release.txt") = Just $ TaskT $ \fetch -> do
     readme  <- fetch (File "README")
     license <- fetch (File "LICENSE")
     return (readme ++ license)
-example (File "main.o") = Just $ Task1 $ \fetch -> do
+example (File "main.o") = Just $ TaskT $ \fetch -> do
     let source = "main.c"
     version <- fetch GccVersion
     if version >= Version 8 0 then compileNew source

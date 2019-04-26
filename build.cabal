@@ -25,6 +25,7 @@ library
                         Build.Multi,
                         Build.Rebuilder,
                         Build.SelfTracking,
+                        Build.SelfTracking.Typed,
                         Build.Scheduler,
                         Build.Store,
                         Build.Task,
