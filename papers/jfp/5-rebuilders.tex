@@ -112,7 +112,7 @@ initial \hs{k} is the \hs{key} field of \hs{Trace} -- making \hs{verifyVT} fast.
 Note that storing only one \hs{Trace} per key means that if the dependencies change but the result does not, and then the
 dependencies change back to what they were before, there will not be a valid \hs{Trace} available and the system will have to rebuild, where a complete list of all historical traces would not have had to. However, it also means that the number of \hs{Trace} structures is bounded by the number of distinct keys, regardless of how many builds are executed -- a useful property.
 
-\subsubsection{Step Verifying Traces}
+\subsubsection{Verifying Step Traces}\label{sec-step-traces}
 
 The \Shake build system, and the associated paper \cite{mitchell2012shake} in \S2.3.3 describes a slightly different trace structure, one that is similar to verifying traces, but stores slightly less data, and has slightly different early cutoff semantics. Rather than storing the \hs{Hash v} for each dependency, it instead stores a built time and changed time for each key, and for the dependencies just stores a list of \hs{k}. The resulting \hs{Trace} type ressembles:
 
