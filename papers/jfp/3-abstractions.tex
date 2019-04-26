@@ -40,9 +40,9 @@ type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 % \vspace{-4.5mm}
 \end{figure}
 
-This section presents purely functional abstractions that allow us to express
+This section presents abstractions that allow us to express
 all the intricacies of build systems discussed in~\S\ref{sec-background},
-and design complex build systems from simple primitives. Specifically, we
+and express complex build systems from simple primitives. Specifically, we
 present the \emph{task} and \emph{build} abstractions in~\S\ref{sec-task}
 and~\S\ref{sec-general-build}, respectively. Sections~\S\ref{sec-scheduler},
 \S\ref{sec-rebuilder} and~\S\ref{sec-implementations} scrutinise the
@@ -83,10 +83,10 @@ description; in \Make the rules in the makefile are the task description.
 \emph{target} key, and a store, and returns a new store in which the target key
 and all its dependencies have an up to date value.
 
-We will model build systems concretely, as Haskell programs. To that end,
+We model build systems concretely, as Haskell programs. To that end,
 Fig.~\ref{fig-types} provides the type signatures for all key abstractions
 introduced in the paper. For example, \hs{Store}~\hs{i}~\hs{k}~\hs{v} is the
-type of stores, with several associate functions (\hs{getValue}, etc.). We use
+type of stores, with several associated functions (\hs{getValue}, etc.). We use
 \hs{k} as a type variable ranging over keys, \hs{v} for values, and \hs{i} for
 the persistent build information. Fig.~\ref{fig-stdlib} lists standard library
 definitions.
@@ -95,7 +95,8 @@ definitions.
 
 Our first main abstraction is for \emph{task descriptions}:
 \begin{minted}[xleftmargin=10pt]{haskell}
-newtype Task  c k v = Task { run :: @\std{forall}@ f. c f => (k -> f v) -> f v }
+newtype Task  c k v = Task
+    { run :: @\std{forall}@ f. c f => (k -> f v) -> f v }
 type    Tasks c k v = k -> Maybe (Task c k v)
 \end{minted}
 
@@ -104,7 +105,7 @@ Here \hs{c} stands for \emph{constraint}, such as \hs{Applicative}
 (\S\ref{sec-why-polymorphism} explains why we need it).
 A \hs{Task} describes a single build task, while \hs{Tasks} associates a
 \hs{Task} to every non-input key; input keys are associated with \hs{Nothing}.
-The highly-abstracted type \hs{Task} describes how to build a value when given
+The highly-abstracted type \hs{Task} describes how to build a value given
 a way to build its dependencies, and is best explained by an example.
 Consider this \Excel spreadsheet:
 % \footnote{Readers familiar with \emph{lenses} or \emph{profunctor optics} might
@@ -154,8 +155,8 @@ instance Functor (Const m) where
 \vspace{1mm}
 \begin{minted}[fontsize=\small]{haskell}
 instance Monoid m => Applicative (Const m) where
-    pure _              = Const mempty   -- mempty is the identity of the monoid m
-    Const x <*> Const y = Const (x <> y) -- <> is the binary operation of the monoid m
+    pure _              = Const mempty   -- mempty is identity for monoid m
+    Const x <*> Const y = Const (x <> y) -- <> is the binary operation for m
 \end{minted}
 % \vspace{-3mm}
 \caption{Standard library definitions.}\label{fig-stdlib}
@@ -165,8 +166,10 @@ instance Monoid m => Applicative (Const m) where
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 sprsh1 :: Tasks Applicative String Integer
-sprsh1 "B1" = Just $ Task $ \fetch -> ((+)  <$> fetch "A1" <*> fetch "A2")
-sprsh1 "B2" = Just $ Task $ \fetch -> ((*2) <$> fetch "B1")
+sprsh1 "B1" = Just $ Task $ \fetch ->
+    ((+)  <$> fetch "A1" <*> fetch "A2")
+sprsh1 "B2" = Just $ Task $ \fetch ->
+    ((*2) <$> fetch "B1")
 sprsh1 _    = Nothing
 \end{minted}
 \vspace{1mm}
@@ -361,7 +364,7 @@ sprsh2 _ = Nothing
 \noindent
 The big difference compared to \hs{sprsh1} is that the computation now takes
 place in a \hs{Monad}, which allows us to extract the value of \hs{c1} and
-\hs{fetch} \emph{different keys depending on whether or not \hs{c1}~\hs{==}~\hs{1}}.
+\hs{fetch} \emph{different keys} depending on whether or not \hs{c1}~\hs{==}~\hs{1}.
 
 Since the \hs{busy} build system introduced in~\S\ref{sec-general-build} always
 rebuilds every dependency it encounters, it is easy for it to handle dynamic
@@ -384,7 +387,8 @@ any dependencies}:
 
 \begin{minted}[xleftmargin=5pt]{haskell}
 compute :: Task Monad k v -> Store i k v -> v
-compute task store = runIdentity $ run task (\k -> Identity@\,@(getValue k store))
+compute task store = runIdentity $ run task $
+    \k -> Identity $ getValue k store
 \end{minted}
 
 \noindent
@@ -395,7 +399,7 @@ function \hs{getValue}, which returns a pure value~\hs{v}, and the \hs{fetch}
 argument of the \hs{task}, which must return an \hs{f}~\hs{v} for some \hs{f}.
 To fix the mismatch, we wrap the result of \hs{getValue} in the \hs{Identity}
 monad: the function
-\hs{\@@k}~\hs{->}~\hs{Identity}~\hs{(@@getValue}~\hs{k}~\hs{store)} has the type
+\hs{\@@k}~\hs{->}~\hs{Identity}~\hs{\$}~\hs{getValue}~\hs{k}~\hs{store} has the type
 \hs{k}~\hs{->}~\hs{Identity}~\hs{v}, and can now be passed to a \hs{task}. The
 result has type \hs{Identity}~\hs{v}, which we unwrap with \hs{runIdentity}.
 
@@ -456,7 +460,7 @@ includes the \hs{busy} build system introduced earlier: it will loop
 indefinitely given a cyclic \hs{tasks}. Some build systems provide a limited
 support for cyclic tasks, see~\S\ref{sec-iterative-compute}.
 
-The presented definition of correctness needs to be adjusted to accommodate
+The presented definition of correctness needs to be adjusted for
 non-deterministic tasks and shallow cloud builds, as will be discussed
 in sections~\S\ref{sec-non-determinism} and~\S\ref{sec-cloud-aspects},
 respectively.
