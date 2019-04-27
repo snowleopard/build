@@ -515,12 +515,37 @@ the pessimistic assumption that any change to the build system potentially
 changes any build task can often be used~--~the classic example being a makefile
 depending on itself.
 
+Below we show how to implement self-tracking in a build system that allows users
+to describe build tasks by \emph{scripts} written in a non-embedded domain
+specific language. We will denote the type of scripts by \hs{s}, and will assume
+that scripts are indexed by keys \hs{k} just like all other values \hs{v}. More
+specifically, we use the following GADT to tag keys \hs{k} with corresponding
+result types: \hs{s} for scripts, and \hs{v} for other values.
+
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Key k v s a where
     Script :: k -> Key k v s s -- Keys for build scripts
     Value  :: k -> Key k v s v -- Keys for all other values
+\end{minted}
+\vspace{1mm}
 
+\noindent
+The function \hs{selfTracking} defined below is a generalisation of the approach
+explained in the above \Excel example \hs{sprsh4}. The function takes a parser
+for scripts, of type \hs{s}~\hs{->}~\hs{Task}~\hs{Monad}~\hs{k}~\hs{v}, and a
+description of \emph{how to build all scripts}, of type
+\hs{Tasks}~\hs{Monad}~\hs{k}~\hs{s}. For \hs{sprsh4}, the latter would simply
+fetch \cmd{B1-formula} when given the key \cmd{B1} and return \hs{Nothing}
+otherwise, but the presented approach can cope with much more sophisticated
+scenarios where scripts themselves are derived from ``script sources'', e.g. all
+C compilation scripts can be obtained from a single pattern rule, such as
+\cmd{gcc -c [source] -o [object]}. The resulting typed task description
+\hs{TasksT}~\hs{Monad}~\hs{(Key}~\hs{k}~\hs{v}~\hs{s)} tracks both values and
+scripts that compute them, and is therefore self-tracking.
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
 selfTracking :: (s -> Task Monad k v) -> Tasks Monad k s
                                       -> TasksT Monad (Key k v s)
 selfTracking _     _     (Script _) = Nothing -- Scripts are inputs
@@ -533,3 +558,8 @@ selfTracking parse tasks (Value  k) = runScript <$> tasks k
         run (parse script) (fetch . Value)
 \end{minted}
 \vspace{1mm}
+
+\noindent
+It is possible to implement \hs{selfTracking} without relying on GADTs and typed
+tasks presented in~\S\ref{sec-polymorphism}, but the cost of using partial
+functions.
