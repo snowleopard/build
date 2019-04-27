@@ -52,9 +52,9 @@ The design we originally outlined remains the one in use. There has been a huge 
 
 One of the benefits of using Shake is that we have access to high quality profiling information, allowing us to compute critical paths and other metrics (see \cite{mitchell2019ghcrebuildtimes} for a tour of the metrics). This information has shown us that GHC is slow to build (40m on an 8 CPU machine on Windows), that more CPUs would not help (on unlimited CPUs it would take at least 37m), and that a handful of steps (two Haskell compiles, some calls to \hs{configure}) are responsible for a significant amount of that time (at least 10m).
 
-\subsection{Experience from Cloud \Shake}\label{sec-cloud-shake}
+\subsection{Experience from \Cloud \Shake}\label{sec-cloud-shake}
 
-Converting \Shake into Cloud \Shake wasn't a difficult process once armed with a roadmap. The key was the introduction of two new functions:
+Converting \Shake into \Cloud \Shake wasn't a difficult process once armed with a roadmap. The key was the introduction of two new functions:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 addCloud :: k -> Ver -> Ver -> [[(k, Hash v)]] -> v -> [FilePath] -> IO ()
@@ -75,16 +75,16 @@ The integration of these functions into \Shake is also interesting. We found the
 
 The one thing we haven't yet completed on the engineering side is a move to hosting caches over HTTP. At the moment all caches are on shared file systems. This approach can use mounted drives to mirror HTTP connections onto file systems, and reuse tools for managing file systems, share caches with rsync, and is simple. Unfortunately, on certain OS's (e.g. Windows) mounting an HTTP endpoint as a file system requires administrator privileges, so an HTTP cache is still required.
 
-\subsection{Experience from using Cloud \Shake}
+\subsection{Experience from using \Cloud \Shake}
 
-While we expected the GHC build system to be the first to take advantage of Cloud \Shake, we were actually beaten to it by Standard Chartered who report\footnote{\url{https://groups.google.com/d/msg/shake-build-system/NbB5kMFS34I/mZ9L4TgkBwAJ}}:
+While we expected the GHC build system to be the first to take advantage of \Cloud \Shake, we were actually beaten to it by Standard Chartered who report\footnote{\url{https://groups.google.com/d/msg/shake-build-system/NbB5kMFS34I/mZ9L4TgkBwAJ}}:
 
 \begin{quote}
 Thanks for the symlinks release, we just finished upgrading this build system to use --share. ...
 Building from scratch with a warm cache takes around 5 seconds, saving us up to 2 hours. Not bad!
 \end{quote}
 
-We have also got the GHC build working with Cloud \Shake, resulting in build times of N minutes instead of M minutes. Due to aspects like \hs{configure} we don't see the dramatic reductions reported by Standard Chartered. Converting to a build suitable for sharing is not overly onerous, but nor is it trivial. Some things that require attention:
+We have also got the GHC build working with \Cloud \Shake, resulting in build times of N minutes instead of M minutes. Due to aspects like \hs{configure} we don't see the dramatic reductions reported by Standard Chartered. Converting to a build suitable for sharing is not overly onerous, but nor is it trivial. Some things that require attention:
 
 \begin{description}
 \item[Irrelevant differences] A common problem is that you don't get shared caching when you want it. To get caching, it is important that all machines are identical for the aspects that involve the build system. In particular, that means that all paths must be relative, and all dependencies on system binaries (e.g. \hs{gcc}) should either be controlled by the build system (e.g. using \Nix) or have tolerence to account for minor machine variations.
