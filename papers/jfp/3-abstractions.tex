@@ -1,45 +1,6 @@
 \section{Build systems, abstractly}\label{sec-abstractions}
 % \vspace{-0.5mm}
 
-\begin{figure}
-% \vspace{-1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- An abstract store containing a key/value map and persistent build information
-data Store i k v -- i = info, k = key, v = value
-initialise :: i -> (k -> v) -> Store i k v
-getInfo    :: Store i k v -> i
-putInfo    :: i -> Store i k v -> Store i k v
-getValue   :: k -> Store i k v -> v
-putValue   :: Eq k => k -> v -> Store i k v -> Store i k v
-\end{minted}
-% \vspace{-1mm}
-\begin{minted}[fontsize=\small]{haskell}
-data Hash v -- a compact summary of a value with a fast equality check
-hash    :: Hashable v => v -> Hash v
-getHash :: Hashable v => k -> Store i k v -> Hash v
-\end{minted}
-% \vspace{-1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- Build tasks (see §3.2)
-newtype Task  c k v = Task { run :: @\std{forall}@ f. c f => (k -> f v) -> f v }
-type    Tasks c k v = k -> Maybe (Task c k v)
-\end{minted}
-% \vspace{-1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- Build system (see §3.3)
-type Build c i k v = Tasks c k v -> k -> Store i k v -> Store i k v
-\end{minted}
-% \vspace{-1mm}
-\begin{minted}[fontsize=\small]{haskell}
--- Build system components: a scheduler (see §4) and a rebuilder (see §5)
-type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
-type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
-\end{minted}
-% \vspace{-3.5mm}
-\caption{Type signatures of key build systems abstractions.}\label{fig-types}
-% \vspace{-4.5mm}
-\end{figure}
-
 This section presents abstractions that allow us to express
 all the intricacies of build systems discussed in~\S\ref{sec-background},
 and express complex build systems from simple primitives. Specifically, we
@@ -90,6 +51,45 @@ type of stores, with several associated functions (\hs{getValue}, etc.). We use
 \hs{k} as a type variable ranging over keys, \hs{v} for values, and \hs{i} for
 the persistent build information. Fig.~\ref{fig-stdlib} lists standard library
 definitions.
+
+\begin{figure}
+% \vspace{-1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- An abstract store containing a key/value map and persistent build information
+data Store i k v -- i = info, k = key, v = value
+initialise :: i -> (k -> v) -> Store i k v
+getInfo    :: Store i k v -> i
+putInfo    :: i -> Store i k v -> Store i k v
+getValue   :: k -> Store i k v -> v
+putValue   :: Eq k => k -> v -> Store i k v -> Store i k v
+\end{minted}
+% \vspace{-1mm}
+\begin{minted}[fontsize=\small]{haskell}
+data Hash v -- a compact summary of a value with a fast equality check
+hash    :: Hashable v => v -> Hash v
+getHash :: Hashable v => k -> Store i k v -> Hash v
+\end{minted}
+% \vspace{-1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Build tasks (see §3.2)
+newtype Task  c k v = Task { run :: @\std{forall}@ f. c f => (k -> f v) -> f v }
+type    Tasks c k v = k -> Maybe (Task c k v)
+\end{minted}
+% \vspace{-1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Build system (see §3.3)
+type Build c i k v = Tasks c k v -> k -> Store i k v -> Store i k v
+\end{minted}
+% \vspace{-1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Build system components: a scheduler (see §4) and a rebuilder (see §5)
+type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
+type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
+\end{minted}
+% \vspace{-3.5mm}
+\caption{Type signatures of key build systems abstractions.}\label{fig-types}
+% \vspace{-4.5mm}
+\end{figure}
 
 \subsection{The Task Abstraction}\label{sec-task}
 

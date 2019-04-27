@@ -14,6 +14,7 @@
 % Haskell code snippets and useful shortcuts
 \usepackage{minted}
 \setminted[haskell]{escapeinside=@@}
+\setminted[text]{escapeinside=@@}
 \newcommand{\hs}{\mintinline{haskell}}
 \newcommand{\cmd}[1]{\textsf{\color[rgb]{0,0,0.5} #1}}
 \newcommand{\teq}{\smaller $\sim$}
@@ -21,8 +22,9 @@
 \newcommand{\defeq}{\stackrel{\text{def}}{=}}
 \newcommand{\std}[1]{{\color[rgb]{0,0.3,0} #1}}
 \newcommand{\blk}[1]{{\color[rgb]{0,0,0} #1}}
+\newcommand{\blu}[1]{{\color[rgb]{0,0,0.5} #1}}
 \newcommand{\gap}{$\;\;$}
-
+\newcommand{\etal}{\emph{et~al.}}
 
 % \renewcommand{\MintedPygmentize}{path-to-pygmentize}% Questions and tasks
 \newcommand{\q}[2]{\textbf{\color{blue} Question #1:} #2}

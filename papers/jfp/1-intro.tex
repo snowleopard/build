@@ -13,9 +13,11 @@ build systems, exploring new points in the design space. These complex build
 systems use subtle algorithms, but they are often hidden away, and not the
 object of study.
 
-In this paper we give a general framework (refined from \cite{mokhov2018buildsystems}) in which to understand and compare
-build systems, in a way that is both abstract (omitting incidental detail)
-and yet precise (implemented as Haskell code). With this framework we can explain confusing details from the original Shake paper \cite{mitchell2012shake} and build new features useful for the GHC build system \cite{hadrian}. Specifically we make these contributions:
+In this paper we give a general framework in which to understand and compare
+build systems, in a way that is both abstract (omitting incidental detail) and
+yet precise (implemented as Haskell code). Specifically we make these
+contributions:
+
 \begin{itemize}
 \item Build systems vary on many axes, including: static vs dynamic
   dependencies; local vs cloud; deterministic vs non-deterministic build tasks;
@@ -36,26 +38,30 @@ and yet precise (implemented as Haskell code). With this framework we can explai
 
 \item We show that we can instantiate our abstractions to describe the essence
 of a variety of different real-life build systems, including \Make, \Shake,
-\Bazel, \CloudBuild, \Buck, \Nix, and \Excel\footnote{\Excel appears very
-different to the others but, seen through the lens of this paper, it is very
-close indeed.}, each by the composition of the two design choices
-(\S\ref{sec-implementations}). Doing this modelling in a single setting
-allows the differences and similarities between these huge systems to be
-brought out clearly\footnote{All our models are executable and are available on
-Hackage: \url{https://hackage.haskell.org/package/build-1.0}.}.
+\Bazel, \Buck, \Nix, and \Excel\footnote{\Excel appears very different to the
+others but, seen through the lens of this paper, it is very close.}, each by the
+composition of the two design choices~(\S\ref{sec-implementations}). Doing this
+modelling in a single setting allows the differences and similarities between
+these huge systems to be brought out clearly\footnote{All our models are
+executable and are available on Hackage as \cmd{build-1.0}.}. We use the
+abstractions to explain confusing details from the original \Shake
+paper~\cite{mitchell2012shake} and build new features useful for the GHC build
+system~\cite{hadrian}.
 
 \item Moreover, we can readily remix the ingredients to design new build systems
 with desired properties, for example, to combine the advantages of \Shake and
-\Bazel (\S\ref{sec-cloud-shake}), and evaluate the result (\S\ref{sec-experience}).
+\Bazel, and evaluate the result~(\S\ref{sec-experience}).
 
 \end{itemize}
-In short, instead of seeing build systems as unrelated
-points in space, we now see them as locations in a connected landscape,
-leading to a better understanding of what they do and how they compare,
-and making it easier to explore other points in the
-landscape.
+
+In short, instead of seeing build systems as unrelated points in space, we now
+see them as locations in a connected landscape, leading to a better
+understanding of what they do and how they compare, and making it easier to
+explore other points in the landscape.
+
 We discuss engineering aspects in \S\ref{sec-engineering}, and related
-work in \S\ref{sec-related}.
+work in \S\ref{sec-related}. This paper is an extended version of an earlier
+conference paper~\cite{mokhov2018buildsystems}.
 
 % Papers about ``frameworks'' are often fuzzy.  This one is not: all our
 % abstractions are defined in Haskell, and we have (freely-available)
