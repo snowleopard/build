@@ -39,7 +39,8 @@ We can define schedulers and rebuilders more concretely with the types (Fig.~\re
 \vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
-type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
+type Rebuilder c   ir k v =
+    k -> v -> Task c k v -> Task (MonadState ir) k v
 \end{minted}
 \vspace{0.5mm}
 
@@ -385,6 +386,11 @@ The \hs{fetch} computation runs in the
 \hs{MonadState}~\hs{i} access the \hs{i} inside the \hs{Store} we use the helper
 function \hs{liftRun} (which uses a \hs{newtype} to provide a \hs{MonadState}
 instance that sees through into the \hs{Store}).
+
+As discussed in \S\ref{sec-step-traces}, \Shake actually use verifying step traces, but we
+choose to focus on the more explicit verifying traces. We have implemented
+verifying step traces in our framework, and they compose with schedulers as
+you would hope.
 
 \subsection{Cloud Build Systems: \Bazel, \CloudBuild, \Cloud \Shake, \Buck and \Nix}
 \label{sec-implementation-cloud}
