@@ -51,16 +51,16 @@ Relationship to SHake paper.   Fully subsumes it, and explains it much better.  
 
 ### Engineering section
 
-* Tasks with multiple outputs:
+* **Done**: Tasks with multiple outputs:
   https://github.com/snowleopard/build/blob/master/src/Build/Multi.hs
 
-* Typed tasks:
+* **Done**: Typed tasks:
   https://github.com/snowleopard/build/blob/master/src/Build/Task/Typed.hs
 
-* Handling failures, see last section here:
+* **Done**: Handling failures, see last section here:
   https://blogs.ncl.ac.uk/andreymokhov/the-task-abstraction/
 
-* Self-tracking (?):
+* **Done**: Self-tracking (?):
   https://github.com/snowleopard/build/blob/master/src/Build/SelfTracking.hs
 
 * Re-using existing infrastructure: (a) key-value store, (b) remote execution service.
