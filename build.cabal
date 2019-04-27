@@ -30,6 +30,7 @@ library
                         Build.Store,
                         Build.Task,
                         Build.Task.Applicative,
+                        Build.Task.Free,
                         Build.Task.Functor,
                         Build.Task.Monad,
                         Build.Task.MonadPlus,

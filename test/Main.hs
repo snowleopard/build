@@ -11,6 +11,7 @@ import Build
 import Build.Store
 import Build.System
 import Build.Task
+import Build.Task.Free()
 
 import Spreadsheet
 import Examples()
