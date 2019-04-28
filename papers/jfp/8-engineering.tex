@@ -209,7 +209,8 @@ where
 returns the list of all possible results of the \hs{task} instead of just one
 value (`ND' stands for `non-deterministic').
 
-\todo{AM}{Show implementation of \hs{computeND}. Neil says: not convinced it's that interesting.}.
+% \todo{AM}{Show implementation of \hs{computeND}.
+% Neil says: not convinced it's that interesting.}.
 
 Note that \hs{Task}~\hs{MonadPlus} is powerful enough to model dependency-level
 non-determinism, for example, \cmd{INDIRECT("A" \& RANDBETWEEN(1,2))}, whereas
@@ -315,7 +316,9 @@ correctness: the main definition~(\S\ref{sec-build-correctness}), the variant
 for non-deterministic tasks~(\S\ref{sec-non-determinism}) and the variant for
 shallow builds~(this section).
 
-\todo{AM/NM}{Re-using existing infrastructure: (a) key-value store, (b) remote execution service. Neil says: I think this is a stretch. It's a lot more nuanced as we saw from Bazel discussions so I'd probably skip it.}
+% \todo{AM/NM}{Re-using existing infrastructure: (a) key-value store, (b) remote
+% execution service. Neil says: I think this is a stretch. It's a lot more nuanced
+% as we saw from Bazel discussions so I'd probably skip it.}
 
 \subsection{Iterative Computations}\label{sec-iterative-compute}
 
@@ -477,10 +480,12 @@ We chose not to use polymorphic tasks in the above implementation for
 simplicity, but nothing prevents us from combining polymorphism with
 multiple-output task closure.
 
-\todo{AM/NM}{We are talking about sets above, but are using lists, which is a
-bit inconsistent. We could switch from \hs{[k]} to \hs{Set k} fairly easily.
-Shall we? Neil says: Haskell code dealing with sets is quite a lot more complex. People are used
-to being quite fuzzy around the difference - I'd leave it as is.}
+% \todo{AM/NM}{We are talking about sets above, but are using lists, which is a
+% bit inconsistent. We could switch from \hs{[k]} to \hs{Set k} fairly easily.
+% Shall we? Neil says: Haskell code dealing with sets is quite a lot more complex.
+% People are used to being quite fuzzy around the difference - I'd leave it as is.
+% Andrey says: Also, using \hs{Set v} doesn't seem possible, because we won't be
+% able to relate \hs{v}s with corresponding \hs{k}s}.
 
 \subsection{Self-tracking}\label{sec-tracking-aspects}
 
