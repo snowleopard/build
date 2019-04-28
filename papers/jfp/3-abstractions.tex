@@ -55,7 +55,7 @@ definitions.
 \begin{figure}
 % \vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
--- An abstract store containing a key/value map and persistent build information
+-- Abstract store containing a key/value map and persistent build information
 data Store i k v -- i = info, k = key, v = value
 initialise :: i -> (k -> v) -> Store i k v
 getInfo    :: Store i k v -> i
@@ -626,10 +626,10 @@ dynamic dependency to variable \hs{index}:
 ackermann :: Tasks Monad (Integer, Integer) Integer
 ackermann (m, n)
   | m < 0 || n < 0 = Nothing
-  | m == 0    = Just $ Task $ const $ pure (n + 1)
-  | n == 0    = Just $ Task $ \fetch -> fetch (m - 1, 1)
-  | otherwise = Just $ Task $ \fetch -> do index <- fetch (m, n - 1)
-                                           fetch (m - 1, index)
+  | m == 0    = Just $ Task $ const $ pure (n+1)
+  | n == 0    = Just $ Task $ \fetch -> fetch (m-1, 1)
+  | otherwise = Just $ Task $ \fetch -> do index <- fetch (m, n-1)
+                                           fetch (m-1, index)
 \end{minted}
 \vspace{1mm}
 
@@ -695,16 +695,16 @@ Ackermann values.
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Cache = Map (Integer, Integer) Integer
 
-cloudAckermann :: Tasks (MonadState Cache) (Integer, Integer) Integer
-cloudAckermann (m, n)
+cloudAck :: Tasks (MonadState Cache) (Integer, Integer) Integer
+cloudAck (m, n)
     | m < 0 || n < 0 = Nothing
-    | m == 0    = Just $ Task $ const $ pure (n + 1)
-    | n == 0    = Just $ Task $ \fetch -> fetch (m - 1, 1)
+    | m == 0    = Just $ Task $ const $ pure (n+1)
+    | n == 0    = Just $ Task $ \fetch -> fetch (m-1, 1)
     | otherwise = Just $ Task $ \fetch -> do
         cache <- get
         case Map.lookup (m, n) cache of
-            Nothing -> do index <- fetch (m, n - 1)
-                          value <- fetch (m - 1, index)
+            Nothing -> do index <- fetch (m, n-1)
+                          value <- fetch (m-1, index)
                           modify (Map.insert (m, n) value)
                           return value
             Just value -> return value
