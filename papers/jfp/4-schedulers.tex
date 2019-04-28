@@ -111,9 +111,11 @@ resumes a build before building \cmd{main.o} then continues its work to finish
 \cmd{main.exe}.
 
 This scheduler (when combined with a suitable rebuilder) provides a minimal
-build system which supports dynamic dependencies. The difficulties are all
-engineering in nature. To implement suspension there are two standard
-approaches:
+build system which supports dynamic dependencies. In our model, a suspending
+scheduler easy to write -- it makes a function call to compute each dependency. However,
+a more practical implementation is likely to build multiple dependencies in parallel,
+which then requires a more explicit suspension and resumption. To implement
+suspension there are two standard approaches:
 
 \begin{itemize}
 \item Blocking threads or processes. This approach is relatively easy, but can
@@ -131,13 +133,3 @@ While a suspending scheduler is theoretically optimal, it is only better in
 practice than a restarting scheduler if the cost of avoided duplicate work
 outweighs the cost of suspending tasks. Note furthermore that the cost of
 duplicate work may often be just a fraction of the overall build cost.
-
-\q{Andrey}{It's unclear how our \hs{busy} build system fits into the two above
-approaches. It probably is a third approach (i.e. using stack), but it's
-unsuitable for real build systems that call external processes. Shall we mention
-this?}
-
-\q{Andrey}{A follow-up to the above: our \Shake models use neither of the two
-above approaches, which seems a bit unsatisfactory. Can we at least hint how
-our models could be adapted to use the continuation-passing style? Can we write
-\hs{busyCPS}?}
