@@ -1,10 +1,10 @@
 \section{Schedulers}\label{sec-scheduler}
 
 The focus of this paper is on a variety of implementations of
-\hs{Build}~\hs{c}~\hs{i}~\hs{k}~\hs{v}, given
-a \emph{client-supplied} implementation of \hs{Tasks}~\hs{c}~\hs{k}~\hs{v}. That
-is, we are going to take \hs{Tasks} as given from now on, and explore variants of
-\hs{Build}: first abstractly (in this section) and then concretely
+\hs{Build}~\hs{c}~\hs{i}~\hs{k}~\hs{v}, given a \emph{user-supplied}
+implementation of \hs{Tasks}~\hs{c}~\hs{k}~\hs{v}. That is, we are going to take
+\hs{Tasks} as given from now on, and explore variants of \hs{Build}: first
+abstractly (in this section and in~\S\ref{sec-rebuilder}) and then concretely
 in~\S\ref{sec-implementations}.
 
 As per the definition of minimality~\ref{def-minimal}, a minimal build
@@ -13,115 +13,131 @@ way to achieve the ``at most once'' requirement while producing a correct build
 result (\S\ref{sec-build-correctness}) is to \textbf{build all keys in an
 order that respects their dependencies}.
 
-We have emboldened two different aspects above: the part of the
-build system responsible for scheduling tasks in the dependency order
-(a `scheduler') can be cleanly separated from the part responsible for deciding
-whether a key needs to be rebuilt (a `rebuilder'). In this section we discuss schedulers,
-leaving rebuilders for \S\ref{sec-rebuilder}.
+We have emboldened two different aspects above: the part of the build system
+responsible for scheduling tasks in the dependency order (a ``scheduler'') can
+be cleanly separated from the part responsible for deciding whether a key needs
+to be rebuilt (a ``rebuilder''). In this section we discuss schedulers, leaving
+rebuilders for \S\ref{sec-rebuilder}.
 
 Section \S\ref{sec-background} introduced three different \emph{task schedulers}
-that decide which tasks to execute and in what order; see the ``Scheduler'' column
-of Table~\ref{tab-summary} in \S\ref{sec-background-summary}.
-This subsection explores the properties of the three schedulers, and
-possible implementations.
+that decide which tasks to execute and in what order; see the ``Scheduler''
+column of Table~\ref{tab-summary} in \S\ref{sec-background-summary}. This
+subsection explores the properties of the three schedulers, and possible
+implementations.
 
 \subsection{Topological Scheduler}\label{sec-topological}
 
-The topological scheduler pre-computes a linear order of tasks, which when followed ensures
-dependencies are satisifed, then executes the required tasks in that order. Computing such a linear
-order is straightforward -- given a task description and output \hs{key} first find the (acyclic)
-graph of the \hs{key}'s dependencies, then compute a topological sort. Taking the example from
-Figure~\ref{fig-make}, we might compute the order:
+The topological scheduler pre-computes a linear order of tasks, which when
+followed ensures dependencies are satisfied, then executes the required tasks in
+that order. Computing such a linear order is straightforward -- given a task
+description and output \hs{key} first find the (acyclic) graph of the \hs{key}'s
+dependencies, then compute a topological order. Taking the \Make example from
+Fig.~\ref{fig-make}, we might compute the order:
 
 \begin{enumerate}
-\item \hs{util.o}
-\item \hs{main.o}
-\item \hs{main.exe}
+\item \cmd{util.o}
+\item \cmd{main.o}
+\item \cmd{main.exe}
 \end{enumerate}
 
-Given the dependencies, we could have equally chosen to build \hs{main.o} first, but \hs{main.exe} \emph{must}
-come last.
+\noindent
+Given the dependencies, we could have equally chosen to build \cmd{main.o}
+first, but \cmd{main.exe} \emph{must} come last.
 
-The advantage of this scheme is simplicity -- compute an order, then execute tasks in that order.
-In addition any missing nodes or cycles can be detected from the graph, and reported to the user
-before any work has commenced.
+The advantage of this scheme is simplicity -- compute an order, then execute
+tasks in that order. In addition any missing nodes or cycles can be detected
+from the graph, and reported to the user before any work has commenced.
 
-The downside of this approach is that it requires the dependencies of each task in advance.
-As we saw in~\S\ref{sec-deps}, we can only extract dependencies from an applicative task, which requires the
-build system to choose \hs{c}~\hs{=}~\hs{Applicative}, ruling out dynamic dependencies.
+The downside of this approach is that it requires the dependencies of each task
+in advance. As we saw in~\S\ref{sec-deps}, we can only extract dependencies from
+an applicative task, which requires the build system to choose
+\hs{c}~\hs{=}~\hs{Applicative}, ruling out dynamic dependencies.
 
 \subsection{Restarting Scheduler}\label{sec-restarting}
 
 To handle dynamic dependencies we cannot precompute a static order -- we must
 interleave running tasks and ordering tasks. One approach is just to build tasks
-in an arbitrary order, but if a task calls \hs{fetch} on an out-of-date key \hs{dep}
-abort the task and build \hs{dep} instead. Returning to the example from
-Figure~\ref{fig-make}, we might build in the order:
+in an arbitrary order, but if a task calls \hs{fetch} on an out-of-date key
+\cmd{dep}, abort the task and build \cmd{dep} instead. Returning to the example
+from Fig.~\ref{fig-make}, we might build in the order:
 
 \begin{enumerate}
-\item \hs{main.exe} (abort because it requires \hs{util.o})
-\item \hs{util.o}
-\item \hs{main.o}
-\item \hs{main.exe}
+\item \cmd{main.exe} (abort because it requires \cmd{util.o})
+\item \cmd{util.o}
+\item \cmd{main.o}
+\item \cmd{main.exe} (restart from scratch, completing successfully this time)
 \end{enumerate}
 
-Here we start with \hs{main.exe} (chosen randomly), but discover it requires \hs{util.o}, so
-instead start building \hs{util.o}. Next we choose to build \hs{main.o} (again, randomly),
-before finally returning to \hs{main.exe} which now has all its dependencies available and
-completes without error.
+\noindent
+We start with \cmd{main.exe} (chosen randomly), but discover it requires
+\cmd{util.o}, so instead start building \cmd{util.o}. Next we choose to build
+\cmd{main.o} (again, randomly), before finally returning to \cmd{main.exe},
+which now has all its dependencies available and completes without error.
 
-The approach works, but has a number of disadvantages. Firstly, it requires a technical mechanism
-to abort a task -- easy enough in our theoretical setting of \hs{Task} but leads to engineering concerns
-in the real world. Secondly, it is not minimal in the sense that a task may
-start, do some meaningful work, and then abort, repeating that same work when restarted.
+The approach works, but has a number of disadvantages. Firstly, it requires a
+technical mechanism to abort a task -- easy enough in our theoretical setting of
+\hs{Task} (see the implementation in~\S\ref{sec-implementation-excel}) but leads
+to engineering concerns in the real world. Secondly, it is not minimal in the
+sense that a task may start, do some meaningful work, and then abort, repeating
+that same work when restarted.
 
-As a refinement, to reduce the number of aborts (often to zero) \Excel records the
-discovered task order in its \emph{calc chain}, and uses it as the
-starting point for the next build (\S\ref{sec-background-excel}).
-\Bazel's restarting scheduler does not store the discovered order
-between build runs; instead, it stores the most recent task dependency
-information from which it can computed a linear order. Since this information may become outdated, \Bazel may
-also need to abort a task if a newly discovered dependency is out of date.
+As a refinement, to reduce the number of aborts (often to zero) \Excel records
+the discovered task order in its \emph{calc chain}, and uses it as the starting
+point for the next build~(\S\ref{sec-background-excel}). \Bazel's restarting
+scheduler does not store the discovered order between build runs; instead, it
+stores the most recent task dependency information from which it can compute a
+linear order. Since this information may become outdated, \Bazel may also need
+to abort a task if a newly discovered dependency is out of date.
 
 \subsection{Suspending Scheduler}\label{sec-suspending}
 
 An alternative approach, utilised by the \hs{busy} build system
 (\S\ref{sec-general-build}) and \Shake, is to simply build dependencies when
-they are requested, suspending the currently running task. Using
-Figure~\ref{fig-make}, we would build:
-
-\begin{enumerate}
-\item \hs{main.exe} (suspended)
-\begin{itemize}
-\item \hs{util.o}
-\end{itemize}
-\item \hs{main.exe} (resumsed then suspended)
-\begin{itemize}
-\item \hs{main.o}
-\end{itemize}
-\item \hs{main.exe} (completed)
-\end{enumerate}
-
-As we see, the \hs{main.exe} is started first as it is the required target. It soon discovers
-a dependency on \hs{util.o} and suspends to build \hs{util.o}, resumes a build before building \hs{main.o}
-then continues its work to finish \hs{main.exe}.
-
-This scheduler (when combined with a suitable rebuilder) provides a minimal build system
-which supports dynamic dependencies.
-
-The difficulties are all engineering in nature. To implement suspension there are two
-standard approaches:
+they are requested, suspending the currently running task. Using the example
+from Fig.~\ref{fig-make}, we would build:
 
 \begin{itemize}
-\item Blocking threads or processes. This approach is relatively easy, but can require
-significant resources, especially if a large number of tasks are suspended. In languages with
-cheap green threads (e.g. Haskell) the approach is more feasible, and it was the original approach
-taken by \Shake.
-\item Continuation-passing style \cite{claessen_continuations} can allow the remainder of
-a task to be captured, paused, and resumed later. Continuation passing is efficient, but requires
-the build script to be architected to allow capturing continuations. \Shake currently uses
-continuations.
+\item \cmd{main.exe} (suspended)\\
+  $\hookrightarrow$ \cmd{util.o}
+\item \cmd{main.exe} (resumed then suspended again)\\
+  $\hookrightarrow$   \cmd{main.o}
+\item \cmd{main.exe} (completed)
 \end{itemize}
 
-While a suspending scheduler is theoretically optimal, it is only better in practice
-than a restarting scheduler if the cost of duplicate work avoided outweighs the cost of suspending tasks.
+\noindent
+As we see, the \cmd{main.exe} is started first as it is the required target. It
+soon discovers a dependency on \cmd{util.o} and suspends to build \cmd{util.o},
+resumes a build before building \cmd{main.o} then continues its work to finish
+\cmd{main.exe}.
+
+This scheduler (when combined with a suitable rebuilder) provides a minimal
+build system which supports dynamic dependencies. The difficulties are all
+engineering in nature. To implement suspension there are two standard
+approaches:
+
+\begin{itemize}
+\item Blocking threads or processes. This approach is relatively easy, but can
+require significant resources, especially if a large number of tasks are
+suspended. In languages with cheap green threads (e.g. Haskell) the approach is
+more feasible, and it was the original approach taken by \Shake.
+\item Continuation-passing style \cite{claessen_continuations} can allow the
+remainder of a task to be captured, paused, and resumed later. Continuation
+passing is efficient, but requires the build script to be architected to allow
+capturing continuations. \Shake currently uses continuations.
+\end{itemize}
+
+\noindent
+While a suspending scheduler is theoretically optimal, it is only better in
+practice than a restarting scheduler if the cost of avoided duplicate work
+outweighs the cost of suspending tasks. Note furthermore that the cost of
+duplicate work may often be just a fraction of the overall build cost.
+
+\q{Andrey}{It's unclear how our \hs{busy} build system fits into the two above
+approaches. It probably is a third approach (i.e. using stack), but it's
+unsuitable for real build systems that call external processes. Shall we mention
+this?}
+
+\q{Andrey}{A follow-up to the above: our \Shake models use neither of the two
+above approaches, which seems a bit unsatisfactory. Can we at least hint how
+our models could be adapted to use the continuation-passing style? Can we write
+\hs{busyCPS}?}
