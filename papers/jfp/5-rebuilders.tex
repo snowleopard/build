@@ -112,11 +112,16 @@ per~\S\ref{sec-scheduler}), and the existing trace store \hs{VT}. The result
 will be a \hs{Bool} where \hs{True} indicates that the current value is already
 up to date, and \hs{False} indicates that it should be rebuilt.
 
-\q{Andrey}{The "function for obtaining the post-build value of any key" is a bit
-mysterious. It would be nice to add a clarification. Or could we simplify the
-interface and only provide a function with type
-\hs{k -> Hash v -> [(k, Hash v)] -> VT k v -> Bool}? Presumably, \hs{verifyVT}
-with the current type signature could be built on top of it?}
+The most complex argument of \hs{verifyVT} is a function to obtain the post-build
+value of any key, which we refer to as \hs{fetch}. With an \hs{Applicative} task,
+\hs{fetch} will be called on the dependencies of the \hs{k} argument. However, with a
+\hs{Monad} task, the dependencies are not known from the task alone, they are only
+recorded from previous executions and stored in \hs{VT}. If the build system has
+two traces for a given \hs{k}, they will both request the same dependency first,
+since \hs{Task} is determinstic. However, depending on that first result,
+they may then request different successive dependencies from \hs{fetch}. A curious
+result is that for suspending schedulers (\S\ref{sec-suspending}) in many cases
+the actual build steps are performed as a consequence of checking if a key needs rebuilding!
 
 A verifying trace, and other types of traces discussed in this section, support
 dynamic dependencies and minimality; furthermore, all traces except for deep
