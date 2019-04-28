@@ -43,14 +43,16 @@ others but, seen through the lens of this paper, it is very close.}, each by the
 composition of the two design choices~(\S\ref{sec-implementations}). Doing this
 modelling in a single setting allows the differences and similarities between
 these huge systems to be brought out clearly\footnote{All our models are
-executable and are available on Hackage as \cmd{build-1.0}.}. We use the
-abstractions to explain confusing details from the original \Shake
-paper~\cite{mitchell2012shake} and build new features useful for the GHC build
-system~\cite{hadrian}.
+executable and are available on Hackage as \cmd{build-1.0}.}.
 
 \item Moreover, we can readily remix the ingredients to design new build systems
 with desired properties, for example, to combine the advantages of \Shake and
 \Bazel, and evaluate the result~(\S\ref{sec-experience}).
+
+\item We can use these new
+abstractions to more clearly explain details from the original \Shake
+paper~\cite{mitchell2012shake} (\S\ref{sec-step-traces}, \S\ref{sec-experience-shake})
+and build new features useful for the GHC build system~\cite{hadrian} (\S\ref{sec-using-cloud-shake}).
 
 \end{itemize}
 

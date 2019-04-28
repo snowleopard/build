@@ -6,18 +6,18 @@ systems \cite{mokhov2018buildsystems}. The original motivation of the research i
 ``\Cloud \Shake'', and apply it to the GHC build system. In this section we tie these papers together,
 reflecting on our experience since these papers.
 
-\subsection{Experience from \Shake}
+\subsection{Experience from \Shake}\label{sec-experience-shake}
 
-The original design of \Shake hasn't changed since the initial paper, but the implementation has continued to mature -- there have been roughly 5,000 subsequent commits to the \Shake project\footnote{\url{https://github.com/ndmitchell/shake}}. These commits add concepts like resources (if two rules contend on a single external resource), rewriting serialisation to be faster, documentation including a website\footnote{\url{https://shakebuild.com}}, and add lots of tests. The biggest change in that time period was moving from blocking threads to continuations for the suspending scheduler. The most visible change is switching \hs{*>} to \hs{%>} for defining rules\footnote{A conflicting \hs{*>} operator was added to the Haskell \hs{Prelude}.}, but almost all external and internal details remain the same.
+The original design of \Shake hasn't changed since the initial paper, but the implementation has continued to mature -- there have been roughly 5,000 subsequent commits to the \Shake project\footnote{\url{https://github.com/ndmitchell/shake}}. These commits add concepts like resources (if two rules contend on a single external resource), rewriting serialisation to be faster, documentation including a website\footnote{\url{https://shakebuild.com}}, and add lots of tests. The biggest change in that time period was moving from blocking threads to continuations for the suspending scheduler. The most visible change is switching from \hs{*>} to \hs{%>} for defining rules\footnote{A conflicting \hs{*>} operator was added to the Haskell \hs{Prelude}.}, but almost all external and internal details remain the same.
 
-We consider the lack of change suggestive that \Shake is based on fundamental principles -- principles we can now name and describe as a consequence of \cite{mokhov2018buildsystems}. There are two main aspects to the original \Shake paper \cite{mitchell2012shake} that are described more clearly in this paper, Firstly, the rebuilder can now be described as verifying step traces as per \S\ref{sec-step-traces}, with a much clearer relationship to the unoptimised verifying traces in \S\ref{sec-verifying-traces}. The second is the power of \Shake tasks (called actions in the original paper). Originally these tasks were described using the data type:
+We consider the lack of change suggestive that \Shake is based on fundamental principles -- principles we can now name and describe as a consequence of \cite{mokhov2018buildsystems}. There are two main aspects to the original \Shake paper \cite{mitchell2012shake} that are described more clearly in this paper, Firstly, the rebuilder can now be described as verifying step traces as per \S\ref{sec-step-traces}, with a much clearer relationship to the unoptimised verifying traces of \S\ref{sec-verifying-traces}. The second is the power of \Shake tasks (called actions in the original paper). Originally these tasks were described using the data type:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Action k v r = Finished r
                   | Depends v (v -> Action k v r)
 \end{minted}
 
-In some sense, this is the ``free'' version of \hs{Task Monad} \cite{free-applicatives} -- the two types form an isomorphism. The original paper uses concrete types \hs{Key} and \hs{Value}, we generalise these types to \hs{k} and \hs{v}, and also add \hs{r} so that \hs{Action k v} can be an instance of \hs{Monad}. We define that \hs{Monad} instance, and use it to write conversion functions to/from our \hs{Task} type:
+This type is equivalent to \hs{Task Monad} -- the two types form an isomorphism. The original paper uses concrete types \hs{Key} and \hs{Value}, we generalise these types to \hs{k} and \hs{v}, and also add \hs{r} so that \hs{Action k v} can be an instance of \hs{Monad}. We define that \hs{Monad} instance, and use it to write conversion functions to/from our \hs{Task} type, witnessing the isomorhpism:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 instance Monad (Action k v) where
@@ -63,21 +63,21 @@ lookupCloud :: (k -> m (Maybe (Hash v))) -> k -> Ver -> Ver
             -> m (Maybe (v, [[k]], IO ()))
 \end{minted}
 
-These functions are suspiciously like \hs{recordCT} and \hs{constructCT} from \S\ref{sec-constructive-traces}, with their differences perhaps the most illustrative of the changes required. (We have made some replacements from full \Shake, like replacing \hs{Key} for \hs{k}, to reduce irrelevant differences.)
+These functions are suspiciously like \hs{recordCT} and \hs{constructCT} from \S\ref{sec-constructive-traces}, with their differences perhaps the most illustrative of the changes required. (We have made some minor changes from actual \Shake, like replacing \hs{Key} for \hs{k}, to reduce irrelevant differences.)
 
 \begin{itemize}
-\item There are two \hs{Ver} arguments being passed to each operation. These are the versions of the build script, and the rule for this particular key. If either version changes then it is as though the key has changed, and nothing will match. These versions are important to avoid using stale build products from previous versions of the build script.
+\item There are two \hs{Ver} arguments being passed to each function. These are the versions of the build script, and the rule for this particular key. If either version changes then it is as though the key has changed, and nothing will match. These versions are important to avoid using stale build products from previous versions of the build script.
 \item The list of dependencies to \hs{addCloud} is a list of lists, rather than a simple list. The reason is that \Shake allows a list of dependencies to be supplied at once, so they can all be built in parallel.
-\item The \hs{addCloud} function also takes a list of \hs{FilePath}, being the files that this rule produces -- which must be declared with \hs{produces}, or the output keys from a rule.
-\item The \hs{lookupCloud} allows an explicit \hs{Nothing} when looking up a dependent key, since some keys are not buildable.
-\item The \hs{lookupCloud} returns at most one result, rather than a list. This change was made for simplicity.
+\item The \hs{addCloud} function also takes a list of \hs{FilePath}, being the files that this rule produces. These produced files include those which are output keys from a rule and those declared with \hs{produces}.
+\item The \hs{lookupCloud} function allows an explicit \hs{Nothing} when looking up a dependent key, since some keys are not buildable.
+\item The \hs{lookupCloud} function returns at most one result, rather than a list. This change was made for simplicity.
 \end{itemize}
 
-The integrate these functions into \Shake we found the most expedient design was to leave \Shake with a verifying trace, but if the verifying trace doesn't skip building, we consult the constructive trace. By bolting constructive traces onto the side of Shake we avoid reengineering of the central database. We haven't found any significant downsides from the bolt-on approach thus far, so it may be a sensible route to go even if developing from scratch -- allowing an optimised verified trace implementation in many cases, and falling back to a more complex implementation only rarely.
+To integrate these functions into \Shake we found the most expedient route was to leave \Shake with verifying traces, but if the verifying trace doesn't match, we consult the constructive trace. By bolting constructive traces onto the side of Shake we avoid reengineering of the central database. We haven't found any significant downsides from the bolt-on approach thus far, so it may be a sensible route to go even if developing from scratch -- allowing an optimised verified trace implementation in many cases, and falling back to a more complex implementation (requiring consulting remote servers) only rarely.
 
-The one thing we haven't yet completed on the engineering side is a move to hosting caches over HTTP. At the moment all caches are on shared file systems. This approach can use mounted drives to mirror HTTP connections onto file systems, and reuse tools for managing file systems, share caches with rsync, and is simple. Unfortunately, on certain OS's (e.g. Windows) mounting an HTTP endpoint as a file system requires administrator privileges, so an HTTP cache is still required.
+The one thing we haven't yet completed on the engineering side is a move to hosting caches over HTTP. At the moment all caches are on shared file systems. This approach can use mounted drives to mirror HTTP connections onto file systems, and reuse tools for managing file systems, share caches with rsync, and is simple. Unfortunately, on certain OS's (e.g. Windows) mounting an HTTP endpoint as a file system requires administrator privileges, so an HTTP cache is still desirable.
 
-\subsection{Experience from using \Cloud \Shake}
+\subsection{Experience from using \Cloud \Shake}\label{sec-using-cloud-shake}
 
 While we expected the GHC build system to be the first to take advantage of \Cloud \Shake, we were actually beaten to it by Standard Chartered who report\footnote{\url{https://groups.google.com/d/msg/shake-build-system/NbB5kMFS34I/mZ9L4TgkBwAJ}}:
 
