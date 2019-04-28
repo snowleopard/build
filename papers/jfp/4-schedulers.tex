@@ -105,24 +105,24 @@ from Fig.~\ref{fig-make}, we would build:
 \end{itemize}
 
 \noindent
-As we see, the \cmd{main.exe} is started first as it is the required target. It
-soon discovers a dependency on \cmd{util.o} and suspends to build \cmd{util.o},
+As we see, \cmd{main.exe} is started first as it is the required target. It soon
+discovers a dependency on \cmd{util.o} and suspends to build \cmd{util.o},
 resumes a build before building \cmd{main.o} then continues its work to finish
 \cmd{main.exe}.
 
 This scheduler (when combined with a suitable rebuilder) provides a minimal
 build system which supports dynamic dependencies. In our model, a suspending
-scheduler easy to write -- it makes a function call to compute each dependency. However,
-a more practical implementation is likely to build multiple dependencies in parallel,
-which then requires a more explicit suspension and resumption. To implement
-suspension there are two standard approaches:
+scheduler is easy to write -- it makes a function call to compute each
+dependency. However, a more practical implementation is likely to build multiple
+dependencies in parallel, which then requires a more explicit task suspension
+and resumption. To implement suspension there are two standard approaches:
 
 \begin{itemize}
 \item Blocking threads or processes. This approach is relatively easy, but can
 require significant resources, especially if a large number of tasks are
 suspended. In languages with cheap green threads (e.g. Haskell) the approach is
 more feasible, and it was the original approach taken by \Shake.
-\item Continuation-passing style \cite{claessen_continuations} can allow the
+\item Continuation-passing style~\cite{claessen_continuations} can allow the
 remainder of a task to be captured, paused, and resumed later. Continuation
 passing is efficient, but requires the build script to be architected to allow
 capturing continuations. \Shake currently uses continuations.

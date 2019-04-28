@@ -3,7 +3,7 @@
 A build system can be split into a scheduler (as defined
 in~\S\ref{sec-scheduler}) and a \emph{rebuilder}. Suppose the scheduler decides
 that a key should be brought up to date. The next question is: does any work
-need to be done, or is the key already up to date? Or, in a cloud-build system,
+need to be done, or is the key already up to date? Or, in a cloud build system,
 do we have a cached copy of the value we need?
 
 While~\S\ref{sec-background} explicitly listed the schedulers, the rebuilders
@@ -107,25 +107,28 @@ passing the key, the hash of its value, and the list of hashes and dependencies.
 
 More interestingly, to \emph{verify} whether a key needs rebuilding we use
 \hs{verifyVT}, supplying the key, the hash of its current value, a function for
-obtaining the post-build value of any key (using a scheduling strategy as
-per~\S\ref{sec-scheduler}), and the existing trace store \hs{VT}. The result
-will be a \hs{Bool} where \hs{True} indicates that the current value is already
-up to date, and \hs{False} indicates that it should be rebuilt.
+obtaining the hash of the post-build value of any key (using a scheduling
+strategy as per~\S\ref{sec-scheduler}), and the existing trace store \hs{VT}.
+The result will be a \hs{Bool} where \hs{True} indicates that the current value
+is already up to date, and \hs{False} indicates that it should be rebuilt.
 
-The most complex argument of \hs{verifyVT} is a function to obtain the post-build
-value of any key, which we refer to as \hs{fetch}. With an \hs{Applicative} task,
-\hs{fetch} will be called on the dependencies of the \hs{k} argument. However, with a
-\hs{Monad} task, the dependencies are not known from the task alone, they are only
-recorded from previous executions and stored in \hs{VT}. If the build system has
-two traces for a given \hs{k}, they will both request the same dependency first,
-since \hs{Task} is determinstic. However, depending on that first result,
-they may then request different successive dependencies from \hs{fetch}. A curious
-result is that for suspending schedulers (\S\ref{sec-suspending}) in many cases
-the actual build steps are performed as a consequence of checking if a key needs rebuilding!
+The most complex argument of \hs{verifyVT} is a function
+\hs{fetchHash}~\hs{::}~\hs{k}~\hs{->}~\hs{m}~\hs{(Hash}~\hs{v)} to obtain the
+hash of the post-build value of any key. With an applicative task,
+\hs{fetchHash} will be called on the statically known task dependencies.
+However, with a monadic task, the dependencies are not known from the task
+alone, they are only recorded from previous executions and stored in \hs{VT}. If
+the build system has two traces for a given key~\hs{k}, they will both request
+the same dependency first, since \hs{Task}~\hs{Monad} is deterministic. However,
+depending on that first result, they may then request different successive
+dependencies using \hs{fetchHash}. A curious result is that for suspending
+schedulers~(\S\ref{sec-suspending}) in many cases the actual build steps are
+performed as a consequence of checking if a key needs rebuilding!
 
 A verifying trace, and other types of traces discussed in this section, support
 dynamic dependencies and minimality; furthermore, all traces except for deep
-traces~(\S\ref{sec-deep-constructive-traces}) support early cutoff.
+traces~(\S\ref{sec-deep-constructive-traces}) support the early cutoff
+optimisation~(\S\ref{sec-background-shake}).
 
 \subsubsection{Trace Representation}
 
@@ -155,33 +158,110 @@ The next optimisation is that there is only very minor benefit from storing more
 than one \hs{Trace} per key. Therefore, verifying traces can be stored as
 \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v}~\hs{(Hash}~\hs{v))}, where the
 initial \hs{k} is the \hs{key} field of \hs{Trace}, thus making \hs{verifyVT}
-fast. Note that storing only one \hs{Trace} per key means that if the
-dependencies change but the result does not, and then the dependencies change
-back to what they were before, there will be no valid \hs{Trace} available and
-the build system will have to rebuild, whereas a complete list of all historical
-traces would not have had to. However, it also means that the number of
-\hs{Trace} structures is bounded by the number of distinct keys, regardless of
-how many builds are executed -- a useful property.
+much faster. Note that storing only one \hs{Trace} per key means that if the
+dependencies of a key change but the resulting value does not, and then the
+dependencies change back to what they were before, there will be no valid
+\hs{Trace} available and the key will therefore have to be rebuilt, whereas a
+complete list of all historical traces would allow the rebuilding to be skipped.
+On the other hand, bounding the number of \hs{Trace} structures by the number of
+distinct keys, regardless of how many builds are executed, is a useful property.
 
 \subsubsection{Verifying Step Traces}\label{sec-step-traces}
 
-The \Shake build system, and the associated paper \cite{mitchell2012shake} in \S2.3.3 describes a slightly different trace structure, one that is similar to verifying traces, but stores slightly less data, and has slightly different early cutoff semantics. Rather than storing the \hs{Hash v} for each dependency, it instead stores a built time and changed time for each key, and for the dependencies just stores a list of \hs{k}. The resulting \hs{Trace} type ressembles:
+The \Shake build system and the associated paper -- see~\S2.3.3
+in~Mitchell~\shortcite{mitchell2012shake} -- use a slightly different trace
+structure, called \emph{step traces}, one that is similar to verifying traces,
+but stores less data, and has different early cutoff semantics. Rather than
+storing the \hs{Hash}~\hs{v} for each dependency, it instead stores \hs{built}
+time and \hs{changed} time for the \hs{key}, and a list of dependency keys
+(without the hashes). The resulting \hs{StepTrace} type resembles:
 
-\begin{minted}[fontsize=\small,xleftmargin=10pt]{haskell}
-data Trace k v = Trace
-    {key :: k
-    ,result :: Hash v
-    ,depends :: [k]
-    ,built :: Time
-    ,changed :: Time
-    }
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+data StepTrace k v = StepTrace { key     :: k
+                               , result  :: Hash v
+                               , built   :: Time
+                               , changed :: Time
+                               , depends :: [k] }
 \end{minted}
+\vspace{1mm}
 
-The \hs{built} field is when the \hs{key} last rebuilt. The \hs{changed} field is when the \hs{result} last changed -- if the last build changed the value, it will be equal to \hs{built}, otherwise it will be older. The \hs{recordVT} function needs to consult the previous \hs{Trace} to know whether to use \hs{built} or the previous \hs{changed} value as the new \hs{changed} value. The \hs{verifyVT} needs to verify that the \hs{built} time of \hs{key} is newer than the \hs{changed} values of all its \hs{depends}. This scheme preserves minimality and early cutoff. A variant with only one \hs{Time} field would loose early cutoff, and indeed corresponds quite closely to \Make. Furthermore, the \hs{Time} stamp only needs record which execution of the build is running, so every key built in the same run can share the same \hs{Time} value -- it just needs to be monotically increasing between runs.
+\noindent
+The \hs{built} field is when the \hs{key} last rebuilt. The \hs{changed} field
+is when the \hs{result} last changed -- if the last build changed the value, it
+will be equal to \hs{built}, otherwise it will be older. The function
+\hs{recordVT} consults the previous step traces to know whether to keep the
+previous \hs{changed} value or change it to \hs{built}. The function
+\hs{verifyVT} is a bit more subtle; given a key \hs{k} and the hash of its
+current value \hs{h}, it performs the following steps:
 
-This optimisation is useful, at least in the case of \Shake, to save space. A hash takes up 32 bytes in typical programs, while a key (in \Shake only) is an \hs{Int} taking only 4 bytes. Furthermore, \Shake permits values to be arbitrarily large, and permits a custom equality (two values can be bit-for-bit unequal but considered equal by \Shake), meaning that a \hs{Hash} isn't a valid encoding. For build systems that used \hs{Applicative} dependencies, the \hs{depends} could be omitted entirely, making the size of a \hs{Trace} $O(1)$ instead of $O(n)$ where $n$ is the number of dependencies.
+\begin{itemize}
+\item Find the latest (with respect to the field \hs{built}) step trace matching
+  \hs{k}. If it does not exist, return \hs{False}: \hs{k} was never built
+  before and cannot be verified.
+\item If \hs{h} does not equal the \hs{result} field of the trace, return
+  \hs{False}: the current \hs{k}'s value was written externally and needs
+  rebuilding.
+\item For each key \hs{d} in \hs{depends}:\\
+  $\circ$ Make sure \hs{d} is up-to-date, suspending the current task if needed;\\
+  $\circ$ If \hs{d}'s latest \hs{changed} time is greater than \hs{k}'s
+    \hs{built} time, return \hs{False}.
+\item Return \hs{True}: the current \hs{k}'s value is up-to-date.
+\end{itemize}
 
-While verifying step traces are mostly an optimisation, there are some observable differences from verifying traces. Considering Figure \ref{fig-make}, imagine we built \hs{main.exe} (everything gets a \hs{built} and \hs{changed} of timestamp 1). Next we change \hs{util.c} and rebuild \hs{util.o} (both get a \hs{built} and \hs{changed} of timestamp 2). Next we put \hs{util.c} back to what it was originally, and build \hs{main.exe}. With verifying traces, the dependencies of \hs{main.exe} would be equal, and \hs{main.exe} would not rebuild. With verifying step traces, the \hs{changed} field of \hs{util.o} would increase once more, and \hs{main.exe} would rebuild. Other than when building subsets of the targets, we are unaware of any other situation where verifying step traces are less powerful.
+\noindent
+This approach preserves minimality and early cutoff. A variant with only one
+\hs{Time} field would lose early cutoff, and indeed corresponds quite closely to
+\Make. Furthermore, the \hs{Time} stamp only needs to record which execution of
+the build is running, so every key built in the same run can share the same
+\hs{Time} value -- it just needs to be monotonically increasing between runs.
+
+This optimisation is useful, at least in the case of \Shake, to save space. A
+typical cryptographic hash takes up 32 bytes, while a key (in \Shake only) is an
+\hs{Int} taking only~4~bytes. Furthermore, \Shake permits values to be
+arbitrarily large, and permits a custom equality (two values can be bit-for-bit
+unequal but considered equal by \Shake), meaning that a \hs{Hash} is not a valid
+encoding. For build systems that use \hs{Applicative} dependencies, the
+\hs{depends} could be omitted entirely, making the size of a \hs{StepTrace}
+$O(1)$ instead of $O(n)$, where $n$ is the number of dependencies.
+
+\begin{figure}%[h]
+\begin{subfigure}[b]{0.32\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/step-example-step1.pdf}}
+\caption{Initial full build}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.32\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/step-example-step2.pdf}}
+\caption{Change \cmd{util.c}, build \cmd{util.o}}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.33\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/step-example-step3.pdf}}
+\caption{Restore \cmd{util.c}, build \cmd{main.exe}}
+\end{subfigure}
+% \vspace{-2mm}
+\caption{An example of verifying step traces. The small rectangles show the
+\hs{changed} (left) and \hs{built} (right) timestamps of each non-input key
+in the trace store.
+\label{fig-step}}
+% \vspace{-2mm}
+\end{figure}
+
+While verifying step traces are mostly an optimisation, there are some
+observable differences from verifying traces, as demonstrated by an example in
+Fig.~\ref{fig-step}. We first make the full build: all keys get a \hs{built} and
+\hs{changed} of timestamp 1. Next we change \cmd{util.c} and build \cmd{util.o};
+the latter is changed as a result and hence both \hs{built} and \hs{changed} are
+increased to 2. Finally, we change \cmd{util.c} back to what it was originally,
+and build \cmd{main.exe}. With verifying traces, the hashes of the dependencies
+of \cmd{main.exe} would be equal to the initial build, and \cmd{main.exe} would
+not need rebuilding. With verifying step traces, the \hs{changed} field of
+\cmd{util.o} would increase once more, and \cmd{main.exe} would therefore be
+rebuilt. As shown in Fig.~\ref{fig-step}(c), the \hs{changed} field of
+\cmd{main.exe} remains 1, since the actual value is unchanged. Other than when
+building subsets of the targets, we are unaware of any other situation where
+verifying step traces are less powerful.
 
 \subsection{Constructive Traces}\label{sec-constructive-traces}
 
