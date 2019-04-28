@@ -123,19 +123,23 @@ most direct is to have $n$ threads reading keys from the build queue. As before,
 if a key requires a dependency not yet built, it is moved to the end~--~the
 difference is that sometimes keys will be moved to the back of the queue not
 because they are out of date but because of races with earlier tasks that had
-not yet finished. As a consequence, over successive runs, potentially racey
-dependencies will be separated, giving better parallelism over time.
+not yet finished. As a consequence, if a the calcuation order is persisted over
+successive runs (as \Excel does), potentially racey dependencies will be separated,
+giving better parallelism over time.
 
-\item The \hs{suspending} scheduler can be made parallel by starting static
-dependencies of a \hs{Task} in parallel, while dynamic dependencies are being
-resolved, using the strategy described by~\cite{marlow2014haxl}.
+\item The \hs{suspending} scheduler can be made parallel by starting multiple
+dependencies simulataneously. One approach is to make the request for dependencies
+take a list of keys, as implemented by \Shake. Another approach is to treat the
+\hs{Applicative} dependencies of a \hs{Task Monad} in parallel, using the strategy
+described by~\cite{marlow2014haxl}.
 \end{enumerate}
+
+Once sufficient parallelism is available the next challenge is preventing excess
+parallelism and machine resource starvation, which is usually acheived with a thread pool or thread limit.
 
 The actual implementation of the parallel schedulers is not overly onerous,
 but neither is it beautiful or informative.
 
-\todo{NM}{Should we add a paragraph or two giving a bit more details about how
-parallelism is supported in \Shake?}
 
 \subsection{Impure Computations}\label{sec-non-determinism}
 
@@ -148,8 +152,8 @@ Some examples of impure tasks include:
 C compilation will explicitly list the \cmd{source.c} file as a dependency,
 but it may not record that the version of \cmd{gcc} is also a dependency.
 
-\item[Non-determinism] Some tasks are \emph{non-deterministic}, producing a
-result from a possible set. As an example, GHC when compiled using parallelism
+\item[Non-determinism] Some tasks are \emph{non-deterministic}, producing any
+result from a possible set. As an example, GHC programs compiled using parallelism
 can change the order in which unique variables are obtained from the supply,
 producing different but semantically identical results.
 
@@ -334,12 +338,12 @@ state, or recurrence relations. The former is only required because \Excel
 inherently lacks the ability to write mutable state, and the latter is probably
 better solved using explicit recurrence formulae.
 
-Overall we choose not to deal with cyclic dependencies, a choice that most build
+Overall we choose not to deal with cyclic dependencies -- a choice that most build
 systems also follow. There are computation frameworks that support tasks with
 cyclic dependencies under the assumption that tasks are \emph{monotonic} in a
 certain sense, e.g. see~\cite{pottier2009lazy} and~\cite{radul2009propagation}.
 
-\subsection{Polymorphism and Multiple-Output Build Tasks}\label{sec-polymorphism}
+\subsection{Polymorphic values}\label{sec-polymorphism}
 
 Our build system abstraction assumes a \hs{k}/\hs{v} store, along with a build
 system that works directly on \hs{k} and \hs{v} values. However, some build
@@ -359,9 +363,9 @@ of introducing additional correctness invariants, e.g. that the file
 \cmd{gcc-version.txt} does indeed contains two dot-separated integers.
 
 Generalised algebraic data types (GADTs)~\cite{spj2006gadts} can be used to
-extend our models to support ``typed'' build tasks. The key idea is to replace
-the monomorphic callback \hs{fetch}~\hs{::}~\hs{k}~\hs{->}~\hs{f}~\hs{v} by its
-polymorphic equivalent \hs{fetch}~\hs{::}~\hs{k}~\hs{v}~\hs{->}~\hs{f}~\hs{v},
+extend our models to support ``typed'' build tasks. The idea is to replace
+the callback \hs{fetch}~\hs{::}~\hs{k}~\hs{->}~\hs{f}~\hs{v} by its
+more polymorphic equivalent \hs{fetch}~\hs{::}~\hs{k}~\hs{v}~\hs{->}~\hs{f}~\hs{v},
 where~\hs{k}~\hs{v} is a GADT representing keys tagged by the type~\hs{v} of
 corresponding values. The idea is best explained by way of an example:
 
@@ -418,17 +422,18 @@ example _ = Nothing
 \end{minted}
 \vspace{1mm}
 
-A more compelling example is build tasks that produce multiple output
+\subsection{Multiple-Output Build Tasks}\label{sec-multiple-outputs}
+
+We can use the extra polymorphism from \S\ref{sec-polymorphism} for build tasks that produce multiple output
 keys~--~for example, \cmd{ghc A.hs} produces both \cmd{A.hi} and \cmd{A.o}.
 That can be represented by having a key whose value is a pair of file names, and
 whose result is a pair of file contents. From that, the task for \cmd{A.hi}
-can be the first component of the result of the pair. Again, such an operation
+can be the first component of the result of the pair. Such an operation
 can be encoded without polymorphic keys provided the pair of files (or a dummy
 file representing the pair) is marked as changed if either of the contained
-files change. Once again, polymorphic dependencies provide convenience rather
-than power.
+files change, but it is more elegant and type-safe with the extra polymorphism.
 
-Note that multiple-output build tasks require one more convenience mechanism,
+Multiple-output build tasks require one more convenience mechanism,
 which is orthogonal to polymorphism. Multiple-output task descriptions partition
 the set of keys into \emph{elementary subsets} e.g.
 $\{\cmd{A.hi},\cmd{A.o}\} \rightarrow \cmd{ghcTask}$,
