@@ -59,10 +59,15 @@ of \Make, to integrate with the file system. However, as the examples show, in
 constrained environments where a dirty bit is chosen, it is often done as part
 of a series of compromises.
 
-\q{Andrey}{Can we say something like: ``The authors are not aware of a build
-system that uses a dirty bit rebuilder, is minimal, and supports the early
-cutoff optimisaion''? Perhaps, we can even make a claim, that such a build
-system is impossible with a believable argument/proof sketch?}
+It is possible to write a dirty-bit builder which is minimal and supports early
+cutoff. To do so, you need to start with all inputs that have changed marked dirty,
+then a node must be rebuilt if any children are dirty, and must set that node to dirty
+only if the result changes. At the end of the build all dirty bits
+must be reset to not-dirty. This approach only works if all targets are rebuilt each time,
+since clearing dirty bits of children who aren't targets will cause them to incorrectly
+not rebuild subsequently. To avoid resetting the dirty bit,
+it is possible to use successive execution numbers, which ultimately leads to an approach
+we call verifying step traces in \S\ref{sec-step-traces}.
 
 \subsection{Verifying Traces}\label{sec-verifying-traces}
 
