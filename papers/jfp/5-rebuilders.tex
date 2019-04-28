@@ -1,10 +1,15 @@
 \section{Rebuilders}\label{sec-rebuilder}
 
-A build system can be split into a scheduler (as defined in \S\ref{sec-scheduler}) and a \emph{rebuilder}. Suppose the scheduler decides that a key should be brought up to date. The next
-question is: does any work need to be done, or is the key already up to date?
-Or, in a cloud-build system, do we have a cached copy of the value we need?
+A build system can be split into a scheduler (as defined
+in~\S\ref{sec-scheduler}) and a \emph{rebuilder}. Suppose the scheduler decides
+that a key should be brought up to date. The next question is: does any work
+need to be done, or is the key already up to date? Or, in a cloud-build system,
+do we have a cached copy of the value we need?
 
-While \S\ref{sec-background} explicitly listed the schedulers, the rebuilders were introduced more implicitly, primarily by the information they retain to make their decisions. From the examples we have looked at we see four fundamental rebuilds, each with a number of tweaks and variations within them.
+While~\S\ref{sec-background} explicitly listed the schedulers, the rebuilders
+were introduced more implicitly, primarily by the information they retain to
+make their decisions. From the examples we have looked at we see four
+fundamental rebuilders, each with a number of tweaks and variations within them.
 
 \subsection{A Dirty Bit}\label{sec-dirty-bit}
 
@@ -13,7 +18,9 @@ saying whether the key is \emph{dirty} or \emph{clean}. After a build, all bits
 are set to clean. When the next build starts, anything that changed between the
 two builds is marked dirty. If a key and all its transitive dependencies are
 clean, the key does not need to be rebuilt. Taking the example from
-Figure~\ref{fig-make}, if \hs{util.c} changes then that would be marked dirty, and \hs{util.o} and \hs{main.exe} would rebuild as they transitively depend on \hs{util.c}.
+Fig.~\ref{fig-make}(c), if \cmd{main.c} changes then it would be marked dirty,
+and \cmd{main.o} and \cmd{main.exe} would be rebuilt as they transitively depend
+on \cmd{main.c}.
 
 \Excel models the dirty bit approach most directly, having an actual dirty bit
 associated with each cell, marking the cell dirty if the user modifies it.
@@ -21,11 +28,11 @@ It also marks dirty all cells that (transitively) depend on the modified cell.
 \Excel does not record dynamic dependencies of each cell; instead it computes a
 \emph{static over-approximation} -- it is safe for it to make more cells dirty
 than necessary, but not vice versa. The over-approximation is as follows: a cell
-is marked dirty if its formula statically refers to a dirty cell, or if the
-formula calls a function like \cmd{INDIRECT} whose dependencies cannot be
-guessed from the formula alone. The over-approximation is clear for
-\cmd{INDIRECT}, but it is also present for \cmd{IF}, where both branches are
-followed even though dynamically only one is used.
+is marked dirty (i) if its formula statically refers to a dirty cell, or (ii) if
+the formula calls a \emph{volatile} function like \cmd{INDIRECT} whose
+dependencies cannot be guessed from the formula alone. The over-approximation is
+clear for \cmd{INDIRECT}, but it is also present for \cmd{IF}, where both
+branches are followed even though dynamically only one is used.
 
 \Make uses file modification times, and compares files to their dependencies,
 which can be thought of as a dirty bit which is set when a file is older than
@@ -36,8 +43,9 @@ automatically sets the dirty bit of the files depending on it (but not
 recursively). Note that \Make requires that file timestamps only go forward in
 time, which can be violated by backup software.
 
-With a dirty bit it is possible to achieve minimality. However, to achieve early
-cutoff (\S\ref{sec-background-shake}) it would be important to reset the dirty
+With a dirty bit it is possible to achieve
+minimality~(\S\ref{sec-background-make}). However, to achieve early
+cutoff~(\S\ref{sec-background-shake}) it would be important to clear the dirty
 bit after a computation that did not change the value and make sure that cells
 that depend on it are not rebuilt unnecessarily. For \Excel, this is difficult
 because the dependent cells have already been recursively marked dirty. For
@@ -46,32 +54,43 @@ keys that depend on it dirty. \Make can approximate early cutoff by not
 modifying the result file, and not marking it clean, but then it will be rebuilt
 in every subsequent build.
 
-The use of a single bit of information is useful to reduce memory consumption, and
-in the case of \Make, to integrate with the file system. However, as the examples show,
-in constrained environments where a dirty bit is chosen, it's often done as part of
-a series of compromises.
+A dirty bit rebuilder is useful to reduce memory consumption, and in the case
+of \Make, to integrate with the file system. However, as the examples show, in
+constrained environments where a dirty bit is chosen, it is often done as part
+of a series of compromises.
+
+\q{Andrey}{Can we say something like: ``The authors are not aware of a build
+system that uses a dirty bit rebuilder, is minimal, and supports the early
+cutoff optimisaion''? Perhaps, we can even make a claim, that such a build
+system is impossible with a believable argument/proof sketch?}
 
 \subsection{Verifying Traces}\label{sec-verifying-traces}
 
 An alternative way to determine if a key is dirty is to record the
 values/hashes of dependencies used last time, and if something has changed, the
-key is dirty and must be rebuilt~--~in essence a \emph{trace} which we can use
-to \emph{verify} existing values. Taking the example from Figure \ref{fig-make},
-we might record that \hs{util.o} dependend on \hs{util.c} (at hash 1) and \hs{util.h}
-(at hash 2) and produced \hs{util.o} (at hash 4). Next time round, if all those files
-still have the same hashes, there is nothing to do, and we can skip running the build.
-If they are different, we repeat the action, and record the new values.
+key is dirty and must therefore be rebuilt~--~in essence, keeping a \emph{trace}
+which we can use to \emph{verify} existing values. Taking the example from
+Fig.~\ref{fig-bazel}(c), we might record that the key \cmd{util.o} (at hash 8)
+depended on the keys \cmd{util.c} (at hash 7) and \cmd{util.h} (at hash 2). Next
+time round, if the scheduler decides that it is time for \cmd{util.o} to be
+rebuilt and all keys still have the same hashes as in the recorded trace, there
+is nothing to do, and we can skip rebuilding. If any of the hashes is different,
+we rebuild \cmd{util.o}, and record a trace with the new values.
 
-For traces, there are two essential
-operations~--~adding a new value to the trace store, and using the traces to
-determine if a key needs rebuilding. Assuming a store of verifying traces
-\hs{VT}~\hs{k}~\hs{v}, the operations are:
+For traces, there are two essential operations~--~adding a new trace to the
+trace store, and using the traces to determine if a key needs rebuilding.
+Assuming a store of verifying traces \hs{VT}~\hs{k}~\hs{v}, the operations are:
 
-\begin{minted}[fontsize=\small,xleftmargin=10pt]{haskell}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
 recordVT :: k -> Hash v -> [(k, Hash v)] -> VT k v -> VT k v
+\end{minted}
+\vspace{-2mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
 verifyVT :: (Monad m, Eq k, Eq v)
          => k -> Hash v -> (k -> m (Hash v)) -> VT k v -> m Bool
 \end{minted}
+\vspace{1mm}
 
 \noindent
 Rather than storing (large) values \hs{v}, the verifying trace \hs{VT} can store
@@ -81,41 +100,58 @@ trace persists from one build to the next -- it constitutes the build system's
 building a key, we call \hs{recordVT} to add a record to the current \hs{VT},
 passing the key, the hash of its value, and the list of hashes and dependencies.
 
-More interestingly, to \emph{verify} whether a key needs rebuilding we supply
-the key, the hash of its current value, a function for obtaining the post-build
-value of any key (using a scheduling strategy as per
-\S\ref{sec-dependency-orderings}), and the existing \hs{VT} information. The
-result will be a \hs{Bool} where \hs{True} indicates that the current value is
-already up to date, and \hs{False} indicates that it should be rebuilt.
+More interestingly, to \emph{verify} whether a key needs rebuilding we use
+\hs{verifyVT}, supplying the key, the hash of its current value, a function for
+obtaining the post-build value of any key (using a scheduling strategy as
+per~\S\ref{sec-scheduler}), and the existing trace store \hs{VT}. The result
+will be a \hs{Bool} where \hs{True} indicates that the current value is already
+up to date, and \hs{False} indicates that it should be rebuilt.
+
+\q{Andrey}{The "function for obtaining the post-build value of any key" is a bit
+mysterious. It would be nice to add a clarification. Or could we simplify the
+interface and only provide a function with type
+\hs{k -> Hash v -> [(k, Hash v)] -> VT k v -> Bool}? Presumably, \hs{verifyVT}
+with the current type signature could be built on top of it?}
 
 A verifying trace, and other types of traces discussed in this section, support
 dynamic dependencies and minimality; furthermore, all traces except for deep
 traces~(\S\ref{sec-deep-constructive-traces}) support early cutoff.
 
-\subsubsection{Representation Optimisations}
+\subsubsection{Trace Representation}
 
 One potential implementation would be to record all arguments passed to
 \hs{recordVT} in a list, and verify by simply checking if any list item matches
-the information passed by \hs{verifyVT}. Concretely,
-in our implementations from \S\ref{sec-implementations}, traces are recorded as lists of:
+the information passed by \hs{verifyVT}. Concretely, in our implementations
+from~\S\ref{sec-implementations}, traces are recorded as lists of:
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-data Trace k v = Trace
-    {key :: k
-    ,depends :: [(k, Hash v)]
-    ,result :: Hash v
-    }
+data Trace k v a = Trace { key     :: k
+                         , depends :: [(k, Hash v)]
+                         , result  :: a }
 \end{minted}
+\vspace{1mm}
 
-\noindent Where \hs{r} is \hs{Hash}~\hs{v} for verifying traces (and \hs{v} for constructive traces, discussed later in \S\ref{sec-constructive-traces}). A real system is highly likely to use a more optimised implementation.
+\noindent
+Where \hs{a} is \hs{Hash}~\hs{v} for verifying traces (and \hs{v} for
+constructive traces, discussed later in~\S\ref{sec-constructive-traces}). A real
+system is highly likely to use a more optimised implementation.
 
-The first optimisation is that any system using \hs{Applicative} dependencies can omit the dependency
-keys from the \hs{Trace} since they can be recovered from the \hs{key} field.
+The first optimisation is that any system using \hs{Applicative} dependencies
+can omit the dependency keys from the \hs{Trace} since they can be recovered
+from the \hs{key} field~(\S\ref{sec-deps}).
 
-The next optimisation is that there is only very minor benefit from storing more than one \hs{Trace} per key. Therefore, veryifying traces can be stored as \hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v}~\hs{(Hash}~\hs{v))}, where the
-initial \hs{k} is the \hs{key} field of \hs{Trace} -- making \hs{verifyVT} fast.
-Note that storing only one \hs{Trace} per key means that if the dependencies change but the result does not, and then the
-dependencies change back to what they were before, there will not be a valid \hs{Trace} available and the system will have to rebuild, where a complete list of all historical traces would not have had to. However, it also means that the number of \hs{Trace} structures is bounded by the number of distinct keys, regardless of how many builds are executed -- a useful property.
+The next optimisation is that there is only very minor benefit from storing more
+than one \hs{Trace} per key. Therefore, verifying traces can be stored as
+\hs{Map}~\hs{k}~\hs{(Trace}~\hs{k}~\hs{v}~\hs{(Hash}~\hs{v))}, where the
+initial \hs{k} is the \hs{key} field of \hs{Trace}, thus making \hs{verifyVT}
+fast. Note that storing only one \hs{Trace} per key means that if the
+dependencies change but the result does not, and then the dependencies change
+back to what they were before, there will be no valid \hs{Trace} available and
+the build system will have to rebuild, whereas a complete list of all historical
+traces would not have had to. However, it also means that the number of
+\hs{Trace} structures is bounded by the number of distinct keys, regardless of
+how many builds are executed -- a useful property.
 
 \subsubsection{Verifying Step Traces}\label{sec-step-traces}
 
