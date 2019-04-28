@@ -117,10 +117,10 @@ The most complex argument of \hs{verifyVT} is a function
 hash of the post-build value of any key. With an applicative task,
 \hs{fetchHash} will be called on the statically known task dependencies.
 However, with a monadic task, the dependencies are not known from the task
-alone, they are only recorded from previous executions and stored in \hs{VT}. If
+alone, they are only recorded from previous executions stored in \hs{VT}. If
 the build system has two traces for a given key~\hs{k}, they will both request
 the same dependency first, since \hs{Task}~\hs{Monad} is deterministic. However,
-depending on that first result, they may then request different successive
+based on that first result, they may then request different subsequent
 dependencies using \hs{fetchHash}. A curious result is that for suspending
 schedulers~(\S\ref{sec-suspending}) in many cases the actual build steps are
 performed as a consequence of checking if a key needs rebuilding!
@@ -170,10 +170,10 @@ distinct keys, regardless of how many builds are executed, is a useful property.
 
 The \Shake build system and the associated paper -- see~\S2.3.3
 in~Mitchell~\shortcite{mitchell2012shake} -- use a slightly different trace
-structure, called \emph{step traces}, one that is similar to verifying traces,
-but stores less data, and has different early cutoff semantics. Rather than
+structure, called \emph{verifying step traces},
+which stores less data than veryifying traces, and has slightly different early cutoff semantics. Rather than
 storing the \hs{Hash}~\hs{v} for each dependency, it instead stores \hs{built}
-time and \hs{changed} time for the \hs{key}, and a list of dependency keys
+time and \hs{changed} time for each \hs{key}, and a list of dependency keys
 (without the hashes). The resulting \hs{StepTrace} type resembles:
 
 \vspace{1mm}
@@ -217,7 +217,7 @@ the build is running, so every key built in the same run can share the same
 \hs{Time} value -- it just needs to be monotonically increasing between runs.
 
 This optimisation is useful, at least in the case of \Shake, to save space. A
-typical cryptographic hash takes up 32 bytes, while a key (in \Shake only) is an
+typical cryptographic hash takes up 32 bytes, while a key (in \Shake) is an
 \hs{Int} taking only~4~bytes. Furthermore, \Shake permits values to be
 arbitrarily large, and permits a custom equality (two values can be bit-for-bit
 unequal but considered equal by \Shake), meaning that a \hs{Hash} is not a valid
