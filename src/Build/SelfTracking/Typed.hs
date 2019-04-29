@@ -19,10 +19,14 @@ data Key k v s a where
     Value  :: k -> Key k v s v -- Keys for all other values
 
 selfTracking :: forall k v s. (s -> Task Monad k v) -> Tasks Monad k s -> TasksT Monad (Key k v s)
-selfTracking _     _     (Script _) = Nothing -- Scripts are inputs
-selfTracking parse tasks (Value  k) = runScript <$> tasks k
+selfTracking parse tasks key = case key of
+    Script k -> getScript <$> tasks k
+    Value  k -> runScript <$> tasks k
   where
-    -- Fetch the script, parse it, and then run the obtained task
+    -- Get the task for building the script
+    getScript :: Task Monad k s -> TaskT Monad (Key k v s) s
+    getScript task = TaskT $ \fetch -> run task (fetch . Script)
+    -- Build the script, parse it, and then run the obtained task
     runScript :: Task Monad k s -> TaskT Monad (Key k v s) v
     runScript task = TaskT $ \fetch -> do
         script <- run task (fetch . Script)
