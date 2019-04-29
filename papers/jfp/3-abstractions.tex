@@ -695,8 +695,8 @@ Ackermann values.
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Cache = Map (Integer, Integer) Integer
 
-cloudAck :: Tasks (MonadState Cache) (Integer, Integer) Integer
-cloudAck (m, n)
+cloudAckermann :: Tasks (MonadState@\,@Cache)@\,@(Integer,@\,@Integer)@\,@Integer
+cloudAckermann (m, n)
     | m < 0 || n < 0 = Nothing
     | m == 0    = Just $ Task $ const $ pure (n+1)
     | n == 0    = Just $ Task $ \fetch -> fetch (m-1, 1)
