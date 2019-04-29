@@ -130,7 +130,7 @@ dynamic dependencies and minimality; furthermore, all traces except for deep
 traces~(\S\ref{sec-deep-constructive-traces}) support the early cutoff
 optimisation~(\S\ref{sec-background-shake}).
 
-\subsubsection{Trace Representation}
+\subsubsection{Trace Representation}\label{sec-trace-representation}
 
 One potential implementation would be to record all arguments passed to
 \hs{recordVT} in a list, and verify by simply checking if any list item matches
@@ -265,40 +265,59 @@ verifying step traces are less powerful.
 
 \subsection{Constructive Traces}\label{sec-constructive-traces}
 
-A verifying trace deliberately records only small hashes, so that it can be small.
-In contrast, a \emph{constructive} trace also stores the resulting value. Concretely,
-it records a list of \hs{Trace}~\hs{k}~\hs{v}.
-Once we are storing the complete result it makes sense
-to record many constructive traces per key, and to share them with other users,
-providing cloud-build functionality. We can represent this additional
-information with the operations:
+A verifying trace deliberately records only hashes, so that it can be small. In
+contrast, a \emph{constructive} trace also stores the resulting value.
+Concretely, it records a list of \hs{Trace}~\hs{k}~\hs{v}~\hs{v}, where
+\hs{Trace} is as defined in~\S\ref{sec-trace-representation}. Once we are
+storing the complete result it makes sense to record many constructive traces
+per key, and to share them with other users, providing cloud-build
+functionality. We can represent this additional information with the operations:
 
-\begin{minted}[fontsize=\small,xleftmargin=10pt]{haskell}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
 recordCT    :: k -> v -> [(k, Hash v)] -> CT k v -> CT k v
+\end{minted}
+\vspace{-2mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
 constructCT :: (Monad m, Eq k, Eq v)
             => k -> (k -> m (Hash v)) -> CT k v -> m [v]
 \end{minted}
+\vspace{1mm}
 
 \noindent
 The function \hs{recordCT} looks like \hs{recordVT}, but instead of just passing
 the hash of the resulting value, we require the actual value. The \hs{verifyVT}
 has been replaced with \hs{constructCT}, which instead of taking the hash of the
-current value as \emph{input}, returns a list of suitable values as \emph{output}.
-If the current value in the store matches one of the possible values, the build
-can skip this key. If the resulting list is empty, the key must be rebuilt.
-However, if the current value does not match the store, and there is a possible
-value, we can use any value from the constructive list \emph{without} doing any
-work to build it, and copy it into the store.
+current value as \emph{input}, returns a list of possible values as
+\emph{output} -- there may be more than one, because some build tools are
+non-deterministic, see~\S\ref{sec-non-determinism}.
+
+Regardless of the chosen scheduler~(\S\ref{sec-scheduler}), there are three
+cases to consider when using a rebuilder based on constructive traces:
+
+\begin{itemize}
+  \item If \hs{constructCT} returns the empty list of possible values, the key
+        must be rebuilt.
+  \item If the current value in the store matches one of the possible values,
+        the build system can skip this key. Here a constructive trace is used
+        for verifying the current value.
+  \item If the current value in the store does not match any possible value, we
+        can use any of the possible values \emph{without} doing any work to
+        build it, and copy it into the store.
+\end{itemize}
 
 Any \hs{Applicative} build system using constructive traces, e.g.
-\CloudBuild, can index directly from the key and results to the output result~--~i.e.
+\CloudBuild~\S\ref{sec-implementation-cloud}, can index directly from the
+key and the hashes of its dependencies to the output result~--~i.e.
 \hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces
 are stored on a central server, the client can compute the key and the hashes of
-its dependencies, then make a single call to the server to retrieve the result.
+its dependencies locally, and then make a single call to the server to retrieve
+the result.
 
-In practice, many cloud build systems store hashes of values in the trace information,
-then have a separate content-addressable cache which associates hashes with
-their actual contents.
+In practice, many cloud build systems store hashes of values in the trace store,
+i.e. use \hs{Trace}~\hs{k}~\hs{v}~\hs{(Hash}~\hs{v)} trace entries just like the
+verifying traces, and have a separate content-addressable cache which associates
+hashes with their actual contents.
 
 \subsection{Deep Constructive Traces}\label{sec-deep-constructive-traces}
 
@@ -312,24 +331,28 @@ in~\S\ref{sec-constructive-traces}, but we use the names \hs{recordDCT} and
 \hs{constructDCT}, where the underlying \hs{DCT} representation need only record
 information about hashes of inputs, not intermediate dependencies.
 
-Concretely, taking the example from Figure \ref{fig-make}, to decide whether \hs{main.exe}
-is out of data, a \emph{constructive} trace would look at \hs{util.o} and \hs{main.o}
-(the immediate dependencies), while a \hs{deep constructive} trace would look at \hs{util.c},
-\hs{util.h} and \hs{main.c}.
+Concretely, taking the example from Fig.~\ref{fig-make}, to decide whether
+\cmd{main.exe} is out of date, a \emph{constructive} trace would look at
+\cmd{util.o} and \cmd{main.o} (the immediate dependencies), whereas a
+\emph{deep constructive} trace would look at \cmd{util.c}, \cmd{util.h} and
+\cmd{main.c}.
 
-An advantage of deep constructive traces is that to decide if \hs{main.exe} is up to date only
-requires consulting its inputs, not even considering \hs{util.o} or \hs{main.o}.
-Such a feature is often known as a \emph{shallow build}, as discussed in~\S\ref{sec-cloud-aspects}.
+An advantage of deep constructive traces is that to decide if \cmd{main.exe} is
+up to date only requires consulting its inputs, not even considering
+\cmd{util.o} or \cmd{main.o}. Such a feature is often known as a
+\emph{shallow build}, as discussed in~\S\ref{sec-cloud-aspects}.
 
 There are two primary disadvantages of deep constructive traces:
 
-\begin{description}
-\item[Deterministic tasks] If the tasks are not \emph{deterministic} then it is possible to
-violate correctness, as illustrated by an example in~\S\ref{sec-cloud-aspects}
-(see Fig.~\ref{fig-frankenbuild}).
-\item[No early cutoff] Such traces cannot support early cutoff
-(\S\ref{sec-background-shake}), since the results of intermediate computations are not considered.
-\end{description}
+\begin{itemize}
+  \item \textbf{Tasks must be deterministic}: If the tasks are not
+        \emph{deterministic} then it is possible to violate correctness, as
+        illustrated by an example in~\S\ref{sec-cloud-aspects}, see
+        Fig.~\ref{fig-frankenbuild}.
+  \item \textbf{No early cutoff}: Deep constructive traces cannot support early
+        cutoff (\S\ref{sec-background-shake}), since the results of intermediate
+        computations are not considered.
+\end{itemize}
 
 Current build systems using deep constructive traces always record hashes of
 terminal \emph{input keys}, but the technique works equally well if we skip any
