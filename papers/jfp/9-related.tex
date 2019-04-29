@@ -46,18 +46,16 @@ rechecking the entire graph. \Tup also automatically deletes stale results.
 \end{itemize}
 
 The one build system we are aware of that cannot be modelled in our framework is
-\Fabricate by \cite{fabricate}. In \Fabricate a build system is a script that is
-run in-order, in the spirit of:
-% I'm not sure the footnote adds much, let's save space?
-% \footnote{\Fabricate requires scripts to be
-% written in Python, but those details are not fundamental to what makes
-% \Fabricate special.}
+\Fabricate by~Hoyt~\etal~\shortcite{fabricate}. In \Fabricate a build system is
+a script that is run in-order, in the spirit of:
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{bash}
 gcc -c util.c
 gcc -c main.c
 gcc util.o main.o -o main.exe
 \end{minted}
+\vspace{1mm}
 
 \noindent
 To achieve minimality, each separate command is traced at the OS-level, allowing
@@ -73,29 +71,31 @@ Taking our abstraction, it is possible to encode \Fabricate assuming that
 commands like \cmd{gcc -c util.c} are keys, there is a linear dependency between
 each successive key, and that the OS-level tracing can be lifted back as a
 monadic \hs{Task} function\footnote{\Shake provides support for
-\Fabricate{}-like build systems~--~see \cmd{Development.Shake.Forward}
-in the \Shake library.}. However, in our pure model the mapping is not perfect
-as \cmd{gcc} writes to arbitrary files whose locations are not known in advance.
+\Fabricate{}-like build systems~--~see \cmd{Development.Shake.Forward}.}.
+However, in our pure model the mapping is not perfect as \cmd{gcc} writes to
+arbitrary files whose locations are not known in advance.
 
 \subsection{Self-adjusting Computation}
 
 While not typically considered build systems, self-adjusting computation is a
 well studied area, and in particular the contrast between different formulations
-has been thoroughly investigated, e.g. see~\cite{acar2007selfadjusting}.
-Self-adjusting computations can automatically adjust to an external change
-to their inputs. A classic example is a self-adjusting sorting algorithm, which
-can efficiently (in $O(\log{n})$ time where $n$ is the length of the input)
-recalculate the result given an incremental change of the input. While very
-close to build systems in spirit, self-adjusting computations are mostly used
-for in-memory computation and rely on the ability to dynamically allocate new
-keys in the store for sharing intermediate computations~--~an intriguing feature
-rarely seen in build systems (\Shake's oracles~\S\ref{sec-polymorphism} can be
-used to model this feature to a limited degree).
+has been thoroughly investigated, e.g.
+see~Acar~\etal~\shortcite{acar2007selfadjusting}. Self-adjusting computations
+can automatically adjust to an external change to their inputs. A classic
+example is a self-adjusting sorting algorithm, which can efficiently (in
+$O(\log{n})$ time where $n$ is the length of the input) recalculate the result
+given an incremental change of the input. While very close to build systems in
+spirit, self-adjusting computations are mostly used for in-memory computation
+and rely on the ability to dynamically allocate new keys in the store for
+sharing intermediate computations~--~an intriguing feature rarely seen in build
+systems (\Shake's oracles~\S\ref{sec-polymorphism} can be used to model this
+feature to a limited degree).
 
 A lot of research has been dedicated to finding efficient data structures and
 algorithms for self-adjusting computations (with a few open-source
-implementations, e.g. \Incremental by~\cite{incremental}). We plan to
-investigate how these insights can be utilised by build systems as future work.
+implementations, e.g. \Incremental by Jane Street~\shortcite{incremental}. We
+plan to investigate how these insights can be utilised by build systems as
+future work.
 
 \subsection{Memoization}\label{sec-related-memo}
 
@@ -113,18 +113,18 @@ distance}~\cite{levenshtein1966binary}: given two input strings $a$ and
 $b$, find the shortest series of edit operations that transforms $a$
 to $b$. The edit operations are typically \emph{inserting}, \emph{deleting} or
 \emph{replacing} a symbol. The dynamic programming solution of this problem is
-so widely known (e.g., see~\cite{cormen2001introduction}) that we provide its
-encoding in our \hs{Tasks} abstraction without further explanation. We address
-elements of strings $a_i$ and $b_i$ by keys \hs{A}~$i$ and \hs{B}~$i$,
-respectively, while the cost of a subproblem $c_{ij}$ is identified by
-\hs{C}~$i$~$j$.
+so widely known, e.g., see~Cormen~\etal~\shortcite{cormen2001introduction}, that
+we provide its encoding in our \hs{Tasks} abstraction without further
+explanation. We address elements of strings $a_i$ and $b_i$ by keys \hs{A}~$i$
+and \hs{B}~$i$, respectively, while the cost of a subproblem $c_{ij}$ is
+identified by \hs{C}~$i$~$j$.
 
-\vspace{0.5mm}
-\begin{minted}[xleftmargin=10pt, fontsize=\small]{haskell}
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
 data Key = A Int | B Int | C Int Int deriving Eq
 \end{minted}
 \vspace{0mm}
-\begin{minted}[xleftmargin=10pt, fontsize=\small]{haskell}
+\begin{minted}[xleftmargin=10pt]{haskell}
 editDistance :: Tasks Monad Key Int
 editDistance (C i 0) = Just $ Task $ const $ pure i
 editDistance (C 0 j) = Just $ Task $ const $ pure j
@@ -139,7 +139,7 @@ editDistance (C i j) = Just $ Task $ \fetch -> do
                 return (1 + minimum [insert, delete, replace])
 editDistance _ = Nothing
 \end{minted}
-\vspace{0.5mm}
+\vspace{1mm}
 
 \noindent
 When asked to build \hs{C}~$n$~$m$, a minimal build system will calculate the

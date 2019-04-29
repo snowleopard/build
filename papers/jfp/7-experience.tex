@@ -1,97 +1,224 @@
 \section{Experience}\label{sec-experience}
 
-As a set of authors, we've written a paper about the \Shake build system \cite{mitchell2012shake},
-applying \Shake to building GHC \cite{hadrian}, and a paper about the categorisation of build
-systems \cite{mokhov2018buildsystems}. The original motivation of the research in that final paper was to create
-``\Cloud \Shake'', and apply it to the GHC build system. In this section we tie these papers together,
-reflecting on our experience since these papers.
+As a set of authors, we've written a paper about the \Shake build
+system~\cite{mitchell2012shake}, applying \Shake to building GHC~\cite{hadrian},
+and a paper about the categorisation of build
+systems~\cite{mokhov2018buildsystems}. The original motivation of the research
+in that final paper was to create ``\Cloud \Shake'', and apply it to the GHC
+build system. In this section we tie these papers together, reflecting on our
+experience since these papers.
 
 \subsection{Experience from \Shake}\label{sec-experience-shake}
 
-The original design of \Shake hasn't changed since the initial paper, but the implementation has continued to mature -- there have been roughly 5,000 subsequent commits to the \Shake project\footnote{\url{https://github.com/ndmitchell/shake}}. These commits add concepts like resources (if two rules contend on a single external resource), rewriting serialisation to be faster, documentation including a website\footnote{\url{https://shakebuild.com}}, and add lots of tests. The biggest change in that time period was moving from blocking threads to continuations for the suspending scheduler. The most visible change is switching from \hs{*>} to \hs{%>} for defining rules\footnote{A conflicting \hs{*>} operator was added to the Haskell \hs{Prelude}.}, but almost all external and internal details remain the same.
+The original design of \Shake has not changed since the initial paper, but the
+implementation has continued to mature -- there have been roughly 5,000
+subsequent commits to the \Shake
+project\footnote{\url{https://github.com/ndmitchell/shake}}. These commits add
+concepts like \emph{resources} (for handling situations when two build tasks
+contend on a single external resource), rewriting serialisation to be faster,
+documentation including a website\footnote{\url{https://shakebuild.com}}, and
+add a lot of tests. The biggest change in that time period was moving from
+blocking threads to continuations for the suspending scheduler. The most visible
+change is switching from \hs{*>} to \hs{@\%@>} for defining rules\footnote{A
+conflicting \hs{*>} operator was added to the Haskell \hs{Prelude}.}, but almost
+all external and internal details remain the same.
 
-We consider the lack of change suggestive that \Shake is based on fundamental principles -- principles we can now name and describe as a consequence of \cite{mokhov2018buildsystems}. There are two main aspects to the original \Shake paper \cite{mitchell2012shake} that are described more clearly in this paper, Firstly, the rebuilder can now be described as verifying step traces as per \S\ref{sec-step-traces}, with a much clearer relationship to the unoptimised verifying traces of \S\ref{sec-verifying-traces}. The second is the power of \Shake tasks (called actions in the original paper). Originally these tasks were described using the data type:
+We consider the lack of change suggestive that \Shake is based on fundamental
+principles -- principles we can now name and describe as a consequence
+of the categorisation paper~\cite{mokhov2018buildsystems}. There are two main
+aspects to the original \Shake paper~\cite{mitchell2012shake} that are described
+more clearly in this paper. Firstly, the rebuilder can now be described using
+verifying step traces~\S\ref{sec-step-traces}, with a much clearer relationship
+to the unoptimised verifying traces of~\S\ref{sec-verifying-traces}. The second
+aspect is the power of \Shake tasks, or ``actions'' in the original paper,
+which were originally described using this data type:
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-data Action k v r = Finished r
-                  | Depends v (v -> Action k v r)
+data Action k v a = Finished a
+                  | Depends k (v -> Action k v a)
 \end{minted}
+\vspace{1mm}
 
-This type is equivalent to \hs{Task Monad} -- the two types form an isomorphism. The original paper uses concrete types \hs{Key} and \hs{Value}, we generalise these types to \hs{k} and \hs{v}, and also add \hs{r} so that \hs{Action k v} can be an instance of \hs{Monad}. We define that \hs{Monad} instance, and use it to write conversion functions to/from our \hs{Task} type, witnessing the isomorhpism:
+\noindent
+This type is equivalent to \hs{Task}~\hs{Monad} -- the two types form an
+isomorphism. The original paper uses concrete types \hs{Key} and \hs{Value}, we
+generalise these types to \hs{k} and \hs{v}, and also add \hs{a} so that
+\hs{Action}~\hs{k}~\hs{v} can be an instance of \hs{Monad}. We define that
+\hs{Monad} instance, and use it to write conversion functions to/from our
+\hs{Task} type, witnessing the isomorphism:
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 instance Monad (Action k v) where
     return = Finished
-    Finished x >>= f = f x
-    Depends ds op >>= f = Depends ds $ \v -> f =<< op v
+    Finished x    >>= f = f x
+    Depends ds op >>= f = Depends ds $ \v -> op v >>= f
 
 toAction :: Task Monad k v -> Action k v v
 toAction (Task run) = run $ \k -> Depends k Finished
 
 fromAction :: Action k v v -> Task Monad k v
 fromAction x = Task $ \fetch -> f fetch x
-    where f fetch (Finished v) = return v
-          f fetch (Depends d op) = f fetch . op =<< fetch d
+  where
+    f _     (Finished v  ) = return v
+    f fetch (Depends d op) = fetch d >>= f fetch . op
 \end{minted}
+\vspace{1mm}
 
-\noindent Similarly, \Make tasks were described as equivalent to
+\noindent
+Similarly, \Make tasks were described as equivalent to
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-data Rule k v r = Rule {depends :: [k], action :: [v] -> r}
+data Rule k v a = Rule { depends :: [k], action :: [v] -> a }
 \end{minted}
+\vspace{1mm}
 
-Once again, this type is isomorphic to \hs{Task Applicative}, and we can define a similar \hs{Applicative} instance and conversion functions. By describing these types using \hs{Task} we are able to describe the differences more concisely (\hs{Monad} vs \hs{Applicative}) and use existing literature to determine what is and isn't possible.
+Assuming the lengths of the lists \hs{[@@k]} and \hs{[@@v]} always match, this
+type is isomorphic to \hs{Task}~\hs{Applicative}, and we can define a similar
+\hs{Applicative} instance and conversion functions. By describing these types
+using \hs{Task} we are able to describe the differences more concisely
+(\hs{Monad} vs \hs{Applicative}), use existing literature to determine what is
+and isn't possible, and explore other constraints beyond just \hs{Monad} and
+\hs{Applicative}.
 
 \subsection{Experience from building GHC with \Shake}
 
-\todo{AM}{Can you flesh this out}
+\todo{AM}{Finish this section.}
 
-The build system used to compile GHC, known as Hadrian, has continued development. The use of dynamic dependencies has made the build much easier, and it's now more maintainable. It's now merged into the GHC repo and tested as standard by the CI. It's current state is ... In particular, it takes N minutes to build with \Shake, vs M minutes to build with \Make. The \Shake version has attracted more contributors, and been easier to modify, etc. The code is N lines.
+The build system used to compile GHC, known as Hadrian, has continued
+development. The use of dynamic dependencies has made the build much easier, and
+it's now more maintainable. It's now merged into the GHC repo and tested as
+standard by the CI. It's current state is ... In particular, it takes N minutes
+to build with \Shake, vs M minutes to build with \Make. The \Shake version has
+attracted more contributors, and been easier to modify, etc. The code is N
+lines.
 
-The design we originally outlined remains the one in use. There has been a huge amount of engineering work to make the tests pass (many of the details encoded in the \Make build system were incidental -- but some were essential).
+The design we originally outlined remains the one in use. There has been a huge
+amount of engineering work to make the tests pass (many of the details encoded
+in the \Make build system were incidental -- but some were essential).
 
-One of the benefits of using Shake is that we have access to high quality profiling information, allowing us to compute critical paths and other metrics (see \cite{mitchell2019ghcrebuildtimes} for a tour of the metrics). This information has shown us that GHC is slow to build (40m on an 8 CPU machine on Windows), that more CPUs would not help (on unlimited CPUs it would take at least 37m), and that a handful of steps (two Haskell compiles, some calls to \hs{configure}) are responsible for a significant amount of that time (at least 10m).
+One of the benefits of using Shake is that we have access to high quality
+profiling information, allowing us to compute critical paths and other metrics,
+see Mitchell~\shortcite{mitchell2019ghcrebuildtimes} for a tour of the metrics.
+This information has shown us that GHC is slow to build (40m on an 8 CPU machine
+on Windows), that more CPUs would not help (on unlimited CPUs it would take at
+least 37m), and that a handful of steps (two Haskell compiles, some calls to
+\cmd{configure}) are responsible for a significant amount of that time (at least
+10m).
 
 \subsection{Experience from \Cloud \Shake}\label{sec-cloud-shake}
 
-Converting \Shake into \Cloud \Shake wasn't a difficult process once armed with a roadmap from \cite{mokhov2018buildsystems}. The key was the introduction of two new functions:
+Converting \Shake into \Cloud \Shake was not a difficult process once armed with
+a roadmap~\cite{mokhov2018buildsystems}. The key was the introduction of two new
+functions:
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 addCloud :: k -> Ver -> Ver -> [[(k, Hash v)]]
          -> v -> [FilePath] -> IO ()
 lookupCloud :: (k -> m (Maybe (Hash v))) -> k -> Ver -> Ver
             -> m (Maybe (v, [[k]], IO ()))
 \end{minted}
+\vspace{1mm}
 
-These functions are suspiciously like \hs{recordCT} and \hs{constructCT} from \S\ref{sec-constructive-traces}, with their differences perhaps the most illustrative of the changes required. (We have made some minor changes from actual \Shake, like replacing \hs{Key} for \hs{k}, to reduce irrelevant differences.)
+\noindent
+These functions are suspiciously like \hs{recordCT} and \hs{constructCT}
+from~\S\ref{sec-constructive-traces}, with their differences perhaps the most
+illustrative of the changes required. (We have made some minor changes from
+actual \Shake, like replacing \hs{Key} for \hs{k}, to reduce irrelevant
+differences.)
 
 \begin{itemize}
-\item There are two \hs{Ver} arguments being passed to each function. These are the versions of the build script, and the rule for this particular key. If either version changes then it is as though the key has changed, and nothing will match. These versions are important to avoid using stale build products from previous versions of the build script.
-\item The list of dependencies to \hs{addCloud} is a list of lists, rather than a simple list. The reason is that \Shake allows a list of dependencies to be supplied at once, so they can all be built in parallel.
-\item The \hs{addCloud} function also takes a list of \hs{FilePath}, being the files that this rule produces. These produced files include those which are output keys from a rule and those declared with \hs{produces}.
-\item The \hs{lookupCloud} function allows an explicit \hs{Nothing} when looking up a dependent key, since some keys are not buildable.
-\item The \hs{lookupCloud} function returns at most one result, rather than a list. This change was made for simplicity.
+\item There are two \hs{Ver} arguments being passed to each function. These are
+      the versions of the build script, and the rule for this particular key. If
+      either version changes then it is as though the key has changed, and
+      nothing will match. These versions are important to avoid using stale
+      build products from previous versions of the build script.
+\item The list of dependencies to \hs{addCloud} is a list of lists, rather than
+      a simple list. The reason is that \Shake allows a list of dependencies to
+      be supplied at once, so they can all be built in parallel.
+\item The \hs{addCloud} function also takes a list of \hs{FilePath}, being the
+      files that this rule produces. These produced files include those which
+      are output keys from a rule and those declared with the function
+      \hs{produces}.
+\item The \hs{lookupCloud} function allows an explicit \hs{Nothing} when looking
+      up a dependent key, since some keys are not buildable.
+\item The \hs{lookupCloud} function returns at most one result, rather than a
+      list. This change was made for simplicity.
 \end{itemize}
 
-To integrate these functions into \Shake we found the most expedient route was to leave \Shake with verifying traces, but if the verifying trace doesn't match, we consult the constructive trace. By bolting constructive traces onto the side of Shake we avoid reengineering of the central database. We haven't found any significant downsides from the bolt-on approach thus far, so it may be a sensible route to go even if developing from scratch -- allowing an optimised verified trace implementation in many cases, and falling back to a more complex implementation (requiring consulting remote servers) only rarely.
+To integrate these functions into \Shake we found the most expedient route was
+to leave \Shake with verifying traces, but if the verifying trace does not
+match, we consult the constructive trace. By bolting constructive traces onto
+the side of Shake we avoid re-engineering of the central database. We have not
+found any significant downsides from the bolt-on approach thus far, so it may be
+a sensible route to go even if developing from scratch -- allowing an optimised
+verified trace implementation in many cases, and falling back to a more complex
+implementation (requiring consulting remote servers) only rarely.
 
-The one thing we haven't yet completed on the engineering side is a move to hosting caches over HTTP. At the moment all caches are on shared file systems. This approach can use mounted drives to mirror HTTP connections onto file systems, and reuse tools for managing file systems, share caches with rsync, and is simple. Unfortunately, on certain OS's (e.g. Windows) mounting an HTTP endpoint as a file system requires administrator privileges, so an HTTP cache is still desirable.
+The one thing we have not yet completed on the engineering side is a move to
+hosting caches over HTTP. At the moment all caches are on shared file systems.
+This approach can use mounted drives to mirror HTTP connections onto file
+systems, and reuse tools for managing file systems, share caches with
+\cmd{rsync}, and is simple. Unfortunately, on certain operating systems (e.g.
+Windows) mounting an HTTP endpoint as a file system requires administrator
+privileges, so an HTTP cache is still desirable.
 
 \subsection{Experience from using \Cloud \Shake}\label{sec-using-cloud-shake}
 
-While we expected the GHC build system to be the first to take advantage of \Cloud \Shake, we were actually beaten to it by Standard Chartered who report\footnote{\url{https://groups.google.com/d/msg/shake-build-system/NbB5kMFS34I/mZ9L4TgkBwAJ}}:
+While we expected the GHC build system to be the first to take advantage of
+\Cloud \Shake, we were actually beaten to it by Standard Chartered who
+report\footnote{\url{https://groups.google.com/d/msg/shake-build-system/NbB5kMFS34I/mZ9L4TgkBwAJ}}:
 
-\begin{quote}
-Thanks for the symlinks release, we just finished upgrading this build system to use \hs{--share}. ...
-Building from scratch with a warm cache takes around 5 seconds, saving us up to 2 hours. Not bad!
-\end{quote}
+\vspace{1mm}
+\begin{center}
+\parbox{0.8 \textwidth}{\emph{Thanks for the symlinks release, we just finished upgrading this build
+system to use \cmd{-}\cmd{-share}. ... Building from scratch with a warm cache
+takes around 5 seconds, saving us up to 2 hours. Not bad!}}
+\end{center}
+\vspace{1mm}
 
-We have also got the GHC build working with \Cloud \Shake, resulting in build times of N minutes instead of M minutes. Due to aspects like \hs{configure} we don't see the dramatic reductions reported by Standard Chartered. Converting to a build suitable for sharing is not overly onerous, but nor is it trivial. Some things that require attention:
+We have also got the GHC build working with \Cloud \Shake, resulting in build
+times of 3m and 30s instead of 1h and 8m (on Windows). Due to aspects like slow
+and fully sequential \cmd{configure} we do not see the dramatic reductions
+reported by Standard Chartered. Converting to a build suitable for sharing is
+not overly onerous, but nor is it trivial. Some things that require attention:
 
-\begin{description}
-\item[Irrelevant differences] A common problem is that you don't get shared caching when you want it. To get caching, it is important that all machines are identical for the aspects that involve the build system. In particular, that means that all paths must be relative, and all dependencies on system binaries (e.g. \hs{gcc}) should either be controlled by the build system (e.g. using \Nix) or have tolerence to account for minor machine variations.
-\item[Insufficient produced files] A build rule must declare which files it produces, so these are stored in the cache and can be restored from the cache. If you don't use a remote cache then it is permissible to have files not known to the build system which change at the same time as files that are known. Once using a remote cache any file that is produced as a side-effect of a rule and then later used \emph{must} be declared. Failure to declare such files means that if some step produces a file, and a later step relies on it, that step breaks. In practice, most issues encountered during the move to Cloud builds for GHC were a lack of declared produced files.
-\item[Insufficient dependencies] While insufficient dependencies are often a problem, the move to a Cloud build makes them even more critical, as missing dependencies are likely to mean a result is \emph{never built locally}, rather than just build locally only once. Furthermore, dependencies in a Cloud setting must be more complete. For example, using the build system from Figure \ref{fig-make}, with a local build system without early cutoff, if the rule to produce \hs{main.exe} also made use of \hs{main.c} but didn't declare so, that isn't a problem. With the addition of early cutoff, if \hs{main.c} changes in an important way but \hs{main.o} doesn't update that causes issues, but is a somewhat rare occurance. With Cloud builds that becomes somewhat more common.
-\end{description}
+\begin{itemize}
+\item \textbf{Irrelevant differences}: A common problem is that you do not get
+      shared caching when you want it. To get caching, it is important that all
+      machines are identical for the aspects that involve the build system. In
+      particular, that means that all paths must be relative, and all
+      dependencies on system binaries (e.g. \cmd{gcc}) should either be
+      controlled by the build system (e.g. using \Nix) or have tolerance to
+      account for minor machine variations.
+\item \textbf{Insufficient produced files}: A build rule must declare all files
+      it produces, so these are stored in the cache and can be restored from the
+      cache. If you do not use a remote cache then it is permissible to have
+      files not known to the build system which change at the same time as files
+      that are known. Once using a remote cache any file that is produced as a
+      side-effect of a rule and then later used \emph{must} be declared. Failure
+      to declare such files means that if some step produces a file, and a later
+      step relies on it, that step breaks. In practice, most issues encountered
+      during the move to cloud builds for GHC were a lack of declared produced
+      files.
+\item \textbf{Insufficient dependencies}: While insufficient dependencies are
+      often a problem, the move to a cloud build makes them even more critical,
+      as missing dependencies are likely to mean a result is \emph{never built
+      locally}, rather than just build locally only once. Furthermore,
+      dependencies in a cloud setting must be more complete. For example, using
+      the build system from Fig.~\ref{fig-make}, with a local build system
+      without early cutoff, if the rule to produce \cmd{main.exe} also made use
+      of \cmd{main.c} but did not declare so, that is not a problem. With the
+      addition of early cutoff, if \cmd{main.c} changes in an important way but
+      \cmd{main.o} is not rebuilt that causes issues, but is a somewhat rare
+      occurrence. With cloud builds that becomes somewhat more common.
+\end{itemize}
 
-To help with the final two issues -- insufficient dependencies and produced files -- we have further enhanced the \Shake lint modes, coupling them to a program called \hs{FSATrace}, which detects which files are read/written by a command line execution. Such information has been very helpful in making the GHC build Cloud ready.
+To help with the final two issues -- insufficient dependencies and produced
+files -- we have further enhanced the \Shake lint modes, coupling them to a
+program called \cmd{FSATrace}, which detects which files are read/written by a
+command line execution. Such information has been very helpful in making the GHC
+build cloud ready.

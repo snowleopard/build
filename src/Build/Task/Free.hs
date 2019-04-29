@@ -2,52 +2,50 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- | The free description of tasks.
-module Build.Task.Free(
-    Depend(..), toDepend, fromDepend,
-    Depends(..), toDepends, fromDepends
-    ) where
+module Build.Task.Free (
+    Rule (..), toRule, fromRule, Action (..), toAction, fromAction
+  ) where
 
 import Build.Task
+import Control.Monad
 
-
-data Depend k v r = Depend [k] ([v] -> r)
+------------------------- Isomorphism with Make's Rule -------------------------
+data Rule k v r = Rule [k] ([v] -> r)
     deriving Functor
 
-instance Applicative (Depend k v) where
-    pure v = Depend [] (\[] -> v)
-    Depend d1 f1 <*> Depend d2 f2 = Depend (d1++d2) $ \vs -> let (v1,v2) = splitAt (length d1) vs in f1 v1 $ f2 v2
+instance Applicative (Rule k v) where
+    pure v = Rule [] (\[] -> v)
+    Rule d1 f1 <*> Rule d2 f2 = Rule (d1++d2) $ \vs ->
+        let (v1,v2) = splitAt (length d1) vs in f1 v1 $ f2 v2
 
+getRule :: k -> Rule k v v
+getRule k = Rule [k] $ \[v] -> v
 
-data Depends k v r = Depends k (v -> Depends k v r)
-                   | Done r
+toRule :: Task Applicative k v -> Rule k v v
+toRule (Task f) = f getRule
+
+fromRule :: Rule k v v -> Task Applicative k v
+fromRule (Rule ds f) = Task $ \fetch -> f <$> traverse fetch ds
+
+------------------------ Isomorphism with Shake's Action -----------------------
+data Action k v a = Finished a
+                  | Depends k (v -> Action k v a)
     deriving Functor
 
-instance Applicative (Depends k v) where
-    pure = return
-    f1 <*> f2 = f2 >>= \v -> ($ v) <$> f1
+instance Applicative (Action k v) where
+    pure  = Finished
+    (<*>) = ap
 
-instance Monad (Depends k v) where
-    return = Done
-    Done x >>= f = f x
-    Depends ds op >>= f = Depends ds $ \vs -> f =<< op vs
+instance Monad (Action k v) where
+    return = Finished
+    Finished x    >>= f = f x
+    Depends ds op >>= f = Depends ds $ \v -> op v >>= f
 
-getDepend :: k -> Depend k v v
-getDepend k = Depend [k] $ \[v] -> v
+toAction :: Task Monad k v -> Action k v v
+toAction (Task run) = run $ \k -> Depends k Finished
 
-toDepend :: Task Applicative k v -> Depend k v v
-toDepend (Task f) = f getDepend
-
-getDepends :: k -> Depends k v v
-getDepends k = Depends k Done
-
-toDepends :: Task Monad k v -> Depends k v v
-toDepends (Task f) = f getDepends
-
-fromDepend :: Depend k v v -> Task Applicative k v
-fromDepend (Depend ds f) = Task $ \fetch -> f <$> traverse fetch ds
-
-fromDepends :: Depends k v v -> Task Monad k v
-fromDepends x = Task $ \fetch -> f fetch x
-    where
-        f _ (Done v) = return v
-        f fetch (Depends d op) = f fetch . op =<< fetch d
+fromAction :: Action k v v -> Task Monad k v
+fromAction x = Task $ \fetch -> f fetch x
+  where
+    f _     (Finished v  ) = return v
+    f fetch (Depends d op) = fetch d >>= f fetch . op
