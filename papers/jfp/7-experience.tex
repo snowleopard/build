@@ -103,66 +103,74 @@ O’Connor~\shortcite{jaskelioff2015representation}.
 \subsection{Experience from building GHC with \Shake}
 
 \Hadrian is a build system for the Glasgow Haskell Compiler~\cite{ghc}. It was
-developed to replace a \Make-based build system to solve multiple scalability
+developed to replace a \Make-based build system and solve multiple scalability
 and maintainability challenges. As discussed in detail
 by~Mokhov~\etal~\shortcite{hadrian}, most of these challenges were consequences
 of two key \Make's shortcomings: (i)~poor abstraction facilities of makefiles,
 i.e. the need to program in a single namespace of mutable string variables, and
 (ii)~the lack of dynamic dependencies~(\S\ref{sec-background-shake}).
-\Hadrian takes advantage both from \Shake's features and from the host language
-Haskell, making the GHC build system more maintainable. Interestingly, although
-\Shake is not a self-tracking build system~(\S\ref{sec-tracking-aspects}),
-\Hadrian implements a small domain-specific language for constructing build
-command lines, and then tracks command lines by treating them as a type of
-values -- a kind of \emph{partial self-tracking} made possible by \Shake's
-support for value polymorphism~(\S\ref{sec-polymorphism}).
+\Hadrian benefits both from \Shake's features and from the host language
+Haskell, making the new GHC build system easier to understand and maintain.
+Interestingly, although \Shake is not a self-tracking build
+system~(\S\ref{sec-tracking-aspects}), \Hadrian implements a little
+domain-specific language for constructing build command lines, and then tracks
+command lines by treating them as a type of values -- an example of
+\emph{partial self-tracking} made possible by \Shake's support for value
+polymorphism~(\S\ref{sec-polymorphism}).
 
-\todo{AM}{Finish this section.}
+The development of \Cloud \Shake allows GHC developers to take advantage of
+sharing build results between builds, which is particularly promising in the
+context of GHC's continuous integration (CI) infrastructure responsible for
+building and testing every GHC commit. Building GHC~8.8 from scratch with
+default settings takes around 1 hour on Windows using both \Hadrian and the
+original \Make-based build system. This includes building the compiler itself,
+29~bundled libraries, such as \cmd{base} (each in vanilla and profiled way), and
+6~bundled executables, such as \cmd{Haddock}. A single commit typically modifies
+only a small part of the whole codebase, making the cloud-build functionality
+highly desirable. In particular, if a commit does not touch any GHC source files
+at all (e.g. only modifies the documentation), \Hadrian can build GHC in under
+3~minutes, by simply creating symbolic links to the previously built results
+stored in the \Cloud~\Shake cache. Note that a small number of GHC build rules
+cannot be cached since they mutate the bundled package database (e.g. to
+register a new library); \Cloud~\Shake provides a way to manually label such
+build rules, thereby excluding them from caching.
 
-Benchmarking:
-
-\begin{itemize}
-  \item Building \Hadrian: 55s. For comparison, building the Cabal library: 4m.
-
-  \item Initial Windows tarball download: 45s.
-
-  \item Initial \cmd{boot} and \cmd{configure} on Windows: 2m 25s.
-
-  \item Full GHC build using \Hadrian with default settings:
-        \cmd{hadrian/build.bat -j8}: 57m. Subsequent zero build: 5s.
-        Default build includes GHC, 29 bundled libraries (each in vanilla and
-        profiling build way), and 6 bundled executables (such as Haddock).
-
-  \item Full GHC build using \Hadrian with default settings in the cloud mode:
-        \cmd{hadrian/build.bat -j8 -}\cmd{-share=cache}: 58m.
-        Subsequent zero build: 5s.
-        Subsequent full rebuild after deleting the build directory: 5m 27s.
-
-  \item Full GHC build using \Make with default settings: \cmd{make -j8}: 60m.
-        Subsequent zero build: 18s.
-\end{itemize}
-
-
-The build system used to compile GHC, known as \Hadrian, has continued
-development. The use of dynamic dependencies has made the build much easier, and
-it's now more maintainable. It's now merged into the GHC repo and tested as
-standard by the CI. It's current state is ... In particular, it takes N minutes
-to build with \Shake, vs M minutes to build with \Make. The \Shake version has
-attracted more contributors, and been easier to modify, etc. The code is N
-lines.
-
-The design we originally outlined remains the one in use. There has been a huge
-amount of engineering work to make the tests pass (many of the details encoded
-in the \Make build system were incidental -- but some were essential).
-
-One of the benefits of using Shake is that we have access to high quality
+One of the benefits of using \Shake is that we have access to high quality build
 profiling information, allowing us to compute critical paths and other metrics,
-see Mitchell~\shortcite{mitchell2019ghcrebuildtimes} for a tour of the metrics.
-This information has shown us that GHC is slow to build (40m on an 8 CPU machine
-on Windows), that more CPUs would not help (on unlimited CPUs it would take at
-least 37m), and that a handful of steps (two Haskell compiles, some calls to
-\cmd{configure}) are responsible for a significant amount of that time (at least
-10m).
+see Mitchell~\shortcite{mitchell2019ghcrebuildtimes} for an overview of \Shake's
+profiling features. This information has shown us that GHC is slow to build
+(1~hour on an 4~CPU Windows machine), that more CPUs would not help (on
+unlimited CPUs the speed up would be less than 10\%), and that a handful of
+build tasks (two anomalously slow Haskell compilations, and some calls to slow
+single-threaded \cmd{configure}) are responsible for a significant amount of
+build time (at least 10~minutes).
+
+% Benchmarking:
+% \begin{itemize}
+%   \item Building \Hadrian: 55s. For comparison, building the Cabal library: 4m.
+%   \item Initial Windows tarball download: 45s.
+%   \item Initial \cmd{boot} and \cmd{configure} on Windows: 2m 25s.
+%   \item Full GHC build using \Hadrian with default settings:
+%         \cmd{hadrian/build.bat -j8}: 57m. Subsequent zero build: 5s.
+%   \item Full GHC build using \Hadrian with default settings in the cloud mode:
+%         \cmd{hadrian/build.bat -j8 -}\cmd{-share=cache}: 58m.
+%         Subsequent zero build: 5s.
+%         Subsequent full rebuild after deleting the build directory: 5m 27s.
+%   \item Full GHC build using \Make with default settings: \cmd{make -j8}: 60m.
+%         Subsequent zero build: 18s.
+% \end{itemize}
+
+% The build system used to compile GHC, known as \Hadrian, has continued
+% development. The use of dynamic dependencies has made the build much easier, and
+% it's now more maintainable. It's now merged into the GHC repo and tested as
+% standard by the CI. It's current state is ... In particular, it takes N minutes
+% to build with \Shake, vs M minutes to build with \Make. The \Shake version has
+% attracted more contributors, and been easier to modify, etc. The code is N
+% lines.
+
+% The design we originally outlined remains the one in use. There has been a huge
+% amount of engineering work to make the tests pass (many of the details encoded
+% in the \Make build system were incidental -- but some were essential).
 
 \subsection{Experience from \Cloud \Shake}\label{sec-cloud-shake}
 
