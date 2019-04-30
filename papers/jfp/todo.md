@@ -34,6 +34,10 @@ Explain how to "add constructiveness" to a trace system. Maybe even concretely:
 and constructive traces, at least in table 2.
 (This would have impact on the structure of the whole trace section.)
 
+### Implementation
+
+Add implementation of `dctRebuilder`.
+
 ### Cloud Shake
 
 **Done**
@@ -46,6 +50,8 @@ and constructive traces, at least in table 2.
   with early cut-off.
 
 ### Cloud Hadrian
+
+**Done**
 
 * Real-life example
 * Many examples demonstrating the use of dynamic dependencies
