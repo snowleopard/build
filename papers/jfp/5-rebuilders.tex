@@ -171,7 +171,7 @@ distinct keys, regardless of how many builds are executed, is a useful property.
 The \Shake build system and the associated paper -- see~\S2.3.3
 in~Mitchell~\shortcite{mitchell2012shake} -- use a slightly different trace
 structure, called \emph{verifying step traces},
-which stores less data than veryifying traces, and has slightly different early cutoff semantics. Rather than
+which stores less data than verifying traces, and has slightly different early cutoff semantics. Rather than
 storing the \hs{Hash}~\hs{v} for each dependency, it instead stores \hs{built}
 time and \hs{changed} time for each \hs{key}, and a list of dependency keys
 (without the hashes). The resulting \hs{StepTrace} type resembles:
@@ -359,4 +359,4 @@ terminal \emph{input keys}, but the technique works equally well if we skip any
 number of dependency levels (say $n$ levels). The input-only approach is the
 special case of $n = \infty$, and constructive traces are the special case of
 $n = 1$. By picking values of $n$ in between we would regain some early cutoff, at the
-cost of losing such simple shallow builds and still requiring determinstic tasks.
+cost of losing such simple shallow builds and still requiring deterministic tasks.
