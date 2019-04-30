@@ -102,9 +102,48 @@ O’Connor~\shortcite{jaskelioff2015representation}.
 
 \subsection{Experience from building GHC with \Shake}
 
+\Hadrian is a build system for the Glasgow Haskell Compiler~\cite{ghc}. It was
+developed to replace a \Make-based build system to solve multiple scalability
+and maintainability challenges. As discussed in detail
+by~Mokhov~\etal~\shortcite{hadrian}, most of these challenges were consequences
+of two key \Make's shortcomings: (i)~poor abstraction facilities of makefiles,
+i.e. the need to program in a single namespace of mutable string variables, and
+(ii)~the lack of dynamic dependencies~(\S\ref{sec-background-shake}).
+\Hadrian takes advantage both from \Shake's features and from the host language
+Haskell, making the GHC build system more maintainable. Interestingly, although
+\Shake is not a self-tracking build system~(\S\ref{sec-tracking-aspects}),
+\Hadrian implements a small domain-specific language for constructing build
+command lines, and then tracks command lines by treating them as a type of
+values -- a kind of \emph{partial self-tracking} made possible by \Shake's
+support for value polymorphism~(\S\ref{sec-polymorphism}).
+
 \todo{AM}{Finish this section.}
 
-The build system used to compile GHC, known as Hadrian, has continued
+Benchmarking:
+
+\begin{itemize}
+  \item Building \Hadrian: 55s. For comparison, building the Cabal library: 4m.
+
+  \item Initial Windows tarball download: 45s.
+
+  \item Initial \cmd{boot} and \cmd{configure} on Windows: 2m 25s.
+
+  \item Full GHC build using \Hadrian with default settings:
+        \cmd{hadrian/build.bat -j8}: 57m. Subsequent zero build: 5s.
+        Default build includes GHC, 29 bundled libraries (each in vanilla and
+        profiling build way), and 6 bundled executables (such as Haddock).
+
+  \item Full GHC build using \Hadrian with default settings in the cloud mode:
+        \cmd{hadrian/build.bat -j8 -}\cmd{-share=cache}: 58m.
+        Subsequent zero build: 5s.
+        Subsequent full rebuild after deleting the build directory: 5m 27s.
+
+  \item Full GHC build using \Make with default settings: \cmd{make -j8}: 60m.
+        Subsequent zero build: 18s.
+\end{itemize}
+
+
+The build system used to compile GHC, known as \Hadrian, has continued
 development. The use of dynamic dependencies has made the build much easier, and
 it's now more maintainable. It's now merged into the GHC repo and tested as
 standard by the CI. It's current state is ... In particular, it takes N minutes

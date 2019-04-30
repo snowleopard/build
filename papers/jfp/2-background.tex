@@ -213,7 +213,7 @@ dependencies are shown in Fig.~\ref{fig-shake}(a):
 The dependencies of \cmd{release.tar} are not known statically: they are
 determined by the content of \cmd{release.txt}, which might not even exist
 before the build. Makefiles cannot express such dependencies, requiring problematic
-workarounds such as \emph{build phases} \cite{hadrian}.
+workarounds such as \emph{build phases}~\cite{hadrian}.
 In \Shake we can express the rule for \cmd{release.tar} as:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
