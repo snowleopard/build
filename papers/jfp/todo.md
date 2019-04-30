@@ -16,7 +16,10 @@ submitted to JFP.
 
 ### Traces and schedulers (Section 4)
 
-Promote 4.2/4.3 (traces) to top level section Rebuilders.  Elaborate (it's very terse right now) with examples.
+**Done**
+
+Promote 4.2/4.3 (traces) to top level section Rebuilders. Elaborate (it's very
+terse right now) with examples.
 
 Similar Schedulers (current 4.1)
 
@@ -26,13 +29,21 @@ Move 4.4 into the start of 5 (build systems concretely).
   * Optimisation
   * Correctness
 
-Explain how to "add constructiveness" to a trace system.  Mabye even concretely:  `constructive :: TraceSystem -> TraceSystem`.Maybe collapse verifying traces and constrctive traces, at least in table 2.  (This would have impact on the structore of the whole trace section.)
+Explain how to "add constructiveness" to a trace system. Maybe even concretely:
+`constructive :: TraceSystem -> TraceSystem`. Maybe collapse verifying traces
+and constructive traces, at least in table 2.
+(This would have impact on the structure of the whole trace section.)
 
 ### Cloud Shake
 
+**Done**
+
 * Implemented and released
 * Absolute paths and system binaries
-* Deferred materialisation. Different invariants for (a) local builds, (b) cloud sharing (you must list all the things you produce), (c) sharing + deferred materialisation (you must declare all the things you consume). Interaction with early cut-off.
+* Deferred materialisation. Different invariants for (a) local builds, (b) cloud
+  sharing (you must list all the things you produce), (c) sharing + deferred
+  materialisation (you must declare all the things you consume). Interaction
+  with early cut-off.
 
 ### Cloud Hadrian
 
@@ -41,13 +52,16 @@ Explain how to "add constructiveness" to a trace system.  Mabye even concretely:
 
 Experience
 * Cloud stuff needed tracing infrastructure to expose dependencies.
-* Good profiling support (here are pictures) exposes places where we are over-sequential, and over-big tasks (build systems work best with lots of small tasks).
+* Good profiling support (here are pictures) exposes places where we are
+  over-sequential, and over-big tasks (build systems work best with lots of
+  small tasks).
 * Ability to compute critical paths
 * Numbers: no-op rebuild time; fresh clone rebuild time; (vs clean build).
 
 ### Related work
 
-Relationship to SHake paper.   Fully subsumes it, and explains it much better.  Oracles no longer important.
+Relationship to Shake paper. Fully subsumes it, and explains it much better.
+Oracles no longer important.
 
 ### Engineering section
 
@@ -64,7 +78,6 @@ Relationship to SHake paper.   Fully subsumes it, and explains it much better.  
   https://github.com/snowleopard/build/blob/master/src/Build/SelfTracking.hs
 
 * Re-using existing infrastructure: (a) key-value store, (b) remote execution service.
-
 
 
 ## Feedback
@@ -91,6 +104,8 @@ This can be generalised to a `Reader`.
 *A much later comment*: Or maybe this is a use case for selective functors?
 
 ### Russell O'Connor
+
+**Done**
 
 https://www.reddit.com/r/haskell/comments/9l2shn/video_build_systems_%C3%A0_la_carte_by_simon_peyton/e750mwb/
 
