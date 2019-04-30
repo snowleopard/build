@@ -75,16 +75,30 @@ data Rule k v a = Rule { depends :: [k], action :: [v] -> a }
 \end{minted}
 \vspace{1mm}
 
-Assuming the lengths of the lists \hs{[@@k]} and \hs{[@@v]} always match, this
-type is isomorphic to \hs{Task}~\hs{Applicative}, and we can define a similar
+Assuming the lengths of the lists \hs{[@@k]} and \hs{[@@v]} always match, the
+data type \hs{Rule}~\hs{k}~\hs{v}~\hs{v} is isomorphic to
+\hs{Task}~\hs{Applicative}~\hs{k}~\hs{v}, and we can define a similar
 \hs{Applicative} instance and conversion functions. By describing these types
 using \hs{Task} we are able to describe the differences more concisely
 (\hs{Monad} vs \hs{Applicative}), use existing literature to determine what is
 and isn't possible, and explore other constraints beyond just \hs{Monad} and
 \hs{Applicative}.
 
-\todo{AM}{Link with the paper ``A Representation Theorem for Second-Order
-Functionals''}
+These and other isomorphisms for \emph{second-order functionals}, i.e.
+functions of the form
+
+\vspace{1mm}
+\begin{center}
+\begin{minipage}{0.5\textwidth}
+\begin{minted}[xleftmargin=10pt]{haskell}
+@\std{forall}@ f. c f => (k -> f v) -> f a
+\end{minted}
+\end{minipage}
+\end{center}
+\vspace{1mm}
+
+for various choices of~\hs{c}, are studied in depth by~Jaskelioff and
+O’Connor~\shortcite{jaskelioff2015representation}.
 
 \subsection{Experience from building GHC with \Shake}
 
