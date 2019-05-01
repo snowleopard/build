@@ -1,9 +1,14 @@
 \section{Build systems, abstractly}\label{sec-abstractions}
 % \vspace{-0.5mm}
 
-This section presents abstractions that allow us to express
+We have introduced a number of components and
+characteristics of build systems:
+tasks, dependencies, early cutoff, minimality, etc.
+It is easy to get confused.
+To make all this more concrete, this section presents executable
+abstractions that can express
 all the intricacies of build systems discussed in~\S\ref{sec-background},
-and express complex build systems from simple primitives. Specifically, we
+and allow us to construct complex build systems from simple primitives. Specifically, we
 present the \emph{task} and \emph{build} abstractions in~\S\ref{sec-task}
 and~\S\ref{sec-general-build}, respectively. Sections~\S\ref{sec-scheduler},
 \S\ref{sec-rebuilder} and~\S\ref{sec-implementations} scrutinise the
@@ -41,10 +46,10 @@ example, in \Excel, the formulae of the spreadsheet constitute the task
 description; in \Make the rules in the makefile are the task description.
 
 \emph{Build system.} A \emph{build system} takes a task description, a
-\emph{target} key, and a store, and returns a new store in which the target key
+\emph{target key}, and a store, and returns a new store in which the target key
 and all its dependencies have up to date values.
 
-We model build systems concretely, as Haskell programs. To that end,
+We model a build system concretely, as a Haskell program. To that end,
 Fig.~\ref{fig-types} provides the type signatures for all key abstractions
 introduced in the paper. For example, \hs{Store}~\hs{i}~\hs{k}~\hs{v} is the
 type of stores, with several associated functions (\hs{getValue}, etc.). We use
@@ -103,7 +108,7 @@ type    Tasks c k v = k -> Maybe (Task c k v)
 Here \hs{c} stands for \emph{constraint}, such as \hs{Applicative}
 (\S\ref{sec-why-polymorphism} explains why we need it).
 A \hs{Task} describes a single build task, while \hs{Tasks} associates a
-\hs{Task} to every non-input key; input keys are associated with \hs{Nothing}.
+\hs{Task} with every non-input key; input keys are associated with \hs{Nothing}.
 The highly-abstracted type \hs{Task} describes how to build a value given
 a way to build its dependencies, and is best explained by an example.
 Consider this \Excel spreadsheet:
@@ -186,12 +191,12 @@ The code to ``compute the value of a formula'' in \hs{sprsh1} looks a bit
 mysterious because it takes place in an \hs{Applicative}
 computation~\cite{mcbride2008applicative} -- the relevant type signatures are
 given in Fig.~\ref{fig-stdlib}. We will explain why in~\S\ref{sec-general-build}.
-
 For now, we content ourselves with observing that a task description, of type
 \hs{Tasks}~\hs{c}~\hs{k}~\hs{v}, is completely isolated from the world of
 compilers, calc chains, file systems, caches, and all other complexities of real
-build systems. It just computes a single output, in a side-effect-free way,
-using a callback (\hs{fetch}) to find the values of its dependencies.
+build systems. It just computes a single output,
+using a callback (\hs{fetch}) to find the values of its dependencies,
+and limiting side effects to those described by \hs{c}.
 
 \subsection{The Build Abstraction}\label{sec-general-build}
 
@@ -260,12 +265,12 @@ to~20.
 
 \noindent
 As we can see, \hs{busy} built both \cmd{B2} and its dependency \cmd{B1} in the
-right order (if it had built \cmd{B2} before building \cmd{B1}, the result would
+correct order (if it had built \cmd{B2} before building \cmd{B1}, the result would
 have been $20 * 2 = 40$ instead of $(10 + 20) * 2 = 60$). As an example showing
 that \hs{busy} is not minimal, imagine that the formula in cell \cmd{B2} was
 \cmd{B1~+~B1} instead of \cmd{B1~*~2}. This would lead to calling
 \hs{fetch}~\hs{"B1"} twice -- once per occurrence of \cmd{B1} in the
-formula.
+formula -- and each call would recompute the formula in \cmd{B1}.
 
 \subsection{The Need for Polymorphism in Task}\label{sec-why-polymorphism}
 % \vspace{-0.5mm}
@@ -290,14 +295,15 @@ systems that can build \cmd{T} -- and we will do so in
 section~\S\ref{sec-implementations}. As we shall see, each build system will use
 a different \hs{f}, so the task description must not fix~\hs{f}.
 
-But nor can the task description work for \emph{any} \hs{f}; most task
+But the task description cannot possibly work for \emph{any} \hs{f} whatsoever; most task
 descriptions (e.g. \hs{sprsh1} in \S\ref{sec-task}) require that \hs{f}
 satisfies certain properties, such as \hs{Applicative} or \hs{Monad}. That is
 why \hs{Task} has the ``\hs{c}~\hs{f}~\hs{=>}'' constraint in its type,
 expressing that \hs{f} can only be instantiated by types that satisfy the
-constraint \hs{c}. So the type \hs{Task} emerges naturally, almost inevitably.
+constraint \hs{c} and, in exchange, the task has access to the operations of class \hs{c}.
+So the type \hs{Task} emerges naturally, almost inevitably.
 But now that it \emph{has} emerged, we find that constraints \hs{c} classify
-task descriptions in a very interesting way:
+task descriptions in a very interesting, and practically useful, way:
 \begin{itemize}
 \item \hs{Task}~\hs{Applicative}. In \hs{sprsh1} we needed only \hs{Applicative}
   operations, expressing the fact that the dependencies between cells can be
@@ -331,7 +337,7 @@ task descriptions in a very interesting way:
 As explained in~\S\ref{sec-background-excel}, some task descriptions have
 dynamic dependencies, which are determined by values of intermediate
 computations. In our framework, such task descriptions correspond to the type
-\hs{Tasks}~\hs{Monad}~\hs{k}~\hs{v}. Consider this spreadsheet example:
+\hs{Task}~\hs{Monad}~\hs{k}~\hs{v}. Consider this spreadsheet example:
 
 \vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{text}
@@ -398,6 +404,7 @@ compute task store = runIdentity (run task fetch)
 \noindent
 Here we do not need any effects in the \hs{fetch} callback to \hs{task}, so
 we can use the standard Haskell \hs{Identity} monad (Fig.~\ref{fig-stdlib}).
+Here is our first use of polymorpism in \hs{f}, discussed in \S\ref{sec-why-polymorphism}.
 The use of \hs{Identity} just fixes the ``impedance mismatch'' between the
 function \hs{getValue}, which returns a pure value~\hs{v}, and the \hs{fetch}
 argument of the \hs{task}, which must return an \hs{f}~\hs{v} for some \hs{f}.
@@ -467,7 +474,8 @@ respectively.
 Earlier we remarked that a \hs{Task}~\hs{Applicative} could only have static
 dependencies. Usually we would extract such static dependencies by (in the case
 of \Excel) looking at the syntax tree of the formula.  But a task description
-has no such syntax tree. Yet, remarkably, we can use the polymorphism of a
+has no such syntax tree: as you can see in the definition of \hs{Task} in Fig.~\ref{fig-types},
+a task is just a function, so all we can do is call it.
 \hs{Task}~\hs{Applicative} to find its dependencies \emph{without doing any of
 the actual work}. Here is the code:
 

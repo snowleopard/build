@@ -1,7 +1,7 @@
 \section{Background}\label{sec-background}
 
-Build systems automate the execution of repeatable tasks for individual users
-and large organisations. In this section we explore the design space of build
+Build systems automate the execution of repeatable tasks, at a scale from individual users
+up to large organisations. In this section we explore the design space of build
 systems, using four concrete examples: \Make~\cite{feldman1979make},
 \Shake~\cite{mitchell2012shake}, \Bazel~\cite{bazel}, and
 \Excel~\cite{advanced_excel}.
@@ -16,8 +16,8 @@ and their relationships, in~\S\ref{sec-implementations} and~\S\ref{sec-related}.
 formal specification. In this paper we use a simple approximation to a real
 \Make that you might find on your machine.} was developed
 more than 40 years ago to automatically build software libraries and executable
-programs from source code. It uses \emph{makefiles} to describe tasks, often
-referred to as \emph{build rules}, and their dependencies in a simple textual
+programs from source code. It uses \emph{makefiles} to describe \emph{tasks} --- often
+referred to as \emph{build rules} --- and their \emph{dependencies}, in a simple textual
 form. For example:
 
 \vspace{1mm}
@@ -41,9 +41,11 @@ main.exe: util.o main.o
 The above makefile lists three tasks: (i) compile a utility library comprising
 files \cmd{util.h} and \cmd{util.c} into \cmd{util.o} by
 executing\footnote{In this example we pretend \cmd{gcc} is a pure function for
-the sake of simplicity. In reality, there are multiple versions of \cmd{gcc} and
-the actual binary used to compile and link files, as well as standard libraries
-such that \cmd{stdio.h}, are often also listed as dependencies.} the command
+  the sake of simplicity. In reality, there are multiple versions of \cmd{gcc}.
+  To account for this, the actual binary for \cmd{gcc} is often listed as a dependency, along
+  with any supporting binaries, or standard libraries (such as \cmd{stdio.h}),
+  that are used by \cmd{gcc}.
+} the command
 \cmd{gcc -c util.c}, (ii) compile the main source file \cmd{main.c} into
 \cmd{main.o}, and (iii) link object files \cmd{util.o} and \cmd{main.o} into the
 executable \cmd{main.exe}. The makefile contains the complete information about
@@ -73,7 +75,7 @@ Modified inputs and files that are rebuilt are highlighted.
 \end{figure}
 
 If the user runs \Make specifying \cmd{main.exe} as the desired output, \Make
-will build~\cmd{util.o} and~\cmd{main.o}, in any order since these tasks are
+will build~\cmd{util.o} and~\cmd{main.o}, in any order (or even in parallel) since these tasks are
 independent, and then \cmd{main.exe}. If the user modifies \cmd{util.h} and runs
 \Make again, it will perform a \emph{full rebuild}, because all three tasks
 transitively depend on \cmd{util.h}, as illustrated in Fig.~\ref{fig-make}(b).
@@ -81,7 +83,7 @@ On the other hand, if the user modifies \cmd{main.c} then a \emph{partial
 rebuild} is sufficient: \cmd{util.o} does not need to be rebuilt, since its
 inputs have not changed, see Fig.~\ref{fig-make}(c). Note that if the dependency
 graph is \emph{acyclic} then each task needs to be executed at most once. Cyclic
-task dependencies are typically not allowed in build systems but there are rare
+task dependencies are typically not allowed in build systems, although there are rare
 exceptions, see~\S\ref{sec-iterative-compute}.
 
 \noindent
@@ -90,7 +92,7 @@ raison d'\^etre:
 
 \vspace{2mm}
 \textbf{Definition} (Minimality). A build system is \emph{minimal} if it
-executes tasks at most once per build and only if they transitively depend on
+executes tasks at most once per build, and only if they transitively depend on
 inputs that changed since the previous build.\label{def-minimal}
 \vspace{2mm}
 
@@ -137,8 +139,9 @@ and returns the value of the cell with that name.  The string evaluates to
 \cmd{"A1"}, so \cmd{B1} evaluates to \cmd{10}. However, the dependencies of the
 formula in \cmd{B1} are determined by the value of \cmd{C1}, so it is impossible
 to compute the dependency graph before the build starts. In this particular
-example one might say that the value of \cmd{C1} is statically known, but
-imagine that it is the result of a long computation chain -- its value will only
+example the value of \cmd{C1} is a constant, but
+it might instead be the result of a long computation chain --
+so its value will only
 become available during the build.
 
 To support dynamic dependencies, \Excel's calculation engine~\cite{excel_recalc}
@@ -234,8 +237,9 @@ if we create another documentation file \cmd{README} and add it to
 \cmd{release.tar}, discovering the new dependency, see Fig.~\ref{fig-shake}(b).
 
 \Shake's implementation is different from both \Make and \Excel in two aspects.
-First, it uses the dependency graph from the previous build to decide which
-files need to be rebuilt. This idea has a long history, going back to
+First, to decide which files need to be rebuilt,
+it uses the dependency graph that is dynamically constructed during
+the previous build . This idea has a long history, going back to
 \emph{incremental}~\cite{demers1981incremental},
 \emph{adaptive}~\cite{acar2002adaptive}, and
 \emph{self-adjusting computations} -- see
@@ -275,7 +279,7 @@ among team members. Furthermore, cloud build systems can support \emph{shallow
 builds} that materialise only end build products locally, leaving all
 intermediates in the cloud.
 
-Consider an example in Fig.~\ref{fig-bazel}. The user starts by downloading the
+Consider the example in Fig.~\ref{fig-bazel}. The user starts by downloading the
 sources, whose content hashes are (for simplicity)~1,~2 and~3, and requests to
 build \cmd{main.exe}, see Fig.~\ref{fig-bazel}(a,b). By looking up the global
 history of all previous builds\footnote{In practice, old entries are regularly
@@ -307,11 +311,13 @@ task multiple times as new dependencies are discovered and rebuilt, but it
 supports the early cutoff optimisation.
 
 To support cloud builds, \Bazel maintains (i) a \emph{content-addressable cache}
-that can be used to download a previously built file given the hash of its
-content, and (ii) the history of all executed build commands annotated with
-observed file hashes. The latter allows the build engine to bypass the execution
+that maps the hash of a file's content to the actual content of that file;
+(ii) a memo table that records all executed build commands
+with their input file hashes and output file value.
+The memo table allows the build engine to bypass the execution
 of a task, by predicting the hash of the result from the hashes of its
-dependencies, and subsequently download the result from the cache. A concrete
+dependencies; then the content-addressable cache allows the engine
+to download the result (if needed) based on the result hash. A concrete
 implementation is provided in~\S\ref{sec-implementation-cloud}.
 
 \begin{figure}
