@@ -266,7 +266,7 @@ executes a task and the result is unchanged from the previous build, it is
 unnecessary to execute the dependent tasks, and hence \Shake can stop a build
 earlier, as illustrated in Fig.~\ref{fig-cutoff}. Not all build systems support
 early cutoff: \Shake and \Bazel (introduced below) do, but \Make and \Excel do
-not.
+not (see \S\ref{sec-verifying-traces} for an explanation of why).
 
 % \vspace{-0.5mm}
 \subsection{\Bazel: A Cloud Build System}\label{sec-background-bazel}
