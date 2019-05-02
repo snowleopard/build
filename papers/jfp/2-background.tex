@@ -239,7 +239,7 @@ if we create another documentation file \cmd{README} and add it to
 \Shake's implementation is different from both \Make and \Excel in two aspects.
 First, to decide which files need to be rebuilt,
 it uses the dependency graph that is dynamically constructed during
-the previous build . This idea has a long history, going back to
+the previous build. This idea has a long history, going back to
 \emph{incremental}~\cite{demers1981incremental},
 \emph{adaptive}~\cite{acar2002adaptive}, and
 \emph{self-adjusting computations} -- see
@@ -310,10 +310,10 @@ not use the calc chain. \Bazel is not minimal in the sense that it may restart a
 task multiple times as new dependencies are discovered and rebuilt, but it
 supports the early cutoff optimisation.
 
-To support cloud builds, \Bazel maintains (i) a \emph{content-addressable cache}
+To support cloud builds, \Bazel maintains (i)~a \emph{content-addressable cache}
 that maps the hash of a file's content to the actual content of that file;
-(ii) a memo table that records all executed build commands
-with their input file hashes and output file value.
+(ii)~a memo table that records all executed build commands
+with their input and output file hashes.
 The memo table allows the build engine to bypass the execution
 of a task, by predicting the hash of the result from the hashes of its
 dependencies; then the content-addressable cache allows the engine

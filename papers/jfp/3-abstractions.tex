@@ -182,6 +182,14 @@ instance Monoid m => Applicative (Const m) where
     pure _              = Const mempty   -- mempty is identity for monoid m
     Const x <*> Const y = Const (x <> y) -- <> is the binary operation for m
 \end{minted}
+\vspace{1mm}
+\begin{minted}[fontsize=\small]{haskell}
+-- Standard types from Control.Monad.Trans.Writer
+newtype WriterT w m a = WriterT { runWriterT :: m (a, w) }
+tell :: Monad m => w   -> WriterT w m () -- write a value to the log
+lift :: Monad m => m a -> WriterT w m a  -- lift an action into WriterT
+\end{minted}
+
 % \vspace{-3mm}
 \caption{Standard library definitions.}\label{fig-stdlib}
 % \vspace{-4mm}
@@ -476,6 +484,7 @@ dependencies. Usually we would extract such static dependencies by (in the case
 of \Excel) looking at the syntax tree of the formula.  But a task description
 has no such syntax tree: as you can see in the definition of \hs{Task} in Fig.~\ref{fig-types},
 a task is just a function, so all we can do is call it.
+Yet, remarkably, we can use the polymorphism of a
 \hs{Task}~\hs{Applicative} to find its dependencies \emph{without doing any of
 the actual work}. Here is the code:
 
@@ -527,7 +536,9 @@ on a store with concrete values, which will determine the discovered
 dependencies. Accordingly, we introduce the function \hs{track} -- a combination
 of \hs{compute} and \hs{dependencies} that computes both the resulting value and
 the list of its dependencies (key/value pairs) in an arbitrary monadic
-context~\hs{m}:
+context~\hs{m}. We need this function to be polymorphic over~\hs{m}, because
+each build system will execute tasks in its own monad, as we shall see
+in~\S\ref{sec-implementations}.
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -545,13 +556,17 @@ track task fetch = runWriterT $ run task trackingFetch
 This function uses the standard Haskell \hs{WriterT} \emph{monad
 transformer}~\cite{liang1995monad} for recording additional
 information~--~a list of key/value pairs \hs{[(@@k,}~\hs{v)]}~--~when executing
-a task in an arbitrary monad~\hs{m}. We substitute the given \hs{fetch} with a
+a task in an arbitrary monad~\hs{m} (see the types in Fig.~\ref{fig-stdlib}).
+We substitute the given \hs{fetch} with a
 \hs{trackingFetch} that, in addition to fetching a value, tracks the
 corresponding key/value pair. The \hs{task} returns a value of type
 \hs{WriterT}~\hs{[(@@k,}~\hs{v)]}~\hs{m}~\hs{v}, which we unwrap with
 \hs{runWriterT}. We will use \hs{track} when implementing monadic build systems
 with dynamic dependencies, see~\S\ref{sec-implementation-shake}. Here we show an
-example of \hs{track}ing monadic tasks when \hs{m}~\hs{=}~\hs{IO}.
+example of \hs{track}ing monadic tasks when \hs{m}~\hs{=}~\hs{IO}, by defining
+a corresponding \hs{fetchIO} of type \hs{String}~\hs{->}~\hs{IO}~\hs{Integer},
+which allows us to demonstrate the dynamic nature of monadic dependencies in
+GHCi.
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
