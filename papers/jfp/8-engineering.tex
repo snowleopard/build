@@ -50,10 +50,15 @@ liftEither task = Task $ \fetch ->
 \noindent
 Here \hs{liftEither} wraps the result of the given
 \hs{fetch}~\hs{::}~\hs{k}~\hs{->}~\hs{Either}~\hs{e}~\hs{v} into \hs{EitherT}
-and then runs the task in the \hs{EitherT} monad transformer~\cite{liang1995monad}.
+and then runs the task in the \hs{EitherT} monad
+transformer~\cite{liang1995monad}.
 
-Another approach is to include failures into the computation context \hs{f}. For
-example, we can choose \hs{f}~\hs{=}~\hs{Maybe}:
+Another approach is to include failures into the computation context \hs{f}.
+Recall from~\S\ref{sec-why-polymorphism} that we require tasks to be polymorphic
+in~\hs{f}, and we can therefore choose to execute a \hs{Task} in an~\hs{f} with
+failures, the simplest example being \hs{f}~\hs{=}~\hs{Maybe}. Below we define
+a callback \hs{fetchA1A2} that returns \hs{Just}~\hs{value} for keys \cmd{A1}
+and \cmd{A2} but fails with \hs{Nothing} on all other keys:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -63,15 +68,18 @@ fetchA1A2 k = Map.lookup k (Map.fromList [("A1", 10), ("A2", 20)])
 \vspace{1mm}
 
 \noindent
-Since tasks are polymorphic in \hs{f}, we can directly run them with the
-callback \hs{fetchA1A2}. For example, the task \cmd{B1 = A1 + A2} from
-\hs{sprsh1} in~\S\ref{sec-task} returns \hs{Just}~\hs{30}, whereas the task
-\cmd{B2 = B1 * 2} returns \hs{Nothing} because \hs{fetchA1A2} fails on \cmd{B1}.
+We can directly run any \hs{Task} with this callback. For example, the task
+\cmd{B1 = A1 + A2} from \hs{sprsh1} in~\S\ref{sec-task} returns
+\hs{Just}~\hs{30}, whereas the task \cmd{B2 = B1 * 2} returns \hs{Nothing}
+because \hs{fetchA1A2} fails on \cmd{B1}.
 
 This approach is convenient if \emph{tasks are not aware of failures}, e.g. we
-can model Excel formulas as pure arithmetic functions, and introduce failures
+can model \Excel formulas as pure arithmetic functions, and introduce failures
 ``for free'' if/when needed by instantiating \hs{Tasks} with an appropriate
-\hs{f}.
+\hs{f}. In a real system this \hs{f} would be more complex than just \hs{Maybe},
+for example \hs{MaybeT}~\hs{(State}~\hs{Spreadsheet)}, thus allowing us to
+combine failures with access to \Excel's spreadsheet state by using the
+\hs{MaybeT} monad transformer~\cite{liang1995monad}.
 
 Finally, the task itself might not want to encode failures into the type of
 values \hs{v}, but instead \emph{demand that} \hs{f} \emph{has a built-in notion
@@ -99,10 +107,14 @@ With this approach we can implement a build system that accepts
 \hs{Tasks}~\hs{MonadFail}~\hs{k}~\hs{v} and handles errors by aborting the
 build early and returning
 \hs{Either}~\hs{String}~\hs{(Store}~\hs{i}~\hs{k}~\hs{v)} instead of just
-\hs{Store}~\hs{i}~\hs{k}~\hs{v} as in~\S\ref{sec-general-build}. One possible
-implementation is based on introducing an extra \hs{Either}~\hs{String} layer
-into the monad stack; while fairly direct it is also tedious, and hence we omit
-it.
+\hs{Store}~\hs{i}~\hs{k}~\hs{v} as in our \hs{Build}
+abstraction~\S\ref{sec-general-build}. One possible implementation of such a
+failure-handling build system is based on adding an extra
+\hs{Either}~\hs{String} layer into the monad stack, e.g. augmenting the monad
+\hs{State}~\hs{(Store}~\hs{i}~\hs{k}~\hs{v)} used by the schedulers
+in~\S\ref{sec-implementations} with exceptions. We omit the actual
+implementation: while fairly direct it is also tedious due to additional
+wrapping and unwrapping.
 
 % \todo{AM}{Add a MonadFail build system.}
 
