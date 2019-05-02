@@ -224,12 +224,13 @@ In \Shake we can express the rule for \cmd{release.tar} as:
     need ["release.txt"]
     files <- lines <$> readFile "release.txt"
     need files
-    system "tar" $ ["-cf", "release.tar"] ++ files
+    cmd "tar" $ ["-cf", "release.tar"] ++ files
 \end{minted}
 
 \noindent
 We first declare the static dependency on \cmd{release.txt}, then read its
-content (a list of files) and depend on each listed file, dynamically. Finally, we specify the
+content (a list of files) and depend on each listed file, dynamically. Finally,
+we specify the
 command to produce the resulting archive. Crucially, the archive will only be
 rebuilt if one of the dependencies (static or dynamic) has changed. For example,
 if we create another documentation file \cmd{README} and add it to
