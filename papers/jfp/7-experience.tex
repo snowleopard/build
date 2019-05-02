@@ -106,7 +106,7 @@ functions of the form
 \end{center}
 \vspace{1mm}
 
-for various choices of~\hs{c}, are studied in depth by~Jaskelioff and
+\noindent for various choices of~\hs{c}, are studied in depth by~Jaskelioff and
 O’Connor~\shortcite{jaskelioff2015representation}.
 
 \subsection{Experience from \Cloud \Shake}\label{sec-cloud-shake}
@@ -187,8 +187,10 @@ takes around 5 seconds, saving us up to 2 hours. Not bad!}}
 % and fully sequential \cmd{configure} we do not see the dramatic reductions
 % reported by Standard Chartered.
 
-Converting to a build suitable for sharing is
-not overly onerous, but nor is it trivial. Some things that require attention:
+Converting to a build suitable for sharing is not overly onerous, but nor is it trivial.
+In particular, a cloud build is less forgiving about untracked operations -- things that
+are wrong but usually harmless in local builds often cause serious problems in a cloud setting.
+Some things that require attention in moving to a cloud build:
 
 \begin{itemize}
 \item \textbf{Irrelevant differences}: A common problem is that you do not get
@@ -206,21 +208,17 @@ not overly onerous, but nor is it trivial. Some things that require attention:
       As an example using Haskell, compilation of \cmd{Foo.hs} produces
       \cmd{Foo.hi} and \cmd{Foo.o}. If you declare the rule as producing \cmd{Foo.hi},
       and other rules \emph{depend on} \cmd{Foo.hi}, but \emph{also use} \cmd{Foo.o} after
-      depending on \cmd{Foo.hi}, a local build will probably work. However,
+      depending on \cmd{Foo.hi}, a local build will probably work (although treating \cmd{Foo.o}
+      as a proper dependency would definitely be preferable). However,
       if \cmd{Foo.hi} is downloaded from a remote cache, \cmd{Foo.o} will not be present,
-      and subsequent commands may fail (e.g. linking). In practice, most issues encountered
+      and subsequent commands may fail (e.g. linking).
+      In practice, most issues encountered
       during the move to cloud builds for GHC were caused by failing to declare produced
       files.
 \item \textbf{Missing dependencies}: While missing dependencies are
-      always a problem, the move to a cloud build makes them even more serious.
-      Suppose you omit a dependency on a file \cmd{foo} that is produced by a rule,
-      but that changes rarely (e.g. perhaps \cmd{foo} is derived from
-      a configuration input file).
-      With purely local builds, each developer will build \cmd{foo} at least once (when
-      starting from scratch), and more regularly if they ever do clean
-      builds. In contrast, with a cloud build, the file might only be built
-      \emph{just once}, and reused forevermore. If things go wrong, a clean build
-      is no longer a refuge of last resort.
+      always a problem, the move to a cloud build makes them more serious.
+      With local builds outputs will be built at least once per user, but with a
+      cloud build they might only be built \emph{once ever}.
 \end{itemize}
 
 To help with the final two issues -- insufficient dependencies and produced
@@ -262,9 +260,9 @@ highly desirable. For example, if a commit does not touch any GHC source files
 3~minutes, by simply creating symbolic links to the previously build results
 stored in the \Cloud~\Shake cache.
 
-A small number of GHC build rules
-cannot be cached since they mutate the bundled package database (e.g. to
-register a new library); \Cloud~\Shake provides a way to manually label such
+A small number of GHC build rules cannot be cached. These rules register new libraries
+in the GHC package database, and rather than producing a output file, they mutate
+a shared file. \Cloud~\Shake provides a way to manually label such
 build rules, thereby excluding them from caching.
 
 One of the benefits of using \Shake is that we have access to high quality build
@@ -302,4 +300,3 @@ build time (at least 15\%).
 % The design we originally outlined remains the one in use. There has been a huge
 % amount of engineering work to make the tests pass (many of the details encoded
 % in the \Make build system were incidental -- but some were essential).
-
