@@ -254,33 +254,32 @@ not overly onerous, but nor is it trivial. Some things that require attention:
 
 \begin{itemize}
 \item \textbf{Irrelevant differences}: A common problem is that you do not get
-      shared caching when you want it. To get caching, it is important that all
-      machines are identical for the aspects that involve the build system. In
-      particular, that means that all paths must be relative, and all
-      dependencies on system binaries (e.g. \cmd{gcc}) should either be
-      controlled by the build system (e.g. using \Nix) or have tolerance to
-      account for minor machine variations.
+      shared caching when you want it. As one example, imagine two users install
+      \cmd{gcc} on different paths (say \cmd{/usr/bin} and \cmd{/usr/local/bin})
+      -- if these paths are recorded by the build system the users won't share
+      cache entries. As another example, consider a compiler that embeds the current time
+      in the output -- any users who build that file locally won't get any shared
+      caching of subsequent outputs. Possible solutions include using relative paths,
+      depending only on version numbers for system binaries (e.g. \cmd{gcc}),
+      controlling the environment closely (e.g. using \Nix) and extra flags to
+      encourage compilers to be more deterministic.
 \item \textbf{Insufficient produced files}: A build rule must declare all files
-      it produces, so these are stored in the cache and can be restored from the
-      cache. If you do not use a remote cache then it is permissible to have
-      files not known to the build system which change at the same time as files
-      that are known. Once using a remote cache any file that is produced as a
-      side-effect of a rule and then later used \emph{must} be declared. Failure
-      to declare such files means that if some step produces a file, and a later
-      step relies on it, that step breaks. In practice, most issues encountered
-      during the move to cloud builds for GHC were a lack of declared produced
+      it produces, so these can be included in the cache.
+      As an example using Haskell, compilation of \cmd{Foo.hs} produces
+      \cmd{Foo.hi} and \cmd{Foo.o}. If you declare the rule as producing \cmd{Foo.hi},
+      and only ever depend on \cmd{Foo.hi}, but \emph{use} \cmd{Foo.o} after
+      depending on \cmd{Foo.hi}, a local build will probably work. However,
+      if \cmd{Foo.hi} is downloaded from a remote cache, \cmd{Foo.o} will not be present,
+      and subsequent commands may fail (e.g. linking). In practice, most issues encountered
+      during the move to cloud builds for GHC were caused by failing to declare produced
       files.
 \item \textbf{Insufficient dependencies}: While insufficient dependencies are
-      often a problem, the move to a cloud build makes them even more critical,
-      as missing dependencies are likely to mean a result is \emph{never built
-      locally}, rather than just build locally only once. Furthermore,
-      dependencies in a cloud setting must be more complete. For example, using
-      the build system from Fig.~\ref{fig-make}, with a local build system
-      without early cutoff, if the rule to produce \cmd{main.exe} also made use
-      of \cmd{main.c} but did not declare so, that is not a problem. With the
-      addition of early cutoff, if \cmd{main.c} changes in an important way but
-      \cmd{main.o} is not rebuilt that causes issues, but is a somewhat rare
-      occurrence. With cloud builds that becomes somewhat more common.
+      always a problem, the move to a cloud build makes them even more serious.
+      If you omit a dependency on a file that changes rarely, each developer will
+      have built it locally at least once, and more regularly if they ever do clean
+      builds. In contrast, with a cloud build, the file might only be built
+      \emph{just once}, and reused forevermore. If things go wrong, a clean build
+      is no longer a refuge of last resort.
 \end{itemize}
 
 To help with the final two issues -- insufficient dependencies and produced
