@@ -434,58 +434,64 @@ example _ = Nothing
 
 \subsection{Multiple-Output Build Tasks}\label{sec-multiple-outputs}
 
-We can use the extra polymorphism from \S\ref{sec-polymorphism} for build tasks that produce multiple output
-keys~--~for example, \cmd{ghc A.hs} produces both \cmd{A.hi} and \cmd{A.o}.
-That can be represented by having a key whose value is a pair of file names, and
-whose result is a pair of file contents. From that, the task for \cmd{A.hi}
-can be the first component of the result of the pair. Such an operation
-can be encoded without polymorphic keys provided the pair of files (or a dummy
-file representing the pair) is marked as changed if either of the contained
-files change, but it is more elegant and type-safe with the extra polymorphism.
+Some build tasks produce multiple output keys -- for example \cmd{ghc A.hs} produces both
+\cmd{A.hi} and \cmd{A.o}. This pattern can be encoded by having a key \cmd{A.hi+A.o} which produces
+both results, then each of \cmd{A.hi} and \cmd{A.o} can extract the relevant result
+from \cmd{A.hi+A.o}. We can express this pattern more clearly with the extra type safety from
+\S\ref{sec-polymorphism}, using either pairs or lists for both the key and value:
 
-Multiple-output build tasks require one more convenience mechanism,
-which is orthogonal to polymorphism. Multiple-output task descriptions partition
-the set of keys into \emph{elementary subsets} e.g.
-$\{\cmd{A.hi},\cmd{A.o}\} \rightarrow \cmd{ghcTask}$,
-$\{\cmd{B.o}\} \rightarrow \cmd{gccTask}$, etc. It is very convenient to
-allow to fetch arbitrary sets of keys, such as $\{\cmd{A.o},\cmd{B.o}\}$,
-without manually decomposing them into appropriate elementary subsets. This
-requires a method to efficiently construct task descriptions operating on
-arbitrary sets of keys rather on elementary subsets. One way to implement such
-``multiple-output task closure'' is shown below.
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Key a where
+    File  :: FilePath -> Key String
+    Files :: [FilePath] -> Key [String]
+
+task :: TasksT Monad Key
+task (File "A.hi") = Just $ TaskT $ \fetch -> do
+    [hi, o] <- fetch (Files ["A.hi","A.o"])
+    pure hi
+task (File "A.o") = Just $ TaskT $ \fetch -> do
+    [hi, o] <- fetch (Files ["A.hi","A.o"])
+    pure o
+task (Files ["A.hi","A.o"]) = Just $ TaskT $ \fetch ->
+    -- run ghc here
+\end{minted}
+\vspace{1mm}
+
+The only awkward aspect is that both \cmd{A.hi} and \cmd{A.o} must ask for exactly the same
+\cmd{Files} key. If one \hs{File} key swapped the order of the list to \hs{Files} then it would likely
+run \cmd{ghc} twice. To help construct a well-formed multiple-output build task
+it is convenient to partition the set of keys into \emph{elementary subsets}.
+We can encode such a partition with a function from any key to all the members of its
+subset (in a consistent order).
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Partition k = k -> [k]
-
-multi :: Eq k => Partition k -> Tasks Applicative [k] [v]
-                             -> Tasks Applicative [k] [v]
-multi partition tasks keys
-    | k:_ <- keys, partition k == keys = tasks keys
-    | otherwise = Just $ Task $ \fetch ->
-        sequenceA [ select k <$> fetch (partition k) | k <- keys ]
-  where
-    select k = fromMaybe (error msg) . lookup k . zip (partition k)
-    msg = "Partition invariants violated"
 \end{minted}
 \vspace{1mm}
 
-\noindent
-The function \hs{multi} takes a task description \hs{tasks} that operates on
-elementary key subsets, and computes its closure supporting all possible
-combinations of keys. The first argument \hs{partition} specifies the elementary
-key subsets supported by the original \hs{tasks}. There are two cases: (i) if a
-given set of \hs{keys} is an elementary subset, we pass the query to \hs{tasks};
-(ii) otherwise, we examine every key \hs{k} in \hs{keys}, \hs{fetch} its
-corresponding elementary subset, and \hs{select} the appropriate value from the
-result. Returning to the above example, when given the query
-$\{\cmd{A.o},\cmd{B.o}\}$, this function will \hs{fetch} elementary subsets
-$\{\cmd{A.hi},\cmd{A.o}\}$ and $\{\cmd{B.o}\}$, thereby depending on the
-corresponding build tasks \cmd{ghcTask} and \cmd{gccTask}.
+\noindent In our example the partition function on either of the output names \hs{"A.hi"} or \hs{"A.o"} would
+return \hs{["A.hi", "A.o"]}.
 
-We chose not to use polymorphic tasks in the above implementation for
-simplicity, but nothing prevents us from combining polymorphism with
-multiple-output task closure.
+With a suitable \hs{Partition} it is possible to create a mapping that resolves \hs{File}
+keys automatically into the correct \hs{Files} key.
+
+\vspace{1mm}
+\begin{minted}[xleftmargin=10pt]{haskell}
+task :: Partition FilePath -> TasksT Monad Key
+task partition (File k) = Just $ TaskT $ \fetch -> do
+    let ks = partition k
+    let Just i = elemIndex k ks
+    vs <- fetch (Files ks)
+    pure (vs !! i)
+-- patterns matching Files
+\end{minted}
+\vspace{1mm}
+
+In the above function we compute the partition, find the index of this key within that
+partition (using \hs{elemIndex}), run the \hs{fetch} on every key in the partition,
+then extract out our specific result (using the indexing operation \hs{!!}).
 
 % \todo{AM/NM}{We are talking about sets above, but are using lists, which is a
 % bit inconsistent. We could switch from \hs{[k]} to \hs{Set k} fairly easily.
