@@ -1,11 +1,17 @@
 \section{Experience}\label{sec-experience}
 
-As a set of authors, we've written a paper about the \Shake build
-system~\cite{mitchell2012shake}, applying \Shake to building GHC~\cite{hadrian},
-and a paper about the categorisation of build
-systems~\cite{mokhov2018buildsystems}. The original motivation of the research
-in that final paper was to create ``\Cloud \Shake'', and apply it to the GHC
-build system. In this section we tie these papers together, reflecting on our
+We have described a framework that can describe, and indeed execute in
+prototype form, a wide spectrum of build systems.  But our ultimate
+goal is a practical one: to use these insights to construct a better
+build system.  Our earlier work on the \Shake build
+system~\cite{mitchell2012shake}, and applying \Shake to
+building GHC~\cite{hadrian}, makes progress in that direction.
+
+Based on the thinking in this paper we have extended \Shake to
+become \Cloud \Shake, the first cloud-capable build system to support
+both early cutoff and monadic dependencies (\S{sec-implementation-cloud}),
+and deployed it to GHC's (very substantial) build system, Hadrian~\cite{hadrian}.
+In this section we tie these papers together, reflecting on our
 experience since these papers.
 
 \subsection{Experience from \Shake}\label{sec-experience-shake}
@@ -17,37 +23,39 @@ project\footnote{\url{https://github.com/ndmitchell/shake}}. These commits add
 concepts like \emph{resources} (for handling situations when two build tasks
 contend on a single external resource), rewriting serialisation to be faster,
 documentation including a website\footnote{\url{https://shakebuild.com}}, and
-add a lot of tests. The biggest change in that time period was moving from
-blocking threads to continuations for the suspending scheduler. The most visible
-change is switching from \hs{*>} to \hs{@\%@>} for defining rules\footnote{A
-conflicting \hs{*>} operator was added to the Haskell \hs{Prelude}.}, but almost
-all external and internal details remain the same.
-
+add a lot of tests. The biggest change in that time period was an implementation
+change: moving from
+blocking threads to continuations for the suspending scheduler.
+But otherwise, almost all external and internal details remain the same\footnote{
+  The most visible change is purely notational: switching from \hs{*>} to \hs{@\%@>}
+  for defining rules, because a conflicting \hs{*>} operator was added to the
+  Haskell \hs{Prelude}.}.
 We consider the lack of change suggestive that \Shake is based on fundamental
 principles -- principles we can now name and describe as a consequence
-of the categorisation paper~\cite{mokhov2018buildsystems}. There are two main
+of this paper.
+
+There are two main
 aspects to the original \Shake paper~\cite{mitchell2012shake} that are described
 more clearly in this paper. Firstly, the rebuilder can now be described using
 verifying step traces~\S\ref{sec-step-traces}, with a much clearer relationship
-to the unoptimised verifying traces of~\S\ref{sec-verifying-traces}. The second
-aspect is the power of \Shake tasks, or ``actions'' in the original paper,
-which were originally described using this data type:
-
+to the unoptimised verifying traces of~\S\ref{sec-verifying-traces}. Secondly,
+in the original paper the tasks (there called ``actions'')
+were described in continuation-passing style using this data type\footnote{
+The original paper uses concrete types \hs{Key} and \hs{Value}. Here we
+generalise these types to \hs{k} and \hs{v}, and also add \hs{a} so that
+\hs{Action}~\hs{k}~\hs{v} can be an instance of \hs{Monad}}.
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Action k v a = Finished a
                   | Depends k (v -> Action k v a)
 \end{minted}
 \vspace{1mm}
-
 \noindent
-This type is equivalent to \hs{Task}~\hs{Monad} -- the two types form an
-isomorphism. The original paper uses concrete types \hs{Key} and \hs{Value}, we
-generalise these types to \hs{k} and \hs{v}, and also add \hs{a} so that
-\hs{Action}~\hs{k}~\hs{v} can be an instance of \hs{Monad}. We define that
-\hs{Monad} instance, and use it to write conversion functions to/from our
-\hs{Task} type, witnessing the isomorphism:
-
+In this paper we describe tasks more directly, in a monadic (or applicative or functorial)
+style. But in fact the two are equivalent: \hs{Task Monad k v} is
+isomporphic to \hs{Action k v v}.
+To be concrete, the functions \hs{toAction} and \hs{fromAction} witness the
+isomorphism in both directions.
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 instance Monad (Action k v) where
@@ -67,23 +75,24 @@ fromAction x = Task $ \fetch -> f fetch x
 \vspace{1mm}
 
 \noindent
-Similarly, \Make tasks were described as equivalent to
+Similarly, in the original paper \Make tasks were described as equivalent to
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Rule k v a = Rule { depends :: [k], action :: [v] -> a }
 \end{minted}
 \vspace{1mm}
-
+\noindent
 Assuming the lengths of the lists \hs{[@@k]} and \hs{[@@v]} always match, the
 data type \hs{Rule}~\hs{k}~\hs{v}~\hs{v} is isomorphic to
 \hs{Task}~\hs{Applicative}~\hs{k}~\hs{v}, and we can define a similar
-\hs{Applicative} instance and conversion functions. By describing these types
+\hs{Applicative} instance and conversion functions.
+
+By describing these types
 using \hs{Task} we are able to describe the differences more concisely
 (\hs{Monad} vs \hs{Applicative}), use existing literature to determine what is
 and isn't possible, and explore other constraints beyond just \hs{Monad} and
 \hs{Applicative}.
-
 These and other isomorphisms for \emph{second-order functionals}, i.e.
 functions of the form
 
@@ -100,82 +109,10 @@ functions of the form
 for various choices of~\hs{c}, are studied in depth by~Jaskelioff and
 O’Connor~\shortcite{jaskelioff2015representation}.
 
-\subsection{Experience from building GHC with \Shake}
-
-\Hadrian is a build system for the Glasgow Haskell Compiler~\cite{ghc}. It was
-developed to replace a \Make-based build system and solve multiple scalability
-and maintainability challenges. As discussed in detail
-by~Mokhov~\etal~\shortcite{hadrian}, most of these challenges were consequences
-of two key \Make's shortcomings: (i)~poor abstraction facilities of makefiles,
-i.e. the need to program in a single namespace of mutable string variables, and
-(ii)~the lack of dynamic dependencies~(\S\ref{sec-background-shake}).
-\Hadrian benefits both from \Shake's features and from the host language
-Haskell, making the new GHC build system easier to understand and maintain.
-Interestingly, although \Shake is not a self-tracking build
-system~(\S\ref{sec-tracking-aspects}), \Hadrian implements a little
-domain-specific language for constructing build command lines, and then tracks
-command lines by treating them as a type of values -- an example of
-\emph{partial self-tracking} made possible by \Shake's support for value
-polymorphism~(\S\ref{sec-polymorphism}).
-
-The development of \Cloud \Shake allows GHC developers to take advantage of
-sharing build results between builds, which is particularly promising in the
-context of GHC's continuous integration (CI) infrastructure responsible for
-building and testing every GHC commit. Building GHC~8.8 from scratch with
-default settings takes around 1 hour on Windows using both \Hadrian and the
-original \Make-based build system. This includes building the compiler itself,
-29~bundled libraries, such as \cmd{base} (each in vanilla and profiled way), and
-6~bundled executables, such as \cmd{Haddock}. A single commit typically modifies
-only a small part of the whole codebase, making the cloud-build functionality
-highly desirable. In particular, if a commit does not touch any GHC source files
-at all (e.g. only modifies the documentation), \Hadrian can build GHC in under
-3~minutes, by simply creating symbolic links to the previously built results
-stored in the \Cloud~\Shake cache. Note that a small number of GHC build rules
-cannot be cached since they mutate the bundled package database (e.g. to
-register a new library); \Cloud~\Shake provides a way to manually label such
-build rules, thereby excluding them from caching.
-
-One of the benefits of using \Shake is that we have access to high quality build
-profiling information, allowing us to compute critical paths and other metrics,
-see Mitchell~\shortcite{mitchell2019ghcrebuildtimes} for an overview of \Shake's
-profiling features. This information has shown us that GHC is slow to build
-(1~hour on an 4~CPU Windows machine), that more CPUs would not help (on
-unlimited CPUs the speed up would be less than 10\%), and that a handful of
-build tasks (two anomalously slow Haskell compilations, and some calls to slow
-single-threaded \cmd{configure}) are responsible for a significant amount of
-build time (at least 10~minutes).
-
-% Benchmarking:
-% \begin{itemize}
-%   \item Building \Hadrian: 55s. For comparison, building the Cabal library: 4m.
-%   \item Initial Windows tarball download: 45s.
-%   \item Initial \cmd{boot} and \cmd{configure} on Windows: 2m 25s.
-%   \item Full GHC build using \Hadrian with default settings:
-%         \cmd{hadrian/build.bat -j8}: 57m. Subsequent zero build: 5s.
-%   \item Full GHC build using \Hadrian with default settings in the cloud mode:
-%         \cmd{hadrian/build.bat -j8 -}\cmd{-share=cache}: 58m.
-%         Subsequent zero build: 5s.
-%         Subsequent full rebuild after deleting the build directory: 5m 27s.
-%   \item Full GHC build using \Make with default settings: \cmd{make -j8}: 60m.
-%         Subsequent zero build: 18s.
-% \end{itemize}
-
-% The build system used to compile GHC, known as \Hadrian, has continued
-% development. The use of dynamic dependencies has made the build much easier, and
-% it's now more maintainable. It's now merged into the GHC repo and tested as
-% standard by the CI. It's current state is ... In particular, it takes N minutes
-% to build with \Shake, vs M minutes to build with \Make. The \Shake version has
-% attracted more contributors, and been easier to modify, etc. The code is N
-% lines.
-
-% The design we originally outlined remains the one in use. There has been a huge
-% amount of engineering work to make the tests pass (many of the details encoded
-% in the \Make build system were incidental -- but some were essential).
-
 \subsection{Experience from \Cloud \Shake}\label{sec-cloud-shake}
 
 Converting \Shake into \Cloud \Shake was not a difficult process once armed with
-a roadmap~\cite{mokhov2018buildsystems}. The key was the introduction of two new
+the roadmap in this paper. The key was the introduction of two new
 functions:
 
 \vspace{1mm}
@@ -190,19 +127,20 @@ lookupCloud :: (k -> m (Maybe (Hash v))) -> k -> Ver -> Ver
 \noindent
 These functions are suspiciously like \hs{recordCT} and \hs{constructCT}
 from~\S\ref{sec-constructive-traces}, with their differences perhaps the most
-illustrative of the changes required. (We have made some minor changes from
+illustrative of the changes required\footnote{
+  We have made some minor changes from
 actual \Shake, like replacing \hs{Key} for \hs{k}, to reduce irrelevant
-differences.)
+differences.}.
 
 \begin{itemize}
-\item There are two \hs{Ver} arguments being passed to each function. These are
+\item Two \hs{Ver} arguments are passed to each function. These are
       the versions of the build script, and the rule for this particular key. If
       either version changes then it is as though the key has changed, and
       nothing will match. These versions are important to avoid using stale
       build products from previous versions of the build script.
 \item The list of dependencies to \hs{addCloud} is a list of lists, rather than
       a simple list. The reason is that \Shake allows a list of dependencies to
-      be supplied at once, so they can all be built in parallel.
+      be specfied simultaneously, so they can all be built in parallel.
 \item The \hs{addCloud} function also takes a list of \hs{FilePath}, being the
       files that this rule produces. These produced files include those which
       are output keys from a rule and those declared with the function
@@ -255,28 +193,31 @@ not overly onerous, but nor is it trivial. Some things that require attention:
 \begin{itemize}
 \item \textbf{Irrelevant differences}: A common problem is that you do not get
       shared caching when you want it. As one example, imagine two users install
-      \cmd{gcc} on different paths (say \cmd{/usr/bin} and \cmd{/usr/local/bin})
-      -- if these paths are recorded by the build system the users won't share
+      \cmd{gcc} on different paths (say \cmd{/usr/bin/gcc} and \cmd{/usr/local/bin/gcc}).
+      If these paths are recorded by the build system, the users won't share
       cache entries. As another example, consider a compiler that embeds the current time
-      in the output -- any users who build that file locally won't get any shared
-      caching of subsequent outputs. Possible solutions include using relative paths,
-      depending only on version numbers for system binaries (e.g. \cmd{gcc}),
-      controlling the environment closely (e.g. using \Nix) and extra flags to
+      in the output: any users who build that file locally won't get any shared
+      caching of subsequent outputs. Possible solutions include using relative paths;
+      depending only on version numbers for system binaries (e.g. \cmd{gcc});
+      controlling the environment closely (e.g. using \Nix); and extra flags to
       encourage compilers to be more deterministic.
 \item \textbf{Insufficient produced files}: A build rule must declare all files
       it produces, so these can be included in the cache.
       As an example using Haskell, compilation of \cmd{Foo.hs} produces
       \cmd{Foo.hi} and \cmd{Foo.o}. If you declare the rule as producing \cmd{Foo.hi},
-      and only ever depend on \cmd{Foo.hi}, but \emph{use} \cmd{Foo.o} after
+      and other rules \emph{depend on} \cmd{Foo.hi}, but \emph{also use} \cmd{Foo.o} after
       depending on \cmd{Foo.hi}, a local build will probably work. However,
       if \cmd{Foo.hi} is downloaded from a remote cache, \cmd{Foo.o} will not be present,
       and subsequent commands may fail (e.g. linking). In practice, most issues encountered
       during the move to cloud builds for GHC were caused by failing to declare produced
       files.
-\item \textbf{Insufficient dependencies}: While insufficient dependencies are
+\item \textbf{Missing dependencies}: While missing dependencies are
       always a problem, the move to a cloud build makes them even more serious.
-      If you omit a dependency on a file that changes rarely, each developer will
-      have built it locally at least once, and more regularly if they ever do clean
+      Suppose you omit a dependency on a file \cmd{foo} that is produced by a rule,
+      but that changes rarely (e.g. perhaps \cmd{foo} is derived from
+      a configuration input file).
+      With purely local builds, each developer will build \cmd{foo} at least once (when
+      starting from scratch), and more regularly if they ever do clean
       builds. In contrast, with a cloud build, the file might only be built
       \emph{just once}, and reused forevermore. If things go wrong, a clean build
       is no longer a refuge of last resort.
@@ -287,3 +228,78 @@ files -- we have further enhanced the \Shake lint modes, coupling them to a
 program called \cmd{FSATrace}, which detects which files are read/written by a
 command line execution. Such information has been very helpful in making the GHC
 build cloud ready.
+
+\subsection{Experience from building GHC with \Shake}
+
+\Hadrian is a build system for the Glasgow Haskell Compiler~\cite{ghc}. It was
+developed to replace a \Make-based build system and solve multiple scalability
+and maintainability challenges. As discussed in detail
+by~Mokhov~\etal~\shortcite{hadrian}, most of these challenges were consequences
+of two key shortcomings of \Make: (i)~poor abstraction facilities of makefiles,
+notably the need to program in a single namespace of mutable string variables, and
+(ii)~the lack of dynamic dependencies~(\S\ref{sec-background-shake}).
+\Hadrian benefits both from \Shake's features and from the host language
+Haskell, making the new GHC build system easier to understand and maintain.
+
+Interestingly, although \Shake is not a self-tracking build
+system~(\S\ref{sec-tracking-aspects}), \Hadrian implements a little
+domain-specific language for constructing build command lines, and then tracks
+command lines by treating them as a type of values -- an example of
+\emph{partial self-tracking} made possible by \Shake's support for value
+polymorphism~(\S\ref{sec-polymorphism}).
+
+The subsequent development of \Cloud \Shake allows GHC developers to take advantage of
+sharing build results between builds, which is particularly promising in the
+context of GHC's continuous integration (CI) infrastructure responsible for
+building and testing every GHC commit. Building GHC~8.8 from scratch with
+default settings takes around 1 hour on Windows using both \Hadrian and the
+original \Make-based build system. This includes building the compiler itself,
+29~bundled libraries, such as \cmd{base} (each in vanilla and profiled way), and
+6~bundled executables, such as \cmd{Haddock}. A single commit typically modifies
+only a small part of the whole codebase, making the cloud-build functionality
+highly desirable. For example, if a commit does not touch any GHC source files
+(e.g. only modifies the documentation), \Hadrian can build GHC from scratch in under
+3~minutes, by simply creating symbolic links to the previously build results
+stored in the \Cloud~\Shake cache.
+
+A small number of GHC build rules
+cannot be cached since they mutate the bundled package database (e.g. to
+register a new library); \Cloud~\Shake provides a way to manually label such
+build rules, thereby excluding them from caching.
+
+One of the benefits of using \Shake is that we have access to high quality build
+profiling information, allowing us to compute critical paths and other metrics;
+see Mitchell~\shortcite{mitchell2019ghcrebuildtimes} for an overview of \Shake's
+profiling features. This information has shown us, for example, that more CPUs would not help (on
+unlimited CPUs the speed up would be less than 10\%), and that a handful of
+build tasks (two anomalously slow Haskell compilations, and some calls to slow
+single-threaded \cmd{configure}) are responsible for a significant fraction of
+build time (at least 15\%).
+
+% Benchmarking:
+% \begin{itemize}
+%   \item Building \Hadrian: 55s. For comparison, building the Cabal library: 4m.
+%   \item Initial Windows tarball download: 45s.
+%   \item Initial \cmd{boot} and \cmd{configure} on Windows: 2m 25s.
+%   \item Full GHC build using \Hadrian with default settings:
+%         \cmd{hadrian/build.bat -j8}: 57m. Subsequent zero build: 5s.
+%   \item Full GHC build using \Hadrian with default settings in the cloud mode:
+%         \cmd{hadrian/build.bat -j8 -}\cmd{-share=cache}: 58m.
+%         Subsequent zero build: 5s.
+%         Subsequent full rebuild after deleting the build directory: 5m 27s.
+%   \item Full GHC build using \Make with default settings: \cmd{make -j8}: 60m.
+%         Subsequent zero build: 18s.
+% \end{itemize}
+
+% The build system used to compile GHC, known as \Hadrian, has continued
+% development. The use of dynamic dependencies has made the build much easier, and
+% it's now more maintainable. It's now merged into the GHC repo and tested as
+% standard by the CI. It's current state is ... In particular, it takes N minutes
+% to build with \Shake, vs M minutes to build with \Make. The \Shake version has
+% attracted more contributors, and been easier to modify, etc. The code is N
+% lines.
+
+% The design we originally outlined remains the one in use. There has been a huge
+% amount of engineering work to make the tests pass (many of the details encoded
+% in the \Make build system were incidental -- but some were essential).
+
