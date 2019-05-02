@@ -157,7 +157,7 @@ Some examples of impure tasks include:
 \item \textbf{Non-determinism}: Some tasks are \emph{non-deterministic},
       producing any result from a possible set. As an example, GHC programs
       compiled using parallelism can change the order in which unique variables
-      are obtained from the supply, producing different but semantically
+      are obtained from the name supply, producing different but semantically
       identical results.
 
 \item \textbf{Volatility}: Some tasks are defined to change in every build, e.g.
@@ -165,7 +165,7 @@ Some examples of impure tasks include:
       number in a specified range on each recalculation. Similarly, build
       systems like \Make and \Shake provide volatile \emph{phony rules}. The
       main difference from non-deterministic tasks is that volatile tasks cannot
-      be cached. They are best modelled as depending on a special key
+      be cached. They are readily modelled as depending on a special key
       \cmd{RealWorld} whose value is changed in every build.
 \end{itemize}
 
@@ -174,7 +174,7 @@ impurity. Systems like \Bazel use various sandboxing techniques to guard against
 missing dependencies, but none are likely to capture all dependencies right down
 to the CPU model and microcode version. Tasks that do have untracked
 dependencies can be marked as volatile, a technique \Excel takes with the
-\cmd{INDIRECT} function, removing the untracked dependency at the cost of
+\cmd{INDIRECT} function, fixing the untracked dependency at the cost of
 minimality.
 
 Most of the implementations in \S\ref{sec-implementations} can deal with
@@ -522,13 +522,16 @@ sprsh4 "B1" = Just $ Task $ \fetch -> do
 \vspace{1mm}
 
 \noindent
-The build systems that have precise self-tracking are all ones which use a
-\emph{non-embedded domain specific language} to describe build tasks. Those
-which use a full programming language, e.g. \Shake, are faced with the challenge
-of implementing equality on arbitrary task functions. For such build systems,
-the pessimistic assumption that any change to the build system potentially
-changes any build task can often be used~--~the classic example being a makefile
-depending on itself.
+The build systems that have precise self-tracking are all ones which
+use a \emph{non-embedded domain specific language} to describe build
+tasks; that is, a task is described by a data structure (or syntax
+tree), and tasks can be compared for equality by comparing those data
+structures. Those which use a full programming language, e.g. \Shake,
+are faced with the challenge of implementing equality on arbitrary
+tasks -- and a task is just a function.  For such build systems, the
+only safe approach is to assume (pessimistically) that any
+change to the build system potentially changes any build task ~--~ the
+classic example being a makefile depending on itself.
 
 Below we show how to implement self-tracking in a build system that allows users
 to describe build tasks by \emph{scripts} written in a non-embedded domain
