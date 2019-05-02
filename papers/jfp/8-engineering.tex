@@ -270,23 +270,10 @@ build systems go even further, integrating with the file system to only
 materialise the file when the user accesses it~\cite{gvfs}.
 \end{itemize}
 
-To legitimise shallow builds, we need to relax the correctness
-Definition~\ref{def-correct} as follows. Let the \hs{shallow} store correspond
-to the result of a shallow build. Then \hs{shallow} is correct, if \emph{there
-exists} a \hs{result} which satisfies all requirements of the
-Definition~\ref{def-correct}, \emph{such that} \hs{shallow} agrees with the
-\hs{result} on all the input keys \hs{k}~$\in$~$I$:
-\[
-\hs{getValue}~\hs{k}~\hs{shallow}~\hs{==}~\hs{getValue}~\hs{k}~\hs{result} % \text{,}
-\]
-and on the target \hs{key}:
-\[
-\hs{getValue}~\hs{key}~\hs{shallow}~\hs{==}~\hs{getValue}~\hs{key}~\hs{result} % \text{.}
-\]
-
-\noindent
-This relaxes the requirements on shallow builds by dropping the constraints on
-the \hs{shallow} store for all intermediate keys \hs{k}~$\in$~$O\setminus \{\hs{key}\}$.
+Shallow builds have a slightly weaker correctness property than
+Definition~\ref{def-correct}. Instead of demanding that \emph{all} keys reachable
+from the target match, we only require matches for the target itself and the \emph{input
+keys} reachable from the target.
 
 \begin{figure}
 \begin{subfigure}[b]{0.31\linewidth}
@@ -318,9 +305,11 @@ cloud storage entries are highlighted; file hashes are shown in circles.
 % \vspace{-4mm}
 \end{figure}
 
-Deep constructive traces (\S\ref{sec-deep-constructive-traces}) combined with
-task non-determinism (\S\ref{sec-non-determinism}) can lead to very subtle bugs,
-especially in the cloud setting. Fig.~\ref{fig-frankenbuild} shows a
+As described in \S\ref{sec-using-cloud-shake}, non-determinism  (\S\ref{sec-non-determinism})
+is harmful for cloud builds, reducing the number of cache hits.
+However, for deep constructive traces (\S\ref{sec-deep-constructive-traces}) it
+is much worse, even leading to \emph{incorrect results}.
+Fig.~\ref{fig-frankenbuild} shows a
 \emph{Frankenbuild}~\cite{esfahani2016cloudbuild} example, where the target
 \cmd{report.txt}, which is downloaded from the cloud, is inconsistent with its
 immediate dependency \cmd{main.prof}. This inconsistency is caused by two factors:
