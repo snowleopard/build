@@ -10,17 +10,19 @@ would need to be done to capture them in our model, and what the impact would be
 Our model assumes a world where the store is fully-defined, every \hs{k} is
 associated with a \hs{v}, and every compute successfully completes returning a
 valid value. In the real world, build systems frequently deal with errors, e.g.
-``file not found'' or ``compilation failed''. We can model such failure
-conditions by instantiating \hs{v} to either \hs{Maybe}~\hs{v} (for missing
-values) or \hs{Either}~\hs{e}~\hs{v} (for exceptions of type \hs{e}). That can
-model the errors inside the store and the \hs{Task}, but because our build
-system models are polymorphic in \hs{v}, they cannot apply any special behaviour
-for errors, e.g. aborting the build early. There are many other ways of
-modelling errors, and in this section we show three simple examples.
+``file not found'' or ``compilation failed''. There are many ways of modelling
+errors, and in this section we give three simple examples.
 
-As mentioned above, we can include failures into the type of values \hs{v}, for
-example, to model a partial store we can use a simple like algebraic data type
-isomorphic to \hs{Maybe}:
+% We can model such failure
+% conditions by instantiating \hs{v} to either \hs{Maybe}~\hs{v} (for missing
+% values) or \hs{Either}~\hs{e}~\hs{v} (for exceptions of type \hs{e}). That can
+% model the errors inside the store and the \hs{Task}, but because our build
+% system models are polymorphic in \hs{v}, they cannot apply any special behaviour
+% for errors, e.g. aborting the build early.
+
+One simple approach is to include failures into the type of values \hs{v}, for
+example, to model a partial store we can use an algebraic data type isomorphic
+to \hs{Maybe}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -49,8 +51,8 @@ liftEither task = Task $ \fetch ->
 
 \noindent
 Here \hs{liftEither} wraps the result of the given
-\hs{fetch}~\hs{::}~\hs{k}~\hs{->}~\hs{Either}~\hs{e}~\hs{v} into \hs{EitherT}
-and then runs the task in the \hs{EitherT} monad
+\hs{fetch}~\hs{::}~\hs{k}~\hs{->}~\hs{Either}~\hs{e}~\hs{v} into \hs{ExceptT}
+and then runs the task in the \hs{ExceptT} monad
 transformer~\cite{liang1995monad}.
 
 Another approach is to include failures into the computation context \hs{f}.
