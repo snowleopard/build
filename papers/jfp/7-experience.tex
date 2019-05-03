@@ -40,10 +40,10 @@ more clearly in this paper. Firstly, the rebuilder can now be described using
 verifying step traces~\S\ref{sec-step-traces}, with a much clearer relationship
 to the unoptimised verifying traces of~\S\ref{sec-verifying-traces}. Secondly,
 in the original paper the tasks (there called ``actions'')
-were described in continuation-passing style using this data type\footnote{
+were described in continuation-passing style using the data type:\footnote{
 The original paper uses concrete types \hs{Key} and \hs{Value}. Here we
 generalise these types to \hs{k} and \hs{v}, and also add \hs{a} so that
-\hs{Action}~\hs{k}~\hs{v} can be an instance of \hs{Monad}}.
+\hs{Action}~\hs{k}~\hs{v} can be an instance of \hs{Monad}}
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Action k v a = Finished a
@@ -75,7 +75,7 @@ fromAction x = Task $ \fetch -> f fetch x
 \vspace{1mm}
 
 \noindent
-Similarly, in the original paper \Make tasks were described as equivalent to
+Similarly, in the original paper \Make tasks were described as:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -127,8 +127,7 @@ lookupCloud :: (k -> m (Maybe (Hash v))) -> k -> Ver -> Ver
 \noindent
 These functions are suspiciously like \hs{recordCT} and \hs{constructCT}
 from~\S\ref{sec-constructive-traces}, with their differences perhaps the most
-illustrative of the changes required\footnote{
-  We have made some minor changes from
+illustrative of the changes required\footnote{We have made some minor changes from
 actual \Shake, like replacing \hs{Key} for \hs{k}, to reduce irrelevant
 differences.}.
 
@@ -250,8 +249,8 @@ The subsequent development of \Cloud \Shake allows GHC developers to take advant
 sharing build results between builds, which is particularly promising in the
 context of GHC's continuous integration (CI) infrastructure responsible for
 building and testing every GHC commit. Building GHC~8.8 from scratch with
-default settings takes around 1 hour on Windows using both \Hadrian and the
-original \Make-based build system. This includes building the compiler itself,
+default settings takes around 1 hour on Windows using either \Hadrian or the
+original \Make-based build system. This time includes building the compiler itself,
 29~bundled libraries, such as \cmd{base} (each in vanilla and profiled way), and
 6~bundled executables, such as \cmd{Haddock}. A single commit typically modifies
 only a small part of the whole codebase, making the cloud-build functionality
@@ -263,7 +262,7 @@ stored in the \Cloud~\Shake cache.
 A small number of GHC build rules cannot be cached. These rules register new libraries
 in the GHC package database, and rather than producing a output file, they mutate
 a shared file. \Cloud~\Shake provides a way to manually label such
-build rules, thereby excluding them from caching.
+build rules to exclude them from caching.
 
 One of the benefits of using \Shake is that we have access to high quality build
 profiling information, allowing us to compute critical paths and other metrics;
