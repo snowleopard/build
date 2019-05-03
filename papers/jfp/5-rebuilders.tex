@@ -73,7 +73,7 @@ we call verifying step traces in \S\ref{sec-step-traces}.
 
 An alternative way to determine if a key is dirty is to record the
 values/hashes of dependencies used last time, and if something has changed, the
-key is dirty and must therefore be rebuilt~--~in essence, keeping a \emph{trace}
+key is dirty and must be rebuilt~--~in essence, keeping a \emph{trace}
 which we can use to \emph{verify} existing values. Taking the example from
 Fig.~\ref{fig-bazel}(c), we might record that the key \cmd{util.o} (at hash 8)
 depended on the keys \cmd{util.c} (at hash 7) and \cmd{util.h} (at hash 2). Next
@@ -83,7 +83,7 @@ is nothing to do, and we can skip rebuilding. If any of the hashes is different,
 we rebuild \cmd{util.o}, and record a trace with the new values.
 
 For traces, there are two essential operations~--~adding a new trace to the
-trace store, and using the traces to determine if a key needs rebuilding.
+trace store, and using the trace store to determine if a key needs rebuilding.
 Assuming a store of verifying traces \hs{VT}~\hs{k}~\hs{v}, the operations are:
 
 \vspace{1mm}
@@ -99,7 +99,7 @@ verifyVT :: (Monad m, Eq k, Eq v)
 
 \noindent
 Rather than storing (large) values \hs{v}, the verifying trace \hs{VT} can store
-only hashes, of type \hs{Hash}~\hs{v}, of those values. Since the verifying
+only hashes of those values, with type \hs{Hash}~\hs{v}. Since the verifying
 trace persists from one build to the next -- it constitutes the build system's
 ``memory'' -- it is helpful for it to be of modest size. After successfully
 building a key, we call \hs{recordVT} to add a record to the current \hs{VT},
@@ -200,7 +200,7 @@ current value \hs{h}, it performs the following steps:
   \hs{k}. If it does not exist, return \hs{False}: \hs{k} was never built
   before and cannot be verified.
 \item If \hs{h} does not equal the \hs{result} field of the trace, return
-  \hs{False}: the current \hs{k}'s value was written externally and needs
+  \hs{False}: the current \hs{k}'s value was changed externally and thus needs
   rebuilding.
 \item For each key \hs{d} in \hs{depends}:\\
   $\circ$ Make sure \hs{d} is up-to-date, suspending the current task if needed;\\
@@ -286,7 +286,7 @@ constructCT :: (Monad m, Eq k, Eq v)
 
 \noindent
 The function \hs{recordCT} looks like \hs{recordVT}, but instead of just passing
-the hash of the resulting value, we require the actual value. The \hs{verifyVT}
+the hash of the resulting value, we pass the actual value. The \hs{verifyVT}
 has been replaced with \hs{constructCT}, which instead of taking the hash of the
 current value as \emph{input}, returns a list of possible values as
 \emph{output} -- there may be more than one, because some build tools are
@@ -315,7 +315,7 @@ its dependencies locally, and then make a single call to the server to retrieve
 the result.
 
 In practice, many cloud build systems store hashes of values in the trace store,
-i.e. use \hs{Trace}~\hs{k}~\hs{v}~\hs{(Hash}~\hs{v)} trace entries just like the
+i.e. use \hs{Trace}~\hs{k}~\hs{v}~\hs{(Hash}~\hs{v)} entries just like
 verifying traces, and have a separate content-addressable cache which associates
 hashes with their actual contents.
 
@@ -347,7 +347,7 @@ There are two primary disadvantages of deep constructive traces:
 \begin{itemize}
   \item \textbf{Tasks must be deterministic}: If the tasks are not
         \emph{deterministic} then it is possible to violate correctness, as
-        illustrated by an example in~\S\ref{sec-cloud-aspects}, see
+        illustrated by the example in~\S\ref{sec-cloud-aspects}, see
         Fig.~\ref{fig-frankenbuild}.
   \item \textbf{No early cutoff}: Deep constructive traces cannot support early
         cutoff (\S\ref{sec-background-shake}), since the results of intermediate
@@ -359,4 +359,4 @@ terminal \emph{input keys}, but the technique works equally well if we skip any
 number of dependency levels (say $n$ levels). The input-only approach is the
 special case of $n = \infty$, and constructive traces are the special case of
 $n = 1$. By picking values of $n$ in between we would regain some early cutoff, at the
-cost of losing such simple shallow builds and still requiring deterministic tasks.
+cost of losing such simple shallow builds, while still requiring deterministic tasks.
