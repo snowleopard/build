@@ -26,7 +26,7 @@ to \hs{Maybe}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-data Value = FileNotFound | FileContents ByteString
+data Value = FileNotFound | FileContents String
 \end{minted}
 \vspace{1mm}
 
@@ -124,8 +124,8 @@ wrapping and unwrapping.
 
 We have given simple implementations assuming a single thread of execution,
 but all the build systems we address can actually build independent keys in
-parallel. While it complicates the model, the complications can be restricted
-exclusively to the scheduler:
+parallel. While it complicates the model, the complications are restricted
+to the scheduler:
 
 \begin{enumerate}
 \item The \hs{topological} scheduler can build the full dependency graph, and
