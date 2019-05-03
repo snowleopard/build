@@ -198,9 +198,9 @@ the \hs{topological} scheduler will also inherit the same restriction.
 
 Our model of \Excel uses the \hs{restarting} scheduler and the
 \hs{dirtyBitRebuilder}, see Fig.~\ref{fig-excel-implementation}. The persistent
-build information \hs{ExcelInfo}~\hs{k} is a pair: (i) a map
+build information \hs{ExcelInfo}~\hs{k} is a pair of: (i) a map
 \hs{k}~\hs{->}~\hs{Bool} associating a dirty bit with every key, and (ii) a
-calc chain of type \hs{[@@k]} recorded in the previous build
+calc chain of type \hs{[@@k]} recorded from the previous build
 (\S\ref{sec-background-excel}).
 
 The external system, which invokes \Excel's build engine, is required
@@ -399,8 +399,8 @@ you would hope.
 
 Fig.~\ref{fig-cloud-implementations} shows our models of several cloud build
 systems. \Bazel, \CloudBuild and \Cloud \Shake are based on constructive traces
-(\S\ref{sec-constructive-traces}), whereas \Buck and \Nix use their deep
-variant (\S\ref{sec-deep-constructive-traces}).
+(\S\ref{sec-constructive-traces}), whereas \Buck and \Nix use deep
+constructive traces (\S\ref{sec-deep-constructive-traces}).
 
 The implementation of \hs{ctRebuilder} is analogous to that of \hs{vtRebuilder}
 in Fig.~\ref{fig-shake-implementation}, but the \hs{verifyVT} query is replaced
@@ -492,12 +492,12 @@ Note that although both our model and \Bazel's actual implementation supports
 dynamic dependencies, it is currently not possible to define new monadic build
 rules in the language available to users. Instead, users have to rely on a
 collection of predefined built-in rules, which cover many
-important instances of dynamic dependencies.
+common instances of dynamic dependencies.
 
 By switching to the \hs{topological} scheduler, we obtain a model of
 Microsoft's \CloudBuild~-- an applicative build system that combines
-conventional scheduling of statically known directed acyclic graphs of
-dependencies with constructive traces~\cite{esfahani2016cloudbuild}. Note that
+conventional scheduling of statically known directed acyclic graphs
+with constructive traces~\cite{esfahani2016cloudbuild}. Note that
 we need to convert a monadic \hs{ctRebuilder} into an applicative one by
 applying an adapter function \hs{adaptRebuilder}, which unwraps a given
 \hs{Task}~\hs{Applicative} and wraps it into \hs{Task}~\hs{Monad}.
