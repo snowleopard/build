@@ -412,7 +412,7 @@ compute task store = runIdentity (run task fetch)
 \noindent
 Here we do not need any effects in the \hs{fetch} callback to \hs{task}, so
 we can use the standard Haskell \hs{Identity} monad (Fig.~\ref{fig-stdlib}).
-Here is our first use of polymorpism in \hs{f}, discussed in \S\ref{sec-why-polymorphism}.
+Here is our first use of polymorphism in \hs{f}, discussed in~\S\ref{sec-why-polymorphism}.
 The use of \hs{Identity} just fixes the ``impedance mismatch'' between the
 function \hs{getValue}, which returns a pure value~\hs{v}, and the \hs{fetch}
 argument of the \hs{task}, which must return an \hs{f}~\hs{v} for some \hs{f}.

@@ -389,10 +389,10 @@ abstraction needs to be adjusted to cope with such keys (the suffix \hs{T}
 stands for ``typed''):
 
 \vspace{1mm}
-\begin{minted}[xleftmargin=10pt]{haskell}
+\begin{minted}[xleftmargin=5pt]{haskell}
 type Fetch k f = @\std{forall}@ v. k v -> f v
 
-newtype TaskT c k v = TaskT { runT :: @\std{forall}@ f. c f => Fetch k f -> f v }
+newtype TaskT c k v = TaskT@\,@{@\,@runT :: @\std{forall}@ f. c f => Fetch k f -> f v@\,@}
 
 type TasksT c k = @\std{forall}@ v. k v -> Maybe (TaskT c k v)
 \end{minted}
@@ -434,33 +434,33 @@ value types can make it easier to work with more complicated tasks.
 Some build tasks produce multiple output keys -- for example \cmd{ghc A.hs} produces both
 \cmd{A.hi} and \cmd{A.o}. This pattern can be encoded by having a key \cmd{A.hi+A.o} which produces
 both results, then each of \cmd{A.hi} and \cmd{A.o} can extract the relevant result
-from \cmd{A.hi+A.o}. We can express this pattern more clearly with the extra type safety from
-\S\ref{sec-polymorphism}, using either pairs or lists for both the key and value:
+from \cmd{A.hi+A.o}. We can express this pattern more clearly with the extra type safety
+from~\S\ref{sec-polymorphism}, using either pairs or lists for both the key and value:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Key a where
-    File  :: FilePath -> Key String
+    File  :: FilePath   -> Key String
     Files :: [FilePath] -> Key [String]
 
 task :: TasksT Monad Key
 task (File "A.hi") = Just $ TaskT $ \fetch -> do
-    [hi, o] <- fetch (Files ["A.hi","A.o"])
-    pure hi
+    [hi,o] <- fetch (Files ["A.hi","A.o"])
+    return hi
 task (File "A.o") = Just $ TaskT $ \fetch -> do
-    [hi, o] <- fetch (Files ["A.hi","A.o"])
-    pure o
+    [hi,o] <- fetch (Files ["A.hi","A.o"])
+    return o
 task (Files ["A.hi","A.o"]) = Just $ TaskT $ \fetch ->
-    -- run ghc here
+    compileWithGHC "A.hs"
 \end{minted}
 \vspace{1mm}
 
-The only awkward aspect is that both \cmd{A.hi} and \cmd{A.o} must ask for exactly the same
-\cmd{Files} key. If one \hs{File} key swapped the order of the list to \hs{Files} then it would likely
-run \cmd{ghc} twice. To help construct a well-formed multiple-output build task
-it is convenient to partition the set of keys into \emph{elementary subsets}.
-We can encode such a partition with a function from any key to all the members of its
-subset (in a consistent order).
+The only awkward aspect is that both \cmd{A.hi} and \cmd{A.o} must ask for
+exactly the same \hs{Files} key. If one \hs{File} key swapped the order of the
+list to \hs{Files} then it would likely run GHC twice. To help construct a
+well-formed multiple-output build task it is convenient to partition the set of
+keys into \emph{elementary subsets}. We can encode such a partition with a
+function from any key to all the members of its subset (in a consistent order).
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -468,11 +468,12 @@ type Partition k = k -> [k]
 \end{minted}
 \vspace{1mm}
 
-\noindent In our example the partition function on either of the output names \hs{"A.hi"} or \hs{"A.o"} would
-return \hs{["A.hi", "A.o"]}.
+\noindent
+In our example the partition function on either of the output names \hs{"A.hi"}
+or \hs{"A.o"} would return \hs{["A.hi","A.o"]}.
 
-With a suitable \hs{Partition} it is possible to create a mapping that resolves \hs{File}
-keys automatically into the correct \hs{Files} key.
+With a suitable \hs{Partition} it is possible to create a mapping that resolves
+\hs{File} keys automatically into the correct \hs{Files} key.
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -481,10 +482,10 @@ task partition (File k) = Just $ TaskT $ \fetch -> do
     let ks = partition k
     let Just i = elemIndex k ks
     vs <- fetch (Files ks)
-    pure (vs !! i)
+    return (vs !! i)
 task (Files ["A.hi","A.o"]) = Just $ TaskT $ \fetch ->
-    -- run ghc here
--- more rules on elementary subsets as required
+    compileWithGHC "A.hs"
+... -- more tasks for elementary subsets as required
 \end{minted}
 \vspace{1mm}
 
@@ -505,12 +506,12 @@ Some build systems, for example \Excel and \Ninja, are capable of recomputing a
 task if either its dependencies change, \emph{or} the task itself changes. For
 example:
 
-\vspace{0.5mm}
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{text}
 A1 = 20      B1 = A1 + A2
 A2 = 10
 \end{minted}
-\vspace{0.5mm}
+\vspace{1mm}
 
 \noindent
 In \Excel the user can alter the value produced by \cmd{B1} by either editing

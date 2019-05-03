@@ -285,7 +285,8 @@ constructCT :: (Monad m, Eq k, Eq v)
 \vspace{1mm}
 
 \noindent
-The function \hs{recordCT} looks like \hs{recordVT}, but instead of just passing
+The function \hs{recordCT} is similar to \hs{recordVT}
+from~\S\ref{sec-verifying-traces}, but instead of just passing
 the hash of the resulting value, we pass the actual value. The \hs{verifyVT}
 has been replaced with \hs{constructCT}, which instead of taking the hash of the
 current value as \emph{input}, returns a list of possible values as

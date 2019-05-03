@@ -7,9 +7,9 @@ build system.  Our earlier work on the \Shake build
 system~\cite{mitchell2012shake}, and applying \Shake to
 building GHC~\cite{hadrian}, makes progress in that direction.
 
-Based on the thinking in this paper we have extended \Shake to
+Based on the theory developed in this paper we have extended \Shake to
 become \Cloud \Shake, the first cloud-capable build system to support
-both early cutoff and monadic dependencies (\S\ref{sec-implementation-cloud}),
+both early cutoff and monadic dependencies~(\S\ref{sec-implementation-cloud}),
 and used it to implement GHC's (very substantial) build system, Hadrian~\cite{hadrian}.
 In this section we tie these papers together, reflecting on our
 experience of turning theory into practice.
@@ -50,12 +50,14 @@ data Action k v a = Finished a
                   | Depends k (v -> Action k v a)
 \end{minted}
 \vspace{1mm}
+
 \noindent
 In this paper we describe tasks more directly, in a monadic (or applicative or functorial)
-style. But in fact the two are equivalent: \hs{Task Monad k v} is
-isomporphic to \hs{Action k v v}.
-To be concrete, the functions \hs{toAction} and \hs{fromAction} witness the
-isomorphism in both directions.
+style. But in fact the two are equivalent: \hs{Task}~\hs{Monad}~\hs{k}~\hs{v} is
+isomorphic to \hs{Action}~\hs{k}~\hs{v}~\hs{v}.
+To be concrete, the functions \hs{toAction} and \hs{fromAction} defined below
+witness the isomorphism in both directions.
+
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 instance Monad (Action k v) where
@@ -107,7 +109,7 @@ functions of the form
 \vspace{1mm}
 
 \noindent for various choices of~\hs{c}, are studied in depth by~Jaskelioff and
-O’Connor~\shortcite{jaskelioff2015representation}.
+O'Connor~\shortcite{jaskelioff2015representation}.
 
 \subsection{Experience from \Cloud \Shake}\label{sec-cloud-shake}
 
@@ -139,7 +141,7 @@ differences.}.
       build products from previous versions of the build script.
 \item The list of dependencies to \hs{addCloud} is a list of lists, rather than
       a simple list. The reason is that \Shake allows a list of dependencies to
-      be specfied simultaneously, so they can all be built in parallel.
+      be specified simultaneously, so they can all be built in parallel.
 \item The \hs{addCloud} function also takes a list of \hs{FilePath}, being the
       files that this rule produces. These produced files include those which
       are output keys from a rule and those declared with the function
@@ -175,9 +177,10 @@ report\footnote{\url{https://groups.google.com/d/msg/shake-build-system/NbB5kMFS
 
 \vspace{1mm}
 \begin{center}
-\parbox{0.8 \textwidth}{\emph{Thanks for the symlinks release, we just finished upgrading this build
-system to use \cmd{-}\cmd{-share}. ... Building from scratch with a warm cache
-takes around 5 seconds, saving us up to 2 hours. Not bad!}}
+\parbox{0.8 \textwidth}{\emph{Thanks for the symlinks release, we just finished
+upgrading this build system to use \textsf{-}\textsf{-share}. ... Building from
+scratch with a warm cache takes around 5 seconds, saving us up to 2 hours. Not
+bad!}}
 \end{center}
 \vspace{1mm}
 
