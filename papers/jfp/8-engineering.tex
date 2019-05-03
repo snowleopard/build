@@ -191,9 +191,14 @@ dependencies can be marked as volatile, a technique \Excel takes with the
 \cmd{INDIRECT} function, fixing the untracked dependency at the cost of
 minimality.
 
-Most of the implementations in \S\ref{sec-implementations} can deal with
-non-determinism, apart from \Buck, which relies on deterministic tasks, and
-in turn can optimise the number of roundtrips required to the server.
+Most of the implementations in~\S\ref{sec-implementations} can deal with
+non-determinism, apart from \Buck, which uses the assumption of task determinism
+to reduce the number of cloud lookups: if all tasks are deterministic, one needs
+just a single cloud lookup for obtaining the value of the target key from the
+hash of its terminal inputs. This is highly desirable not only for shallow
+builds, but for non-shallow builds too, because under the assumption of task
+determinism \emph{all} intermediate values are fully determined by the terminal
+inputs, and can therefore be requested in a single batch query to the server.
 
 One way of modelling non-determinism is to \emph{demand that}~\hs{f}~\emph{has a
 built-in source of non-determinism}, for example, by enriching
@@ -214,31 +219,21 @@ sprsh3 _    = Nothing
 
 \noindent
 Such tasks can be modelled in our framework by adjusting the correctness
-definition~(\S\ref{sec-build-correctness}), where instead of requiring that the
-\hs{result}ing value \emph{equals} the one obtained by recomputing the \hs{task}:
-\[
-\hs{getValue}~\hs{k}~\hs{result}~\hs{==}~\hs{compute}~\hs{task}~\hs{result} %\text{,}
-\]
-\noindent
-we now require that \hs{result} contains \emph{one possible result of
-recomputing} the \hs{task}:
-\[
-\hs{getValue}~\hs{k}~\hs{result}~\hs{`elem`}~\hs{computeND}~\hs{task}~\hs{result} %\text{,}
-\]
-where
-\hs{computeND}~\hs{::}~\hs{Task}~\hs{MonadPlus}~\hs{k}~\hs{v}~\hs{->}~\hs{Store}~\hs{i}~\hs{k}~\hs{v}~\hs{->}~\hs{[@@v]}
-returns the list of all possible results of the \hs{task} instead of just one
-value (`ND' stands for `non-deterministic').
+definition~(\S\ref{sec-build-correctness}): instead of requiring that the
+resulting value \emph{equals the result} of recomputing the task, we now require
+that resulting value \emph{belongs to the set of possible results} of
+recomputing the task, i.e. the set \cmd{$\{$A1 + 1, A1 + 2$\}$} in the above
+example.
 
 % \todo{AM}{Show implementation of \hs{computeND}.
 % Neil says: not convinced it's that interesting.}.
 
-Note that \hs{Task}~\hs{MonadPlus} is powerful enough to model dependency-level
-non-determinism, for example, \cmd{INDIRECT("A" \& RANDBETWEEN(1,2))}, whereas
-most build tasks in real-life build systems only experience a value-level
-non-determinism. \Excel handles this example simply by marking the cell
-volatile~--~an approach that can be readily adopted by any of our
-implementations.
+Note that \hs{Task}~\hs{MonadRandom} is powerful enough to model
+dependency-level non-determinism, for example,
+\cmd{INDIRECT("A" \& RANDBETWEEN(1,2))}, whereas most build tasks in real-life
+build systems only experience a value-level non-determinism. \Excel handles this
+example simply by marking the cell volatile~--~an approach that can be readily
+adopted by any of our implementations.
 
 \subsection{Cloud Implementation}\label{sec-cloud-aspects}
 
