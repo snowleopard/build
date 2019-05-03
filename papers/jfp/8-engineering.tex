@@ -351,32 +351,25 @@ systems also follow. There are computation frameworks that support tasks with
 cyclic dependencies under the assumption that tasks are \emph{monotonic} in a
 certain sense~\cite{pottier2009lazy,radul2009propagation}.
 
-\subsection{Polymorphic values}\label{sec-polymorphism}
+\subsection{Key-dependent value types}\label{sec-polymorphism}
 
-Our build system abstraction assumes a \hs{k}/\hs{v} store, along with a build
-system that works directly on \hs{k} and \hs{v} values. However, some build
-systems provide greater flexibility, e.g. \Shake permits polymorphic keys and
-values, allowing types that are stored only in the \Shake's build information.
-\Shake users have remarked that polymorphism provides a much easier expression
-of concepts, e.g. see~Mokhov~\etal~\shortcite{hadrian}.
+Key-dependent value types allows a single build system to work with multiple different
+types of values, where the type of any particular value is determined by the key. As an example
+of why this might be useful, consider a build system that can depend on files
+(whose contents are strings) or system executables (represented by their version number) --
+using a single type for both values reduces type safety.
+\Shake permits such key-dependent value types, for example the \emph{oracle} rule from
+Mitchell~\shortcite{mitchell2012shake}, and users have remarked that this additional type safety
+provides a much easier expression of concepts, e.g. see~Mokhov~\etal~\shortcite{hadrian}.
 
-As one example of richer key/value types, consider the version of
-\cmd{gcc}~--~for many builds it should be a dependency. In \Shake it is possible
-to define an \emph{oracle} rule as per Mitchell~\shortcite{mitchell2012shake}
-whose value is the result of running \cmd{gcc -}\cmd{-version} and which is
-volatile, making the \cmd{gcc} version something that can be depended upon. Of
-course, provided the build can express volatile dependencies and supports
-cutoff, the version number could equally be written to a file and used in a
-similar way, albeit at the cost of introducing additional correctness
-invariants, e.g. that the file \cmd{gcc-version.txt} does indeed contains two
-dot-separated integers.
-
-Generalised algebraic data types, or GADTs~\cite{spj2006gadts}, can be used to
-extend our models to support ``typed'' build tasks. The idea is to replace
+We can encode key-dependent value types using generalised algebraic data types,
+or GADTs~\cite{spj2006gadts}. The idea is to replace
 the callback \hs{fetch}~\hs{::}~\hs{k}~\hs{->}~\hs{f}~\hs{v} by its
 more polymorphic equivalent \hs{fetch}~\hs{::}~\hs{k}~\hs{v}~\hs{->}~\hs{f}~\hs{v},
 where~\hs{k}~\hs{v} is a GADT representing keys tagged by the type~\hs{v} of
-corresponding values. The idea is best explained by way of an example:
+corresponding values. The variable \hs{k} has changed from kind \hs{*} (a type),
+to \hs{* -> *} (a type function), permitting the key to constrain the type of the value.
+The idea is best explained by way of an example:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -384,14 +377,14 @@ data Version = Version { major :: Int, minor :: Int }
     deriving (Eq, Ord)
 
 data Key a where
-    File       :: FilePath -> Key String
-    GccVersion :: Key Version
+    File    :: FilePath -> Key String
+    Program :: String -> Key Version
 \end{minted}
 \vspace{1mm}
 
 \noindent
 Here we extend the usual mapping from file paths to file contents with an
-additional key type \hs{GccVersion} mapped to a \hs{Version}. The task
+additional key type \hs{Program} which maps the name of a program to its installed \hs{Version}. The task
 abstraction needs to be adjusted to cope with such keys (the suffix \hs{T}
 stands for ``typed''):
 
@@ -412,8 +405,8 @@ synonym only for readability), and (ii) the type of \hs{TasksT} is now
 polymorphic in \hs{v} instead of being parameterised by a concrete \hs{v}. The
 example below demonstrates how \hs{fetch} can be used to retrieve dependencies
 of different types: the rule \cmd{release.txt} concatenates the contents of two
-\hs{File}s, while the rule \cmd{main.o} uses the numeric \hs{GccVersion} to
-determine the way the \hs{source} file should be compiled.
+\hs{File}s, while the rule \cmd{main.o} uses the numeric \hs{Program "gcc"} to
+determine how the \hs{source} file should be compiled.
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -424,12 +417,17 @@ example (File "release.txt") = Just $ TaskT $ \fetch -> do
     return (readme ++ license)
 example (File "main.o") = Just $ TaskT $ \fetch -> do
     let source = "main.c"
-    version <- fetch GccVersion
+    version <- fetch (Program "gcc")
     if version >= Version 8 0 then compileNew source
                               else compileOld source
 example _ = Nothing
 \end{minted}
 \vspace{1mm}
+
+Note that like all key-dependent tasks, this example could be expressed
+without key-dependence, at the cost of some type safety. As we'll see in
+\S\ref{sec-multiple-outputs} and \S\ref{sec-tracking-aspects}, using key-dependent
+value types can make it easier to work with more complicated tasks.
 
 \subsection{Multiple-Output Build Tasks}\label{sec-multiple-outputs}
 

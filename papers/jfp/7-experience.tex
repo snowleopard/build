@@ -243,8 +243,8 @@ Interestingly, although \Shake is not a self-tracking build
 system~(\S\ref{sec-tracking-aspects}), \Hadrian implements a little
 domain-specific language for constructing build command lines, and then tracks
 command lines by treating them as a type of values -- an example of
-\emph{partial self-tracking} made possible by \Shake's support for value
-polymorphism~(\S\ref{sec-polymorphism}).
+\emph{partial self-tracking} made possible by \Shake's support for key-dependent
+value types~(\S\ref{sec-polymorphism}).
 
 The subsequent development of \Cloud \Shake allows GHC developers to take advantage of
 sharing build results between builds, which is particularly promising in the
