@@ -482,7 +482,9 @@ task partition (File k) = Just $ TaskT $ \fetch -> do
     let Just i = elemIndex k ks
     vs <- fetch (Files ks)
     pure (vs !! i)
--- patterns matching Files
+task (Files ["A.hi","A.o"]) = Just $ TaskT $ \fetch ->
+    -- run ghc here
+-- more rules on elementary subsets as required
 \end{minted}
 \vspace{1mm}
 
