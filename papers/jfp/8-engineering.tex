@@ -95,12 +95,12 @@ failure mechanism as shown below:
 class Monad m => MonadFail m where
     fail :: String -> m a
 
-sprsh4 :: Tasks MonadFail String Integer
-sprsh4 "B1" = Just $ Task $ \fetch -> do
+sprsh3 :: Tasks MonadFail String Integer
+sprsh3 "B1" = Just $ Task $ \fetch -> do
     a1 <- fetch "A1"
     a2 <- fetch "A2"
     if a2 == 0 then fail "division by 0" else return (a1 `div` a2)
-sprsh4 _ = Nothing
+sprsh3 _ = Nothing
 \end{minted}
 \vspace{1mm}
 
@@ -209,11 +209,11 @@ i.e. a source of random numbers in a specified range. Here is a task description
 corresponding to a spreadsheet with the formula \cmd{B1 = A1 + RANDBETWEEN(1,2)}:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
-sprsh3 :: Tasks MonadRandom String Integer
-sprsh3 "B1" = Just $ Task $ \fetch -> do a1 <- fetch "A1"
+sprsh4 :: Tasks MonadRandom String Integer
+sprsh4 "B1" = Just $ Task $ \fetch -> do a1 <- fetch "A1"
                                          r  <- getRandom (1,2)
                                          return (a1 + r)
-sprsh3 _    = Nothing
+sprsh4 _    = Nothing
 \end{minted}
 \vspace{1mm}
 
@@ -524,7 +524,7 @@ it:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-sprsh4 "B1" = Just $ Task $ \fetch -> do
+sprsh5 "B1" = Just $ Task $ \fetch -> do
     formula <- fetch "B1-formula"
     evalFormula fetch formula
 \end{minted}
@@ -559,10 +559,10 @@ data Key k v s a where
 
 \noindent
 The function \hs{selfTracking} defined below is a generalisation of the approach
-explained in the above \Excel example \hs{sprsh4}. The function takes a parser
+explained in the above \Excel example \hs{sprsh5}. The function takes a parser
 for scripts, of type \hs{s}~\hs{->}~\hs{Task}~\hs{Monad}~\hs{k}~\hs{v}, and a
 description of \emph{how to build all scripts}, of type
-\hs{Tasks}~\hs{Monad}~\hs{k}~\hs{s}. For \hs{sprsh4}, the latter would simply
+\hs{Tasks}~\hs{Monad}~\hs{k}~\hs{s}. For \hs{sprsh5}, the latter would simply
 fetch \cmd{B1-formula} when given the key \cmd{B1} and return \hs{Nothing}
 otherwise, but the presented approach can cope with much more sophisticated
 scenarios where scripts themselves are derived from ``script sources'', e.g. all
