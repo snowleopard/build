@@ -15,10 +15,8 @@ fetchIO k = do putStr (show k ++ ": "); read <$> getLine
 
 --------------------------- Task Functor: Collatz ---------------------------
 
--- Collatz sequence:
--- c[0] = n
--- c[k] = f(c[k - 1]) where
--- For example, if n = 12, the sequence is 3, 10, 5, 16, 8, 4, 2, 1, ...
+-- Collatz sequence, starting with an initial value n = c[0].
+-- For example, if n = 6, the sequence is 6, 3, 10, 5, 16, 8, 4, 2, 1, ...
 collatz :: Tasks Functor Integer Integer
 collatz n | n <= 0    = Nothing
           | otherwise = Just $ Task $ \fetch -> f <$> fetch (n - 1)
