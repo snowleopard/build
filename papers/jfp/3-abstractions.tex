@@ -77,8 +77,13 @@ getHash :: Hashable v => k -> Store i k v -> Hash v
 % \vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Build tasks (see §3.2)
-newtype Task  c k v = Task { run :: @\std{forall}@ f. c f => (k -> f v) -> f v }
-type    Tasks c k v = k -> Maybe (Task c k v)
+data Task  c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
+type Tasks c k v = k -> Maybe (Task c k v)
+\end{minted}
+% \vspace{-1mm}
+\begin{minted}[fontsize=\small]{haskell}
+run :: c f => Task c k v -> (k -> f v) -> f v
+run (Task task) = task
 \end{minted}
 % \vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
@@ -99,9 +104,13 @@ type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 \subsection{The Task Abstraction}\label{sec-task}
 
 Our first main abstraction is for \emph{task descriptions}:
-\begin{minted}[xleftmargin=5pt]{haskell}
-newtype Task  c k v = Task@\,@{@\,\blk{run}\,@::@\,@@\std{forall}@ f. c f => (k -> f v) -> f v@\,@}
-type    Tasks c k v = k -> Maybe (Task c k v)
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Task  c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
+type Tasks c k v = k -> Maybe (Task c k v)
+\end{minted}
+\begin{minted}[xleftmargin=10pt]{haskell}
+run :: c f => Task c k v -> (k -> f v) -> f v
+run (Task task) = task
 \end{minted}
 
 \noindent
