@@ -296,7 +296,7 @@ The previous example illustrates why the \hs{Task} abstraction is polymorphic
 in~\hs{f}; recall its definition from~\S\ref{sec-task}:
 
 \begin{minted}[xleftmargin=5pt]{haskell}
-newtype Task c k v = Task@\,@{@\,\blk{run}\,@::@\,@@\std{forall}@ f. c f => (k -> f v) -> f v@\,@}
+data Task  c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
 \end{minted}
 
 \noindent

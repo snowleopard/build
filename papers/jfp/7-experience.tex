@@ -11,8 +11,57 @@ Based on the theory developed in this paper we have extended \Shake to
 become \Cloud \Shake, the first cloud-capable build system to support
 both early cutoff and monadic dependencies~(\S\ref{sec-implementation-cloud}),
 and used it to implement GHC's (very substantial) build system, Hadrian~\cite{hadrian}.
-In this section we tie these papers together, reflecting on our
-experience of turning theory into practice.
+In this section we reflect on our experience of turning theory into practice.
+
+\subsection{Haskell as a design language}\label{sec-design-lang}
+
+Build systems are surprisingly tricky.  It is easy to waffle, and
+remarkably hard to be precise. As this paper exemplifies, it is
+possible to use Haskell as a \emph{design language}, to express quite
+abstract ideas in a precise form -- indeed, precise enough to be executed.
+
+Moreover, doing so is extremely beneficial.
+The discipline of writing executable prototypes in
+Haskell had a profound effect on our thinking. It forced misconceptions
+to to surface early.  It required us to be explicit about side effects.
+It gave us a huge incentive to design abstractions that had simple types
+and an explicable purpose.
+
+Consider, for example, our \hs{Task} type:
+\begin{minted}[xleftmargin=10pt]{haskell}
+data Task c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
+\end{minted}
+We started off with a much more concrete type, and explored
+multiple variants.  During those iterations, this single line of
+code gave us a tangible, concrete basis for productive conversations,
+much more so than general conversations about ``tasks''.
+
+It is also worth noting that we needed a rather expressive language,
+to faithfully express the abstractions that seen natural in this
+setting.  In the case of \hs{Task} we use a data constructor with a
+polymorphic field; a higher-kinded type variable \hs{f :: * -> *}; an
+even more abstracted kind for \hs{c :: (* -> *) -> Constraint}; and,
+of course, type classes.
+
+Moreover, when thinking about the type constructors over which \hs{f} might
+usefully range, it turned out that we could adopt the \emph{existing} abstractions
+of \hs{Functor}, \hs{Applicative}, \hs{Monad} and so on.
+That in turn led us to think in a new way about the taxonomy
+of build systems -- see \S~\ref{sec-why-polymorphism}.
+
+The effect of using a concrete design language went well beyond
+merely \emph{expressing} our ideas: it \emph{directly influenced}
+our thinking.  For example, here are definitions for a scheduler and rebuilder,
+from \S~\ref{sec-concrete-impl}:
+\begin{minted}[fontsize=\small,xleftmargin=5pt]{haskell}
+type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
+type Rebuilder c   ir k v = k -> v -> Task c k v -> Task@\,@(MonadState ir) k v
+\end{minted}
+These powerful and modular abstractions, which ultimately formed part
+of the conceptual structure of the paper, emerged fairly late in the
+project, as we repeatedly reviewed, redesigned, and refactored our
+executable prototype.  It is hard to believe that we could have
+developed them without the support of Haskell as a design language.
 
 \subsection{Experience from \Shake}\label{sec-experience-shake}
 
