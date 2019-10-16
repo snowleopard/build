@@ -38,7 +38,10 @@ abstraction with additional features.
 
 \item \Redo~\cite{redo-idea,grosskurth2007redo,redo} almost exactly
 matches \Shake at the level of detail given here, differing only on aspects like
-rules producing multiple files~\S\ref{sec-polymorphism}.
+rules producing multiple files~\S\ref{sec-polymorphism}. While \Redo predates \Shake,
+the approaches were discovered independently -- we use \Shake as the prototypical
+example of this system as its implementation presents a closer mapping to our
+\hs{Task} abstraction.
 
 \item \Tup~\cite{tup} functions much like \Make, but with a refined dirty-bit
 implementation that watches the file system for changes and can thus avoid
