@@ -332,7 +332,8 @@ task descriptions in a very interesting, and practically useful, way:
   \cmd{D}.
 \item \hs{Task}~\hs{Functor} is somewhat degenerate: a functorial task
   description cannot even use the application operator \hs{<*>}, which limits
-  dependencies to a linear chain, as e.g. in Docker containers~\cite{docker}. It
+  dependencies to a linear chain, as e.g. in Docker containers~\cite{docker}
+  (ignoring the recent multi-stage builds). It
   is interesting to note that, when run on such a task description, the
   \hs{busy} build system will build each key at most once, thus partially
   fulfilling the minimality requirement~\ref{def-minimal}. Alas, it still has no
