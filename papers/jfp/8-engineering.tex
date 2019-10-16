@@ -593,4 +593,23 @@ functions.
 
 \subsection{File watching vs polling}\label{sec-integration-with-ides}
 
-Most build systems use files for their inputs. When running a build, to check if a file is up-to-date, one option is to take the modification time or compute the content hash of each input file. However, for the largest projects, the mere act of checking the modification time for all the input files can become prohibitive. To overcome that problem, build systems targeted at large scale, e.g. \Bazel and \Buck, make use of file watching API's that detect when a file has changed. Using that information the build can avoid performing many file accesses.
+Most build systems use files for their inputs. When running a build, to check if
+a file is up-to-date, one option is to take the modification time or compute the
+content hash of each input file. However, for the largest projects, the mere act
+of checking the modification time for all the input files can become
+prohibitive. To overcome that problem, build systems targeted at large scale,
+e.g. \Bazel and \Buck, make use of file watching API's that detect when a file
+has changed. Using that information the build can avoid performing many file
+accesses.
+
+File-watching build systems face new engineering challenges. Firstly, a running
+task may become \emph{obsolete} due to a concurrent modification of its direct
+or transitive dependencies. To minimise the amount of unnecessary work, a
+scheduler can \emph{cancel} the obsolete task and restart it once its
+dependencies are up-to-date. Note that topological
+schedulers~(\S\ref{sec-topological}) cannot be easily adapted to support such
+situations, since a new topological sort may be required when file dependencies
+change. A further complication is that spurious dependency cycles may form
+during a series of file modifications, and a file-watching build system
+integrated with an IDE should be able to cope with such spurious cycles
+gracefully instead of terminating with an error.
