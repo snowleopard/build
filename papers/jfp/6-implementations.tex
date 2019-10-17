@@ -497,10 +497,10 @@ common instances of dynamic dependencies.
 By switching to the \hs{topological} scheduler, we obtain a model of
 Microsoft's \CloudBuild~-- an applicative build system that combines
 conventional scheduling of statically known directed acyclic graphs
-with constructive traces~\cite{esfahani2016cloudbuild}. Note that
-we need to convert a monadic \hs{ctRebuilder} into an applicative one by
-applying an adapter function \hs{adaptRebuilder}, which unwraps a given
-\hs{Task}~\hs{Applicative} and wraps it into \hs{Task}~\hs{Monad}.
+with constructive traces~\cite{esfahani2016cloudbuild}. We convert a
+monadic \hs{ctRebuilder} into an applicative one by applying an adapter
+\hs{adaptRebuilder}, which unwraps a given \hs{Task}~\hs{Applicative}
+and wraps it into \hs{Task}~\hs{Monad}.
 
 Our models of \Buck~\cite{buck} and \Nix~\cite{dolstra2004nix} use the rebuilder
 based on deep constructive traces (\S\ref{sec-deep-constructive-traces}), called

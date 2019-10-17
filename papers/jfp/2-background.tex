@@ -1,9 +1,9 @@
 \section{Background}\label{sec-background}
 
-Build systems automate the execution of repeatable tasks, at a scale from individual users
-up to large organisations. In this section we explore the design space of build
-systems, using four concrete examples: \Make~\cite{feldman1979make},
-\Shake~\cite{mitchell2012shake}, \Bazel~\cite{bazel}, and
+Build systems automate the execution of repeatable tasks, at a scale from individual
+users up to large organisations. In this section we explore the design space of build
+systems, using four examples: \Make~\cite{feldman1979make},
+\Shake~\cite{mitchell2012shake}, \mbox{\Bazel~\cite{bazel}}, and
 \Excel~\cite{advanced_excel}.
 We have carefully chosen these four to illustrate the various axes on which
 build systems differ; we discuss many other notable examples of build systems,
@@ -103,7 +103,7 @@ content, e.g. by using the command \cmd{touch}. \Make is therefore minimal only
 under the assumption that you do not do that.}, and (ii) it constructs a task
 dependency graph from the information contained in the makefile and executes
 tasks in a \emph{topological order}. For a more concrete description
-see~\S\ref{sec-implementation-make}.
+see~\S\ref{sec-topological} and~\S\ref{sec-implementation-make}.
 
 \subsection{\Excel: Dynamic Dependencies at the Cost of Minimality}
 \label{sec-background-excel}
@@ -158,7 +158,7 @@ changing an input value does not change dependencies, there are no aborts.
 Notice that build always succeeds regardless of the initial calc chain (barring
 truly circular dependencies); the calc chain is just an optimisation.
 We refer to this algorithm as \emph{restarting}, and discuss it
-in more detail in~\S\ref{sec-implementation-excel}.
+in more detail in~\S\ref{sec-restarting} and~\S\ref{sec-implementation-excel}.
 
 Dynamic dependencies complicate minimality.  In the above example, \cmd{B1}
 should only be recomputed if \cmd{A1} or \cmd{C1} change, but not if (say)
@@ -215,9 +215,10 @@ dependencies are shown in Fig.~\ref{fig-shake}(a):
 
 The dependencies of \cmd{release.tar} are not known statically: they are
 determined by the content of \cmd{release.txt}, which might not even exist
-before the build. Makefiles cannot express such dependencies, requiring problematic
-workarounds such as \emph{build phases}~\cite{hadrian}.
-In \Shake we can express the rule for \cmd{release.tar} as:
+before the build. Makefiles cannot express such dependencies, requiring
+workarounds such as \emph{build phases}, which are known to be
+problematic~\cite{hadrian}. In \Shake we can express the rule for
+\cmd{release.tar} as:
 
 \begin{minted}[xleftmargin=10pt]{haskell}
 "release.tar" %> \_ -> do
@@ -242,13 +243,14 @@ First, to decide which files need to be rebuilt,
 it uses the dependency graph that is dynamically constructed during
 the previous build. This idea has a long history, going back to
 \emph{incremental}~\cite{demers1981incremental},
-\emph{adaptive}~\cite{acar2002adaptive}, and
+\emph{adaptive}~\cite{acar2002adaptive}, as well as
 \emph{self-adjusting computations} -- see
 Acar~\etal~\shortcite{acar2007selfadjusting} and~\S\ref{sec-related}. Second,
 instead of aborting and deferring the execution of tasks whose newly discovered
 dependencies have not yet been built (as \Excel does), \Shake \emph{suspends}
 their execution until the dependencies are brought up to date. We refer to this
-task scheduling algorithm as \emph{suspending}, see a concrete implementation
+task scheduling algorithm as \emph{suspending}, see a further discussion
+in~\S\ref{sec-suspending} and a concrete implementation
 in~\S\ref{sec-implementation-shake}.
 
 \begin{figure}
@@ -267,7 +269,7 @@ executes a task and the result is unchanged from the previous build, it is
 unnecessary to execute the dependent tasks, and hence \Shake can stop a build
 earlier, as illustrated in Fig.~\ref{fig-cutoff}. Not all build systems support
 early cutoff: \Shake and \Bazel (introduced below) do, but \Make and \Excel do
-not (see \S\ref{sec-verifying-traces} for an explanation of why).
+not; see~\S\ref{sec-dirty-bit} for an explanation of why.
 
 % \vspace{-0.5mm}
 \subsection{\Bazel: A Cloud Build System}\label{sec-background-bazel}
@@ -279,6 +281,34 @@ system} can speed up builds dramatically by sharing build results
 among team members. Furthermore, cloud build systems can support \emph{shallow
 builds} that materialise only end build products locally, leaving all
 intermediates in the cloud.
+
+\begin{figure}
+% \vspace{-2mm}
+\begin{subfigure}[b]{0.25\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/bazel-example-checkout.pdf}}
+\vspace{-0.5mm}
+\caption{Download sources}
+\end{subfigure}
+\begin{subfigure}[b]{0.40\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/bazel-example-build.pdf}}
+\vspace{-0.5mm}
+\caption{Build \cmd{main.exe}}
+\end{subfigure}
+\begin{subfigure}[b]{0.31\linewidth}
+\centerline{\includegraphics[scale=0.28]{fig/bazel-example-rebuild.pdf}}
+\vspace{-0.5mm}
+\caption{Modify \cmd{util.c} and rebuild}
+\end{subfigure}
+\vspace{-1mm}
+\caption{A cloud build example: (a)~download sources, (b)~build \cmd{main.exe}
+by downloading it from the cloud and skipping intermediate files (only their
+hashes are needed), (c)~modify \cmd{util.c} and rebuild \cmd{main.exe}, which
+requires building \cmd{util.o} (nobody has compiled \cmd{util.c} before) and
+downloading \cmd{main.o} (it is needed for linking \cmd{main.exe}). File hashes
+are shown in circles, and non-materialised intermediates in dashed rounded
+rectangles.\label{fig-bazel}}
+\vspace{-1mm}
+\end{figure}
 
 Consider the example in Fig.~\ref{fig-bazel}. The user starts by downloading the
 sources, whose content hashes are (for simplicity)~1,~2 and~3, and requests to
@@ -321,37 +351,9 @@ dependencies; then the content-addressable cache allows the engine
 to download the result (if needed) based on the result hash. A concrete
 implementation is provided in~\S\ref{sec-implementation-cloud}.
 
-\begin{figure}
-% \vspace{-2mm}
-\begin{subfigure}[b]{0.25\linewidth}
-\centerline{\includegraphics[scale=0.28]{fig/bazel-example-checkout.pdf}}
-\vspace{-0.5mm}
-\caption{Download sources}
-\end{subfigure}
-\begin{subfigure}[b]{0.40\linewidth}
-\centerline{\includegraphics[scale=0.28]{fig/bazel-example-build.pdf}}
-\vspace{-0.5mm}
-\caption{Build \cmd{main.exe}}
-\end{subfigure}
-\begin{subfigure}[b]{0.31\linewidth}
-\centerline{\includegraphics[scale=0.28]{fig/bazel-example-rebuild.pdf}}
-\vspace{-0.5mm}
-\caption{Modify \cmd{util.c} and rebuild}
-\end{subfigure}
-\vspace{-1mm}
-\caption{A cloud build example: (a)~download sources, (b)~build \cmd{main.exe}
-by downloading it from the cloud and skipping intermediate files (only their
-hashes are needed), (c)~modify \cmd{util.c} and rebuild \cmd{main.exe}, which
-requires building \cmd{util.o} (nobody has compiled \cmd{util.c} before) and
-downloading \cmd{main.o} (it is needed for linking \cmd{main.exe}). File hashes
-are shown in circles, and non-materialised intermediates in dashed rounded
-rectangles.\label{fig-bazel}}
-\vspace{-1mm}
-\end{figure}
-
-\vspace{-1.5mm}
+% \vspace{-1.5mm}
 \subsection{Summary}\label{sec-background-summary}
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 
 We summarise differences between four discussed build systems in
 Table~\ref{tab-summary}. The column \emph{`persistent build information'} refers

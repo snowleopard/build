@@ -23,13 +23,13 @@ abstract ideas in a precise form -- indeed, precise enough to be executed.
 Moreover, doing so is extremely beneficial.
 The discipline of writing executable prototypes in
 Haskell had a profound effect on our thinking. It forced misconceptions
-to to surface early.  It required us to be explicit about side effects.
+to surface early.  It required us to be explicit about side effects.
 It gave us a huge incentive to design abstractions that had simple types
 and an explicable purpose.
 
 Consider, for example, our \hs{Task} type:
 \begin{minted}[xleftmargin=10pt]{haskell}
-data Task c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
+newtype Task c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
 \end{minted}
 We started off with a much more concrete type, and explored
 multiple variants.  During those iterations, this single line of
@@ -39,8 +39,8 @@ much more so than general conversations about ``tasks''.
 It is also worth noting that we needed a rather expressive language,
 to faithfully express the abstractions that seem natural in this
 setting.  In the case of \hs{Task} we use a data constructor with a
-polymorphic field; a higher-kinded type variable \hs{f :: * -> *}; an
-even more abstracted kind for \hs{c :: (* -> *) -> Constraint}; and,
+polymorphic field; a higher-kinded type variable \hs{f}~\hs{::}~\hs{*}~\hs{->}~\hs{*}; an
+even more abstracted kind for \hs{c}~\hs{::}~\hs{(*}~\hs{->}~\hs{*)}~\hs{->}~\hs{Constraint}; and,
 of course, type classes.
 
 Moreover, when thinking about the type constructors over which \hs{f} might
@@ -278,7 +278,7 @@ program called \cmd{FSATrace}, which detects which files are read/written by a
 command line execution. Such information has been very helpful in making the GHC
 build cloud ready.
 
-\subsection{Experience from building GHC with \Shake}
+\subsection{Experience from building GHC with \Shake}\label{sec-hadrian}
 
 \Hadrian is a build system for the Glasgow Haskell Compiler~\cite{ghc}. It was
 developed to replace a \Make-based build system and solve multiple scalability

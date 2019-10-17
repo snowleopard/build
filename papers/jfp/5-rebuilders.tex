@@ -46,28 +46,28 @@ time, which can be violated by backup software.
 With a dirty bit it is possible to achieve
 minimality~(\S\ref{sec-background-make}). However, to achieve early
 cutoff~(\S\ref{sec-background-shake}) it would be important to clear the dirty
-bit after a computation that did not change the value and make sure that cells
+bit after a computation that did not change the value and make sure that keys
 that depend on it are not rebuilt unnecessarily. For \Excel, this is difficult
 because the dependent cells have already been recursively marked dirty. For
 \Make, it is impossible to mark a file clean and at the same time not mark the
-keys that depend on it dirty. \Make can approximate early cutoff by not
+files that depend on it dirty. \Make can approximate early cutoff by not
 modifying the result file, and not marking it clean, but then it will be rebuilt
 in every subsequent build.
 
-A dirty bit rebuilder is useful to reduce memory consumption, and in the case
+A dirty-bit rebuilder is useful to reduce memory consumption, and in the case
 of \Make, to integrate with the file system. However, as the examples show, in
 constrained environments where a dirty bit is chosen, it is often done as part
 of a series of compromises.
 
-It is possible to write a dirty-bit builder which is minimal and supports early
-cutoff. To do so, you need to start with all inputs that have changed marked dirty,
-then a node must be rebuilt if any children are dirty, and must set that node to dirty
-only if the result changes. At the end of the build all dirty bits
-must be reset to not-dirty. This approach only works if all targets are rebuilt each time,
-since clearing dirty bits of children who aren't targets will cause them to incorrectly
-not rebuild subsequently. To avoid resetting the dirty bit,
-it is possible to use successive execution numbers, which ultimately leads to an approach
-we call verifying step traces in \S\ref{sec-step-traces}.
+It is possible to implement a dirty-bit rebuilder that is minimal and supports early
+cutoff. To do so, the build system should start with all inputs that have changed
+marked dirty, then a key must be rebuilt if any of its direct dependencies are dirty,
+marking the key dirty only if the result has changed. At the end of the build all
+dirty bits must be cleared. This approach only works if all targets are rebuilt each
+time because clearing dirty bits of keys that are not transitive dependencies of
+current targets will cause them to incorrectly not rebuild subsequently. To avoid
+resetting the dirty bit, it is possible to use successive execution numbers, which
+ultimately leads to an approach we call verifying step traces in~\S\ref{sec-step-traces}.
 
 \subsection{Verifying Traces}\label{sec-verifying-traces}
 
@@ -308,8 +308,8 @@ cases to consider when using a rebuilder based on constructive traces:
 \end{itemize}
 
 Any \hs{Applicative} build system using constructive traces, e.g.
-\CloudBuild~\S\ref{sec-implementation-cloud}, can index directly from the
-key and the hashes of its dependencies to the output result~--~i.e.
+\CloudBuild~(\S\ref{sec-implementation-cloud}), can index directly from the
+key and the hashes of its dependencies to the output result, i.e.
 \hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces
 are stored on a central server, the client can compute the key and the hashes of
 its dependencies locally, and then make a single call to the server to retrieve

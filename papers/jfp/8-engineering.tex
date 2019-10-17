@@ -346,10 +346,10 @@ encode either mutable state, or recurrence relations. The former is only
 required because \Excel inherently lacks the ability to write mutable state, and
 the latter is probably better solved using explicit recurrence formulae.
 
-Overall we choose not to deal with cyclic dependencies -- a choice that most build
-systems also follow. There are computation frameworks that support tasks with
-cyclic dependencies under the assumption that tasks are \emph{monotonic} in a
-certain sense~\cite{pottier2009lazy,radul2009propagation}.
+We choose not to deal with cyclic dependencies -- a choice that most build
+systems also follow. There are computation frameworks that support dependency
+cycles under the assumption that tasks are \emph{monotonic} in a certain
+sense~\cite{pottier2009lazy,radul2009propagation}.
 
 \subsection{Key-dependent Value Types}\label{sec-polymorphism}
 
@@ -392,7 +392,7 @@ stands for ``typed''):
 \begin{minted}[xleftmargin=5pt]{haskell}
 type Fetch k f = @\std{forall}@ v. k v -> f v
 
-newtype TaskT c k v = TaskT@\,@{@\,@runT :: @\std{forall}@ f. c f => Fetch k f -> f v@\,@}
+newtype TaskT c k v = TaskT (@\std{forall}@ f. c f => Fetch k f -> f v)
 
 type TasksT c k = @\std{forall}@ v. k v -> Maybe (TaskT c k v)
 \end{minted}
@@ -591,7 +591,7 @@ It is possible to implement \hs{selfTracking} without relying on GADTs and typed
 tasks presented in~\S\ref{sec-polymorphism}, at the cost of using partial
 functions.
 
-\subsection{File watching vs polling}\label{sec-integration-with-ides}
+\subsection{File watching vs polling}\label{sec-file-watching}
 
 Most build systems use files for their inputs. When running a build, to check if
 a file is up-to-date, one option is to take the modification time or compute the

@@ -51,10 +51,10 @@ with desired properties, for example, to combine the advantages of \Shake and
 \Bazel. Writing this paper gave us the insights to combine dynamic dependencies and
 cloud build in a principled way; we evaluate the result~(\S\ref{sec-experience}).
 
-\item We can use these new abstractions to more clearly explain details from the
-original \Shake paper~\cite{mitchell2012shake} (\S\ref{sec-step-traces},
-\S\ref{sec-experience-shake}) and build new features useful for the GHC build
-system~\cite{hadrian} (\S\ref{sec-using-cloud-shake}).
+\item We can use the presented abstractions to more clearly explain details from
+the original \Shake paper~(\S\ref{sec-step-traces}, \S\ref{sec-experience-shake})
+and develop new cloud build features, which are already in use in industry and in
+the GHC build system~(\S\S\ref{sec-using-cloud-shake}-\ref{sec-hadrian}).
 
 \end{itemize}
 
@@ -62,19 +62,19 @@ In short, instead of seeing build systems as unrelated points in space, we now
 see them as locations in a connected landscape, leading to a better
 understanding of what they do and how they compare, and making it easier to
 explore other points in the landscape. While we steer clear of many engineering
-aspects of real build systems, in~\S\ref{sec-engineering} we show how they can
-be incorporated into the presented abstractions. The related work is discussed
+aspects of real build systems, in~\S\ref{sec-engineering} we discuss these
+aspects in the context of the presented abstractions. The related work is covered
 in~\S\ref{sec-related}.
 
 This paper is an extended version of an earlier conference
 paper~\cite{mokhov2018buildsystems}. The key changes compared to the earlier
 version are: (i) we added further clarifications and examples
-into~\S\ref{sec-abstractions}, in particular,~\S\ref{sec-task-examples} is
+to~\S\ref{sec-abstractions}, in particular,~\S\ref{sec-task-examples} is
 entirely new; (ii)~\S\ref{sec-scheduler} and~\S\ref{sec-rebuilder} are based on
 the material from the conference paper but have been substantially expanded to
 include further details and examples, as well as completely new material such
 as~\S\ref{sec-step-traces}; (iii)~\S\ref{sec-experience} is completely new; (iv)
-\S\ref{sec-failures} and \S\S\ref{sec-polymorphism}-\ref{sec-tracking-aspects}
+\S\ref{sec-failures} and \S\S\ref{sec-polymorphism}-\ref{sec-file-watching}
 are almost entirely new, and \S\ref{sec-non-determinism} has been revised.
 The new material focuses on our experience and various important practical
 considerations, hence justifying the ``and Practice'' part of the paper title.

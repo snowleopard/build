@@ -15,9 +15,9 @@ and~\S\ref{sec-general-build}, respectively. Sections~\S\ref{sec-scheduler},
 abstractions further and provide concrete implementations for several build
 systems.
 
-\vspace{-1.5mm}
+% \vspace{-1.5mm}
 \subsection{Common Vocabulary for Build Systems}\label{sec-vocabulary}
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 
 \emph{Keys, values, and the store.} The goal of any build system is to
 bring up to date a \emph{store} that implements a mapping from \emph{keys} to
@@ -77,13 +77,13 @@ getHash :: Hashable v => k -> Store i k v -> Hash v
 % \vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Build tasks (see §3.2)
-data Task  c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
-type Tasks c k v = k -> Maybe (Task c k v)
+newtype Task  c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
+type    Tasks c k v = k -> Maybe (Task c k v)
 \end{minted}
 % \vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
 run :: c f => Task c k v -> (k -> f v) -> f v
-run (Task task) = task
+run (Task task) fetch = task fetch
 \end{minted}
 % \vspace{-1mm}
 \begin{minted}[fontsize=\small]{haskell}
@@ -105,12 +105,8 @@ type Rebuilder c   ir k v = k -> v -> Task c k v -> Task (MonadState ir) k v
 
 Our first main abstraction is for \emph{task descriptions}:
 \begin{minted}[xleftmargin=10pt]{haskell}
-data Task  c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
-type Tasks c k v = k -> Maybe (Task c k v)
-\end{minted}
-\begin{minted}[xleftmargin=10pt]{haskell}
-run :: c f => Task c k v -> (k -> f v) -> f v
-run (Task task) = task
+newtype Task  c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
+type    Tasks c k v = k -> Maybe (Task c k v)
 \end{minted}
 
 \noindent
@@ -296,7 +292,7 @@ The previous example illustrates why the \hs{Task} abstraction is polymorphic
 in~\hs{f}; recall its definition from~\S\ref{sec-task}:
 
 \begin{minted}[xleftmargin=5pt]{haskell}
-data Task  c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
+newtype Task c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
 \end{minted}
 
 \noindent
