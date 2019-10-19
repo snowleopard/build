@@ -120,10 +120,12 @@ Consider this \Excel spreadsheet:
 % \footnote{Readers familiar with \emph{lenses} or \emph{profunctor optics} might
 % recognise a familiar pattern. We discuss this in~\S\ref{sec-related-optics}.}
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{text}
 A1: 10     B1: A1 + A2
 A2: 20     B2: B1 * 2
 \end{minted}
+\vspace{1mm}
 
 \noindent
 Here cell \cmd{A1} contains the value \cmd{10}, cell \cmd{B1} contains the
@@ -148,8 +150,9 @@ but not the input values. It pattern-matches on the key to see if it has a task
 description (in the \Excel case, a formula) for it. If not, it returns
 \hs{Nothing}, indicating that the key is an input. If there is a formula in the
 cell, it returns the \hs{Task} to compute the value of the formula. Every
-\hs{Task} is given a \emph{callback} \hs{fetch} to find the value of any keys on
-which it depends.
+task is given a \emph{callback} \hs{fetch} to find the value of any keys on
+which it depends. To run a \hs{Task}, we simply apply the function it holds to a
+callback (see the definition of the function \hs{run} in Fig.~\ref{fig-types}).
 
 \begin{figure}
 \begin{minted}[fontsize=\small]{haskell}
@@ -158,7 +161,7 @@ pure  :: Applicative f => a -> f a
 (<$>) :: Functor     f =>   (a -> b) -> f a -> f b -- Left-associative
 (<*>) :: Applicative f => f (a -> b) -> f a -> f b -- Left-associative
 \end{minted}
-\vspace{1mm}
+\vspace{0.5mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Standard State monad from Control.Monad.State
 data State s a
@@ -170,31 +173,30 @@ modify    :: (s -> s) -> State s ()
 runState  :: State s a -> s -> (a, s)
 execState :: State s a -> s -> s
 \end{minted}
-\vspace{1mm}
+\vspace{0.5mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Standard types from Data.Functor.Identity and Data.Functor.Const
 newtype Identity a = Identity { runIdentity :: a }
 newtype Const m a  = Const    { getConst    :: m }
 \end{minted}
-\vspace{1mm}
+\vspace{0.5mm}
 \begin{minted}[fontsize=\small]{haskell}
 instance Functor (Const m) where
     fmap _ (Const m) = Const m
 \end{minted}
-\vspace{1mm}
+\vspace{0.5mm}
 \begin{minted}[fontsize=\small]{haskell}
 instance Monoid m => Applicative (Const m) where
     pure _              = Const mempty   -- mempty is identity for monoid m
     Const x <*> Const y = Const (x <> y) -- <> is the binary operation for m
 \end{minted}
-\vspace{1mm}
+\vspace{0.5mm}
 \begin{minted}[fontsize=\small]{haskell}
 -- Standard types from Control.Monad.Trans.Writer
 newtype WriterT w m a = WriterT { runWriterT :: m (a, w) }
 tell :: Monad m => w   -> WriterT w m () -- write a value to the log
 lift :: Monad m => m a -> WriterT w m a  -- lift an action into WriterT
 \end{minted}
-
 % \vspace{-3mm}
 \caption{Standard library definitions.}\label{fig-stdlib}
 % \vspace{-4mm}
@@ -215,17 +217,20 @@ and limiting side effects to those described by \hs{c}.
 
 Next comes our second main abstraction -- a build system:
 
-\vspace{1mm}
+\vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 type Build c i k v = Tasks c k v -> k -> Store i k v -> Store i k v
 \end{minted}
-\vspace{1mm}
+\vspace{0.5mm}
 
 \noindent
 The signature is very straightforward. Given a task description, a target key,
 and a store, the build system returns a new store in which the value of the
 target key is up to date. What exactly does ``up to date'' mean?  We answer
-that precisely in \S\ref{sec-build-correctness}. Here is a simple build system:
+that precisely in \S\ref{sec-build-correctness}.
+
+\noindent
+Here is a simple build system:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -267,6 +272,7 @@ Nevertheless, \hs{busy} can easily handle the example task description
 below we initialise the store with \cmd{A1} set to~10 and all other cells set
 to~20.
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 @\ghci@ store  = initialise () (\key -> if key == "A1" then 10 else 20)
 @\ghci@ result = busy sprsh1 "B2" store
@@ -275,6 +281,7 @@ to~20.
 @\ghci@ getValue "B2" result
 60
 \end{minted}
+\vspace{1mm}
 
 \noindent
 As we can see, \hs{busy} built both \cmd{B2} and its dependency \cmd{B1} in the

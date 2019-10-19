@@ -42,9 +42,9 @@ The above makefile lists three tasks: (i) compile a utility library comprising
 files \cmd{util.h} and \cmd{util.c} into \cmd{util.o} by
 executing\footnote{In this example we pretend \cmd{gcc} is a pure function for
   the sake of simplicity. In reality, there are multiple versions of \cmd{gcc}.
-  To account for this, the actual binary for \cmd{gcc} is often listed as a dependency, along
-  with any supporting binaries, or standard libraries (such as \cmd{stdio.h}),
-  that are used by \cmd{gcc}.
+  To account for this, the actual binary for \cmd{gcc} is often also listed as a
+  dependency, along with any supporting binaries, or standard libraries (such as
+  \cmd{stdio.h}), that are used by \cmd{gcc}.
 } the command
 \cmd{gcc -c util.c}, (ii) compile the main source file \cmd{main.c} into
 \cmd{main.o}, and (iii) link object files \cmd{util.o} and \cmd{main.o} into the
@@ -83,18 +83,24 @@ On the other hand, if the user modifies \cmd{main.c} then a \emph{partial
 rebuild} is sufficient: \cmd{util.o} does not need to be rebuilt, since its
 inputs have not changed, see Fig.~\ref{fig-make}(c). Note that if the dependency
 graph is \emph{acyclic} then each task needs to be executed at most once. Cyclic
-task dependencies are typically not allowed in build systems, although there are rare
-exceptions, see~\S\ref{sec-iterative-compute}.
+task dependencies are typically not allowed in build systems, although there are
+rare exceptions, see~\S\ref{sec-iterative-compute}.
 
-\noindent
-The following property is essential for build systems; indeed, it is their
-raison d'\^etre:
+The fewer tasks are executed in a partial rebuild, the better. To be more
+specific, consider the following property, which is essential for build systems;
+indeed, it is their raison d'\^etre:
 
 \vspace{2mm}
 \textbf{Definition} (Minimality). A build system is \emph{minimal} if it
 executes tasks at most once per build, and only if they transitively depend on
 inputs that changed since the previous build.\label{def-minimal}
 \vspace{2mm}
+
+\noindent
+This property is tightly linked to build system \emph{correctness}, which we
+will be ready to define in~\S\ref{sec-build-correctness}; for now, we will use
+minimality as the guiding principle when exploring the design space of build
+systems.
 
 To achieve minimality \Make relies on two main ideas: (i) it uses \emph{file
 modification times} to detect which files changed\footnote{Technically, you
@@ -110,12 +116,12 @@ see~\S\ref{sec-topological} and~\S\ref{sec-implementation-make}.
 
 \Excel is a build system in disguise. Consider the following simple spreadsheet.
 
-\vspace{1mm}
+\vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{text}
 A1: 10      B1: A1 + A2
 A2: 20
 \end{minted}
-\vspace{1mm}
+\vspace{0.5mm}
 
 \noindent
 There are two input cells \cmd{A1} and \cmd{A2}, and a single task that computes
@@ -194,13 +200,14 @@ list of release documents \cmd{docs.txt}.\label{fig-shake}}
 % \vspace{-4mm}
 \end{figure}
 
-\vspace{-1mm}
 \subsection{\Shake: Dynamic Dependencies with No Remorse}
 \label{sec-background-shake}
 
 \Shake was developed to solve the issue of dynamic
 dependencies~\cite{mitchell2012shake} without sacrificing
-the minimality requirement. Building on the \Make example
+the minimality requirement.
+
+Building on the \Make example
 from~\S\ref{sec-background-make}, we add the following files whose
 dependencies are shown in Fig.~\ref{fig-shake}(a):
 
@@ -220,6 +227,7 @@ workarounds such as \emph{build phases}, which are known to be
 problematic~\cite{hadrian}. In \Shake we can express the rule for
 \cmd{release.tar} as:
 
+\vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 "release.tar" %> \_ -> do
     need ["release.txt"]
@@ -227,6 +235,7 @@ problematic~\cite{hadrian}. In \Shake we can express the rule for
     need files
     cmd "tar" $ ["-cf", "release.tar"] ++ files
 \end{minted}
+\vspace{1mm}
 
 \noindent
 We first declare the static dependency on \cmd{release.txt}, then read its
@@ -239,12 +248,12 @@ if we create another documentation file \cmd{README} and add it to
 \cmd{release.tar}, discovering the new dependency, see Fig.~\ref{fig-shake}(b).
 
 \Shake's implementation is different from both \Make and \Excel in two aspects.
-First, to decide which files need to be rebuilt,
-it uses the dependency graph that is dynamically constructed during
-the previous build. This idea has a long history, going back to
-\emph{incremental}~\cite{demers1981incremental},
-\emph{adaptive}~\cite{acar2002adaptive}, as well as
-\emph{self-adjusting computations} -- see
+First, to decide which files need to be rebuilt, it stores the \emph{dependency
+graph} that is constructed during the previous build (\mbox{instead of
+just file modification times or a linear chain}). This idea has a long history,
+going back to \emph{incremental}~\cite{demers1981incremental},
+\emph{adaptive}~\cite{acar2002adaptive}, and
+\emph{self-adjusting computations}~--~see
 Acar~\etal~\shortcite{acar2007selfadjusting} and~\S\ref{sec-related}. Second,
 instead of aborting and deferring the execution of tasks whose newly discovered
 dependencies have not yet been built (as \Excel does), \Shake \emph{suspends}
@@ -264,12 +273,12 @@ rebuilt.\label{fig-cutoff}}
 % \vspace{-4mm}
 \end{figure}
 
-\Shake also supports the \emph{early cutoff optimisation}. When it
-executes a task and the result is unchanged from the previous build, it is
-unnecessary to execute the dependent tasks, and hence \Shake can stop a build
-earlier, as illustrated in Fig.~\ref{fig-cutoff}. Not all build systems support
-early cutoff: \Shake and \Bazel (introduced below) do, but \Make and \Excel do
-not; see~\S\ref{sec-dirty-bit} for an explanation of why.
+\Shake also supports the \emph{early cutoff optimisation}, which is illustrated
+in Fig.~\ref{fig-cutoff}. When it executes a task and the result is unchanged
+from the previous build, it is unnecessary to execute the dependent tasks, and
+hence \Shake can stop a build earlier. Not all build systems support early
+cutoff: \Shake and \Bazel (introduced below) do, but \Make and \Excel do not;
+see~\S\ref{sec-dirty-bit} for an explanation of why.
 
 % \vspace{-0.5mm}
 \subsection{\Bazel: A Cloud Build System}\label{sec-background-bazel}
@@ -286,20 +295,20 @@ intermediates in the cloud.
 % \vspace{-2mm}
 \begin{subfigure}[b]{0.25\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-checkout.pdf}}
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 \caption{Download sources}
 \end{subfigure}
 \begin{subfigure}[b]{0.40\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-build.pdf}}
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 \caption{Build \cmd{main.exe}}
 \end{subfigure}
 \begin{subfigure}[b]{0.31\linewidth}
 \centerline{\includegraphics[scale=0.28]{fig/bazel-example-rebuild.pdf}}
-\vspace{-0.5mm}
+% \vspace{-0.5mm}
 \caption{Modify \cmd{util.c} and rebuild}
 \end{subfigure}
-\vspace{-1mm}
+% \vspace{-1mm}
 \caption{A cloud build example: (a)~download sources, (b)~build \cmd{main.exe}
 by downloading it from the cloud and skipping intermediate files (only their
 hashes are needed), (c)~modify \cmd{util.c} and rebuild \cmd{main.exe}, which
@@ -307,7 +316,7 @@ requires building \cmd{util.o} (nobody has compiled \cmd{util.c} before) and
 downloading \cmd{main.o} (it is needed for linking \cmd{main.exe}). File hashes
 are shown in circles, and non-materialised intermediates in dashed rounded
 rectangles.\label{fig-bazel}}
-\vspace{-1mm}
+% \vspace{-1mm}
 \end{figure}
 
 Consider the example in Fig.~\ref{fig-bazel}. The user starts by downloading the
@@ -339,7 +348,9 @@ dynamic dependencies and the internal build engine can cope with them by using
 a \emph{restarting} task scheduler, which is similar to that of \Excel but does
 not use the calc chain. \Bazel is not minimal in the sense that it may restart a
 task multiple times as new dependencies are discovered and rebuilt, but it
-supports the early cutoff optimisation.
+supports the early cutoff optimisation. Note that in practice the cost of
+duplicate work due to the use of a restarting scheduler may often be just a
+small fraction of the overall build cost~(\S\ref{sec-suspending}).
 
 To support cloud builds, \Bazel maintains (i)~a \emph{content-addressable cache}
 that maps the hash of a file's content to the actual content of that file;
@@ -348,8 +359,9 @@ with their input and output file hashes.
 The memo table allows the build engine to bypass the execution
 of a task, by predicting the hash of the result from the hashes of its
 dependencies; then the content-addressable cache allows the engine
-to download the result (if needed) based on the result hash. A concrete
-implementation is provided in~\S\ref{sec-implementation-cloud}.
+to download the result (if needed) based on the result hash. Further details
+and a concrete implementation will be provided
+in~\S\ref{sec-constructive-traces} and~\S\ref{sec-implementation-cloud}.
 
 % \vspace{-1.5mm}
 \subsection{Summary}\label{sec-background-summary}
@@ -378,9 +390,9 @@ in~\S\ref{sec-implementation-cloud} we demonstrate how to combine the advantages
 of \Shake and \Bazel.
 
 \begin{table}
-% \vspace{-2mm}
+\vspace{2mm}
 \caption{Build system differences.\label{tab-summary}}
-% \vspace{-4mm}
+\vspace{-1mm}
 % \smaller
 \centering
 \begin{tabular}{llllccc}
@@ -393,5 +405,5 @@ Build system\gap & Persistent build information\gap & Scheduler\gap   & Dependen
 \end{tabular}
 % \vspace{2mm}
 $^{(*)}$At present, user-defined build rules cannot have dynamic dependencies.
-% \vspace{-8mm}
+\vspace{1mm}
 \end{table}
