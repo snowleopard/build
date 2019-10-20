@@ -14,9 +14,11 @@ some notable examples:
 
 \begin{itemize}
 \item \Dune~\cite{dune} is a build system designed for OCaml/Reason projects.
-Its distinguishing feature is that it uses
-\emph{arrows}~\cite{hughes2000generalising} rather than monads to model
-dynamic dependencies, which simplifies static dependency approximation.
+Its original implementation used \emph{arrows}~\cite{hughes2000generalising}
+rather than monads to model dynamic dependencies, which simplified static
+dependency approximation. \Dune was later redesigned to use a flavour of
+selective functors~\cite{mokhov_selective_2019}, making it a closer fit to our
+abstractions.
 
 \item \Ninja~\cite{ninja} combines the \hs{topological} scheduler of \Make with
 the verifying traces of \Shake~--~our associated implementation provides such a
@@ -34,14 +36,14 @@ different purpose.
 additionally allows cyclic build rules combined with a user-specific resolution
 strategy. Often such a strategy can be unfolded into the user rules without loss
 of precision, but a fully general resolution handler extends the \hs{Task}
-abstraction with additional features.
+abstraction with new features.
 
 \item \Redo~\cite{redo-idea,grosskurth2007redo,redo} almost exactly
 matches \Shake at the level of detail given here, differing only on aspects like
-rules producing multiple files~\S\ref{sec-polymorphism}. While \Redo predates \Shake,
-the approaches were discovered independently -- we use \Shake as the prototypical
-example of this system as its implementation presents a closer mapping to our
-\hs{Task} abstraction.
+rules producing multiple files~\S\ref{sec-polymorphism}. While \Redo predates
+\Shake, they were developed independently; we use \Shake as a prototypical
+example of a monadic build system because its implementation presents a closer
+mapping to our \hs{Task} abstraction.
 
 \item \Tup~\cite{tup} functions much like \Make, but with a refined dirty-bit
 implementation that watches the file system for changes and can thus avoid
@@ -64,11 +66,10 @@ gcc util.o main.o -o main.exe
 To achieve minimality, each separate command is traced at the OS-level, allowing
 \Fabricate to record a trace entry stating that \cmd{gcc -c util.c} reads from
 \cmd{util.c}. In future runs \Fabricate runs the script from start to finish,
-skipping any commands where no inputs have changed. The key difference from our
-\hs{Tasks} abstraction is that instead of supplying a mapping from outputs to
-tasks, \Fabricate supplies a list of statements, in an order, without declaring
-what each line produces. There is no need to schedule the statements, and not
-enough information to do so.
+skipping any commands where no inputs have changed. The main difference from our
+\hs{Tasks} abstraction is that instead of supplying a mapping from keys to
+tasks, a \Fabricate script supplies a list of build statements, in a
+user-scheduled order, without declaring what each statement reads or write.
 
 Taking our abstraction, it is possible to encode \Fabricate assuming that
 commands like \cmd{gcc -c util.c} are keys, there is a linear dependency between
@@ -76,7 +77,10 @@ each successive key, and that the OS-level tracing can be lifted back as a
 monadic \hs{Task} function\footnote{\Shake provides support for
 \Fabricate{}-like build systems~--~see \cmd{Development.Shake.Forward}.}.
 However, in our pure model the mapping is not perfect as \cmd{gcc} writes to
-arbitrary files whose locations are not known in advance.
+arbitrary files whose locations are not known in advance. One way of capturing
+arbitrary writes in our model is to switch from one callback \hs{fetch} to
+\emph{two callbacks}, say \hs{read} and \hs{write}, allowing us to track both
+reads and writes separately.
 
 \subsection{Self-adjusting Computation}
 
@@ -92,10 +96,15 @@ spirit, self-adjusting computations are mostly used for in-memory computation
 and rely on the ability to dynamically allocate new keys in the store for
 sharing intermediate computations~--~an intriguing feature rarely seen in build
 systems (\Shake's oracles~\S\ref{sec-polymorphism} can be used to model this
-feature to a limited degree).
+feature to a limited degree). Another important optimisation that self-adjusting
+computation engines often support is the incremental processing of
+\emph{deltas}, where instead of marking a value as ``changed to 8'', one can
+mark it as ``changed by $+1$'', assuming it was equal to 7 before. When a delta
+is small, it can often be propagated to the output more efficiently than by
+recomputing the output value from scratch.
 
 A lot of research has been dedicated to finding efficient data structures and
-algorithms for self-adjusting computations (with a few open-source
+algorithms for self-adjusting computations, with a few open-source
 implementations, e.g. \Incremental by Jane Street~\shortcite{incremental}. We
 plan to investigate how these insights can be utilised by build systems as
 future work.
@@ -104,7 +113,7 @@ future work.
 
 \emph{Memoization} is a classic optimisation technique for storing values of a
 function instead of recomputing them each time the function is called. Minimal
-build systems (see the Definition~\ref{def-minimal}) certainly perform
+build systems (\S\ref{sec-background-make}) certainly perform
 memoization: they \emph{store values instead of recomputing them each time}.
 Memoization can therefore be reduced to a minimal build system (as we
 demonstrate below), but not vice versa, since minimal build systems solve a more
@@ -126,7 +135,6 @@ identified by \hs{C}~$i$~$j$.
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Key = A Int | B Int | C Int Int deriving Eq
 \end{minted}
-\vspace{0mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 editDistance :: Tasks Monad Key Int
 editDistance (C i 0) = Just $ Task $ const $ pure i
@@ -146,9 +154,9 @@ editDistance _ = Nothing
 
 \noindent
 When asked to build \hs{C}~$n$~$m$, a minimal build system will calculate the
-result using memoization. Furthermore, when an input symbol $a_i$ is changed,
-only necessary, incremental recomputation will be performed~--~an optimisation
-that cannot be achieved just with memoization.
+result using memoization. Furthermore, when an input $a_i$ is changed, only
+necessary, incremental recomputation will be performed~--~an optimisation that
+cannot be achieved just with memoization.
 
 Self-adjusting computation, memoization and build systems are inherently related
 topics, which poses the question of whether there is an underlying common

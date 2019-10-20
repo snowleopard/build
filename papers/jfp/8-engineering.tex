@@ -57,10 +57,10 @@ transformer~\cite{liang1995monad}.
 
 Another approach is to include failures into the computation context \hs{f}.
 Recall from~\S\ref{sec-why-polymorphism} that we require tasks to be polymorphic
-in~\hs{f}, and we can therefore choose to execute a \hs{Task} in an~\hs{f} with
+in~\hs{f}, and can therefore choose to execute a \hs{Task} in an~\hs{f} with
 failures, the simplest example being \hs{f}~\hs{=}~\hs{Maybe}. Below we define
-a callback \hs{fetchA1A2} that returns \hs{Just}~\hs{value} for keys \cmd{A1}
-and \cmd{A2} but fails with \hs{Nothing} on all other keys:
+a callback that returns \hs{Just}~\hs{value} for keys \cmd{A1} and \cmd{A2} but
+fails with \hs{Nothing} on all other keys:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -94,7 +94,8 @@ failure mechanism as shown below:
 \begin{minted}[xleftmargin=10pt]{haskell}
 class Monad m => MonadFail m where
     fail :: String -> m a
-
+\end{minted}
+\begin{minted}[xleftmargin=10pt]{haskell}
 sprsh4 :: Tasks MonadFail String Integer
 sprsh4 "B1" = Just $ Task $ \fetch -> do
     a1 <- fetch "A1"
@@ -137,8 +138,8 @@ most direct is to have $n$ threads reading keys from the build queue. As before,
 if a key requires a dependency not yet built, it is moved to the end~--~the
 difference is that sometimes keys will be moved to the back of the queue not
 because they are out of date but because of races with earlier tasks that had
-not yet finished. As a consequence, if a the calculation order is persisted over
-successive runs (as \Excel does), potentially racey dependencies will be
+not yet finished. As a consequence, if the build order is persisted over
+successive runs (as in \Excel), potentially racey dependencies will be
 separated, giving better parallelism over time.
 
 \item The \hs{suspending} scheduler can be made parallel by starting multiple
@@ -150,11 +151,10 @@ described by~Marlow~\etal~\shortcite{marlow2014haxl}.
 
 Once sufficient parallelism is available the next challenge is preventing excess
 parallelism and machine resource starvation, which is usually achieved with a
-thread pool or thread limit.
+thread pool/limit.
 
-The actual implementation of the parallel schedulers is not overly onerous,
-but neither is it beautiful or informative.
-
+The actual implementation of the parallel schedulers is not overly onerous, but
+neither is it beautiful or informative, so we omit it.
 
 \subsection{Impure Computations}\label{sec-non-determinism}
 
@@ -183,13 +183,12 @@ Some examples of impure tasks include:
       \cmd{RealWorld} whose value is changed in every build.
 \end{itemize}
 
-Interestingly, there is significant interplay between all three sources of
+There is significant interplay between all three sources of
 impurity. Systems like \Bazel use various sandboxing techniques to guard against
 missing dependencies, but none are likely to capture all dependencies right down
-to the CPU model and microcode version. Tasks that do have untracked
-dependencies can be marked as volatile, a technique \Excel takes with the
-\cmd{INDIRECT} function, fixing the untracked dependency at the cost of
-minimality.
+to the CPU model and microcode version. Tasks with untracked dependencies can be
+marked volatile, a technique \Excel takes with the \cmd{INDIRECT} function,
+fixing the untracked dependency at the cost of minimality.
 
 Most of the implementations in~\S\ref{sec-implementations} can deal with
 non-determinism, apart from \Buck, which uses the assumption of task determinism
@@ -220,21 +219,22 @@ sprsh5 _    = Nothing
 \noindent
 Such tasks can be modelled in our framework by adjusting the correctness
 definition~(\S\ref{sec-build-correctness}): instead of requiring that the
-resulting value \emph{equals the result} of recomputing the task, we now require
-that resulting value \emph{belongs to the set of possible results} of
+produced value \emph{equals the result} of recomputing the task, we now require
+that produced value \emph{belongs to the set of possible results} of
 recomputing the task, i.e. the set \cmd{$\{$A1 + 1, A1 + 2$\}$} in the above
 example.
 
 % \todo{AM}{Show implementation of \hs{computeND}.
 % Neil says: not convinced it's that interesting.}.
 
-Note that \hs{Task}~\hs{MonadRandom} is powerful enough to model
+Interestingly, \hs{Task}~\hs{MonadRandom} is powerful enough to express
 dependency-level non-determinism, for example,
 \cmd{INDIRECT("A" \& RANDBETWEEN(1,2))}, whereas most build tasks in real-life
-build systems only experience a value-level non-determinism. \Excel handles this
-example simply by marking the cell volatile~--~an approach that can be readily
-adopted by any of our implementations.
+build systems only experience a value-level non-determinism. \mbox{\Excel}
+handles this example simply by marking the cell volatile~--~an approach that can
+be readily adopted by any of our implementations.
 
+\vspace{-1mm}
 \subsection{Cloud Implementation}\label{sec-cloud-aspects}
 
 Our model of cloud builds provides a basic framework to discuss and reason
@@ -260,71 +260,73 @@ value \hs{v}, one can also evict all traces mentioning the now-defunct
 keep these traces, allowing builds to ``pass-through'' hashes whose underlying
 values are not known, recreating them only when they must be materialised.
 
-\item \textbf{Shallow builds}: Building the end result, e.g. an installer
-package, often involves many intermediate tasks. The intermediate results may be
-large, so some cloud build systems are designed to build end products
-\emph{without materialising} intermediate results, producing a so-called
-\emph{shallow build} (see an example in~\S\ref{sec-background-bazel}). Some
-build systems go even further, integrating with the file system to only
-materialise the file when the user accesses it~\cite{gvfs}.
+\item \textbf{Shallow builds}: Building the end target, e.g. an installer
+package, often involves many intermediate tasks. The values produced by these
+intermediate tasks may be large, so some cloud build systems are designed to
+build end targets \emph{without materialising} any intermediate values,
+producing a so-called \emph{shallow build} -- see an example
+in~\S\ref{sec-background-bazel}. Some build systems go even further, integrating
+with the file system to only materialise the file when the user accesses
+it~\cite{gvfs}.
 \end{itemize}
 
-Shallow builds have a slightly weaker correctness property than
+Shallow builds have a slightly weaker correctness property than in the
 Definition~\ref{def-correct}. Instead of demanding that \emph{all} keys reachable
-from the target match, we only require matches for the target itself and the \emph{input
-keys} reachable from the target.
+from the target match, we only require matches for the target itself and the
+\emph{input keys} reachable from the target.
 
 \begin{figure}
 \begin{subfigure}[b]{0.31\linewidth}
-\centerline{\includegraphics[scale=0.26]{fig/frankenbuild-example-build.pdf}}
+\centerline{\includegraphics[scale=0.27]{fig/frankenbuild-example-build.pdf}}
 % \vspace{-1.5mm}
 \caption{Initial build}
 \end{subfigure}
 \begin{subfigure}[b]{0.31\linewidth}
-\centerline{\includegraphics[scale=0.26]{fig/frankenbuild-example-clean.pdf}}
+\centerline{\includegraphics[scale=0.27]{fig/frankenbuild-example-clean.pdf}}
 % \vspace{-1.5mm}
 \caption{Clean up, evict \cmd{main.prof}}
 \end{subfigure}
 \begin{subfigure}[b]{0.36\linewidth}
-\centerline{\includegraphics[scale=0.26]{fig/frankenbuild-example-rebuild.pdf}}
+\centerline{\includegraphics[scale=0.27]{fig/frankenbuild-example-rebuild.pdf}}
 % \vspace{-1.5mm}
 \caption{Build \cmd{main.prof} and \cmd{report.txt}}
 \end{subfigure}
-% \vspace{-1.5mm}
-\caption{A Frankenbuild example: (a)~build a human-readable profiling report for
+\vspace{-1mm}
+\caption{Frankenbuild example: (a)~build a human-readable profiling report for
 \cmd{main.exe} from information dump \cmd{main.prof} produced by a profiling
-tool, then record deep constructive traces in the cloud, (b)~remove built files
-locally and evict \cmd{main.prof} from the cloud storage, (c)~build
-\cmd{main.prof} by executing the profiler (profiling is non-deterministic, hence
-the new hash value), then build \cmd{report.txt} by downloading it from the
-matching deep constructive trace in the cloud, resulting in a Frankenbuild
-because \cmd{main.prof} and \cmd{report.txt} are inconsistent. New and evicted
-cloud storage entries are highlighted; file hashes are shown in circles.
+tool, saving deep constructive traces in the cloud, (b)~remove built files
+locally and evict \cmd{main.prof} from the cloud storage, (c)~rebuild
+\cmd{main.prof} (profiling is non-deterministic, hence a new hash value), then
+build \cmd{report.txt} by downloading it from the matching deep constructive
+trace in the cloud. The result is a Frankenbuild because \cmd{main.prof} and
+\cmd{report.txt} are inconsistent. New and evicted cloud storage entries are
+highlighted; file hashes are shown in circles.
 \label{fig-frankenbuild}}
 % \vspace{-4mm}
 \end{figure}
 
-As described in \S\ref{sec-using-cloud-shake}, non-determinism  (\S\ref{sec-non-determinism})
-is harmful for cloud builds, reducing the number of cache hits.
-However, for deep constructive traces (\S\ref{sec-deep-constructive-traces}) it
-is much worse, even leading to \emph{incorrect results}.
-Fig.~\ref{fig-frankenbuild} shows a
+As described in \S\ref{sec-using-cloud-shake}, non-determinism
+(\S\ref{sec-non-determinism}) is harmful for cloud builds, reducing the number
+of cache hits. However, for deep constructive traces
+(\S\ref{sec-deep-constructive-traces}) it is much worse, even leading to
+\emph{incorrect results}. Fig.~\ref{fig-frankenbuild} shows a
 \emph{Frankenbuild}~\cite{esfahani2016cloudbuild} example, where the target
 \cmd{report.txt}, which is downloaded from the cloud, is inconsistent with its
 immediate dependency \cmd{main.prof}. This inconsistency is caused by two factors:
-(i)~inherent non-determinism of profiling: running a profiling tool on the very
+(i)~inherent non-determinism of profiling -- running a profiling tool on the very
 same \cmd{main.exe} will produce different \cmd{main.prof} results every time;
-and (ii)~relying on deep constructive traces, which cache build results based
-only on the hashes of terminal task inputs (in this case \cmd{main.exe}). Note
-that the resulting store is incorrect according to all three definitions of
-correctness: the main definition~(\S\ref{sec-build-correctness}), the variant
-for non-deterministic tasks~(\S\ref{sec-non-determinism}) and the variant for
-shallow builds~(this section).
+and (ii)~relying on deep constructive traces that cache build results based
+on the hashes of terminal task inputs (in this case \cmd{main.exe}). The result
+violates all three definitions of correctness: the main
+definition~(\S\ref{sec-build-correctness}), the variant for non-deterministic
+tasks~(\S\ref{sec-non-determinism}) and the variant for shallow
+builds~(this section).
 
 % \todo{AM/NM}{Re-using existing infrastructure: (a) key-value store, (b) remote
 % execution service. Neil says: I think this is a stretch. It's a lot more nuanced
 % as we saw from Bazel discussions so I'd probably skip it.}
 
+\vspace{-1mm}
 \subsection{Iterative Computations}\label{sec-iterative-compute}
 
 Some computations are best described not by a chain of acyclic dependencies,
@@ -351,16 +353,18 @@ systems also follow. There are computation frameworks that support dependency
 cycles under the assumption that tasks are \emph{monotonic} in a certain
 sense~\cite{pottier2009lazy,radul2009propagation}.
 
+\vspace{-1mm}
 \subsection{Key-dependent Value Types}\label{sec-polymorphism}
 
-Key-dependent value types allows a single build system to work with multiple different
-types of values, where the type of any particular value is determined by the key. As an example
-of why this might be useful, consider a build system that can depend on files
-(whose contents are strings) or system executables (represented by their version number) --
-using a single type for both values reduces type safety.
-\Shake permits such key-dependent value types, for example the \emph{oracle} rule from
-Mitchell~\shortcite{mitchell2012shake}, and users have remarked that this additional type safety
-provides a much easier expression of concepts, e.g. see~Mokhov~\etal~\shortcite{hadrian}.
+Key-dependent value types allow a build system to work with multiple different
+types of values, where the type of any particular value is determined by the
+key. As an example of why this might be useful, consider a build system where
+keys can be files (whose contents are strings) or system executables
+(represented by their version number) -- using a single type for both values
+reduces type safety. \Shake permits such key-dependent value types, e.g. see
+the \emph{oracle} rule in Mitchell~\shortcite{mitchell2012shake}, and users
+have remarked that this additional type safety provides a much easier expression
+of concepts~\cite{hadrian}.
 
 We can encode key-dependent value types using generalised algebraic data types,
 or GADTs~\cite{spj2006gadts}. The idea is to replace
@@ -435,7 +439,7 @@ Some build tasks produce multiple output keys -- for example \cmd{ghc A.hs} prod
 \cmd{A.hi} and \cmd{A.o}. This pattern can be encoded by having a key \cmd{A.hi+A.o} which produces
 both results, then each of \cmd{A.hi} and \cmd{A.o} can extract the relevant result
 from \cmd{A.hi+A.o}. We can express this pattern more clearly with the extra type safety
-from~\S\ref{sec-polymorphism}, using either pairs or lists for both the key and value:
+from~\S\ref{sec-polymorphism}:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -455,7 +459,7 @@ task (Files ["A.hi","A.o"]) = Just $ TaskT $ \fetch ->
 \end{minted}
 \vspace{1mm}
 
-The only awkward aspect is that both \cmd{A.hi} and \cmd{A.o} must ask for
+One awkward aspect is that both \cmd{A.hi} and \cmd{A.o} must ask for
 exactly the same \hs{Files} key. If one \hs{File} key swapped the order of the
 list to \hs{Files} then it would likely run GHC twice. To help construct a
 well-formed multiple-output build task it is convenient to partition the set of
@@ -489,9 +493,10 @@ task (Files ["A.hi","A.o"]) = Just $ TaskT $ \fetch ->
 \end{minted}
 \vspace{1mm}
 
-In the above function we compute the partition, find the index of this key within that
-partition (using \hs{elemIndex}), run the \hs{fetch} on every key in the partition,
-then extract out our specific result (using the indexing operation \hs{!!}).
+In the above function we compute the elementary subset \hs{ks} of the given key
+\hs{k}, find the index of \hs{k} within the subset (using \hs{elemIndex}), run
+the \hs{fetch} to build every key in the subset, then extract out the value
+corresponding to \hs{k} (using the indexing operation \hs{!!}).
 
 % \todo{AM/NM}{We are talking about sets above, but are using lists, which is a
 % bit inconsistent. We could switch from \hs{[k]} to \hs{Set k} fairly easily.
@@ -535,12 +540,12 @@ The build systems that have precise self-tracking are all ones which
 use a \emph{non-embedded domain specific language} to describe build
 tasks; that is, a task is described by a data structure (or syntax
 tree), and tasks can be compared for equality by comparing those data
-structures. Those which use a full programming language, e.g. \Shake,
+structures. Build systems that use a full programming language, e.g. \Shake,
 are faced with the challenge of implementing equality on arbitrary
 tasks -- and a task is just a function.  For such build systems, the
 only safe approach is to assume (pessimistically) that any
 change to the build system potentially changes any build task ~--~ the
-classic example being a makefile depending on itself.
+classic example being build tasks depending on the makefile itself.
 
 Below we show how to implement self-tracking in a build system that allows users
 to describe build tasks by \emph{scripts} written in a non-embedded domain
@@ -575,10 +580,14 @@ scripts that compute them, and is therefore self-tracking.
 \begin{minted}[xleftmargin=10pt]{haskell}
 selfTracking :: (s -> Task Monad k v) -> Tasks Monad k s
                                       -> TasksT Monad (Key k v s)
-selfTracking _     _     (Script _) = Nothing -- Scripts are inputs
-selfTracking parse tasks (Value  k) = runScript <$> tasks k
+selfTracking parse tasks key = case key of
+    Script k -> getScript <$> tasks k
+    Value  k -> runScript <$> tasks k
   where
-    -- Fetch the script, parse it, and then run the obtained task
+    -- Build the script and return it
+    getScript :: Task Monad k s -> TaskT Monad (Key k v s) s
+    getScript task = TaskT $ \fetch -> run task (fetch . Script)
+    -- Build the script, parse it, and then run the obtained task
     runScript :: Task Monad k s -> TaskT Monad (Key k v s) v
     runScript task = TaskT $ \fetch -> do
         script <- run task (fetch . Script)
@@ -598,8 +607,8 @@ a file is up-to-date, one option is to take the modification time or compute the
 content hash of each input file. However, for the largest projects, the mere act
 of checking the modification time for all the input files can become
 prohibitive. To overcome that problem, build systems targeted at large scale,
-e.g. \Bazel and \Buck, make use of file watching API's that detect when a file
-has changed. Using that information the build can avoid performing many file
+e.g. \Bazel and \Buck, rely on file watching API's to detect when a file has
+changed. Using that information the build can avoid performing many file
 accesses.
 
 File-watching build systems face new engineering challenges. Firstly, a running
