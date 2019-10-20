@@ -1,19 +1,20 @@
 \section{Experience}\label{sec-experience}
 
-We have described a framework that can describe, and indeed execute in
+We have presented a framework that can describe, and indeed execute in
 prototype form, a wide spectrum of build systems.  But our ultimate
-goal is a practical one: to use these insights to construct a better
-build system.  Our earlier work on the \Shake build
-system~\cite{mitchell2012shake}, and applying \Shake to
-building GHC~\cite{hadrian}, makes progress in that direction.
+goal is a practical one: to use these insights to develop better
+build systems. Our earlier work on \Shake~\cite{mitchell2012shake}, and applying
+\Shake to building GHC~\cite{hadrian}, makes progress in that direction.
 
 Based on the theory developed in this paper we have extended \Shake to
 become \Cloud \Shake, the first cloud-capable build system to support
 both early cutoff and monadic dependencies~(\S\ref{sec-implementation-cloud}),
-and used it to implement GHC's (very substantial) build system, Hadrian~\cite{hadrian}.
-In this section we reflect on our experience of turning theory into practice.
+and used it to implement GHC's (very substantial) build system,
+\Hadrian~\cite{hadrian}. In this section we reflect on our experience of turning
+theory into practice.
 
-\subsection{Haskell as a design language}\label{sec-design-lang}
+\vspace{-1mm}
+\subsection{Haskell as a Design Language}\label{sec-design-lang}
 
 Build systems are surprisingly tricky.  It is easy to waffle, and
 remarkably hard to be precise. As this paper exemplifies, it is
@@ -41,26 +42,36 @@ to faithfully express the abstractions that seem natural in this
 setting.  In the case of \hs{Task} we use a data constructor with a
 polymorphic field; a higher-kinded type variable \hs{f}~\hs{::}~\hs{*}~\hs{->}~\hs{*}; an
 even more abstracted kind for \hs{c}~\hs{::}~\hs{(*}~\hs{->}~\hs{*)}~\hs{->}~\hs{Constraint}; and,
-of course, type classes.
+of course, type classes. Our models have been translated to
+Rust~\cite{translation_rust} and Kotlin~\cite{translation_kotlin}, and in both
+cases there was a loss of precision due to language-specific limitations.
 
-Moreover, when thinking about the type constructors over which \hs{f} might
-usefully range, it turned out that we could adopt the \emph{existing} abstractions
+When thinking about the type constructors over which \hs{f} might usefully
+range, it turned out that we could adopt the \emph{existing abstractions}
 of \hs{Functor}, \hs{Applicative}, \hs{Monad} and so on.
 That in turn led us to think in a new way about the taxonomy
-of build systems -- see \S~\ref{sec-why-polymorphism}.
+of build systems -- see~\S\ref{sec-why-polymorphism}. In the other direction,
+trying to express an \emph{existing build system} \Dune in our models led us to
+finding a new abstraction -- the \hs{Selective} \mbox{type
+class~\cite{mokhov_selective_2019}}, which turned out to be useful outside the
+build systems domain.
 
 The effect of using a concrete design language went well beyond
 merely \emph{expressing} our ideas: it \emph{directly influenced}
 our thinking.  For example, here are definitions for a scheduler and rebuilder,
 from \S~\ref{sec-concrete-impl}:
+
+\vspace{0.5mm}
 \begin{minted}[fontsize=\small,xleftmargin=5pt]{haskell}
 type Scheduler c i ir k v = Rebuilder c ir k v -> Build c i k v
 type Rebuilder c   ir k v = k -> v -> Task c k v -> Task@\,@(MonadState ir) k v
 \end{minted}
+\vspace{0.5mm}
+
 These powerful and modular abstractions, which ultimately formed part
 of the conceptual structure of the paper, emerged fairly late in the
 project, as we repeatedly reviewed, redesigned, and refactored our
-executable prototype.  It is hard to believe that we could have
+executable prototypes. It is hard to believe that we could have
 developed them without the support of Haskell as a design language.
 
 \subsection{Experience from \Shake}\label{sec-experience-shake}
@@ -68,17 +79,17 @@ developed them without the support of Haskell as a design language.
 The original design of \Shake has not changed since the initial paper, but the
 implementation has continued to mature -- there have been roughly 5,000
 subsequent commits to the \Shake
-project\footnote{\url{https://github.com/ndmitchell/shake}}. These commits add
-concepts like \emph{resources} (for handling situations when two build tasks
+project\footnote{See \url{https://github.com/ndmitchell/shake}.}. These commits
+add concepts like \emph{resources} (for handling situations when two build tasks
 contend on a single external resource), rewriting serialisation to be faster,
-documentation including a website\footnote{\url{https://shakebuild.com}}, and
-add a lot of tests. The biggest change in that time period was an implementation
-change: moving from
+documentation including a website\footnote{See \url{https://shakebuild.com}.},
+and add a lot of tests. The biggest change in that time period was an
+implementation change: moving from
 blocking threads to continuations for the suspending scheduler.
-But otherwise, almost all external and internal details remain the same\footnote{
-  The most visible change is purely notational: switching from \hs{*>} to \hs{@\%@>}
-  for defining rules, because a conflicting \hs{*>} operator was added to the
-  Haskell \hs{Prelude}.}.
+But otherwise, almost all external and internal details remain the
+  same\footnote{The most visible change is purely notational: switching from
+  \hs{*>} to \hs{@\%@>} for defining rules, because a conflicting \hs{*>}
+  operator was added to the Haskell \hs{Prelude}.}.
 We consider the lack of change suggestive that \Shake is based on fundamental
 principles -- principles we can now name and describe as a consequence
 of this paper.
@@ -89,16 +100,16 @@ more clearly in this paper. Firstly, the rebuilder can now be described using
 verifying step traces~\S\ref{sec-step-traces}, with a much clearer relationship
 to the unoptimised verifying traces of~\S\ref{sec-verifying-traces}. Secondly,
 in the original paper the tasks (there called ``actions'')
-were described in continuation-passing style using the data type:\footnote{
-The original paper uses concrete types \hs{Key} and \hs{Value}. Here we
-generalise these types to \hs{k} and \hs{v}, and also add \hs{a} so that
-\hs{Action}~\hs{k}~\hs{v} can be an instance of \hs{Monad}}
-\vspace{1mm}
+were described in continuation-passing style using the data
+type\footnote{The original paper uses concrete types \hs{Key} and \hs{Value}.
+Here we generalise these types to~\hs{k} and~\hs{v}, and also add~\hs{a} so that
+\hs{Action}~\hs{k}~\hs{v} can be an instance of \hs{Monad}.}:
+\vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 data Action k v a = Finished a
                   | Depends k (v -> Action k v a)
 \end{minted}
-\vspace{1mm}
+\vspace{0.5mm}
 
 \noindent
 In this paper we describe tasks more directly, in a monadic (or applicative or functorial)
@@ -107,23 +118,25 @@ isomorphic to \hs{Action}~\hs{k}~\hs{v}~\hs{v}.
 To be concrete, the functions \hs{toAction} and \hs{fromAction} defined below
 witness the isomorphism in both directions.
 
-\vspace{1mm}
+\vspace{0.5mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
 instance Monad (Action k v) where
     return = Finished
     Finished x    >>= f = f x
     Depends ds op >>= f = Depends ds $ \v -> op v >>= f
-
+\end{minted}
+\begin{minted}[xleftmargin=10pt]{haskell}
 toAction :: Task Monad k v -> Action k v v
-toAction (Task run) = run $ \k -> Depends k Finished
-
+toAction (Task run) = run (\k -> Depends k Finished)
+\end{minted}
+\begin{minted}[xleftmargin=10pt]{haskell}
 fromAction :: Action k v v -> Task Monad k v
-fromAction x = Task $ \fetch -> f fetch x
+fromAction x = Task (\fetch -> f fetch x)
   where
     f _     (Finished v  ) = return v
     f fetch (Depends d op) = fetch d >>= f fetch . op
 \end{minted}
-\vspace{1mm}
+\vspace{0.5mm}
 
 \noindent
 Similarly, in the original paper \Make tasks were described as:
@@ -139,7 +152,7 @@ data type \hs{Rule}~\hs{k}~\hs{v}~\hs{v} is isomorphic to
 \hs{Task}~\hs{Applicative}~\hs{k}~\hs{v}, and we can define a similar
 \hs{Applicative} instance and conversion functions.
 
-By describing these types
+By expressing these types
 using \hs{Task} we are able to describe the differences more concisely
 (\hs{Monad} vs \hs{Applicative}), use existing literature to determine what is
 and isn't possible, and explore other constraints beyond just \hs{Monad} and
@@ -168,8 +181,7 @@ functions:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
-addCloud :: k -> Ver -> Ver -> [[(k, Hash v)]]
-         -> v -> [FilePath] -> IO ()
+addCloud :: k -> Ver -> Ver -> [[(k, Hash v)]] -> v -> [k] -> IO ()
 lookupCloud :: (k -> m (Maybe (Hash v))) -> k -> Ver -> Ver
             -> m (Maybe (v, [[k]], IO ()))
 \end{minted}
@@ -191,7 +203,7 @@ differences.}.
 \item The list of dependencies to \hs{addCloud} is a list of lists, rather than
       a simple list. The reason is that \Shake allows a list of dependencies to
       be specified simultaneously, so they can all be built in parallel.
-\item The \hs{addCloud} function also takes a list of \hs{FilePath}, being the
+\item The \hs{addCloud} function also takes a list of keys \hs{[k]}, being the
       files that this rule produces. These produced files include those which
       are output keys from a rule and those declared with the function
       \hs{produces}.
@@ -204,7 +216,7 @@ differences.}.
 To integrate these functions into \Shake we found the most expedient route was
 to leave \Shake with verifying traces, but if the verifying trace does not
 match, we consult the constructive trace. By bolting constructive traces onto
-the side of Shake we avoid re-engineering of the central database. We have not
+the side of \Shake we avoid re-engineering of the central database. We have not
 found any significant downsides from the bolt-on approach thus far, so it may be
 a sensible route to go even if developing from scratch -- allowing an optimised
 verified trace implementation in many cases, and falling back to a more complex
@@ -222,7 +234,7 @@ privileges, so an HTTP cache is still desirable.
 
 While we expected the GHC build system to be the first to take advantage of
 \Cloud \Shake, we were actually beaten to it by Standard Chartered who
-report\footnote{\url{https://groups.google.com/d/msg/shake-build-system/NbB5kMFS34I/mZ9L4TgkBwAJ}}:
+report\footnote{\mbox{\url{https://groups.google.com/d/msg/shake-build-system/NbB5kMFS34I/mZ9L4TgkBwAJ}}}:
 
 \vspace{1mm}
 \begin{center}
@@ -276,7 +288,7 @@ To help with the final two issues -- insufficient dependencies and produced
 files -- we have further enhanced the \Shake lint modes, coupling them to a
 program called \cmd{FSATrace}, which detects which files are read/written by a
 command line execution. Such information has been very helpful in making the GHC
-build cloud ready.
+build cloud ready~\cite{cloud_hadrian}.
 
 \subsection{Experience from building GHC with \Shake}\label{sec-hadrian}
 
@@ -311,9 +323,9 @@ highly desirable. For example, if a commit does not touch any GHC source files
 3~minutes, by simply creating symbolic links to the previously build results
 stored in the \Cloud~\Shake cache.
 
-A small number of GHC build rules cannot be cached. These rules register new libraries
-in the GHC package database, and rather than producing a output file, they mutate
-a shared file. \Cloud~\Shake provides a way to manually label such
+A small number of GHC build rules cannot be cached. These rules register
+libraries in the package database, and rather than producing files, they
+mutate a shared file. \Cloud~\Shake provides a way to manually label such
 build rules to exclude them from caching.
 
 One of the benefits of using \Shake is that we have access to high quality build
@@ -321,9 +333,9 @@ profiling information, allowing us to compute critical paths and other metrics;
 see Mitchell~\shortcite{mitchell2019ghcrebuildtimes} for an overview of \Shake's
 profiling features. This information has shown us, for example, that more CPUs would not help (on
 unlimited CPUs the speed up would be less than 10\%), and that a handful of
-build tasks (two anomalously slow Haskell compilations, and some calls to slow
-single-threaded \cmd{configure}) are responsible for a significant fraction of
-build time (at least 15\%).
+build tasks (two anomalously slow Haskell compilations, and calls to slow
+single-threaded \cmd{configure}) take up a significant fraction of build time
+(at least 15\%).
 
 % Benchmarking:
 % \begin{itemize}

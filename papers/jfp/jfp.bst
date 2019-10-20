@@ -271,7 +271,7 @@ FUNCTION {format.names}
         { namesleft #1 >
             { ", " * t * }
             { t "others" =
-                { ", {\em et~al.\ }\relax" * }
+                { ", {\em et~al.}\relax" * }
                 { ", \& " * t * }                           %  Butcher, pages
               if$                                           %  186-189.
             }
@@ -1041,12 +1041,12 @@ FUNCTION {format.lab.names}
   s #1 "{vv~}{ll}" format.name$
   s num.names$ duplicate$
   #2 >
-%%%%%    { pop$ " {\em et~al.\ }\relax" * }
+%%%%%    { pop$ " {\em et~al.}\relax" * }
     { pop$ " {\em et~al.}\relax" * }
     { #2 <
         'skip$
         { s #2 "{ff }{vv }{ll}{ jj}" format.name$ "others" =
-            { " {\em et~al.\ }\relax" * }
+            { " {\em et~al.}\relax" * }
             { " \& " * s #2 "{vv~}{ll}" format.name$ * }
           if$
         }

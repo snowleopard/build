@@ -130,6 +130,7 @@ dynamic dependencies and minimality; furthermore, all traces except for deep
 traces~(\S\ref{sec-deep-constructive-traces}) support the early cutoff
 optimisation~(\S\ref{sec-background-shake}).
 
+\vspace{-1mm}
 \subsubsection{Trace Representation}\label{sec-trace-representation}
 
 One potential implementation would be to record all arguments passed to
@@ -166,12 +167,13 @@ complete list of all historical traces would allow the rebuilding to be skipped.
 On the other hand, bounding the number of \hs{Trace} structures by the number of
 distinct keys, regardless of how many builds are executed, is a useful property.
 
+\vspace{-1mm}
 \subsubsection{Verifying Step Traces}\label{sec-step-traces}
 
 The \Shake build system and the associated paper -- see~\S2.3.3
-in~Mitchell~\shortcite{mitchell2012shake} -- use a slightly different trace
-structure, called \emph{verifying step traces},
-which stores less data than verifying traces, and has slightly different early cutoff semantics. Rather than
+in~Mitchell~\shortcite{mitchell2012shake} -- use a different trace structure,
+called \emph{verifying step traces}, which stores less data than verifying
+traces, and has slightly different early cutoff semantics. Rather than
 storing the \hs{Hash}~\hs{v} for each dependency, it instead stores \hs{built}
 time and \hs{changed} time for each \hs{key}, and a list of dependency keys
 (without the hashes). The resulting \hs{StepTrace} type resembles:
@@ -219,11 +221,11 @@ the build is running, so every key built in the same run can share the same
 This optimisation is useful, at least in the case of \Shake, to save space. A
 typical cryptographic hash takes up 32 bytes, while a key (in \Shake) is an
 \hs{Int} taking only~4~bytes. Furthermore, \Shake permits values to be
-arbitrarily large, and permits a custom equality (two values can be bit-for-bit
-unequal but considered equal by \Shake), meaning that a \hs{Hash} is not a valid
-encoding. For build systems that use \hs{Applicative} dependencies, the
-\hs{depends} could be omitted entirely, making the size of a \hs{StepTrace}
-$O(1)$ instead of $O(n)$, where $n$ is the number of dependencies.
+arbitrarily large, and supports a custom value equality (two values can be
+bit-for-bit unequal but considered equal by \Shake), hence \hs{Hash}~\hs{v} is
+not a valid encoding. For applicative tasks, \hs{depends} can be omitted, making
+the size of a \hs{StepTrace} $O(1)$ instead of $O(n)$, where $n$ is the number
+of dependencies.
 
 \begin{figure}%[h]
 \begin{subfigure}[b]{0.32\linewidth}
@@ -265,13 +267,13 @@ verifying step traces are less powerful.
 
 \subsection{Constructive Traces}\label{sec-constructive-traces}
 
-A verifying trace deliberately records only hashes, so that it can be small. In
-contrast, a \emph{constructive} trace also stores the resulting value.
+A verifying trace records only hashes or time stamps, so that it can be small.
+In contrast, a \emph{constructive} trace also stores the resulting value.
 Concretely, it records a list of \hs{Trace}~\hs{k}~\hs{v}~\hs{v}, where
 \hs{Trace} is as defined in~\S\ref{sec-trace-representation}. Once we are
 storing the complete result it makes sense to record many constructive traces
 per key, and to share them with other users, providing cloud-build
-functionality. We can represent this additional information with the operations:
+functionality. We can access this additional information with these operations:
 
 \vspace{1mm}
 \begin{minted}[xleftmargin=10pt]{haskell}
@@ -286,8 +288,8 @@ constructCT :: (Monad m, Eq k, Eq v)
 
 \noindent
 The function \hs{recordCT} is similar to \hs{recordVT}
-from~\S\ref{sec-verifying-traces}, but instead of just passing
-the hash of the resulting value, we pass the actual value. The \hs{verifyVT}
+from~\S\ref{sec-verifying-traces}, but instead of just passing the hash of the
+resulting value, we pass the actual value. The function \hs{verifyVT}
 has been replaced with \hs{constructCT}, which instead of taking the hash of the
 current value as \emph{input}, returns a list of possible values as
 \emph{output} -- there may be more than one, because some build tools are
@@ -309,7 +311,7 @@ cases to consider when using a rebuilder based on constructive traces:
 
 Any \hs{Applicative} build system using constructive traces, e.g.
 \CloudBuild~(\S\ref{sec-implementation-cloud}), can index directly from the
-key and the hashes of its dependencies to the output result, i.e.
+key and the hashes of its dependencies to the resulting value, e.g. using a
 \hs{Map}~\hs{(@@k,}~\hs{[Hash}~\hs{v])}~\hs{v}. Importantly, assuming the traces
 are stored on a central server, the client can compute the key and the hashes of
 its dependencies locally, and then make a single call to the server to retrieve
@@ -356,8 +358,9 @@ There are two primary disadvantages of deep constructive traces:
 \end{itemize}
 
 Current build systems using deep constructive traces always record hashes of
-terminal \emph{input keys}, but the technique works equally well if we skip any
-number of dependency levels (say $n$ levels). The input-only approach is the
+terminal input keys, but the technique also works if we skip any number
+of dependency levels (say $n$ levels). The input-only approach is the
 special case of $n = \infty$, and constructive traces are the special case of
-$n = 1$. By picking values of $n$ in between we would regain some early cutoff, at the
-cost of losing such simple shallow builds, while still requiring deterministic tasks.
+$n = 1$. By picking values of $n$ in between we would regain some early cutoff,
+at the cost of losing such simple shallow builds, while still requiring
+determinism.
