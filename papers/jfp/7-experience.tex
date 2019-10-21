@@ -35,21 +35,21 @@ newtype Task c k v = Task (@\std{forall}@ f. c f => (k -> f v) -> f v)
 We started off with a much more concrete type, and explored
 multiple variants.  During those iterations, this single line of
 code gave us a tangible, concrete basis for productive conversations,
-much more so than general conversations about ``tasks''.
+much more so than general debate about ``tasks''.
 
-It is also worth noting that we needed a rather expressive language,
+It is also worth noting that we needed a rather expressive language
 to faithfully express the abstractions that seem natural in this
-setting.  In the case of \hs{Task} we use a data constructor with a
+setting.  In the case of \hs{Task} we needed: a data constructor with a
 polymorphic field; a higher-kinded type variable \hs{f}~\hs{::}~\hs{*}~\hs{->}~\hs{*}; an
 even more abstracted kind for \hs{c}~\hs{::}~\hs{(*}~\hs{->}~\hs{*)}~\hs{->}~\hs{Constraint}; and,
-of course, type classes. Our models have been translated to
+of course, type classes. Our models have since been translated to
 Rust~\cite{translation_rust} and Kotlin~\cite{translation_kotlin}, and in both
 cases there was a loss of precision due to language-specific limitations.
 
 When thinking about the type constructors over which \hs{f} might usefully
-range, it turned out that we could adopt the \emph{existing abstractions}
+range, it turned out that we could adopt the \emph{existing} abstractions
 of \hs{Functor}, \hs{Applicative}, \hs{Monad} and so on.
-That in turn led us to think in a new way about the taxonomy
+That in turn led us to a new taxonomy
 of build systems -- see~\S\ref{sec-why-polymorphism}. In the other direction,
 trying to express an \emph{existing build system} \Dune in our models led us to
 finding a new abstraction -- the \hs{Selective} \mbox{type
@@ -70,7 +70,7 @@ type Rebuilder c   ir k v = k -> v -> Task c k v -> Task@\,@(MonadState ir) k v
 
 These powerful and modular abstractions, which ultimately formed part
 of the conceptual structure of the paper, emerged fairly late in the
-project, as we repeatedly reviewed, redesigned, and refactored our
+project as we repeatedly reviewed, redesigned, and refactored our
 executable prototypes. It is hard to believe that we could have
 developed them without the support of Haskell as a design language.
 
