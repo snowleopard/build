@@ -7,7 +7,7 @@ implementation of \hs{Tasks}~\hs{c}~\hs{k}~\hs{v}. That is, we are going to take
 abstractly (in this section and in~\S\ref{sec-rebuilder}) and then concretely
 in~\S\ref{sec-implementations}.
 
-As per the definition of minimality~\ref{def-minimal}, a minimal build
+As per the definition of minimality~(\S\ref{def-minimal}), a minimal build
 system must \textbf{rebuild only out-of-date keys} and at most once. The only
 way to achieve the ``at most once'' requirement while producing a correct build
 result (\S\ref{sec-build-correctness}) is to \textbf{build all keys in an
@@ -32,7 +32,7 @@ followed ensures dependencies are satisfied, then executes the required tasks in
 that order. Computing such a linear order is straightforward -- given a task
 description and a target \hs{key}, first find the (acyclic) graph of the
 \hs{key}'s dependencies, then compute a topological order. Taking the \Make
-example from Fig.~\ref{fig-make}, we might compute the order:
+example from Fig.~\ref{fig-make}, we might compute the following order:
 
 \begin{enumerate}
 \item \cmd{main.o}
@@ -59,7 +59,7 @@ To handle dynamic dependencies we cannot precompute a static order -- we must
 interleave running tasks and ordering tasks. One approach is just to build tasks
 in an arbitrary order, and if a task calls \hs{fetch} on an out-of-date key
 \cmd{dep}, abort the task and build \cmd{dep} instead. Returning to the example
-from Fig.~\ref{fig-make}, we might build the tasks in the order:
+from Fig.~\ref{fig-make}, we might build the tasks as follows:
 
 \begin{enumerate}
 \item \cmd{main.exe} (abort because it depends on \cmd{util.o} which is out of
@@ -70,12 +70,12 @@ from Fig.~\ref{fig-make}, we might build the tasks in the order:
 \end{enumerate}
 
 \noindent
-We start with \cmd{main.exe} (chosen randomly), but discover it depends on
+We start with \cmd{main.exe} (an arbitrary choice), but discover it depends on
 \cmd{main.o}, so instead start building \cmd{main.o}. Next we choose to build
-\cmd{util.o} (again, randomly), before finally returning to \cmd{main.exe} that
-now has all its dependencies available and completes successfully.
+\cmd{util.o} (again, arbitrarily), before finally returning to \cmd{main.exe}
+that now has all its dependencies available and completes successfully.
 
-The approach works, but has a number of disadvantages. Firstly, it requires a
+This approach works, but has a number of disadvantages. Firstly, it requires a
 technical mechanism to abort a task, which is easy in our theoretical setting
 with \hs{Task} (see an implementation in~\S\ref{sec-implementation-excel}) but
 leads to engineering concerns in the real world. Secondly, it is not minimal in

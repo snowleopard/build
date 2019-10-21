@@ -35,7 +35,7 @@ further in~\S\ref{sec-implementation-cloud}.
 \vspace{-1mm}
 \subsection{Concrete Implementations} \label{sec-concrete-impl}
 
-We can define schedulers and rebuilders more concretely with the types
+We can define schedulers and rebuilders more concretely with the following types
 (Fig.~\ref{fig-types}):
 
 \vspace{1mm}
@@ -135,10 +135,10 @@ liftStore x = do
 % \vspace{-5mm}
 \end{figure}
 
-These two abstractions are the key to modularity: \emph{we can combine any
+These two abstractions are the key to modularity: \emph{we can compose any
 scheduler with any rebuilder, and obtain a correct build system}.
 In this section we will write a scheduler for each column of
-Table~\ref{tab-build-systems}, and a rebuilder for each row; then combine them
+Table~\ref{tab-build-systems}, and a rebuilder for each row; then compose them
 to obtain the build systems in the table's body.
 
 \subsection{\Make}\label{sec-implementation-make}
@@ -390,7 +390,7 @@ The \hs{fetch} computation runs in the
 function \hs{liftRun} (which uses a \hs{newtype} to provide a \hs{MonadState}
 instance that sees through into the \hs{Store}).
 
-As discussed in \S\ref{sec-step-traces}, \Shake actually use verifying step
+As discussed in \S\ref{sec-step-traces}, \Shake actually uses verifying step
 traces, but here we choose to focus on the more explicit verifying traces. We
 have implemented verifying step traces in our framework, and they compose with
 schedulers as you would hope.
@@ -482,7 +482,7 @@ The \Bazel build system uses a restarting scheduler whose implementation we
 omit. It is similar to \Excel's \hs{restarting} scheduler defined in
 Fig.~\ref{fig-excel-implementation}, but instead of building keys in the order
 specified by the persistently stored calc chain, \Bazel uses a \emph{build
-queue}. The build starts with the queue containing all dirty keys. Similar to
+queue}. The build starts with the queue containing all dirty keys. Similarly to
 \Excel, the rebuilding of a key extracted from the queue may fail because one of
 its dynamic dependencies is dirty. In this case the key is marked as
 \emph{blocked} and its rebuilding is deferred. Whenever a key is successfully
@@ -512,11 +512,11 @@ is therefore monadic.
 
 % \todo{AM}{Add implementation of \hs{dctRebuilder}?}
 
-Using the abstractions built thus far, we have shown how to combine schedulers
+Using the abstractions built thus far, we have shown how to compose schedulers
 with rebuilders to reproduce existing build systems. To us, the most interesting
-build system as yet unavailable would combine a suspending scheduler with
+build system as yet unavailable would compose a suspending scheduler with
 constructive traces~--~providing a cloud-capable build system that is minimal,
 and supports both early cutoff and monadic dependencies. Using our framework it
 is possible to define and test such a system, which we call \Cloud \Shake. All
-we need to do is combine \hs{suspending} with \hs{ctRebuilder},
+we need to do is compose \hs{suspending} with \hs{ctRebuilder},
 as shown in Fig.~\ref{fig-cloud-implementations}.

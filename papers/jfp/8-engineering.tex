@@ -221,7 +221,7 @@ Such tasks can be modelled in our framework by adjusting the correctness
 definition~(\S\ref{sec-build-correctness}): instead of requiring that the
 produced value \emph{equals the result} of recomputing the task, we now require
 that produced value \emph{belongs to the set of possible results} of
-recomputing the task, i.e. the set \cmd{$\{$A1 + 1, A1 + 2$\}$} in the above
+recomputing the task, e.g. the set \cmd{$\{$A1 + 1, A1 + 2$\}$} in the above
 example.
 
 % \todo{AM}{Show implementation of \hs{computeND}.
@@ -429,7 +429,7 @@ example _ = Nothing
 \vspace{1mm}
 
 Note that like all key-dependent tasks, this example could be expressed
-without key-dependence, at the cost of some type safety. As we'll see in
+without key-dependence, at the cost of some type safety. As we will see in
 \S\ref{sec-multiple-outputs} and \S\ref{sec-tracking-aspects}, using key-dependent
 value types can make it easier to work with more complicated tasks.
 
@@ -600,7 +600,7 @@ It is possible to implement \hs{selfTracking} without relying on GADTs and typed
 tasks presented in~\S\ref{sec-polymorphism}, at the cost of using partial
 functions.
 
-\subsection{File watching vs polling}\label{sec-file-watching}
+\subsection{File Watching vs Polling}\label{sec-file-watching}
 
 Most build systems use files for their inputs. When running a build, to check if
 a file is up-to-date, one option is to take the modification time or compute the

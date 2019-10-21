@@ -59,7 +59,7 @@ build systems domain.
 The effect of using a concrete design language went well beyond
 merely \emph{expressing} our ideas: it \emph{directly influenced}
 our thinking.  For example, here are definitions for a scheduler and rebuilder,
-from \S~\ref{sec-concrete-impl}:
+from~\S\ref{sec-concrete-impl}:
 
 \vspace{0.5mm}
 \begin{minted}[fontsize=\small,xleftmargin=5pt]{haskell}
@@ -80,7 +80,7 @@ The original design of \Shake has not changed since the initial paper, but the
 implementation has continued to mature -- there have been roughly 5,000
 subsequent commits to the \Shake
 project\footnote{See \url{https://github.com/ndmitchell/shake}.}. These commits
-add concepts like \emph{resources} (for handling situations when two build tasks
+added concepts like \emph{resources} (for handling situations when two build tasks
 contend on a single external resource), rewriting serialisation to be faster,
 documentation including a website\footnote{See \url{https://shakebuild.com}.},
 and add a lot of tests. The biggest change in that time period was an
@@ -100,7 +100,7 @@ more clearly in this paper. Firstly, the rebuilder can now be described using
 verifying step traces~\S\ref{sec-step-traces}, with a much clearer relationship
 to the unoptimised verifying traces of~\S\ref{sec-verifying-traces}. Secondly,
 in the original paper the tasks (there called ``actions'')
-were described in continuation-passing style using the data
+were described in continuation-passing style using the following data
 type\footnote{The original paper uses concrete types \hs{Key} and \hs{Value}.
 Here we generalise these types to~\hs{k} and~\hs{v}, and also add~\hs{a} so that
 \hs{Action}~\hs{k}~\hs{v} can be an instance of \hs{Monad}.}:
@@ -230,11 +230,11 @@ systems, and reuse tools for managing file systems, share caches with
 Windows) mounting an HTTP endpoint as a file system requires administrator
 privileges, so an HTTP cache is still desirable.
 
-\subsection{Experience from using \Cloud \Shake}\label{sec-using-cloud-shake}
+\subsection{Experience from Using \Cloud \Shake}\label{sec-using-cloud-shake}
 
 While we expected the GHC build system to be the first to take advantage of
 \Cloud \Shake, we were actually beaten to it by Standard Chartered who
-report\footnote{\mbox{\url{https://groups.google.com/d/msg/shake-build-system/NbB5kMFS34I/mZ9L4TgkBwAJ}}}:
+reported\footnote{\mbox{\url{https://groups.google.com/d/msg/shake-build-system/NbB5kMFS34I/mZ9L4TgkBwAJ}}}:
 
 \vspace{1mm}
 \begin{center}
@@ -280,17 +280,17 @@ Some things that require attention in moving to a cloud build:
       files.
 \item \textbf{Missing dependencies}: While missing dependencies are
       always a problem, the move to a cloud build makes them more serious.
-      With local builds outputs will be built at least once per user, but with a
+      With local builds, outputs will be built at least once per user, but with a
       cloud build they might only be built \emph{once ever}.
 \end{itemize}
 
 To help with the final two issues -- insufficient dependencies and produced
 files -- we have further enhanced the \Shake lint modes, coupling them to a
-program called \cmd{FSATrace}, which detects which files are read/written by a
+utility called \cmd{FSATrace}, which detects which files are read/written by a
 command line execution. Such information has been very helpful in making the GHC
 build cloud ready~\cite{cloud_hadrian}.
 
-\subsection{Experience from building GHC with \Shake}\label{sec-hadrian}
+\subsection{Experience from Building GHC with \Shake}\label{sec-hadrian}
 
 \Hadrian is a build system for the Glasgow Haskell Compiler~\cite{ghc}. It was
 developed to replace a \Make-based build system and solve multiple scalability
@@ -320,7 +320,7 @@ original \Make-based build system. This time includes building the compiler itse
 only a small part of the whole codebase, making the cloud-build functionality
 highly desirable. For example, if a commit does not touch any GHC source files
 (e.g. only modifies the documentation), \Hadrian can build GHC from scratch in under
-3~minutes, by simply creating symbolic links to the previously build results
+3~minutes, by simply creating symbolic links to the previously built results
 stored in the \Cloud~\Shake cache.
 
 A small number of GHC build rules cannot be cached. These rules register
