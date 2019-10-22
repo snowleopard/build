@@ -310,19 +310,20 @@ command lines by treating them as a type of values -- an example of
 \emph{partial self-tracking} made possible by \Shake's support for key-dependent
 value types~(\S\ref{sec-polymorphism}).
 
-The subsequent development of \Cloud \Shake allows GHC developers to take advantage of
-sharing build results between builds, which is particularly promising in the
-context of GHC's continuous integration (CI) infrastructure responsible for
-building and testing every GHC commit. Building GHC~8.8 from scratch with
-default settings takes around 1 hour on Windows using either \Hadrian or the
-original \Make-based build system. This time includes building the compiler itself,
-29~bundled libraries, such as \cmd{base} (each in vanilla and profiled way), and
-6~bundled executables, such as \cmd{Haddock}. A single commit typically modifies
-only a small part of the whole codebase, making the cloud-build functionality
-highly desirable. For example, if a commit does not touch any GHC source files
-(e.g. only modifies the documentation), \Hadrian can build GHC from scratch in under
-3~minutes, by simply creating symbolic links to the previously built results
-stored in the \Cloud~\Shake cache.
+The development of \Cloud \Shake allows GHC developers to benefit from caching
+build results between builds. Building GHC~8.8 from scratch takes $\sim$1~hour
+on Windows using \Hadrian or the original \Make-based build system. This time
+includes building the compiler itself, 29~bundled libraries, such as \cmd{base}
+(each in vanilla and profiled way), and 6~bundled executables, such as
+\cmd{Haddock}. One would hope that the build cache would be particularly useful
+for GHC's continuous integration system that builds and tests every commit but
+our experience has been mixed. In an ideal case, when a commit does not affect
+the resulting GHC binaries, e.g. only modifies tests, \Hadrian can build GHC
+from scratch in just 3~minutes, by simply creating symbolic links to the
+previously built results stored in the cache. However, if a commit modifies the
+``Stage 1 GHC'' executable -- an intermediate compiler built as part of the GHC
+bootstrapping -- any further cache hits become unlikely, thus limiting
+benefits of the build cache to Stage 1 only~\cite{cloud_hadrian}.
 
 A small number of GHC build rules cannot be cached. These rules register
 libraries in the package database, and rather than producing files, they
