@@ -3,6 +3,7 @@
 
 -- | Build schedulers execute task rebuilders in the right order.
 module Build.Scheduler (
+    Scheduler,
     topological,
     restarting, Chain,
     restarting2,
