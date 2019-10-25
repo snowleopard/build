@@ -330,7 +330,7 @@ builds~(this section).
 \subsection{Iterative Computations}\label{sec-iterative-compute}
 
 Some computations are best described not by a chain of acyclic dependencies,
-but by a loop. For example, \LaTeX~requires repeated rebuilding until it
+but by a loop. For example, \Latex~requires repeated rebuilding until it
 reaches a fixed point, which can be directly expressed in build systems, such as
 \Pluto~\cite{erdweg2015pluto}. Another example is \Excel, where a cell can
 depend on itself, for example: \cmd{A1 = A1 + 1}. In such cases \Excel will
@@ -338,11 +338,11 @@ normally not execute anything, but if the ``Iterative Calculations'' feature is
 enabled \Excel will execute the formula for a specified maximum number $N$ of
 times per calculation (where $N$ is a setting that defaults to 100).
 
-For examples like \LaTeX~we consider the proper encoding to not be circular
+For examples like \Latex~we consider the proper encoding to not be circular
 tasks, but a series of iterative steps, as described by
 Mitchell~\shortcite{shake-fixed-point}. It is important that the number of
 executions is bounded, otherwise the build system may not terminate (a
-legitimate concern with \LaTeX, which can be put into a situation where it is
+legitimate concern with \Latex, which can be put into a situation where it is
 bistable or diverging over multiple executions). The examples in \Excel tend to
 encode either mutable state, or recurrence relations. The former is only
 required because \Excel inherently lacks the ability to write mutable state, and
