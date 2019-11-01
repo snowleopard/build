@@ -622,3 +622,12 @@ change. A further complication is that spurious dependency cycles may form
 during a series of file modifications, and a file-watching build system
 integrated with an IDE should be able to cope with such spurious cycles
 gracefully instead of terminating with an error.
+
+Build systems that run continuously are also more likely to encounter errors
+caused by concurrent modification of \emph{build outputs}. For example, if an
+output file is checked into the source repository then downloading a new
+version of the file can interfere with the build task producing it, resulting
+in a corrupted output that the build system will be unable to detect. This
+problem can be solved by ensuring that tasks have an \emph{exclusive access}
+to their outputs, e.g. by sandboxing the tasks whose outputs can be modified
+externally.
