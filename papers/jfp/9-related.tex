@@ -62,7 +62,7 @@ gcc util.o main.o -o main.exe
 \end{minted}
 \vspace{1mm}
 
-\noindent
+% \noindent
 To achieve minimality, each separate command is traced at the OS-level, allowing
 \Fabricate to record a trace entry stating that \cmd{gcc -c util.c} reads from
 \cmd{util.c}. In future runs \Fabricate runs the script from start to finish,
@@ -144,10 +144,11 @@ editDistance (C i j) = Just $ Task $ \fetch -> do
     bj <- fetch (B j)
     if ai == bj
         then fetch (C (i - 1) (j - 1))
-        else do insert  <- fetch (C  i      (j - 1))
-                delete  <- fetch (C (i - 1)  j     )
-                replace <- fetch (C (i - 1) (j - 1))
-                return (1 + minimum [insert, delete, replace])
+        else do
+            insert  <- fetch (C  i      (j - 1))
+            delete  <- fetch (C (i - 1)  j     )
+            replace <- fetch (C (i - 1) (j - 1))
+            return (1 + minimum [insert, delete, replace])
 editDistance _ = Nothing
 \end{minted}
 \vspace{1mm}
