@@ -37,27 +37,27 @@ inputs i = initialise i $ \cell -> fromMaybe 0 $ lookup cell $ zip inputCells [1
 
 spreadsheet :: Spreadsheet
 spreadsheet cell = case name cell of
-    "B1"  -> Just $ 1                       --          1
+    "B1"  -> Just 1                         --          1
     "B2"  -> Just $ "B1" + 1                -- 1 + 1 == 2
     "B3"  -> Just $ "A3" * abs "B2"         -- 3 * 2 == 6
     "C1"  -> Just $ IfZero "B3" "C2" 1000   --          1000
     "C2"  -> Just $ IfZero "B3" 2000 "C1"   --          1000
     "C3"  -> Just $ Random 1 6              --          1..6
-    "F0"  -> Just $ 0                       --          0
-    "F1"  -> Just $ 1                       --          1
+    "F0"  -> Just 0                         --          0
+    "F1"  -> Just 1                         --          1
     'F':_ -> Just $ rel (-1) 0 + rel (-2) 0 --          Fn = F(n - 1) + F(n - 2)
     _     -> Nothing
 
 acyclicSpreadsheet :: Spreadsheet
 acyclicSpreadsheet cell = case name cell of
-    "B1"  -> Just $ 1                       --          1
+    "B1"  -> Just 1                         --          1
     "B2"  -> Just $ "B1" + 1                -- 1 + 1 == 2
     "B3"  -> Just $ "A3" * abs "B2"         -- 3 * 2 == 6
     "C1"  -> Just $ IfZero "B3" "B2" 1000   --          1000
     "C2"  -> Just $ IfZero "B3" 2000 "C1"   --          1000
     "C3"  -> Just $ Random 1 6              --          1..6
-    "F0"  -> Just $ 0                       --          0
-    "F1"  -> Just $ 1                       --          1
+    "F0"  -> Just 0                         --          0
+    "F1"  -> Just 1                         --          1
     'F':_ -> Just $ rel (-1) 0 + rel (-2) 0 --          Fn = F(n - 1) + F(n - 2)
     _     -> Nothing
 

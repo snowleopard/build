@@ -3,7 +3,6 @@ module Examples where
 
 import Build.Task
 import Control.Applicative
-import Control.Monad.Fail (MonadFail)
 import Control.Monad.State.Class
 import Data.Map (Map)
 
@@ -88,8 +87,8 @@ cloudAckermann (m, n)
 ----------------------------- Spreadsheet examples -----------------------------
 
 sprsh1 :: Tasks Applicative String Integer
-sprsh1 "B1" = Just $ Task $ \fetch -> ((+)  <$> fetch "A1" <*> fetch "A2")
-sprsh1 "B2" = Just $ Task $ \fetch -> ((*2) <$> fetch "B1")
+sprsh1 "B1" = Just $ Task $ \fetch -> (+)  <$> fetch "A1" <*> fetch "A2"
+sprsh1 "B2" = Just $ Task $ \fetch -> (*2) <$> fetch "B1"
 sprsh1 _    = Nothing
 
 sprsh2 :: Tasks Monad String Integer
