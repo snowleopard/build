@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
-{-# LANGUAGE DeriveTraversable, TupleSections #-}
 
 -- | Build traces that are used for recording information from previuos builds.
 module Build.Trace (
@@ -21,8 +20,9 @@ module Build.Trace (
 import Build.Store
 
 import Control.Monad.Extra
+import Data.List (sortOn)
 import Data.Maybe
-import Data.List
+import Data.Ord
 
 -- | A trace is parameterised by the types of keys @k@, hashes @h@, as well as the
 -- result @r@. For verifying traces, @r = h@; for constructive traces, @Hash r = h@.
@@ -133,7 +133,7 @@ newtype ST k v = ST [TraceST k (Hash v, Step, Step)]
     deriving (Monoid, Semigroup, Show)
 
 latestST :: Eq k => k -> ST k v -> Maybe (TraceST k (Hash v, Step, Step))
-latestST k (ST ts) = fmap snd $ listToMaybe $ reverse $ sortOn fst
+latestST k (ST ts) = fmap snd $ listToMaybe $ sortOn (Down . fst)
     [(step, t) | t@(TraceST k2 _ (_, step, _)) <- ts, k == k2]
 
 -- | Record a new trace for building a @key@ with dependencies @deps@.
@@ -157,5 +157,5 @@ verifyST key value demand st = do
             mapM_ demand deps
             st <- st
             -- things with no traces must be inputs, which I'm going to ignore for now...
-            return $ and [ built >= chng | Just (TraceST _ _ (_, _, chng)) <- map (flip latestST st) deps]
+            return $ and [ built >= chng | Just (TraceST _ _ (_, _, chng)) <- map (`latestST` st) deps]
         _ -> return False

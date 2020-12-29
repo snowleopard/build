@@ -13,6 +13,7 @@ module Build.Scheduler (
 
 import Control.Monad.State
 import Control.Monad.Trans.Except
+import Data.Bifunctor
 import Data.Set (Set)
 
 import Build
@@ -40,16 +41,16 @@ liftInfo :: State (Store i k v) a -> State (Store (i, j) k v) a
 liftInfo x = do
     store <- get
     let (a, newStore) = runState x (mapInfo fst store)
-    put $ mapInfo (, snd $ getInfo $ store) newStore
+    put $ mapInfo (, snd $ getInfo store) newStore
     return a
 
 -- | Update the value of a key in the store. The function takes both the current
--- value (the first parameter of type @v@) and the new value (the second
--- parameter of type @v@), and can potentially avoid touching the store if the
--- value is unchanged. The current implementation simply ignores the current
--- value, but in future this may be optimised, e.g. by comparing their hashes.
+-- value (the first argument of type @v@) and the new value (the second argument
+-- of type @v@), and can potentially avoid touching the store if the value is
+-- unchanged. The current implementation simply ignores the current value, but
+-- in future this may be optimised, e.g. by comparing their hashes.
 updateValue :: Eq k => k -> v -> v -> Store i k v -> Store i k v
-updateValue key _value newValue = putValue key newValue
+updateValue key _current_value = putValue key
 
 ---------------------------------- Topological ---------------------------------
 -- | This scheduler constructs the dependency graph of the target key by
@@ -73,7 +74,7 @@ topological rebuilder tasks target = execState $ mapM_ build order
     order = case topSort (graph deps target) of
         Nothing -> error "Cannot build tasks with cyclic dependencies"
         Just xs -> xs
-    deps k = case tasks k of { Nothing -> []; Just task -> dependencies task }
+    deps k = maybe [] dependencies (tasks k)
 
 ---------------------------------- Restarting ----------------------------------
 -- | Convert a task with a total lookup function @k -> m v@ into a task
@@ -166,7 +167,7 @@ restarting2 rebuilder tasks target = execState $ go (enqueue target [] mempty)
                     Left dep -> go (enqueue dep (key:bs) q)
                     Right newValue -> do
                         modify $ updateValue key value newValue
-                        go (foldr (\b -> enqueue b []) q bs)
+                        go (foldr (`enqueue` []) q bs)
 
 ---------------------------------- Suspending ----------------------------------
 -- | This scheduler builds keys recursively: to build a key it executes the
@@ -186,7 +187,7 @@ suspending rebuilder tasks target store = fst $ execState (fetch target) (store,
                 let newTask :: Task (MonadState i) k v
                     newTask = rebuilder key value task
                 newValue <- liftRun newTask fetch
-                modify $ \(s, d) -> (updateValue key value newValue s, Set.insert key d)
+                modify $ bimap (updateValue key value newValue) (Set.insert key)
                 return newValue
             _ -> gets (getValue key . fst) -- fetch the existing value
 
@@ -201,7 +202,7 @@ newtype Wrap i extra k v a = Wrap { unwrap :: State (Store i k v, extra) a }
 
 instance MonadState i (Wrap i extra k v) where
     get   = Wrap $ gets (getInfo . fst)
-    put i = Wrap $ modify $ \(store, extra) -> (putInfo i store, extra)
+    put i = Wrap $ modify $ first (putInfo i)
 
 -- | An incorrect scheduler that builds the target key without respecting its
 -- dependencies. It produces the correct result only if all dependencies of the

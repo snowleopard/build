@@ -1,23 +1,28 @@
-name:                build
-version:             1.1
-synopsis:            Build systems a la carte
-homepage:            https://github.com/snowleopard/build
-license:             MIT
-license-file:        LICENSE
-author:              Andrey Mokhov, Neil Mitchell, Simon Peyton Jones
-maintainer:          Andrey Mokhov <andrey.mokhov@gmail.com>, github: @snowleopard
-copyright:           Andrey Mokhov, Neil Mitchell, Simon Peyton Jones, 2018
-category:            Algorithms, Data Structures
-build-type:          Simple
-extra-source-files:  README.md
-description:         A library for experimenting with build systems and
-                     incremental computation frameworks, based on the ideas
-                     presented in the ICFP 2018 paper "Build Systems a la Carte".
-cabal-version:       >=1.10
+cabal-version: 2.2
+name:          build
+version:       1.1
+synopsis:      Build Systems à la Carte
+homepage:      https://github.com/snowleopard/build
+bug-reports:   https://github.com/snowleopard/build/issues
+license:       MIT
+license-file:  LICENSE
+author:        Andrey Mokhov, Neil Mitchell, Simon Peyton Jones
+maintainer:    Andrey Mokhov <andrey.mokhov@gmail.com>, github: @snowleopard
+copyright:     Andrey Mokhov, Neil Mitchell, Simon Peyton Jones, 2018-2020
+category:      Algorithms, Data Structures
+build-type:    Simple
+description:   A library for experimenting with build systems and incremental
+               computation frameworks, based on the ideas presented in the ICFP
+               2018 paper "Build Systems à la Carte".
+tested-with:   GHC==8.10
+
+extra-doc-files:
+    CHANGES.md
+    README.md
 
 source-repository head
   type:     git
-  location: https://github.com/snowleopard/build
+  location: https://github.com/snowleopard/build.git
 
 library
   hs-source-dirs:       src
@@ -39,23 +44,18 @@ library
                         Build.Trace,
                         Build.System
   other-modules:        Build.Utilities
-  build-depends:        algebraic-graphs >= 0.3     && < 0.4,
+  build-depends:        algebraic-graphs >= 0.5     && < 0.6,
                         base             >= 4.7     && < 5,
                         containers       >= 0.6     && < 0.7,
-                        extra            >= 1.5.3   && < 1.7,
+                        extra            >= 1.5.3   && < 1.8,
                         filepath         >= 1.4.1.0 && < 1.5,
                         mtl              >= 2.2.1   && < 2.3,
                         random           >= 1.1     && < 1.2,
                         transformers     >= 0.5.2.0 && < 0.6
   default-language:     Haskell2010
-  GHC-options:          -Wall
+  ghc-options:          -Wall
                         -fno-warn-name-shadowing
-  if impl(ghc < 8.0)
-    GHC-options:        -fwarn-incomplete-record-updates
-                        -fwarn-incomplete-uni-patterns
-    build-depends:      semigroups       >= 0.18.3  && < 0.19
-  else
-    GHC-options:        -Wcompat
+                        -Wcompat
                         -Wincomplete-record-updates
                         -Wincomplete-uni-patterns
                         -Wredundant-constraints
@@ -69,18 +69,13 @@ test-suite test
     build-depends:      build,
                         base         >= 4.7     && < 5,
                         containers   >= 0.6     && < 0.7,
-                        extra        >= 1.5.3   && < 1.7,
+                        extra        >= 1.5.3   && < 1.8,
                         mtl          >= 2.2.1   && < 2.3,
                         transformers >= 0.5.2.0 && < 0.6
     default-language:   Haskell2010
-    GHC-options:        -Wall
+    ghc-options:        -Wall
                         -fno-warn-name-shadowing
-    if impl(ghc < 8.0)
-      GHC-options:        -fwarn-incomplete-record-updates
-                          -fwarn-incomplete-uni-patterns
-      build-depends:      fail
-    else
-      GHC-options:        -Wcompat
-                          -Wincomplete-record-updates
-                          -Wincomplete-uni-patterns
-                          -Wredundant-constraints
+                        -Wcompat
+                        -Wincomplete-record-updates
+                        -Wincomplete-uni-patterns
+                        -Wredundant-constraints

@@ -9,7 +9,7 @@ import Build.Store
 -- | An example of a non-deterministic task: generate a random number from a
 -- specified interval.
 random :: (Int, Int) -> Task MonadPlus k Int
-random (low, high) = Task $ const $ foldr mplus mzero $ map pure [low..high]
+random (low, high) = Task $ const $ msum $ map pure [low..high]
 
 -- | Run a non-deterministic task with a pure lookup function, listing all
 -- possible results.
@@ -18,7 +18,7 @@ computePureND task store = run task (return . store)
 
 -- | Run a task in a given store.
 computeND :: Task MonadPlus k v -> Store i k v -> [v]
-computeND task store = computePureND task (flip getValue store)
+computeND task store = computePureND task (`getValue` store)
 
 -- | Given a description of @tasks@, an initial @store@, and a @result@ produced
 -- by running a build system on a target @key@, this function returns 'True' if

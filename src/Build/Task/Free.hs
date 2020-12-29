@@ -39,7 +39,7 @@ instance Applicative (Action k v) where
 instance Monad (Action k v) where
     return = Finished
     Finished x    >>= f = f x
-    Depends ds op >>= f = Depends ds $ \v -> op v >>= f
+    Depends ds op >>= f = Depends ds (op >=> f)
 
 toAction :: Task Monad k v -> Action k v v
 toAction (Task run) = run $ \k -> Depends k Finished

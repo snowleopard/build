@@ -19,4 +19,4 @@ cabal.sandbox.config
 cabal.project.local
 .HTF/
 ghcid.txt
-.ghci
+stack.yaml.lock

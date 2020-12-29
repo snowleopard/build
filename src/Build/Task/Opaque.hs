@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ConstraintKinds, RankNTypes, FlexibleInstances, GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -6,7 +7,7 @@ module Build.Task.Opaque where
 
 import Control.Monad.State
 import Control.Monad.Writer
-import Data.List
+import Data.List (isInfixOf)
 import Debug.Trace
 import System.FilePath
 
@@ -82,7 +83,7 @@ release get put = do
 compile :: FilePath -> FilePath -> BlackBox
 compile src obj get put = do
     source <- get (File src)
-    header <- if ("#include <lib.h>" `isInfixOf` source) -- find an #include
+    header <- if "#include <lib.h>" `isInfixOf` source -- find an #include
          then do
             path <- get (Env "LIBDIR")
             get (File $ path ++ "/lib.h")
@@ -198,7 +199,7 @@ putValue (Dir x) a (Store f) = Store $ \k -> case k of
 -- Dir "obj"         -> ["main.o"]
 -- Dir "out"         -> ["README"]
 exampleStore :: Store
-exampleStore = Store $ \k -> case k of
+exampleStore = Store $ \case
     File "src/a.c"    -> "a"
     File "src/b.c"    -> "b...#include <lib.h>..."
     File "obj/main.o" -> "...main..."
@@ -366,6 +367,6 @@ getIO (Dir  d) = putStr ("Get : Dir " ++ show d ++ " = ") >> (read <$> getLine)
 
 -- | A 'Put' in 'IO' for GHCi experiments.
 putIO :: Put Key IO
-putIO (File f) x = putStr ("Put : File " ++ show f ++ " = ") >> (putStrLn x)
-putIO (Env  v) x = putStr ("Put : Env " ++ show v ++ " = ") >> (putStrLn x)
-putIO (Dir  d) x = putStr ("Put : Dir " ++ show d ++ " = ") >> (putStrLn $ show x)
+putIO (File f) x = putStr ("Put : File " ++ show f ++ " = ") >> putStrLn x
+putIO (Env  v) x = putStr ("Put : Env " ++ show v ++ " = ") >> putStrLn x
+putIO (Dir  d) x = putStr ("Put : Dir " ++ show d ++ " = ") >> print x

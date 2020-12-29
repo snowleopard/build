@@ -30,7 +30,7 @@ dumb = independent perpetualRebuilder
 -- recursively rebuilds its dependencies, even if they are already up to date.
 -- There is no memoisation, therefore the a key may be built multiple times.
 busy :: forall k v. Eq k => Build Monad () k v
-busy tasks key store = execState (fetch key) store
+busy tasks key = execState (fetch key)
   where
     fetch :: k -> State (Store () k v) v
     fetch k = case tasks k of

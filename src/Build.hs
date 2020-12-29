@@ -26,7 +26,7 @@ type Build c i k v = Tasks c k v -> k -> Store i k v -> Store i k v
 correctBuild :: (Ord k, Eq v) => Tasks Monad k v -> Store i k v -> Store i k v -> k -> Bool
 correctBuild tasks store result = all correct . reachable deps
   where
-    deps = maybe [] (\task -> snd $ trackPure task (flip getValue result)) . tasks
+    deps = maybe [] (\task -> snd $ trackPure task (`getValue` result)) . tasks
     correct k = case tasks k of
         Nothing   -> getValue k result == getValue k store
         Just task -> getValue k result == compute task result
