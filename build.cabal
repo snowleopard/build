@@ -8,13 +8,13 @@ license:       MIT
 license-file:  LICENSE
 author:        Andrey Mokhov, Neil Mitchell, Simon Peyton Jones
 maintainer:    Andrey Mokhov <andrey.mokhov@gmail.com>, github: @snowleopard
-copyright:     Andrey Mokhov, Neil Mitchell, Simon Peyton Jones, 2018-2020
+copyright:     Andrey Mokhov, Neil Mitchell, Simon Peyton Jones, 2018-2021
 category:      Algorithms, Data Structures
 build-type:    Simple
 description:   A library for experimenting with build systems and incremental
                computation frameworks, based on the ideas presented in the ICFP
                2018 paper "Build Systems à la Carte".
-tested-with:   GHC==8.10
+tested-with:   GHC==9.0, GHC==8.10
 
 extra-doc-files:
     CHANGES.md
