@@ -37,7 +37,7 @@ instance Applicative (Action k v) where
     (<*>) = ap
 
 instance Monad (Action k v) where
-    return = Finished
+    return = pure
     Finished x    >>= f = f x
     Depends ds op >>= f = Depends ds (op >=> f)
 
