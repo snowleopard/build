@@ -14,7 +14,7 @@ build-type:    Simple
 description:   A library for experimenting with build systems and incremental
                computation frameworks, based on the ideas presented in the ICFP
                2018 paper "Build Systems à la Carte".
-tested-with:   GHC==9.6.1, GHC==9.4.4, GHC==9.2.7, GHC==9.0.2, GHC==8.10.7
+tested-with:   GHC==9.6.1, GHC==9.4.5, GHC==9.2.7, GHC==9.0.2, GHC==8.10.7
 
 extra-doc-files:
     CHANGES.md
