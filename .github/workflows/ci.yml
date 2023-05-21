@@ -16,10 +16,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        ghc: ['9.2', '9.0', '8.10']
+        ghc: ['9.6.1', '9.4.4', '9.2.7', '9.0.2', '8.10.7']
         include:
         - os: windows-latest
-        - os: macOS-latest
+        # Testing on MacOS is disabled until GitHub actions support 'allow-failure'
+        # - os: macOS-latest
 
     steps:
     - run: git config --global core.autocrlf false
@@ -31,7 +32,7 @@ jobs:
     - name: Get GHC libdir
       id: get-ghc-libdir
       run: |
-        echo "::set-output name=libdir::$(ghc --print-libdir)"
+        echo "name=libdir::$(ghc --print-libdir)" >> $GITHUB_OUTPUT
       shell: bash
     - run: cabal v2-freeze --enable-tests
     - uses: actions/cache@v2

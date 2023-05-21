@@ -1,12 +1,11 @@
 # Build Systems à la Carte
 
-[![Hackage version](https://img.shields.io/hackage/v/build.svg?label=Hackage)](https://hackage.haskell.org/package/build) [![Build status](https://img.shields.io/github/workflow/status/snowleopard/build/ci/master.svg)](https://github.com/snowleopard/build/actions)
+[![Hackage version](https://img.shields.io/hackage/v/build.svg?label=Hackage)](https://hackage.haskell.org/package/build) [![Build status](https://img.shields.io/github/actions/workflow/status/snowleopard/build/ci.yml?branch=main)](https://github.com/snowleopard/build/actions)
 
 This project provides an executable framework for developing and comparing build systems, viewing them as
 related points in landscape rather than as isolated phenomena. The code derives from the ICFP 2018 paper
 ["Build Systems à la Carte"](https://dl.acm.org/citation.cfm?id=3236774)
 ([PDF](https://dl.acm.org/ft_gateway.cfm?id=3236774)).
-
 
 ## Getting Started
 
