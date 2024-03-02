@@ -8,6 +8,7 @@ module Build.Rebuilder (
     vtRebuilder, stRebuilder, ctRebuilder, dctRebuilder
     ) where
 
+import Control.Monad
 import Control.Monad.State
 import Data.Map (Map)
 import Data.Set (Set)

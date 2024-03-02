@@ -8,13 +8,13 @@ license:       MIT
 license-file:  LICENSE
 author:        Andrey Mokhov, Neil Mitchell, Simon Peyton Jones
 maintainer:    Andrey Mokhov <andrey.mokhov@gmail.com>, github: @snowleopard
-copyright:     Andrey Mokhov, Neil Mitchell, Simon Peyton Jones, 2018-2023
+copyright:     Andrey Mokhov, Neil Mitchell, Simon Peyton Jones, 2018-2024
 category:      Algorithms, Data Structures
 build-type:    Simple
 description:   A library for experimenting with build systems and incremental
                computation frameworks, based on the ideas presented in the ICFP
                2018 paper "Build Systems à la Carte".
-tested-with:   GHC==9.6.1, GHC==9.4.4, GHC==9.2.7, GHC==9.0.2, GHC==8.10.7
+tested-with:   GHC==9.8.2, GHC==9.6.3, GHC==9.4.7, GHC==9.2.8
 
 extra-doc-files:
     CHANGES.md
@@ -44,14 +44,14 @@ library
                         Build.Trace,
                         Build.System
   other-modules:        Build.Utilities
-  build-depends:        algebraic-graphs >= 0.5     && < 0.6,
+  build-depends:        algebraic-graphs >= 0.5     && < 0.8,
                         base             >= 4.7     && < 5,
                         containers       >= 0.6     && < 0.7,
                         extra            >= 1.5.3   && < 1.8,
                         filepath         >= 1.4.1.0 && < 1.5,
-                        mtl              >= 2.2.1   && < 2.3,
-                        random           >= 1.1     && < 1.2,
-                        transformers     >= 0.5.2.0 && < 0.6
+                        mtl              >= 2.2.1   && < 2.4,
+                        random           >= 1.1     && < 1.3,
+                        transformers     >= 0.5.2.0 && < 0.7
   default-language:     Haskell2010
   ghc-options:          -Wall
                         -fno-warn-name-shadowing
@@ -70,8 +70,8 @@ test-suite test
                         base         >= 4.7     && < 5,
                         containers   >= 0.6     && < 0.7,
                         extra        >= 1.5.3   && < 1.8,
-                        mtl          >= 2.2.1   && < 2.3,
-                        transformers >= 0.5.2.0 && < 0.6
+                        mtl          >= 2.2.1   && < 2.4,
+                        transformers >= 0.5.2.0 && < 0.7
     default-language:   Haskell2010
     ghc-options:        -Wall
                         -fno-warn-name-shadowing

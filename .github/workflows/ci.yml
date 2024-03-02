@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        ghc: ['9.6.1', '9.4.4', '9.2.7', '9.0.2', '8.10.7']
+        ghc: ['9.8.2', '9.6.3', '9.4.7', '9.2.8']
         include:
         - os: windows-latest
         # Testing on MacOS is disabled until GitHub actions support 'allow-failure'
@@ -24,8 +24,8 @@ jobs:
 
     steps:
     - run: git config --global core.autocrlf false
-    - uses: actions/checkout@v2
-    - uses: haskell/actions/setup@v1
+    - uses: actions/checkout@v3
+    - uses: haskell-actions/setup@v2
       id: setup-haskell
       with:
         ghc-version: ${{ matrix.ghc }}
