@@ -8,7 +8,7 @@ license:       MIT
 license-file:  LICENSE
 author:        Andrey Mokhov, Neil Mitchell, Simon Peyton Jones
 maintainer:    Andrey Mokhov <andrey.mokhov@gmail.com>, github: @snowleopard
-copyright:     Andrey Mokhov, Neil Mitchell, Simon Peyton Jones, 2018-2023
+copyright:     Andrey Mokhov, Neil Mitchell, Simon Peyton Jones, 2018-2024
 category:      Algorithms, Data Structures
 build-type:    Simple
 description:   A library for experimenting with build systems and incremental
