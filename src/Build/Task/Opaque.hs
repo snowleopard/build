@@ -5,6 +5,7 @@
 -- | Opaque monadic tasks, whose inputs and outputs can be dynamic.
 module Build.Task.Opaque where
 
+import Control.Monad
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.List (isInfixOf)
