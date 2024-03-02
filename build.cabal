@@ -44,14 +44,14 @@ library
                         Build.Trace,
                         Build.System
   other-modules:        Build.Utilities
-  build-depends:        algebraic-graphs >= 0.5     && < 0.6,
+  build-depends:        algebraic-graphs >= 0.5     && < 0.8,
                         base             >= 4.7     && < 5,
                         containers       >= 0.6     && < 0.7,
                         extra            >= 1.5.3   && < 1.8,
                         filepath         >= 1.4.1.0 && < 1.5,
-                        mtl              >= 2.2.1   && < 2.3,
+                        mtl              >= 2.2.1   && < 2.4,
                         random           >= 1.1     && < 1.2,
-                        transformers     >= 0.5.2.0 && < 0.6
+                        transformers     >= 0.5.2.0 && < 0.7
   default-language:     Haskell2010
   ghc-options:          -Wall
                         -fno-warn-name-shadowing
@@ -70,8 +70,8 @@ test-suite test
                         base         >= 4.7     && < 5,
                         containers   >= 0.6     && < 0.7,
                         extra        >= 1.5.3   && < 1.8,
-                        mtl          >= 2.2.1   && < 2.3,
-                        transformers >= 0.5.2.0 && < 0.6
+                        mtl          >= 2.2.1   && < 2.4,
+                        transformers >= 0.5.2.0 && < 0.7
     default-language:   Haskell2010
     ghc-options:        -Wall
                         -fno-warn-name-shadowing
