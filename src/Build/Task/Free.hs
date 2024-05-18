@@ -25,7 +25,7 @@ toRule :: Task Applicative k v -> Rule k v v
 toRule task = task getRule
 
 fromRule :: Rule k v v -> Task Applicative k v
-fromRule (Rule ds f) = \fetch -> f <$> traverse fetch ds
+fromRule (Rule ds f) fetch = f <$> traverse fetch ds
 
 ------------------------ Isomorphism with Shake's Action -----------------------
 data Action k v a = Finished a
@@ -45,7 +45,7 @@ toAction :: Task Monad k v -> Action k v v
 toAction task = task $ \k -> Depends k Finished
 
 fromAction :: Action k v v -> Task Monad k v
-fromAction x = \fetch -> f fetch x
+fromAction x fetch = f fetch x
   where
     f _     (Finished v  ) = return v
     f fetch (Depends d op) = fetch d >>= f fetch . op

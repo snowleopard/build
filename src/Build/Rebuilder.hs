@@ -40,7 +40,7 @@ type MakeInfo k = (Time, Map k Time)
 -- | This rebuilder uses modification time to decide whether a key is dirty and
 -- needs to be rebuilt. Used by Make.
 modTimeRebuilder :: Ord k => Rebuilder Applicative (MakeInfo k) k v
-modTimeRebuilder key value task = \fetch -> do
+modTimeRebuilder key value task fetch = do
     (now, modTimes) <- get
     let dirty = case Map.lookup key modTimes of
             Nothing -> True
@@ -54,13 +54,13 @@ modTimeRebuilder key value task = \fetch -> do
 ----------------------------------- Dirty bit ----------------------------------
 -- | If the key is dirty, rebuild it. Used by Excel.
 dirtyBitRebuilder :: Rebuilder Monad (k -> Bool) k v
-dirtyBitRebuilder key value task = \fetch -> do
+dirtyBitRebuilder key value task fetch = do
     isDirty <- get
     if isDirty key then task fetch else return value
 
 -- | If the key is dirty, rebuild it and clear the dirty bit. Used by Excel.
 dirtyBitRebuilderWithCleanUp :: Ord k => Rebuilder Monad (Set k) k v
-dirtyBitRebuilderWithCleanUp key value task = \fetch -> do
+dirtyBitRebuilderWithCleanUp key value task fetch = do
     isDirty <- get
     if key `Set.notMember` isDirty then return value else do
         put (Set.delete key isDirty)
@@ -78,7 +78,7 @@ type ApproximationInfo k = (Set k, ApproximateDependencies k)
 -- | This rebuilders uses approximate dependencies to decide whether a key
 -- needs to be rebuilt.
 approximateRebuilder :: (Ord k, Eq v) => Rebuilder Monad (ApproximationInfo k) k v
-approximateRebuilder key value task = \fetch -> do
+approximateRebuilder key value task fetch = do
     (dirtyKeys, deps) <- get
     let dirty = key `Set.member` dirtyKeys ||
                 case Map.lookup key deps of Nothing -> True
@@ -93,7 +93,7 @@ approximateRebuilder key value task = \fetch -> do
 ------------------------------- Verifying traces -------------------------------
 -- | This rebuilder relies on verifying traces.
 vtRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (VT k v) k v
-vtRebuilder key value task = \fetch -> do
+vtRebuilder key value task fetch = do
     upToDate <- verifyVT key (hash value) (fmap hash . fetch) =<< get
     if upToDate
     then return value
@@ -105,7 +105,7 @@ vtRebuilder key value task = \fetch -> do
 ------------------------------ Constructive traces -----------------------------
 -- | This rebuilder relies on constructive traces.
 ctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (CT k v) k v
-ctRebuilder key value task = \fetch -> do
+ctRebuilder key value task fetch = do
     cachedValues <- constructCT key (fmap hash . fetch) =<< get
     if value `elem` cachedValues
     then return value -- The current value has been verified, let's keep it
@@ -119,7 +119,7 @@ ctRebuilder key value task = \fetch -> do
 --------------------------- Deep constructive traces ---------------------------
 -- | This rebuilder relies on deep constructive traces.
 dctRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (DCT k v) k v
-dctRebuilder key value task = \fetch -> do
+dctRebuilder key value task fetch = do
     cachedValues <- constructDCT key (fmap hash . fetch) =<< get
     if value `elem` cachedValues
     then return value -- The current value has been verified, let's keep it
@@ -133,7 +133,7 @@ dctRebuilder key value task = \fetch -> do
 ------------------------------- Version traces -------------------------------
 -- | This rebuilder relies on version/step traces.
 stRebuilder :: (Eq k, Hashable v) => Rebuilder Monad (Step, ST k v) k v
-stRebuilder key value task = \fetch -> do
+stRebuilder key value task fetch = do
     upToDate <- verifyST key value (void . fetch) (gets snd)
     if upToDate
     then return value

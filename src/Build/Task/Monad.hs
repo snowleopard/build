@@ -49,7 +49,7 @@ compute task store = runIdentity $ task (\k -> Identity (getValue k store))
 -- from the type of values @v@ to @Maybe v@, where the result @Nothing@
 -- indicates that the task failed because of a missing dependency.
 liftMaybe :: Task Monad k v -> Task Monad k (Maybe v)
-liftMaybe task = \fetch -> runMaybeT $ task (MaybeT . fetch)
+liftMaybe task fetch = runMaybeT $ task (MaybeT . fetch)
 
 -- | Convert a task with a total lookup function @k -> m v@ into a task with a
 -- lookup function that can throw exceptions @k -> m (Either e v)@. This
@@ -57,4 +57,4 @@ liftMaybe task = \fetch -> runMaybeT $ task (MaybeT . fetch)
 -- the result @Left e@ indicates that the task failed because of a failed
 -- dependency lookup, and @Right v@ yeilds the value otherwise.
 liftEither :: Task Monad k v -> Task Monad k (Either e v)
-liftEither task = \fetch -> runExceptT $ task (ExceptT . fetch)
+liftEither task fetch = runExceptT $ task (ExceptT . fetch)

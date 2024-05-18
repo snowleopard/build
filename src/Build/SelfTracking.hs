@@ -43,7 +43,7 @@ selfTrackingM taskParser tasks (Key     k) = runTask <$> tasks k
   where
     -- Fetch the task description, parse it, and then run the obtained task
     runTask :: Task Monad k t -> Task Monad (Key k) (Value v t)
-    runTask task = \fetch -> do
+    runTask task fetch = do
         task <- task (fetchValueTask fetch)
         Value <$> taskParser task (fetchValue fetch)
 

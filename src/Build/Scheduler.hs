@@ -83,7 +83,7 @@ topological rebuilder tasks target = execState $ mapM_ build order
 -- where the result @Left e@ indicates that the task failed, e.g. because of a
 -- failed dependency lookup, and @Right v@ yields the value otherwise.
 try :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
-try task = \fetch -> runExceptT $ task (ExceptT . fetch)
+try task fetch = runExceptT $ task (ExceptT . fetch)
 
 -- | The so-called @calculation chain@: the order in which keys were built
 -- during the previous build, which is used as the best guess for the current
