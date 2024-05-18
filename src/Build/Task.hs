@@ -1,4 +1,4 @@
-{-# LANGUAGE ImpredicativeTypes #-}
+{-# LANGUAGE ImpredicativeTypes, ConstraintKinds #-}
 
 -- | The Task abstractions.
 module Build.Task (Task, Tasks, compose) where

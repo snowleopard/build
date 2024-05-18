@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, ImpredicativeTypes #-}
+{-# LANGUAGE OverloadedStrings, ImpredicativeTypes, ConstraintKinds #-}
 import Control.Monad
 import Data.Bool
 import Data.List.Extra

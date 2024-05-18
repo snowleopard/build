@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, ImpredicativeTypes, ScopedTypeVariables #-}
+{-# LANGUAGE GADTs, ImpredicativeTypes, ConstraintKinds, ScopedTypeVariables #-}
 
 module Build.SelfTracking.Typed (
     Fetch, TaskT (..), TasksT, Key (..), selfTracking

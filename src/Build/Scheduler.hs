@@ -1,5 +1,5 @@
 {-# LANGUAGE ImpredicativeTypes, FlexibleContexts, ScopedTypeVariables, TupleSections #-}
-{-# LANGUAGE FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances, ConstraintKinds, GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
 
 -- | Build schedulers execute task rebuilders in the right order.
 module Build.Scheduler (
