@@ -1,3 +1,5 @@
+{-# LANGUAGE ImpredicativeTypes #-}
+
 -- | A version of monadic tasks with some support for non-determinism.
 module Build.Task.MonadPlus (random, computeND, correctBuildValue) where
 
@@ -9,12 +11,12 @@ import Build.Store
 -- | An example of a non-deterministic task: generate a random number from a
 -- specified interval.
 random :: (Int, Int) -> Task MonadPlus k Int
-random (low, high) = Task $ const $ msum $ map pure [low..high]
+random (low, high) = const $ msum $ map pure [low..high]
 
 -- | Run a non-deterministic task with a pure lookup function, listing all
 -- possible results.
 computePureND :: Task MonadPlus k v -> (k -> v) -> [v]
-computePureND task store = run task (return . store)
+computePureND task store = task (return . store)
 
 -- | Run a task in a given store.
 computeND :: Task MonadPlus k v -> Store i k v -> [v]

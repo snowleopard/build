@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables, TupleSections #-}
+{-# LANGUAGE ImpredicativeTypes, FlexibleContexts, ScopedTypeVariables, TupleSections #-}
 {-# LANGUAGE FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
 
 -- | Build schedulers execute task rebuilders in the right order.
@@ -69,7 +69,7 @@ topological rebuilder tasks target = execState $ mapM_ build order
                 newTask = rebuilder key value task
                 fetch :: k -> State i v
                 fetch k = return (getValue k store)
-            newValue <- liftStore (run newTask fetch)
+            newValue <- liftStore (newTask fetch)
             modify $ updateValue key value newValue
     order = case topSort (graph deps target) of
         Nothing -> error "Cannot build tasks with cyclic dependencies"
@@ -81,9 +81,9 @@ topological rebuilder tasks target = execState $ mapM_ build order
 -- with a lookup function that can throw exceptions @k -> m (Either e v)@. This
 -- essentially lifts the task from the type of values @v@ to @Either e v@,
 -- where the result @Left e@ indicates that the task failed, e.g. because of a
--- failed dependency lookup, and @Right v@ yeilds the value otherwise.
+-- failed dependency lookup, and @Right v@ yields the value otherwise.
 try :: Task (MonadState i) k v -> Task (MonadState i) k (Either e v)
-try task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
+try task = \fetch -> runExceptT $ task (ExceptT . fetch)
 
 -- | The so-called @calculation chain@: the order in which keys were built
 -- during the previous build, which is used as the best guess for the current
@@ -113,7 +113,7 @@ restarting rebuilder tasks target = execState $ do
                 fetch :: k -> State ir (Either k v)
                 fetch k | k `Set.member` done = return $ Right (getValue k store)
                         | otherwise           = return $ Left k
-            result <- liftStore (run newTask fetch)
+            result <- liftStore (newTask fetch)
             case result of
                 Left dep -> go done $ dep : filter (/= dep) ks ++ [key]
                 Right newValue -> do
@@ -162,7 +162,7 @@ restarting2 rebuilder tasks target = execState $ go (enqueue target [] mempty)
                     fetch :: k -> State (CT k v) (Either k v)
                     fetch k | upToDate k = return (Right (getValue k store))
                             | otherwise  = return (Left k)
-                result <- liftStore (run newTask fetch)
+                result <- liftStore (newTask fetch)
                 case result of
                     Left dep -> go (enqueue dep (key:bs) q)
                     Right newValue -> do
@@ -195,7 +195,7 @@ suspending rebuilder tasks target store = fst $ execState (fetch target) (store,
 -- state that contains a @Store i k v@ plus some @extra@ information.
 liftRun :: Task (MonadState i) k v
         -> (k -> State (Store i k v, extra) v) -> State (Store i k v, extra) v
-liftRun t f = unwrap $ run t (Wrap . f)
+liftRun t f = unwrap $ t (Wrap . f)
 
 newtype Wrap i extra k v a = Wrap { unwrap :: State (Store i k v, extra) a }
     deriving (Functor, Applicative, Monad)
@@ -215,5 +215,5 @@ independent rebuilder tasks target store = case tasks target of
             newTask = rebuilder target value task
             fetch :: k -> State i v
             fetch k = return (getValue k store)
-            (newValue, newInfo) = runState (run newTask fetch) (getInfo store)
+            (newValue, newInfo) = runState (newTask fetch) (getInfo store)
         in putInfo newInfo $ updateValue target value newValue store

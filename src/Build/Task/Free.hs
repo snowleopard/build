@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE ImpredicativeTypes, DeriveFunctor #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- | The free description of tasks.
@@ -22,10 +22,10 @@ getRule :: k -> Rule k v v
 getRule k = Rule [k] $ \[v] -> v
 
 toRule :: Task Applicative k v -> Rule k v v
-toRule (Task f) = f getRule
+toRule task = task getRule
 
 fromRule :: Rule k v v -> Task Applicative k v
-fromRule (Rule ds f) = Task $ \fetch -> f <$> traverse fetch ds
+fromRule (Rule ds f) = \fetch -> f <$> traverse fetch ds
 
 ------------------------ Isomorphism with Shake's Action -----------------------
 data Action k v a = Finished a
@@ -42,10 +42,10 @@ instance Monad (Action k v) where
     Depends ds op >>= f = Depends ds (op >=> f)
 
 toAction :: Task Monad k v -> Action k v v
-toAction (Task run) = run $ \k -> Depends k Finished
+toAction task = task $ \k -> Depends k Finished
 
 fromAction :: Action k v v -> Task Monad k v
-fromAction x = Task $ \fetch -> f fetch x
+fromAction x = \fetch -> f fetch x
   where
     f _     (Finished v  ) = return v
     f fetch (Depends d op) = fetch d >>= f fetch . op

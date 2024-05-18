@@ -1,3 +1,5 @@
+{-# LANGUAGE ImpredicativeTypes #-}
+
 -- | Build systems and the properties they should ensure.
 module Build (
     -- * Build
