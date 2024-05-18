@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ImpredicativeTypes, FlexibleContexts, ScopedTypeVariables #-}
 
 -- | Models of several build systems.
 module Build.System (
@@ -18,7 +18,6 @@ import Build
 import Build.Scheduler
 import Build.Store
 import Build.Rebuilder
-import Build.Task
 import Build.Trace
 
 -- | This is not a correct build system: given a target key, it simply rebuilds
@@ -28,14 +27,14 @@ dumb = independent perpetualRebuilder
 
 -- | This is a correct but non-minimal build system: given a target key it
 -- recursively rebuilds its dependencies, even if they are already up to date.
--- There is no memoisation, therefore the a key may be built multiple times.
+-- There is no memoisation, therefore a key may be built multiple times.
 busy :: forall k v. Eq k => Build Monad () k v
 busy tasks key = execState (fetch key)
   where
     fetch :: k -> State (Store () k v) v
     fetch k = case tasks k of
         Nothing   -> gets (getValue k)
-        Just task -> do v <- run task fetch; modify (putValue k v); return v
+        Just task -> do v <- task fetch; modify (putValue k v); return v
 
 -- | This is a correct but non-minimal build system: it will rebuild keys even
 -- if they are up to date. However, it performs memoization, therefore it never
@@ -50,14 +49,17 @@ make = topological modTimeRebuilder
 
 -- | A model of Ninja: an applicative build system that uses verifying traces
 -- to check if a key is up to date.
-ninja :: (Ord k, Hashable v) => Build Applicative (VT k v) k v
-ninja = topological (adaptRebuilder vtRebuilder)
+ninja :: forall k v. (Ord k, Hashable v) => Build Applicative (VT k v) k v
+ninja = topological rebuilder
+  where
+    rebuilder :: Rebuilder Applicative (VT k v) k v
+    rebuilder = vtRebuilder
 
 -- | Excel stores a dirty bit per key and a calc chain.
 type ExcelInfo k = (k -> Bool, Chain k)
 
 -- | A model of Excel: a monadic build system that stores the calculation chain
--- from the previuos build and approximate dependencies.
+-- from the previous build and approximate dependencies.
 excel :: Ord k => Build Monad (ExcelInfo k) k v
 excel = restarting dirtyBitRebuilder
 
@@ -80,13 +82,19 @@ cloudShake = suspending ctRebuilder
 
 -- | A model of CloudBuild: an applicative build system that uses constructive
 -- traces to check if a key is up to date as well as for caching build results.
-cloudBuild :: (Ord k, Hashable v) => Build Applicative (CT k v) k v
-cloudBuild = topological (adaptRebuilder ctRebuilder)
+cloudBuild :: forall k v. (Ord k, Hashable v) => Build Applicative (CT k v) k v
+cloudBuild = topological rebuilder
+  where
+    rebuilder :: Rebuilder Applicative (CT k v) k v
+    rebuilder = ctRebuilder
 
 -- | A model of Buck: an applicative build system that uses deep constructive
 -- traces to check if a key is up to date as well as for caching build results.
-buck :: (Ord k, Hashable v) => Build Applicative (DCT k v) k v
-buck = topological (adaptRebuilder dctRebuilder)
+buck :: forall k v. (Ord k, Hashable v) => Build Applicative (DCT k v) k v
+buck = topological rebuilder
+  where
+    rebuilder :: Rebuilder Applicative (DCT k v) k v
+    rebuilder = dctRebuilder
 
 -- | A model of Nix: a monadic build system that uses deep constructive traces
 -- to check if a key is up to date as well as for caching build results.

@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstraintKinds, GADTs, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE GADTs, ImpredicativeTypes, ConstraintKinds, ScopedTypeVariables #-}
 
 module Build.SelfTracking.Typed (
     Fetch, TaskT (..), TasksT, Key (..), selfTracking
@@ -25,9 +25,9 @@ selfTracking parse tasks key = case key of
   where
     -- Get the task for building the script
     getScript :: Task Monad k s -> TaskT Monad (Key k v s) s
-    getScript task = TaskT $ \fetch -> run task (fetch . Script)
+    getScript task = TaskT $ \fetch -> task (fetch . Script)
     -- Build the script, parse it, and then run the obtained task
     runScript :: Task Monad k s -> TaskT Monad (Key k v s) v
     runScript task = TaskT $ \fetch -> do
-        script <- run task (fetch . Script)
-        run (parse script) (fetch . Value)
+        script <- task (fetch . Script)
+        parse script (fetch . Value)

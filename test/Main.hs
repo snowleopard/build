@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ImpredicativeTypes, ConstraintKinds #-}
 import Control.Monad
 import Data.Bool
 import Data.List.Extra
@@ -16,7 +16,7 @@ import Build.Task.Free()
 import Spreadsheet
 import Examples()
 
--- | A build system that acceptes a list of target keys.
+-- | A build system that accepts a list of target keys.
 type MultiBuild c i k v = Tasks c k v -> [k] -> Store i k v -> Store i k v
 
 sequentialMultiBuild :: Build Monad i k v -> MultiBuild Monad i k v

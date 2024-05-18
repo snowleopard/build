@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ImpredicativeTypes, ScopedTypeVariables #-}
 
 -- | Monadic tasks, as used by Excel, Shake and other build systems.
 -- Dependencies of monadic tasks can only be discovered dynamically, i.e. during
@@ -19,12 +19,12 @@ import Build.Task
 
 -- | Execute a monadic task on a pure store @k -> v@, tracking the dependencies.
 trackPure :: Task Monad k v -> (k -> v) -> (v, [k])
-trackPure task fetch = runWriter $ run task (\k -> writer (fetch k, [k]))
+trackPure task fetch = runWriter $ task (\k -> writer (fetch k, [k]))
 
 -- | Execute a monadic task using an effectful fetch function @k -> m v@,
 -- tracking the dependencies.
 track :: forall m k v. Monad m => Task Monad k v -> (k -> m v) -> m (v, [(k, v)])
-track task fetch = runWriterT $ run task trackingFetch
+track task fetch = runWriterT $ task trackingFetch
   where
     trackingFetch :: k -> WriterT [(k, v)] m v
     trackingFetch k = do
@@ -38,18 +38,18 @@ isInput tasks = isNothing . tasks
 
 -- | Run a task with a pure lookup function.
 computePure :: Task Monad k v -> (k -> v) -> v
-computePure task store = runIdentity $ run task (Identity . store)
+computePure task store = runIdentity $ task (Identity . store)
 
 -- | Run a task in a given store.
 compute :: Task Monad k v -> Store i k v -> v
-compute task store = runIdentity $ run task (\k -> Identity (getValue k store))
+compute task store = runIdentity $ task (\k -> Identity (getValue k store))
 
 -- | Convert a task with a total lookup function @k -> m v@ into a task with a
 -- partial lookup function @k -> m (Maybe v)@. This essentially lifts the task
 -- from the type of values @v@ to @Maybe v@, where the result @Nothing@
 -- indicates that the task failed because of a missing dependency.
 liftMaybe :: Task Monad k v -> Task Monad k (Maybe v)
-liftMaybe task = Task $ \fetch -> runMaybeT $ run task (MaybeT . fetch)
+liftMaybe task fetch = runMaybeT $ task (MaybeT . fetch)
 
 -- | Convert a task with a total lookup function @k -> m v@ into a task with a
 -- lookup function that can throw exceptions @k -> m (Either e v)@. This
@@ -57,4 +57,4 @@ liftMaybe task = Task $ \fetch -> runMaybeT $ run task (MaybeT . fetch)
 -- the result @Left e@ indicates that the task failed because of a failed
 -- dependency lookup, and @Right v@ yeilds the value otherwise.
 liftEither :: Task Monad k v -> Task Monad k (Either e v)
-liftEither task = Task $ \fetch -> runExceptT $ run task (ExceptT . fetch)
+liftEither task fetch = runExceptT $ task (ExceptT . fetch)
