@@ -93,8 +93,8 @@ constructCT key fetchHash (CT ts) = catMaybes <$> mapM match ts
 newtype DCT k v = DCT [Trace k v v] deriving (Monoid, Semigroup, Show)
 
 -- | Extract the tree of input dependencies of a given key.
-deepDependencies :: (Eq k, Hashable v) => DCT k v -> Hash v -> k -> [k]
-deepDependencies (DCT ts) valueHash key =
+deepDependencies :: (Eq k, Hashable v) => DCT k v -> (k, Hash v) -> [k]
+deepDependencies (DCT ts) (key, valueHash) =
     case [ map fst deps | Trace k deps v <- ts, k == key, hash v == valueHash ] of
         []       -> [key] -- The @key@ is an input
         (deps:_) -> deps  -- We assume there is only one record for a pair (k, v)
@@ -104,7 +104,8 @@ deepDependencies (DCT ts) valueHash key =
 recordDCT :: forall k v m. (Eq k, Hashable v, Monad m)
           => k -> v -> [k] -> (k -> m (Hash v)) -> DCT k v -> m (DCT k v)
 recordDCT key value deps fetchHash dct@(DCT ts) = do
-    let deepDeps = concatMap (deepDependencies dct $ hash value) deps
+    depHs <- mapM fetchHash deps
+    let deepDeps = concatMap (deepDependencies dct) (zip deps depHs)
     hs <- mapM fetchHash deepDeps
     return $ DCT $ Trace key (zip deepDeps hs) value : ts
 
